@@ -1,20 +1,17 @@
 <Project>
-
   <!-- Central Package Management: phien ban goi khai o MOT cho duy nhat.
        Khong co file nay, 39 project moi cai ghim phien ban rieng va
        vai thang sau ledger dung Npgsql 9 con task dung Npgsql 8. -->
-
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Them bang `dotnet add package`, KHONG sua tay. -->
+    <PackageVersion Include="JsonSchema.Net" Version="9.4.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
-
 </Project>

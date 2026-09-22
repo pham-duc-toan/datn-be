@@ -22,4 +22,11 @@
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
+  <!-- Project test co quy uoc rieng, khong ap luat cua thu vien:
+       CA1707 - ten test dung gach duoi la chuan xUnit, de doc hon PascalCase dai
+       CA1515 - kieu public trong project test khong phai be mat API cong khai -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <NoWarn>$(NoWarn);CA1707;CA1515</NoWarn>
+  </PropertyGroup>
+
 </Project>

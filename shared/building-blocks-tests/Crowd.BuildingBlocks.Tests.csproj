@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="JsonSchema.Net" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../building-blocks/Crowd.BuildingBlocks.csproj" />
+  </ItemGroup>
+
+  <!-- Schema gốc được copy ra thư mục build để test đối chiếu trực tiếp với nó.
+       Sửa schema mà quên sửa C# => test đỏ ngay. -->
+  <ItemGroup>
+    <Content Include="../../contracts/events/envelope.schema.json" Link="contracts/envelope.schema.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

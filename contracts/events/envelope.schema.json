@@ -12,7 +12,7 @@
       "description": "UUIDv7. Consumer dung lam khoa idempotency - da xu ly thi bo qua."
     },
     "eventType": {
-      "type": "string", "pattern": "^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$",
+      "type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
       "description": "Dang <aggregate>.<past_tense>, vd: annotation.approved"
     },
     "version": {

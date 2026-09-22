@@ -65,6 +65,7 @@
     <Project Path="services/web-bff/Crowd.WebBff.Tests/Crowd.WebBff.Tests.csproj" />
   </Folder>
   <Folder Name="/shared/">
+    <Project Path="shared/building-blocks-tests/Crowd.BuildingBlocks.Tests.csproj" />
     <Project Path="shared/building-blocks/Crowd.BuildingBlocks.csproj" />
   </Folder>
 </Solution>
