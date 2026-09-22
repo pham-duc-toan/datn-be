@@ -1,0 +1,70 @@
+<Solution>
+  <Folder Name="/services/" />
+  <Folder Name="/services/admin/">
+    <Project Path="services/admin/Crowd.Admin.Api/Crowd.Admin.Api.csproj" />
+    <Project Path="services/admin/Crowd.Admin.Tests/Crowd.Admin.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/annotation/">
+    <Project Path="services/annotation/Crowd.Annotation.Api/Crowd.Annotation.Api.csproj" />
+    <Project Path="services/annotation/Crowd.Annotation.Domain/Crowd.Annotation.Domain.csproj" />
+    <Project Path="services/annotation/Crowd.Annotation.Infrastructure/Crowd.Annotation.Infrastructure.csproj" />
+    <Project Path="services/annotation/Crowd.Annotation.Tests/Crowd.Annotation.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/gate/">
+    <Project Path="services/gate/Crowd.Gate.Api/Crowd.Gate.Api.csproj" />
+    <Project Path="services/gate/Crowd.Gate.Domain/Crowd.Gate.Domain.csproj" />
+    <Project Path="services/gate/Crowd.Gate.Infrastructure/Crowd.Gate.Infrastructure.csproj" />
+    <Project Path="services/gate/Crowd.Gate.Tests/Crowd.Gate.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/gateway/">
+    <Project Path="services/gateway/Crowd.Gateway.Api/Crowd.Gateway.Api.csproj" />
+    <Project Path="services/gateway/Crowd.Gateway.Tests/Crowd.Gateway.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/identity/">
+    <Project Path="services/identity/Crowd.Identity.Api/Crowd.Identity.Api.csproj" />
+    <Project Path="services/identity/Crowd.Identity.Tests/Crowd.Identity.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/ledger/">
+    <Project Path="services/ledger/Crowd.Ledger.Api/Crowd.Ledger.Api.csproj" />
+    <Project Path="services/ledger/Crowd.Ledger.Domain/Crowd.Ledger.Domain.csproj" />
+    <Project Path="services/ledger/Crowd.Ledger.Infrastructure/Crowd.Ledger.Infrastructure.csproj" />
+    <Project Path="services/ledger/Crowd.Ledger.Tests/Crowd.Ledger.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/link/">
+    <Project Path="services/link/Crowd.Link.Api/Crowd.Link.Api.csproj" />
+    <Project Path="services/link/Crowd.Link.Tests/Crowd.Link.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/media/">
+    <Project Path="services/media/Crowd.Media.Api/Crowd.Media.Api.csproj" />
+    <Project Path="services/media/Crowd.Media.Tests/Crowd.Media.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/notification/">
+    <Project Path="services/notification/Crowd.Notification.Api/Crowd.Notification.Api.csproj" />
+    <Project Path="services/notification/Crowd.Notification.Tests/Crowd.Notification.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/payment/">
+    <Project Path="services/payment/Crowd.Payment.Api/Crowd.Payment.Api.csproj" />
+    <Project Path="services/payment/Crowd.Payment.Domain/Crowd.Payment.Domain.csproj" />
+    <Project Path="services/payment/Crowd.Payment.Infrastructure/Crowd.Payment.Infrastructure.csproj" />
+    <Project Path="services/payment/Crowd.Payment.Tests/Crowd.Payment.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/project/">
+    <Project Path="services/project/Crowd.Project.Api/Crowd.Project.Api.csproj" />
+    <Project Path="services/project/Crowd.Project.Domain/Crowd.Project.Domain.csproj" />
+    <Project Path="services/project/Crowd.Project.Infrastructure/Crowd.Project.Infrastructure.csproj" />
+    <Project Path="services/project/Crowd.Project.Tests/Crowd.Project.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/task/">
+    <Project Path="services/task/Crowd.Tasking.Api/Crowd.Tasking.Api.csproj" />
+    <Project Path="services/task/Crowd.Tasking.Domain/Crowd.Tasking.Domain.csproj" />
+    <Project Path="services/task/Crowd.Tasking.Infrastructure/Crowd.Tasking.Infrastructure.csproj" />
+    <Project Path="services/task/Crowd.Tasking.Tests/Crowd.Tasking.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/web-bff/">
+    <Project Path="services/web-bff/Crowd.WebBff.Api/Crowd.WebBff.Api.csproj" />
+    <Project Path="services/web-bff/Crowd.WebBff.Tests/Crowd.WebBff.Tests.csproj" />
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="shared/building-blocks/Crowd.BuildingBlocks.csproj" />
+  </Folder>
+</Solution>

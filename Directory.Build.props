@@ -1,0 +1,25 @@
+<Project>
+
+  <!-- MSBuild tu nap file nay cho MOI project nam duoi thu muc goc.
+       Dat thuoc tinh o day => 39 file .csproj khong phai khai lai,
+       va doi framework sau nay chi sua MOT dong. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Canh bao = loi. Kho chiu luc moi viet, nhung re hon nhieu
+         so voi viec don dep 39 project sau nay. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <!-- PHAI la false: he thong can da ngon ngu Viet/Anh (FC-08).
+         Dat true se tat ICU => sai sap xep va dinh dang tieng Viet.
+         Nhieu template Docker dat true de giam dung luong image. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

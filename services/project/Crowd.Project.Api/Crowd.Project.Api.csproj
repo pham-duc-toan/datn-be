@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Crowd.Project.Domain\Crowd.Project.Domain.csproj" />
+    <ProjectReference Include="..\Crowd.Project.Infrastructure\Crowd.Project.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\shared\building-blocks\Crowd.BuildingBlocks.csproj" />
+  </ItemGroup>
+
+</Project>

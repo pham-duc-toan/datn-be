@@ -476,6 +476,21 @@ Service 2 project vẫn tổ chức nội bộ theo **thư mục tính năng** (
 
 Ba service Python (`quality`, `ml`, `fraud`) và một service Node (`collab`) có bố cục riêng, không thuộc bảng này.
 
+**Quy ước đặt tên:** tiền tố sản phẩm `Crowd.` + tên service + vai trò → `Crowd.Ledger.Api`, `Crowd.Ledger.Domain`, …
+
+**Một ngoại lệ bắt buộc:** `task-svc` có assembly là **`Crowd.Tasking.*`**, không phải `Crowd.Task.*`. Lý do là ràng buộc của C#: trong `namespace Crowd.Task.Api`, định danh `Task` phân giải về namespace `Crowd.Task` trước khi tới `System.Threading.Tasks.Task`, nên `async Task Foo()` không biên dịch được. Thư mục vẫn giữ `services/task/`, tên service, container và database vẫn là `task-svc` / `task_db` để khớp toàn bộ tài liệu.
+
+**Đồ thị tham chiếu** (service 4 project):
+
+```
+Domain           ← không tham chiếu gì cả, kể cả BuildingBlocks (giữ thuần nghiệp vụ)
+Infrastructure   → Domain, BuildingBlocks
+Api              → Domain, Infrastructure, BuildingBlocks     (Api là composition root)
+Tests            → Api, Domain
+```
+
+Service 2 project: `Api → BuildingBlocks`, `Tests → Api`.
+
 ---
 
 ## 7. Lộ trình
