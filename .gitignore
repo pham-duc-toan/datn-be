@@ -1,0 +1,69 @@
+# =====================================================
+#  Repo đa ngôn ngữ: C# (13 service) · Python (3) · Node (1)
+# =====================================================
+
+# ---- .NET ----
+bin/
+obj/
+*.user
+*.suo
+*.rsuser
+TestResults/
+[Tt]est[Rr]esult*/
+coverage*.xml
+coverage*.json
+.vs/
+.idea/
+*.swp
+
+# ---- BÍ MẬT: không bao giờ commit (VD-S-08) ----
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.Local.json
+secrets/
+*.pfx
+*.p12
+*.key
+*.pem
+!**/testdata/**/*.pem
+
+# ---- Python: quality-svc, ml-svc, fraud-svc ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# ---- Node: collab-svc ----
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.npm/
+.pnpm-store/
+
+# ---- ML artifact: để MinIO, không để Git ----
+*.pt
+*.pth
+*.onnx
+*.safetensors
+models/checkpoints/
+
+# ---- Dữ liệu cục bộ ----
+*.db
+*.sqlite
+*.sqlite3
+/data/
+/tmp/
+*.log
+
+# ---- Hệ điều hành ----
+Thumbs.db
+Desktop.ini
+.DS_Store

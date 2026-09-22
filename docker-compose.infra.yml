@@ -1,0 +1,411 @@
+# =====================================================================
+#  Ha tang: moi service mot datastore RIENG, chon theo access pattern.
+#
+#     14 x PostgreSQL   nghiep vu quan he / JSONB / vector
+#      1 x ClickHouse   gate-svc: click_events, workload OLAP that su
+#      4 x Redis        gateway, task, gate, collab - KHONG dung chung
+#      1 x RabbitMQ     event bus (dung chung la dung muc dich)
+#      1 x MinIO        object storage, moi service mot bucket + key rieng
+#
+#  Bat theo phase:
+#     docker compose -f docker-compose.infra.yml up -d                # core
+#     docker compose -f docker-compose.infra.yml --profile p0 up -d
+#     docker compose -f docker-compose.infra.yml --profile all up -d
+# =====================================================================
+name: datn-infra
+
+services:
+
+  # ================= CORE - luon chay =================
+
+  redis-gateway:
+    image: redis:7-alpine
+    container_name: datn-redis-gateway
+    # gateway: rate limit, Turnstile nonce
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["6379:6379"]
+    volumes: [redis-gateway-data:/data]
+    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 20 }
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: datn-rabbitmq
+    # Dung chung la DUNG: bus ton tai de noi cac service voi nhau.
+    # Cach ly bang vhost + user rieng cho tung service, cau hinh o definitions.
+    environment:
+      RABBITMQ_DEFAULT_USER: datn
+      RABBITMQ_DEFAULT_PASS: dev_rabbit_pw
+    ports: ["5672:5672", "15672:15672"]
+    volumes: [rabbitdata:/var/lib/rabbitmq]
+    healthcheck: { test: ["CMD","rabbitmq-diagnostics","-q","ping"], interval: 10s, timeout: 5s, retries: 20 }
+
+  minio:
+    image: minio/minio:latest
+    container_name: datn-minio
+    # Dung chung nhung moi service mot bucket + access key gioi han vao
+    # dung bucket do -> cach ly tuong duong, khong ton 15 container.
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: datn
+      MINIO_ROOT_PASSWORD: dev_minio_pw
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+    healthcheck: { test: ["CMD","mc","ready","local"], interval: 10s, timeout: 5s, retries: 20 }
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio: { condition: service_healthy }
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 datn dev_minio_pw;
+      mc mb -p local/datasets local/media local/exports local/kyb-docs local/avatars local/ml-models;
+      mc anonymous set none local/datasets;
+      mc anonymous set none local/media;
+      exit 0;
+      "
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: datn-jaeger
+    environment: { COLLECTOR_OTLP_ENABLED: "true" }
+    ports: ["16686:16686", "4317:4317", "4318:4318"]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: datn-mailpit
+    ports: ["1025:1025", "8025:8025"]
+
+  # ================= REDIS rieng tung service =================
+
+  redis-task:
+    image: redis:7-alpine
+    container_name: datn-redis-task
+    profiles: ["all", "p0"]
+    # lease:{taskId} TTL 900s
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["6380:6379"]
+    volumes: [redis-task-data:/data]
+    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 20 }
+
+  redis-gate:
+    image: redis:7-alpine
+    container_name: datn-redis-gate
+    profiles: ["all", "p2"]
+    # jti chong replay, dedupe IP 24h, cache cau vang
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["6381:6379"]
+    volumes: [redis-gate-data:/data]
+    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 20 }
+
+  redis-collab:
+    image: redis:7-alpine
+    container_name: datn-redis-collab
+    profiles: ["all", "p5"]
+    # presence, con tro, khoa mem object
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["6382:6379"]
+    volumes: [redis-collab-data:/data]
+    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 20 }
+
+  # ================= CLICKHOUSE - rieng cho gate-svc =================
+
+  ch-gate:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: datn-ch-gate
+    profiles: ["all", "p2"]
+    # click_events: append-only, hang trieu dong/ngay, truy van 100% aggregate
+    # theo thoi gian (FS-07). Day la workload OLAP that, khong phai OLTP.
+    environment:
+      CLICKHOUSE_USER: gate_user
+      CLICKHOUSE_PASSWORD: dev_gate_pw
+      CLICKHOUSE_DB: gate_db
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "8123:8123"     # HTTP
+      - "9010:9000"     # native (9000 host da bi MinIO chiem)
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes: [ch-gate-data:/var/lib/clickhouse]
+    healthcheck:
+      test: ["CMD","wget","--spider","-q","http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  # ================= POSTGRES rieng tung service =================
+
+  db-identity:
+    image: postgres:16-alpine
+    container_name: datn-db-identity
+    profiles: ["all", "p0"]
+    # tier lean - CRUD quan he
+    command: ["postgres","-c","max_connections=20","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: identity_user
+      POSTGRES_PASSWORD: dev_identity_pw
+      POSTGRES_DB: identity_db
+    ports: ["5401:5432"]
+    volumes: [pgdata-identity:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U identity_user -d identity_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-project:
+    image: postgres:16-alpine
+    container_name: datn-db-project
+    profiles: ["all", "p0"]
+    # tier lean - JSONB cho label_schema
+    command: ["postgres","-c","max_connections=20","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: project_user
+      POSTGRES_PASSWORD: dev_project_pw
+      POSTGRES_DB: project_db
+    ports: ["5402:5432"]
+    volumes: [pgdata-project:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U project_user -d project_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-task:
+    image: postgres:16-alpine
+    container_name: datn-db-task
+    profiles: ["all", "p0"]
+    # tier hot - hang doi SKIP LOCKED
+    command: ["postgres","-c","max_connections=50","-c","shared_buffers=192MB"]
+    environment:
+      POSTGRES_USER: task_user
+      POSTGRES_PASSWORD: dev_task_pw
+      POSTGRES_DB: task_db
+    ports: ["5403:5432"]
+    volumes: [pgdata-task:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U task_user -d task_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-annotation:
+    image: postgres:16-alpine
+    container_name: datn-db-annotation
+    profiles: ["all", "p0"]
+    # tier hot - JSONB + GIN, nhan da hinh
+    command: ["postgres","-c","max_connections=50","-c","shared_buffers=192MB"]
+    environment:
+      POSTGRES_USER: annotation_user
+      POSTGRES_PASSWORD: dev_annotation_pw
+      POSTGRES_DB: annotation_db
+    ports: ["5404:5432"]
+    volumes: [pgdata-annotation:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U annotation_user -d annotation_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-ledger:
+    image: postgres:16-alpine
+    container_name: datn-db-ledger
+    profiles: ["all", "p1"]
+    # tier mid - ACID tuyet doi
+    command: ["postgres","-c","max_connections=30","-c","shared_buffers=64MB"]
+    environment:
+      POSTGRES_USER: ledger_user
+      POSTGRES_PASSWORD: dev_ledger_pw
+      POSTGRES_DB: ledger_db
+    ports: ["5405:5432"]
+    volumes: [pgdata-ledger:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U ledger_user -d ledger_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-payment:
+    image: postgres:16-alpine
+    container_name: datn-db-payment
+    profiles: ["all", "p1"]
+    # tier lean - ACID
+    command: ["postgres","-c","max_connections=20","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: payment_user
+      POSTGRES_PASSWORD: dev_payment_pw
+      POSTGRES_DB: payment_db
+    ports: ["5406:5432"]
+    volumes: [pgdata-payment:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U payment_user -d payment_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-link:
+    image: postgres:16-alpine
+    container_name: datn-db-link
+    profiles: ["all", "p2"]
+    # tier lean - CRUD quan he
+    command: ["postgres","-c","max_connections=20","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: link_user
+      POSTGRES_PASSWORD: dev_link_pw
+      POSTGRES_DB: link_db
+    ports: ["5407:5432"]
+    volumes: [pgdata-link:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U link_user -d link_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-quality:
+    image: postgres:16-alpine
+    container_name: datn-db-quality
+    profiles: ["all", "p3"]
+    # tier mid - ma tran tin cay
+    command: ["postgres","-c","max_connections=30","-c","shared_buffers=64MB"]
+    environment:
+      POSTGRES_USER: quality_user
+      POSTGRES_PASSWORD: dev_quality_pw
+      POSTGRES_DB: quality_db
+    ports: ["5421:5432"]
+    volumes: [pgdata-quality:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U quality_user -d quality_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-ml:
+    image: pgvector/pgvector:pg16
+    container_name: datn-db-ml
+    profiles: ["all", "p4"]
+    # tier lean - pgvector cho active learning
+    command: ["postgres","-c","max_connections=20","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: ml_user
+      POSTGRES_PASSWORD: dev_ml_pw
+      POSTGRES_DB: ml_db
+    ports: ["5422:5432"]
+    volumes: [pgdata-ml:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U ml_user -d ml_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-fraud:
+    image: postgres:16-alpine
+    container_name: datn-db-fraud
+    profiles: ["all", "p4"]
+    # tier lean - WITH RECURSIVE, do thi nong
+    command: ["postgres","-c","max_connections=20","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: fraud_user
+      POSTGRES_PASSWORD: dev_fraud_pw
+      POSTGRES_DB: fraud_db
+    ports: ["5423:5432"]
+    volumes: [pgdata-fraud:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U fraud_user -d fraud_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-collab:
+    image: postgres:16-alpine
+    container_name: datn-db-collab
+    profiles: ["all", "p5"]
+    # tier mid - bytea, Yjs update log
+    command: ["postgres","-c","max_connections=30","-c","shared_buffers=64MB"]
+    environment:
+      POSTGRES_USER: collab_user
+      POSTGRES_PASSWORD: dev_collab_pw
+      POSTGRES_DB: collab_db
+    ports: ["5431:5432"]
+    volumes: [pgdata-collab:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U collab_user -d collab_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-media:
+    image: postgres:16-alpine
+    container_name: datn-db-media
+    profiles: ["all", "p6"]
+    # tier lean - partition theo thang
+    command: ["postgres","-c","max_connections=20","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: media_user
+      POSTGRES_PASSWORD: dev_media_pw
+      POSTGRES_DB: media_db
+    ports: ["5409:5432"]
+    volumes: [pgdata-media:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U media_user -d media_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-notification:
+    image: postgres:16-alpine
+    container_name: datn-db-notification
+    profiles: ["all", "p6"]
+    # tier lean - CRUD
+    command: ["postgres","-c","max_connections=20","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: notification_user
+      POSTGRES_PASSWORD: dev_notification_pw
+      POSTGRES_DB: notification_db
+    ports: ["5410:5432"]
+    volumes: [pgdata-notification:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U notification_user -d notification_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db-admin:
+    image: postgres:16-alpine
+    container_name: datn-db-admin
+    profiles: ["all", "p6"]
+    # tier lean - audit log + config
+    command: ["postgres","-c","max_connections=20","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: dev_admin_pw
+      POSTGRES_DB: admin_db
+    ports: ["5411:5432"]
+    volumes: [pgdata-admin:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U admin_user -d admin_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  rabbitdata:
+  miniodata:
+  ch-gate-data:
+  redis-gateway-data:
+  redis-task-data:
+  redis-gate-data:
+  redis-collab-data:
+  pgdata-identity:
+  pgdata-project:
+  pgdata-task:
+  pgdata-annotation:
+  pgdata-ledger:
+  pgdata-payment:
+  pgdata-link:
+  pgdata-quality:
+  pgdata-ml:
+  pgdata-fraud:
+  pgdata-collab:
+  pgdata-media:
+  pgdata-notification:
+  pgdata-admin:

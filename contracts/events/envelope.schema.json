@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://datn.local/contracts/events/envelope.schema.json",
+  "title": "EventEnvelope",
+  "description": "Vo boc chung cho MOI event tren RabbitMQ. C#/Python/Node deu sinh code tu file nay.",
+  "type": "object",
+  "required": ["eventId", "eventType", "version", "occurredAt", "producer", "correlationId", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "eventId": {
+      "type": "string", "format": "uuid",
+      "description": "UUIDv7. Consumer dung lam khoa idempotency - da xu ly thi bo qua."
+    },
+    "eventType": {
+      "type": "string", "pattern": "^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$",
+      "description": "Dang <aggregate>.<past_tense>, vd: annotation.approved"
+    },
+    "version": {
+      "type": "integer", "minimum": 1,
+      "description": "Phien ban schema cua payload. Tang khi breaking change; publish song song 2 version cho toi khi consumer cuoi cung chuyen xong."
+    },
+    "occurredAt": {
+      "type": "string", "format": "date-time",
+      "description": "Thoi diem SU KIEN XAY RA (nghiep vu), khong phai thoi diem publish."
+    },
+    "producer": {
+      "type": "string",
+      "description": "Ten service phat, vd: annotation-svc"
+    },
+    "correlationId": {
+      "type": "string", "format": "uuid",
+      "description": "Sinh o gateway, xuyen suot moi hop goi va moi event phat sinh. Khong co no thi khong debug duoc he phan tan."
+    },
+    "causationId": {
+      "type": ["string", "null"], "format": "uuid",
+      "description": "eventId cua event da gay ra event nay. Cho phep dung lai cay nhan qua."
+    },
+    "actor": {
+      "type": ["object", "null"],
+      "description": "Ai gay ra hanh dong. null = he thong tu dong.",
+      "properties": {
+        "userId": { "type": "string", "format": "uuid" },
+        "role":   { "type": "string", "enum": ["business", "labeler", "sharer", "guest", "admin", "system"] }
+      },
+      "required": ["userId", "role"],
+      "additionalProperties": false
+    },
+    "payload": {
+      "type": "object",
+      "description": "Noi dung rieng cua tung eventType, validate boi <eventType>.schema.json"
+    }
+  }
+}
