@@ -1,0 +1,12 @@
+# Ảnh chụp hợp đồng payload — SINH TỰ ĐỘNG, đừng sửa tay.
+# Cập nhật: UPDATE_CONTRACT_SNAPSHOT=1 dotnet test shared/contracts-tests
+# Mọi thay đổi trong file này là BREAKING CHANGE — xem VD-D-12.
+
+annotation.approved v1  (AnnotationApproved)
+    AmountVnd                Int64                required
+    AnnotationId             Guid                 required
+    LabelerId                Guid?                nullable
+    PlatformFeeVnd           Int64                required
+    ProjectId                Guid                 required
+    Source                   AnnotationSource     required
+    TaskId                   Guid                 required

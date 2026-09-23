@@ -85,6 +85,72 @@ public static class EventPayloadContract
         return violations;
     }
 
+    /// <summary>
+    /// Mô tả hình dạng mọi payload trong assembly dưới dạng văn bản tất định.
+    /// Dùng làm <b>ảnh chụp hợp đồng</b>: commit kết quả vào repo, rồi một test so
+    /// chuỗi này với file đã commit. Lệch nghĩa là hình dạng payload đã đổi — mà
+    /// với <c>UnmappedMemberHandling = Disallow</c> thì mọi thay đổi hình dạng đều
+    /// là breaking change (VD-D-12). Người sửa buộc phải nhìn thấy điều đó ngay
+    /// lúc chạy test, thay vì phát hiện khi message đã rơi vào DLQ trên production.
+    /// </summary>
+    public static string Describe(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        var nullability = new NullabilityInfoContext();
+        var lines = new List<string>();
+
+        var payloadTypes = assembly.GetTypes()
+            .Where(t => typeof(IEventPayload).IsAssignableFrom(t)
+                        && t is { IsInterface: false, IsAbstract: false })
+            .Select(t => (Type: t, EventType: DocEventType(t), Version: DocVersion(t)))
+            .OrderBy(x => x.EventType, StringComparer.Ordinal)
+            .ThenBy(x => x.Type.Name, StringComparer.Ordinal);
+
+        foreach (var (type, eventType, version) in payloadTypes)
+        {
+            lines.Add($"{eventType} v{version}  ({type.Name})");
+
+            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .OrderBy(p => p.Name, StringComparer.Ordinal);
+
+            foreach (var prop in props)
+            {
+                var kind = prop.GetCustomAttribute<RequiredMemberAttribute>() is not null
+                    ? "required"
+                    : IsSafe(prop, nullability) ? "nullable" : "KHÔNG-AN-TOÀN";
+
+                lines.Add($"    {prop.Name,-24} {TenKieu(prop, nullability),-20} {kind}");
+            }
+
+            lines.Add(string.Empty);
+        }
+
+        return string.Join("\n", lines).TrimEnd() + "\n";
+    }
+
+    private static string? DocEventType(Type t) =>
+        (string?)t.GetProperty(nameof(IEventPayload.EventType),
+            BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+
+    private static int? DocVersion(Type t) =>
+        (int?)t.GetProperty(nameof(IEventPayload.Version),
+            BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+
+    private static string TenKieu(PropertyInfo prop, NullabilityInfoContext nullability)
+    {
+        var underlying = Nullable.GetUnderlyingType(prop.PropertyType);
+        if (underlying is not null)
+        {
+            return underlying.Name + "?";
+        }
+
+        var nullableRef = !prop.PropertyType.IsValueType
+                          && nullability.Create(prop).ReadState == NullabilityState.Nullable;
+
+        return prop.PropertyType.Name + (nullableRef ? "?" : string.Empty);
+    }
+
     /// <summary>Kiểm chính hai giá trị <c>EventType</c> và <c>Version</c> mà payload khai ra.</summary>
     private static void KiemKhaiBao(Type type, List<string> violations)
     {

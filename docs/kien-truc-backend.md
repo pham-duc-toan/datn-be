@@ -411,6 +411,7 @@ Ranh giới đọc/ghi: quyết định **tiền bạc** luôn hỏi lại chủ
 | Migration | EF Core (C#) · Alembic (Python) · Prisma (Node) — mỗi service tự quản, chạy lúc khởi động |
 | Kiểm thử | Unit + Testcontainers cho integration; contract test dựa trên `contracts/` |
 | Định nghĩa event | `eventType` và `version` khai bằng `static abstract` ngay trong payload record (`IEventPayload`), không truyền chuỗi ma thuật. Gắn nhầm eventType cho payload là **lỗi biên dịch** |
+| Hợp đồng nghiêm ngặt | `UnmappedMemberHandling = Disallow` cho **cả** envelope lẫn payload: trường lạ làm message rơi vào DLQ thay vì bị bỏ qua âm thầm. Hệ quả — thêm trường vào payload là **breaking change**, phải deploy đồng loạt. Chấp nhận có chủ đích, kèm điều kiện **cảnh báo độ sâu DLQ** (xem `VD-D-12`) |
 | Payload record | Ở `Crowd.Contracts`, tách khỏi `BuildingBlocks` vì nhịp thay đổi khác nhau. Quy ước: `sealed record`, mọi thuộc tính `required` hoặc nullable, tiền là `long` số nguyên đồng — `Crowd.Contracts.Tests` quét reflection ép cả bốn luật |
 
 ---

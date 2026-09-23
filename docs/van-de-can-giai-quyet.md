@@ -6,7 +6,7 @@ Danh sách mọi rủi ro kỹ thuật, bảo mật, pháp lý và sản phẩm 
 
 **Mức độ:** `CHẶN` = không xử lý thì không được lên production · `CAO` = phải có trước khi bảo vệ · `TB` = nên có
 
-**Thống kê:** **108 vấn đề** (mục A–L, N) — 32 CHẶN · 57 CAO · 19 TB · kèm **29 hướng nâng cao** (mục M)
+**Thống kê:** **109 vấn đề** (mục A–L, N) — 32 CHẶN · 58 CAO · 19 TB · kèm **29 hướng nâng cao** (mục M)
 
 ---
 
@@ -47,6 +47,7 @@ Danh sách mọi rủi ro kỹ thuật, bảo mật, pháp lý và sản phẩm 
 | D-09 | Lệch đồng hồ giữa các service | Hold hết hạn sai thời điểm | Dùng thời gian của DB (`now()`), không dùng thời gian ứng dụng | TB | P1 |
 | D-10 | Không có transaction xuyên service | Dữ liệu mồ côi khi một bên lỗi | Saga + bù trừ; chấp nhận eventual consistency có chủ đích | TB | P0 |
 | D-11 | **Chuyển trạng thái không có optimistic concurrency**: đọc lại trạng thái → kiểm hợp lệ → ghi. Dưới READ COMMITTED, hai người cùng đọc được trạng thái cũ trước khi ai commit. Đọc lại chỉ làm cửa sổ **hẹp hơn**, không làm nó biến mất | Hook chạy **hai lần**: publish dự án phát `project.publish_requested` 2 lần → ký quỹ 2 lần; duyệt lệnh rút chi 2 lần | Điều kiện phải nằm **trong** câu UPDATE: `UPDATE ... SET state=:new WHERE id=:id AND state=:expected`, kiểm `rowcount = 0`. Hook chạy trong **cùng transaction** hoặc qua outbox, không chạy sau khi đã commit | CAO | P0 |
+| D-12 | **Hợp đồng payload nghiêm ngặt** (`UnmappedMemberHandling = Disallow`): thêm một trường vào payload là breaking change với mọi consumer chưa deploy lại. Đã kiểm chứng bằng thực nghiệm — consumer cũ ném `EventContractException` ngay khi gặp trường mới | Deploy cuốn chiếu và canary (`NC-A-04`) không dùng được — canary nghĩa là bản cũ và bản mới chạy **song song**, bản cũ sẽ đẩy toàn bộ event vào DLQ. Dòng tiền đứng mà mọi health check vẫn xanh | **Quyết định: GIỮ nghiêm ngặt.** Ở quy mô đồ án mọi service deploy cùng lúc, nên cái giá gần bằng 0 còn lợi ích bắt trôi dạt hợp đồng là thật. **Điều kiện bắt buộc đi kèm: cảnh báo độ sâu DLQ** — `Disallow` tạo ra lỗi chứ không làm ai biết về nó. Xét lại khi làm `NC-A-04`: hoặc chuyển payload sang tolerant reader (`[JsonUnmappedMemberHandling]` chỉ gắn lên envelope), hoặc canary chỉ áp cho service không consume event | CAO | P1 |
 
 ---
 
