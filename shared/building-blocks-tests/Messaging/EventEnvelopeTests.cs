@@ -13,6 +13,9 @@ public sealed class EventEnvelopeTests
     /// </summary>
     private sealed record AnnotationApproved : IEventPayload
     {
+        public static string EventType => "annotation.approved";
+        public static int Version => 1;
+
         public required Guid AnnotationId { get; init; }
         public required Guid LabelerId { get; init; }
         public required long AmountVnd { get; init; }
@@ -30,8 +33,6 @@ public sealed class EventEnvelopeTests
     private static EventEnvelope<AnnotationApproved> Sample(
         EventActor? actor = null, Guid? causationId = null) =>
         EventEnvelope.Create(
-            eventType: "annotation.approved",
-            version: 1,
             producer: "annotation-svc",
             correlationId: CorrelationId,
             payload: Payload(),
@@ -68,41 +69,55 @@ public sealed class EventEnvelopeTests
         Assert.Equal(ids.Order(StringComparer.Ordinal), ids);
     }
 
-    [Theory]
-    [InlineData("annotation.approved")]
-    [InlineData("project.publish_requested")]
-    [InlineData("redundancy.increase_requested")]
-    [InlineData("cpm.batch_settled")]
-    public void Create_chap_nhan_eventType_trong_catalog(string eventType)
-    {
-        var envelope = EventEnvelope.Create(eventType, 1, "test-svc", CorrelationId, Payload());
+    // eventType và version giờ do CHÍNH payload khai, không truyền vào Create nữa.
+    // Nên test chuyển thành: payload khai sai thì Create phải từ chối.
 
-        Assert.Equal(eventType, envelope.EventType);
+    private sealed record PayloadEventTypeXau : IEventPayload
+    {
+        public static string EventType => "KHONG_HOP_LE";
+        public static int Version => 1;
+        public required int X { get; init; }
     }
 
-    [Theory]
-    [InlineData("AnnotationApproved")]      // PascalCase
-    [InlineData("annotation-approved")]     // gạch ngang thay vì chấm
-    [InlineData("annotation")]              // thiếu phần sau dấu chấm
-    [InlineData("annotation.Approved")]     // hoa ở phần sau
-    [InlineData("1annotation.approved")]    // bắt đầu bằng số
-    [InlineData("annotation.approved.v2")]  // ba đoạn
-    [InlineData("")]
-    public void Create_tu_choi_eventType_sai_dinh_dang(string eventType)
+    private sealed record PayloadVersionXau : IEventPayload
+    {
+        public static string EventType => "thu.nghiem";
+        public static int Version => 0;
+        public required int X { get; init; }
+    }
+
+    [Fact]
+    public void Create_tu_choi_payload_khai_eventType_sai()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            EventEnvelope.Create(eventType, 1, "test-svc", CorrelationId, Payload()));
+            EventEnvelope.Create("test-svc", CorrelationId, new PayloadEventTypeXau { X = 1 }));
 
-        Assert.Equal("eventType", ex.ParamName);
+        Assert.Contains("KHONG_HOP_LE", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Create_tu_choi_payload_khai_version_nho_hon_1()
+    {
+        var ex = Assert.Throws<ArgumentException>(() =>
+            EventEnvelope.Create("test-svc", CorrelationId, new PayloadVersionXau { X = 1 }));
+
+        Assert.Contains("version", ex.Message, StringComparison.Ordinal);
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void Create_tu_choi_version_nho_hon_1(int version)
+    [InlineData("annotation.approved", true)]
+    [InlineData("project.publish_requested", true)]
+    [InlineData("cpm.batch_settled", true)]
+    [InlineData("AnnotationApproved", false)]      // PascalCase
+    [InlineData("annotation-approved", false)]     // gạch ngang thay vì chấm
+    [InlineData("annotation", false)]              // thiếu phần sau dấu chấm
+    [InlineData("annotation.Approved", false)]     // hoa ở phần sau
+    [InlineData("1annotation.approved", false)]    // bắt đầu bằng số
+    [InlineData("annotation.approved.v2", false)]  // ba đoạn
+    [InlineData("", false)]
+    public void EventRules_kiem_dung_dinh_dang_eventType(string eventType, bool hopLe)
     {
-        Assert.Throws<ArgumentException>(() =>
-            EventEnvelope.Create("annotation.approved", version, "test-svc", CorrelationId, Payload()));
+        Assert.Equal(hopLe, EventRules.IsValidEventType(eventType));
     }
 
     [Fact]
@@ -113,7 +128,7 @@ public sealed class EventEnvelopeTests
         var quaKhu = new DateTimeOffset(2026, 3, 1, 10, 30, 0, TimeSpan.FromHours(7));
 
         var envelope = EventEnvelope.Create(
-            "annotation.approved", 1, "test-svc", CorrelationId, Payload(), occurredAt: quaKhu);
+            "test-svc", CorrelationId, Payload(), occurredAt: quaKhu);
 
         Assert.Equal(quaKhu, envelope.OccurredAt);
     }
@@ -216,13 +231,34 @@ public sealed class EventEnvelopeTests
             EventEnvelope.Deserialize<AnnotationApproved>(lech.ToJsonString()));
     }
 
+    [Fact]
+    public void Deserialize_chan_doc_nham_loai_payload()
+    {
+        // Message 'escrow.reserved' cố đọc thành AnnotationApproved sẽ THÀNH CÔNG
+        // nếu các trường tình cờ khớp — nên phải so eventType với TPayload.EventType.
+        var nham = JsonNode.Parse(Json())!.AsObject();
+        nham["eventType"] = "escrow.reserved";
+
+        var ex = Assert.Throws<EventContractException>(() =>
+            EventEnvelope.Deserialize<AnnotationApproved>(nham.ToJsonString()));
+
+        Assert.Contains("escrow.reserved", ex.Message, StringComparison.Ordinal);
+    }
+
     // ============================================ QUY ƯỚC PAYLOAD (lỗ 4)
 
     /// <summary>Positional record: tham số vị trí KHÔNG mang <c>required</c>.</summary>
-    private sealed record PayloadXau(long AmountVnd) : IEventPayload;
+    private sealed record PayloadXau(long AmountVnd) : IEventPayload
+    {
+        public static string EventType => "thu.nghiem";
+        public static int Version => 1;
+    }
 
     private sealed record PayloadTot : IEventPayload
     {
+        public static string EventType => "thu.nghiem";
+        public static int Version => 1;
+
         public required long AmountVnd { get; init; }
         public string? GhiChu { get; init; }          // nullable = vắng mặt có chủ đích
         public Guid? NguoiDuyet { get; init; }
@@ -243,6 +279,14 @@ public sealed class EventEnvelopeTests
     public void PayloadContract_chap_nhan_required_va_nullable()
     {
         Assert.Empty(EventPayloadContract.FindViolations(typeof(PayloadTot)));
+    }
+
+    [Fact]
+    public void PayloadContract_bat_duoc_khai_bao_eventType_sai()
+    {
+        var loi = EventPayloadContract.FindViolations(typeof(PayloadEventTypeXau));
+
+        Assert.Contains(loi, l => l.Contains("KHONG_HOP_LE", StringComparison.Ordinal));
     }
 
     [Fact]

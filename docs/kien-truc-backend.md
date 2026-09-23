@@ -410,6 +410,8 @@ Ranh giới đọc/ghi: quyết định **tiền bạc** luôn hỏi lại chủ
 | Config | Biến môi trường + `admin-svc` phát `platform_config.changed` cho tham số nghiệp vụ (phí, đơn giá tối thiểu, ngưỡng rút) |
 | Migration | EF Core (C#) · Alembic (Python) · Prisma (Node) — mỗi service tự quản, chạy lúc khởi động |
 | Kiểm thử | Unit + Testcontainers cho integration; contract test dựa trên `contracts/` |
+| Định nghĩa event | `eventType` và `version` khai bằng `static abstract` ngay trong payload record (`IEventPayload`), không truyền chuỗi ma thuật. Gắn nhầm eventType cho payload là **lỗi biên dịch** |
+| Payload record | Ở `Crowd.Contracts`, tách khỏi `BuildingBlocks` vì nhịp thay đổi khác nhau. Quy ước: `sealed record`, mọi thuộc tính `required` hoặc nullable, tiền là `long` số nguyên đồng — `Crowd.Contracts.Tests` quét reflection ép cả bốn luật |
 
 ---
 
@@ -425,8 +427,11 @@ datn/
 │     ├─ CATALOG.md                 ← danh mục event đầy đủ
 │     └─ <event_type>.schema.json
 ├─ shared/
-│  └─ Platform.BuildingBlocks/      ← lib C# dùng chung: outbox, envelope,
-│                                     OTel, auth handler, idempotency
+│  ├─ building-blocks/              ← Crowd.BuildingBlocks: hạ tầng dùng chung
+│  │                                  envelope, outbox, idempotency, correlation, auth
+│  ├─ building-blocks-tests/
+│  ├─ contracts/                    ← Crowd.Contracts: ~55 payload record
+│  └─ contracts-tests/              ← canh quy ước cho mọi payload
 ├─ Directory.Build.props             ← thuộc tính chung mọi project C#
 ├─ Directory.Packages.props          ← Central Package Management: phiên bản gói ở MỘT chỗ
 ├─ datn.slnx

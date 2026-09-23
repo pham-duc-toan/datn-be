@@ -1,17 +1,31 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace Crowd.BuildingBlocks.Messaging;
 
 /// <summary>
-/// Đánh dấu một kiểu là payload của event. Dùng làm ràng buộc generic cho
-/// <see cref="EventEnvelope{TPayload}"/> nên không thể publish một object tùy tiện.
+/// Mọi payload của event phải cài interface này.
+/// <para>
+/// Hai thành viên <c>static abstract</c> buộc <c>eventType</c> và <c>version</c>
+/// sống ngay cạnh hình dạng dữ liệu, nên <b>không thể</b> gắn nhầm
+/// <c>eventType</c> của event này cho payload của event khác — lỗi đó giờ là
+/// lỗi biên dịch chứ không còn là chuỗi ma thuật truyền sai.
+/// </para>
 /// </summary>
-[SuppressMessage("Design", "CA1040:Avoid empty interfaces",
-    Justification = "Marker dùng làm ràng buộc generic — đây là ngoại lệ chuẩn của CA1040. " +
-                    "Attribute không dùng làm ràng buộc generic được nên không thay thế được.")]
-public interface IEventPayload;
+public interface IEventPayload
+{
+    /// <summary>
+    /// Dạng <c>&lt;aggregate&gt;.&lt;quá_khứ&gt;</c>. Phải khớp một dòng trong
+    /// <c>contracts/events/CATALOG.md</c>.
+    /// </summary>
+    static abstract string EventType { get; }
+
+    /// <summary>
+    /// Phiên bản schema của payload này. Tăng khi có breaking change và phát
+    /// song song hai bản cho tới khi consumer cuối cùng chuyển xong (VD-D-08).
+    /// </summary>
+    static abstract int Version { get; }
+}
 
 /// <summary>
 /// Kiểm quy ước bắt buộc cho payload: <b>mọi thuộc tính phải hoặc là
@@ -53,6 +67,8 @@ public static class EventPayloadContract
 
         foreach (var type in payloadTypes)
         {
+            KiemKhaiBao(type, violations);
+
             foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
                 if (IsSafe(prop, nullability))
@@ -67,6 +83,26 @@ public static class EventPayloadContract
         }
 
         return violations;
+    }
+
+    /// <summary>Kiểm chính hai giá trị <c>EventType</c> và <c>Version</c> mà payload khai ra.</summary>
+    private static void KiemKhaiBao(Type type, List<string> violations)
+    {
+        var eventType = (string?)type.GetProperty(nameof(IEventPayload.EventType),
+            BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+        var version = (int?)type.GetProperty(nameof(IEventPayload.Version),
+            BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+
+        if (eventType is null || version is null)
+        {
+            violations.Add($"{type.Name} không khai được EventType/Version.");
+            return;
+        }
+
+        if (EventRules.Violation(eventType, version.Value, "n/a") is { } loi)
+        {
+            violations.Add($"{type.Name} khai sai: {loi}");
+        }
     }
 
     private static bool IsSafe(PropertyInfo prop, NullabilityInfoContext nullability)

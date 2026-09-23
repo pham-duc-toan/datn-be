@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace Crowd.BuildingBlocks.Messaging;
 
@@ -52,21 +51,17 @@ public sealed record EventEnvelope<TPayload> where TPayload : class, IEventPaylo
 /// chiều vào từng lỏng hơn chiều ra.
 /// </para>
 /// </summary>
-public static partial class EventEnvelope
+public static class EventEnvelope
 {
-    [GeneratedRegex(@"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")]
-    private static partial Regex EventTypePattern();
-
     /// <summary>
-    /// Cổng RA. Ép <c>EventId</c> là UUIDv7 và validate hợp đồng.
+    /// Cổng RA. <c>eventType</c> và <c>version</c> lấy thẳng từ <typeparamref name="TPayload"/>
+    /// nên không thể gắn nhầm loại event cho payload.
     /// </summary>
     /// <param name="occurredAt">
     /// Bỏ trống = bây giờ. Chỉ truyền vào khi sự kiện đã xảy ra trong quá khứ.
     /// </param>
     /// <exception cref="ArgumentException">Tham số vi phạm hợp đồng.</exception>
     public static EventEnvelope<TPayload> Create<TPayload>(
-        string eventType,
-        int version,
         string producer,
         Guid correlationId,
         TPayload payload,
@@ -78,9 +73,13 @@ public static partial class EventEnvelope
         ArgumentException.ThrowIfNullOrWhiteSpace(producer);
         ArgumentNullException.ThrowIfNull(payload);
 
-        if (ViPham(eventType, version, producer) is { } loi)
+        var eventType = TPayload.EventType;
+        var version = TPayload.Version;
+
+        if (EventRules.Violation(eventType, version, producer) is { } loi)
         {
-            throw new ArgumentException(loi, nameof(eventType));
+            throw new ArgumentException(
+                $"{typeof(TPayload).Name} khai báo sai hợp đồng: {loi}", nameof(payload));
         }
 
         return new EventEnvelope<TPayload>
@@ -120,22 +119,6 @@ public static partial class EventEnvelope
             buffer, CrowdJson.Options)));
     }
 
-    /// <summary>Bộ luật dùng chung cho cả hai chiều. <c>null</c> = hợp lệ.</summary>
-    private static string? ViPham(string eventType, int version, string producer)
-    {
-        if (!EventTypePattern().IsMatch(eventType))
-        {
-            return $"eventType '{eventType}' sai định dạng. Phải là <aggregate>.<quá_khứ> " +
-                   "chữ thường, vd: annotation.approved";
-        }
-
-        if (version < 1)
-        {
-            return $"version = {version}, phải >= 1";
-        }
-
-        return string.IsNullOrWhiteSpace(producer) ? "producer không được rỗng" : null;
-    }
 
     private static EventEnvelope<TPayload> Doc<TPayload>(
         Func<EventEnvelope<TPayload>?> deserialize)
@@ -158,10 +141,20 @@ public static partial class EventEnvelope
     private static EventEnvelope<TPayload> Kiem<TPayload>(EventEnvelope<TPayload> envelope)
         where TPayload : class, IEventPayload
     {
-        if (ViPham(envelope.EventType, envelope.Version, envelope.Producer) is { } loi)
+        if (EventRules.Violation(envelope.EventType, envelope.Version, envelope.Producer) is { } loi)
         {
             throw new EventContractException(
                 $"Envelope {envelope.EventId} vi phạm hợp đồng: {loi}");
+        }
+
+        // Chặn đọc nhầm loại: message 'escrow.reserved' mà cố đọc thành
+        // AnnotationApproved sẽ thành công nếu các trường tình cờ khớp nhau.
+        if (!string.Equals(envelope.EventType, TPayload.EventType, StringComparison.Ordinal))
+        {
+            throw new EventContractException(
+                $"Envelope {envelope.EventId} mang eventType '{envelope.EventType}' " +
+                $"nhưng đang được đọc thành {typeof(TPayload).Name} " +
+                $"('{TPayload.EventType}').");
         }
 
         return envelope;

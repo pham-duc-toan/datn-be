@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../building-blocks/Crowd.BuildingBlocks.csproj" />
+  </ItemGroup>
+
+</Project>
