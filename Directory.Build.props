@@ -6,7 +6,13 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>latest</LangVersion>
+
+    <!-- Runtime van la .NET 10; chi TRAN CU PHAP la C# 11.
+         Dat o day de trinh bien dich TU CHOI cu phap C# 12 tro len
+         (primary constructor, collection expression [...]) thay vi phai
+         nho bang tay. Cac thu tu C# 11 tro xuong van dung binh thuong:
+         record, init, required, nullable annotation, static abstract. -->
+    <LangVersion>11.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
@@ -22,11 +28,23 @@
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
+  <!-- Du an nay viet C# theo cu phap tuong minh kieu cu, khong dung duong rut gon.
+       Ly do: chu du an phai doc, bao ve va mo rong tung dong; code doc duoc quan
+       trong hon code ngan. Framework van la .NET 10, chi co phong cach la cu.
+       Cac luat duoi day deu chi de xuat duong rut gon, khong bat loi that:
+         CA1510-CA1513  doi dung ArgumentNullException.ThrowIfNull thay vi if+throw
+         IDE0028,IDE0300,IDE0301,IDE0305  doi dung collection expression [ ... ]
+         IDE0290        doi dung primary constructor
+         IDE0022,IDE0025  doi dung expression-bodied member -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CA1510;CA1511;CA1512;CA1513;IDE0028;IDE0290;IDE0300;IDE0301;IDE0305;IDE0022;IDE0025</NoWarn>
+  </PropertyGroup>
+
   <!-- Project test co quy uoc rieng, khong ap luat cua thu vien:
        CA1707 - ten test dung gach duoi la chuan xUnit, de doc hon PascalCase dai
        CA1515 - kieu public trong project test khong phai be mat API cong khai -->
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
-    <NoWarn>$(NoWarn);CA1707;CA1515</NoWarn>
+    <NoWarn>$(NoWarn);CA1707;CA1515;CA1859</NoWarn>
   </PropertyGroup>
 
 </Project>

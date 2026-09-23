@@ -21,6 +21,13 @@ public sealed class EventEnvelopeTests
         public required long AmountVnd { get; init; }
     }
 
+    /// <summary>Chín trường của envelope, theo thứ tự chữ cái.</summary>
+    private static readonly string[] TruongCuaEnvelope = new string[]
+    {
+        "actor", "causationId", "correlationId", "eventId", "eventType",
+        "occurredAt", "payload", "producer", "version",
+    };
+
     private static readonly Guid CorrelationId = Guid.CreateVersion7();
 
     private static AnnotationApproved Payload() => new()
@@ -155,7 +162,7 @@ public sealed class EventEnvelopeTests
         // RabbitMQ trả về byte, không trả về string.
         var bytes = JsonSerializer.SerializeToUtf8Bytes(Sample(), CrowdJson.Options);
 
-        var lai = EventEnvelope.Deserialize<AnnotationApproved>(bytes.AsSpan());
+        var lai = EventEnvelope.Deserialize<AnnotationApproved>(bytes);
 
         Assert.Equal("annotation.approved", lai.EventType);
     }
@@ -352,8 +359,7 @@ public sealed class EventEnvelopeTests
         var node = JsonNode.Parse(Json())!.AsObject();
 
         Assert.Equal(
-            ["actor", "causationId", "correlationId", "eventId", "eventType",
-             "occurredAt", "payload", "producer", "version"],
+            TruongCuaEnvelope,
             node.Select(kv => kv.Key).Order(StringComparer.Ordinal));
     }
 
@@ -379,9 +385,30 @@ public sealed class EventEnvelopeTests
         Assert.Null(node["causationId"]);
     }
 
-    private static string ThongBaoLoi(EvaluationResults results) =>
-        "Không khớp contracts/events/envelope.schema.json:\n" +
-        string.Join("\n", (results.Details ?? [])
-            .Where(d => d.Errors is { Count: > 0 })
-            .SelectMany(d => d.Errors!.Select(e => $"  {d.InstanceLocation}: {e.Value}")));
+    private static string ThongBaoLoi(EvaluationResults results)
+    {
+        IReadOnlyList<EvaluationResults>? chiTiet = results.Details;
+        if (chiTiet == null)
+        {
+            chiTiet = new List<EvaluationResults>();
+        }
+
+        List<string> dong = new List<string>();
+
+        foreach (EvaluationResults mot in chiTiet)
+        {
+            if (mot.Errors == null || mot.Errors.Count == 0)
+            {
+                continue;
+            }
+
+            foreach (KeyValuePair<string, string> loi in mot.Errors)
+            {
+                dong.Add("  " + mot.InstanceLocation + ": " + loi.Value);
+            }
+        }
+
+        return "Không khớp contracts/events/envelope.schema.json:\n"
+             + string.Join("\n", dong);
+    }
 }

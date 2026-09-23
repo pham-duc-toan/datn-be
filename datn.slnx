@@ -69,5 +69,7 @@
     <Project Path="shared/building-blocks/Crowd.BuildingBlocks.csproj" />
     <Project Path="shared/contracts-tests/Crowd.Contracts.Tests.csproj" />
     <Project Path="shared/contracts/Crowd.Contracts.csproj" />
+    <Project Path="shared/persistence-tests/Crowd.BuildingBlocks.Persistence.Tests.csproj" />
+    <Project Path="shared/persistence/Crowd.BuildingBlocks.Persistence.csproj" />
   </Folder>
 </Solution>

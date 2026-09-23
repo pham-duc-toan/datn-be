@@ -1,39 +1,59 @@
 using System.Text.RegularExpressions;
 
-namespace Crowd.BuildingBlocks.Messaging;
-
-/// <summary>
-/// Luật của hợp đồng event, tách riêng để **một** định nghĩa phục vụ ba nơi:
-/// cổng ra (<c>EventEnvelope.Create</c>), cổng vào (<c>EventEnvelope.Deserialize</c>),
-/// và bộ quét khai báo payload (<see cref="EventPayloadContract"/>).
-/// <para>
-/// Regex dưới đây phải khớp <c>pattern</c> của <c>eventType</c> trong
-/// <c>contracts/events/envelope.schema.json</c>. Hai chỗ đang đồng bộ bằng tay —
-/// contract test là thứ giữ chúng không trôi khỏi nhau.
-/// </para>
-/// </summary>
-public static partial class EventRules
+namespace Crowd.BuildingBlocks.Messaging
 {
-    [GeneratedRegex(@"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")]
-    private static partial Regex EventTypePattern();
-
-    public static bool IsValidEventType(string eventType) =>
-        !string.IsNullOrEmpty(eventType) && EventTypePattern().IsMatch(eventType);
-
-    /// <summary>Trả về mô tả vi phạm, hoặc <c>null</c> nếu hợp lệ.</summary>
-    public static string? Violation(string eventType, int version, string producer)
+    /// <summary>
+    /// Luật của hợp đồng event, tách riêng để MỘT định nghĩa phục vụ ba nơi:
+    /// cổng ra (EventEnvelope.Create), cổng vào (EventEnvelope.Deserialize),
+    /// và bộ quét khai báo payload (EventPayloadContract).
+    ///
+    /// Regex dưới đây phải khớp "pattern" của eventType trong
+    /// contracts/events/envelope.schema.json. Hai chỗ đang đồng bộ bằng tay —
+    /// contract test là thứ giữ chúng không trôi khỏi nhau.
+    /// </summary>
+    public static class EventRules
     {
-        if (!IsValidEventType(eventType))
+        // RegexOptions.Compiled: biên dịch regex thành IL ngay lần dùng đầu tiên.
+        // Tốn chút thời gian khởi động, đổi lại mỗi lần so khớp sau đó nhanh hơn.
+        // static readonly nên chỉ tạo một lần cho cả vòng đời ứng dụng.
+        private static readonly Regex EventTypePattern = new Regex(
+            @"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+        public static bool IsValidEventType(string eventType)
         {
-            return $"eventType '{eventType}' sai định dạng. Phải là <aggregate>.<quá_khứ> " +
-                   "chữ thường, vd: annotation.approved";
+            if (string.IsNullOrEmpty(eventType))
+            {
+                return false;
+            }
+
+            return EventTypePattern.IsMatch(eventType);
         }
 
-        if (version < 1)
+        /// <summary>
+        /// Trả về mô tả vi phạm, hoặc null nếu hợp lệ.
+        /// Trả chuỗi thay vì ném ngoại lệ, để nơi gọi tự chọn ném loại nào —
+        /// cổng ra ném ArgumentException, cổng vào ném EventContractException.
+        /// </summary>
+        public static string? Violation(string eventType, int version, string producer)
         {
-            return $"version = {version}, phải >= 1";
-        }
+            if (!IsValidEventType(eventType))
+            {
+                return "eventType '" + eventType + "' sai định dạng. "
+                     + "Phải là <aggregate>.<quá_khứ> chữ thường, vd: annotation.approved";
+            }
 
-        return string.IsNullOrWhiteSpace(producer) ? "producer không được rỗng" : null;
+            if (version < 1)
+            {
+                return "version = " + version + ", phải >= 1";
+            }
+
+            if (string.IsNullOrWhiteSpace(producer))
+            {
+                return "producer không được rỗng";
+            }
+
+            return null;
+        }
     }
 }

@@ -12,11 +12,25 @@ public sealed class PayloadContractTests
 {
     private static readonly Assembly Contracts = typeof(AnnotationApproved).Assembly;
 
-    private static IReadOnlyList<Type> MoiPayload() =>
-        [.. Contracts.GetTypes()
-            .Where(t => typeof(IEventPayload).IsAssignableFrom(t)
-                        && t is { IsInterface: false, IsAbstract: false })
-            .OrderBy(t => t.FullName, StringComparer.Ordinal)];
+    private static IReadOnlyList<Type> MoiPayload()
+    {
+        List<Type> ketQua = new List<Type>();
+
+        foreach (Type kieu in Contracts.GetTypes())
+        {
+            bool laPayload = typeof(IEventPayload).IsAssignableFrom(kieu)
+                             && !kieu.IsInterface
+                             && !kieu.IsAbstract;
+
+            if (laPayload)
+            {
+                ketQua.Add(kieu);
+            }
+        }
+
+        ketQua.Sort((a, b) => string.CompareOrdinal(a.FullName, b.FullName));
+        return ketQua;
+    }
 
     [Fact]
     public void Moi_payload_tuan_thu_quy_uoc()
