@@ -28,6 +28,11 @@ public static class CrowdJson
         // chạy được ở C# rồi hỏng khi Python đọc.
         PropertyNameCaseInsensitive = false,
 
+        // Đây chính là "additionalProperties": false của schema, dịch sang C#.
+        // Mặc định System.Text.Json BỎ QUA ÂM THẦM trường lạ — nghĩa là một service
+        // thêm trường mới vào envelope sẽ không ai phát hiện cho tới khi quá muộn.
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+
         WriteIndented = false,
     };
 }

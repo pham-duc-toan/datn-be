@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Crowd.BuildingBlocks.Messaging;
@@ -7,7 +8,7 @@ namespace Crowd.BuildingBlocks.Messaging;
 /// Phải khớp <c>contracts/events/envelope.schema.json</c> — C#, Python và Node
 /// cùng sinh code từ file schema đó, nên lệch một trường là hỏng liên thông.
 /// </summary>
-public sealed record EventEnvelope<TPayload> where TPayload : class
+public sealed record EventEnvelope<TPayload> where TPayload : class, IEventPayload
 {
     /// <summary>UUIDv7. Consumer dùng làm khóa idempotency (VD-D-02).</summary>
     public required Guid EventId { get; init; }
@@ -43,9 +44,13 @@ public sealed record EventEnvelope<TPayload> where TPayload : class
 }
 
 /// <summary>
-/// Nơi tạo <see cref="EventEnvelope{TPayload}"/>.
-/// Tách khỏi kiểu generic để C# suy luận <c>TPayload</c> từ chính payload:
-/// viết <c>EventEnvelope.Create(..., payload)</c> thay vì lặp lại tên kiểu.
+/// Hai cổng duy nhất cho event: <see cref="Create"/> đi ra, <see cref="Deserialize{TPayload}(string)"/>
+/// đi vào. Cả hai chạy <b>cùng một bộ luật</b> nên chiều vào và chiều ra không thể trôi khỏi nhau.
+/// <para>
+/// <b>Không gọi <see cref="JsonSerializer"/> trực tiếp cho event.</b> Làm vậy là bỏ qua
+/// các luật chỉ tồn tại ở đây (regex <c>eventType</c>, <c>version &gt;= 1</c>) — đúng lý do
+/// chiều vào từng lỏng hơn chiều ra.
+/// </para>
 /// </summary>
 public static partial class EventEnvelope
 {
@@ -53,12 +58,12 @@ public static partial class EventEnvelope
     private static partial Regex EventTypePattern();
 
     /// <summary>
-    /// Đường tạo envelope DUY NHẤT. Ép <c>EventId</c> là UUIDv7 và
-    /// validate <paramref name="eventType"/> đúng regex của schema.
+    /// Cổng RA. Ép <c>EventId</c> là UUIDv7 và validate hợp đồng.
     /// </summary>
     /// <param name="occurredAt">
     /// Bỏ trống = bây giờ. Chỉ truyền vào khi sự kiện đã xảy ra trong quá khứ.
     /// </param>
+    /// <exception cref="ArgumentException">Tham số vi phạm hợp đồng.</exception>
     public static EventEnvelope<TPayload> Create<TPayload>(
         string eventType,
         int version,
@@ -68,20 +73,15 @@ public static partial class EventEnvelope
         Guid? causationId = null,
         EventActor? actor = null,
         DateTimeOffset? occurredAt = null)
-        where TPayload : class
+        where TPayload : class, IEventPayload
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(producer);
         ArgumentNullException.ThrowIfNull(payload);
 
-        if (!EventTypePattern().IsMatch(eventType))
+        if (ViPham(eventType, version, producer) is { } loi)
         {
-            throw new ArgumentException(
-                $"eventType '{eventType}' sai định dạng. Phải là <aggregate>.<quá_khứ> " +
-                "chữ thường, vd: annotation.approved",
-                nameof(eventType));
+            throw new ArgumentException(loi, nameof(eventType));
         }
-
-        ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
 
         return new EventEnvelope<TPayload>
         {
@@ -97,6 +97,74 @@ public static partial class EventEnvelope
             Actor = actor,
             Payload = payload,
         };
+    }
+
+    /// <summary>Cổng VÀO. Đọc JSON rồi chạy đúng bộ luật của <see cref="Create"/>.</summary>
+    /// <exception cref="EventContractException">JSON hỏng, thiếu trường, hoặc vi phạm hợp đồng.</exception>
+    public static EventEnvelope<TPayload> Deserialize<TPayload>(string json)
+        where TPayload : class, IEventPayload
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        return Kiem(Doc<TPayload>(() => JsonSerializer.Deserialize<EventEnvelope<TPayload>>(
+            json, CrowdJson.Options)));
+    }
+
+    /// <summary>Cổng VÀO cho message lấy thẳng từ bus (RabbitMQ trả về UTF-8 byte).</summary>
+    /// <exception cref="EventContractException">JSON hỏng, thiếu trường, hoặc vi phạm hợp đồng.</exception>
+    public static EventEnvelope<TPayload> Deserialize<TPayload>(ReadOnlySpan<byte> utf8Json)
+        where TPayload : class, IEventPayload
+    {
+        // Sao ra mảng vì span không đi qua được closure của Doc().
+        var buffer = utf8Json.ToArray();
+        return Kiem(Doc<TPayload>(() => JsonSerializer.Deserialize<EventEnvelope<TPayload>>(
+            buffer, CrowdJson.Options)));
+    }
+
+    /// <summary>Bộ luật dùng chung cho cả hai chiều. <c>null</c> = hợp lệ.</summary>
+    private static string? ViPham(string eventType, int version, string producer)
+    {
+        if (!EventTypePattern().IsMatch(eventType))
+        {
+            return $"eventType '{eventType}' sai định dạng. Phải là <aggregate>.<quá_khứ> " +
+                   "chữ thường, vd: annotation.approved";
+        }
+
+        if (version < 1)
+        {
+            return $"version = {version}, phải >= 1";
+        }
+
+        return string.IsNullOrWhiteSpace(producer) ? "producer không được rỗng" : null;
+    }
+
+    private static EventEnvelope<TPayload> Doc<TPayload>(
+        Func<EventEnvelope<TPayload>?> deserialize)
+        where TPayload : class, IEventPayload
+    {
+        try
+        {
+            return deserialize()
+                   ?? throw new EventContractException("Message là JSON null.");
+        }
+        catch (JsonException ex)
+        {
+            // Gộp mọi nguyên nhân về một loại ngoại lệ để consumer chỉ cần một catch
+            // rồi đẩy sang DLQ (VD-D-06).
+            throw new EventContractException(
+                $"Message không đọc được theo hợp đồng envelope: {ex.Message}", ex);
+        }
+    }
+
+    private static EventEnvelope<TPayload> Kiem<TPayload>(EventEnvelope<TPayload> envelope)
+        where TPayload : class, IEventPayload
+    {
+        if (ViPham(envelope.EventType, envelope.Version, envelope.Producer) is { } loi)
+        {
+            throw new EventContractException(
+                $"Envelope {envelope.EventId} vi phạm hợp đồng: {loi}");
+        }
+
+        return envelope;
     }
 }
 

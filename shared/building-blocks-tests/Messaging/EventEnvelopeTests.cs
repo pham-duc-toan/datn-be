@@ -7,10 +7,25 @@ namespace Crowd.BuildingBlocks.Tests.Messaging;
 
 public sealed class EventEnvelopeTests
 {
-    /// <summary>Payload mẫu. <c>long</c> cho tiền = số nguyên đồng (VD-M-05, VD-M-07).</summary>
-    private sealed record AnnotationApproved(Guid AnnotationId, Guid LabelerId, long AmountVnd);
+    /// <summary>
+    /// Payload mẫu. Viết dạng <c>required</c> chứ KHÔNG dùng positional record —
+    /// positional record thiếu trường sẽ âm thầm thành 0 đồng (VD-M-05, VD-M-07).
+    /// </summary>
+    private sealed record AnnotationApproved : IEventPayload
+    {
+        public required Guid AnnotationId { get; init; }
+        public required Guid LabelerId { get; init; }
+        public required long AmountVnd { get; init; }
+    }
 
     private static readonly Guid CorrelationId = Guid.CreateVersion7();
+
+    private static AnnotationApproved Payload() => new()
+    {
+        AnnotationId = Guid.CreateVersion7(),
+        LabelerId = Guid.CreateVersion7(),
+        AmountVnd = 200_000,
+    };
 
     private static EventEnvelope<AnnotationApproved> Sample(
         EventActor? actor = null, Guid? causationId = null) =>
@@ -19,19 +34,20 @@ public sealed class EventEnvelopeTests
             version: 1,
             producer: "annotation-svc",
             correlationId: CorrelationId,
-            payload: new AnnotationApproved(Guid.CreateVersion7(), Guid.CreateVersion7(), 200_000),
+            payload: Payload(),
             causationId: causationId,
             actor: actor);
 
-    // ---------------------------------------------------------------- Create
+    private static string Json(EventActor? actor = null) =>
+        JsonSerializer.Serialize(Sample(actor), CrowdJson.Options);
+
+    // ============================================================ CỔNG RA
 
     [Fact]
     public void Create_sinh_EventId_dang_UUIDv7()
     {
-        var envelope = Sample();
-
         // Ký tự thứ 15 trong dạng chuẩn là số hiệu phiên bản UUID.
-        Assert.Equal('7', envelope.EventId.ToString()[14]);
+        Assert.Equal('7', Sample().EventId.ToString()[14]);
     }
 
     [Fact]
@@ -40,7 +56,7 @@ public sealed class EventEnvelopeTests
         // Tính chất quyết định vì sao chọn UUIDv7: ghi tuần tự vào cuối B-tree
         // của outbox và processed_events thay vì page split khắp nơi.
         //
-        // LƯU Ý: Guid.CreateVersion7() của .NET chỉ tuần tự ở mức MILLI GIÂY —
+        // LƯU Ý: Guid.CreateVersion7() của .NET chỉ tuần tự ở mức MILI GIÂY —
         // nó không gắn bộ đếm đơn điệu, nên hai GUID sinh trong cùng một mili
         // giây có thứ tự ngẫu nhiên. Đủ cho mục đích cục bộ hóa ghi đĩa, nhưng
         // KHÔNG được dùng EventId để suy ra thứ tự sự kiện (dùng OccurredAt).
@@ -59,9 +75,7 @@ public sealed class EventEnvelopeTests
     [InlineData("cpm.batch_settled")]
     public void Create_chap_nhan_eventType_trong_catalog(string eventType)
     {
-        var envelope = EventEnvelope.Create(
-            eventType, 1, "test-svc", CorrelationId,
-            new AnnotationApproved(Guid.Empty, Guid.Empty, 0));
+        var envelope = EventEnvelope.Create(eventType, 1, "test-svc", CorrelationId, Payload());
 
         Assert.Equal(eventType, envelope.EventType);
     }
@@ -77,9 +91,7 @@ public sealed class EventEnvelopeTests
     public void Create_tu_choi_eventType_sai_dinh_dang(string eventType)
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            EventEnvelope.Create(
-                eventType, 1, "test-svc", CorrelationId,
-                new AnnotationApproved(Guid.Empty, Guid.Empty, 0)));
+            EventEnvelope.Create(eventType, 1, "test-svc", CorrelationId, Payload()));
 
         Assert.Equal("eventType", ex.ParamName);
     }
@@ -89,10 +101,8 @@ public sealed class EventEnvelopeTests
     [InlineData(-1)]
     public void Create_tu_choi_version_nho_hon_1(int version)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            EventEnvelope.Create(
-                "annotation.approved", version, "test-svc", CorrelationId,
-                new AnnotationApproved(Guid.Empty, Guid.Empty, 0)));
+        Assert.Throws<ArgumentException>(() =>
+            EventEnvelope.Create("annotation.approved", version, "test-svc", CorrelationId, Payload()));
     }
 
     [Fact]
@@ -103,98 +113,148 @@ public sealed class EventEnvelopeTests
         var quaKhu = new DateTimeOffset(2026, 3, 1, 10, 30, 0, TimeSpan.FromHours(7));
 
         var envelope = EventEnvelope.Create(
-            "annotation.approved", 1, "test-svc", CorrelationId,
-            new AnnotationApproved(Guid.Empty, Guid.Empty, 0), occurredAt: quaKhu);
+            "annotation.approved", 1, "test-svc", CorrelationId, Payload(), occurredAt: quaKhu);
 
         Assert.Equal(quaKhu, envelope.OccurredAt);
     }
 
-    // ------------------------------------------------------------- Định dạng
+    // ============================================================ CỔNG VÀO
+    //
+    // Bốn test dưới đây bịt bốn lỗ đã tìm ra: trước khi có cổng vào, chiều nhận
+    // chỉ gọi thẳng JsonSerializer nên KHÔNG kiểm regex, version, và trường lạ.
 
     [Fact]
-    public void Serialize_dung_camelCase_cho_moi_truong()
+    public void Deserialize_doc_lai_dung_envelope_hop_le()
     {
-        var json = JsonSerializer.Serialize(Sample(), CrowdJson.Options);
-        var node = JsonNode.Parse(json)!.AsObject();
+        var goc = Sample(new EventActor(Guid.CreateVersion7(), ActorRole.Labeler));
 
-        Assert.Equal(
-            ["actor", "causationId", "correlationId", "eventId", "eventType",
-             "occurredAt", "payload", "producer", "version"],
-            node.Select(kv => kv.Key).Order(StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public void Serialize_enum_thanh_chuoi_chu_thuong()
-    {
-        var actor = new EventActor(Guid.CreateVersion7(), ActorRole.Business);
-
-        var json = JsonSerializer.Serialize(Sample(actor), CrowdJson.Options);
-        var role = JsonNode.Parse(json)!["actor"]!["role"]!.GetValue<string>();
-
-        // Số thứ tự enum sẽ vỡ ngay khi ai đó chèn giá trị vào giữa danh sách.
-        Assert.Equal("business", role);
-    }
-
-    [Fact]
-    public void Serialize_ghi_null_tuong_minh_thay_vi_bo_key()
-    {
-        // Định dạng trên dây đoán trước được => Python và Node không phải viết
-        // nhánh "key này có thể không tồn tại".
-        var json = JsonSerializer.Serialize(Sample(), CrowdJson.Options);
-        var node = JsonNode.Parse(json)!.AsObject();
-
-        Assert.True(node.ContainsKey("actor"));
-        Assert.True(node.ContainsKey("causationId"));
-        Assert.Null(node["actor"]);
-        Assert.Null(node["causationId"]);
-    }
-
-    [Fact]
-    public void RoundTrip_giu_nguyen_moi_gia_tri()
-    {
-        var goc = Sample(
-            actor: new EventActor(Guid.CreateVersion7(), ActorRole.Labeler),
-            causationId: Guid.CreateVersion7());
-
-        var json = JsonSerializer.Serialize(goc, CrowdJson.Options);
-        var lai = JsonSerializer.Deserialize<EventEnvelope<AnnotationApproved>>(
-            json, CrowdJson.Options);
+        var lai = EventEnvelope.Deserialize<AnnotationApproved>(
+            JsonSerializer.Serialize(goc, CrowdJson.Options));
 
         Assert.Equal(goc, lai);
     }
 
     [Fact]
-    public void Deserialize_that_bai_khi_thieu_truong_bat_buoc()
+    public void Deserialize_doc_duoc_tu_byte_utf8()
     {
-        var json = JsonSerializer.Serialize(Sample(), CrowdJson.Options);
-        var thieu = JsonNode.Parse(json)!.AsObject();
-        thieu.Remove("correlationId");
+        // RabbitMQ trả về byte, không trả về string.
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(Sample(), CrowdJson.Options);
 
-        // Phải nổ ngay, không được âm thầm trả về Guid.Empty.
-        Assert.Throws<JsonException>(() =>
-            JsonSerializer.Deserialize<EventEnvelope<AnnotationApproved>>(
-                thieu.ToJsonString(), CrowdJson.Options));
+        var lai = EventEnvelope.Deserialize<AnnotationApproved>(bytes.AsSpan());
+
+        Assert.Equal("annotation.approved", lai.EventType);
     }
 
     [Fact]
-    public void Deserialize_that_bai_khi_sai_hoa_thuong()
+    public void Deserialize_chan_truong_la()  // lỗ 1 — additionalProperties: false
+    {
+        var them = JsonNode.Parse(Json())!.AsObject();
+        them["tenantId"] = "co-gi-do-sai";
+
+        var ex = Assert.Throws<EventContractException>(() =>
+            EventEnvelope.Deserialize<AnnotationApproved>(them.ToJsonString()));
+
+        Assert.Contains("tenantId", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Deserialize_chan_eventType_sai_dinh_dang()  // lỗ 2
+    {
+        var hong = JsonNode.Parse(Json())!.AsObject();
+        hong["eventType"] = "GARBAGE";
+
+        var ex = Assert.Throws<EventContractException>(() =>
+            EventEnvelope.Deserialize<AnnotationApproved>(hong.ToJsonString()));
+
+        Assert.Contains("GARBAGE", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Deserialize_chan_version_nho_hon_1()  // lỗ 3
+    {
+        var hong = JsonNode.Parse(Json())!.AsObject();
+        hong["version"] = -5;
+
+        var ex = Assert.Throws<EventContractException>(() =>
+            EventEnvelope.Deserialize<AnnotationApproved>(hong.ToJsonString()));
+
+        Assert.Contains("-5", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("khong-phai-json")]
+    [InlineData("{}")]
+    [InlineData("null")]
+    public void Deserialize_gop_moi_loi_ve_EventContractException(string json)
+    {
+        // Consumer chỉ cần MỘT catch rồi đẩy sang DLQ (VD-D-06), bất kể nguyên nhân
+        // là JSON hỏng, thiếu trường bắt buộc, hay vi phạm quy tắc nghiệp vụ.
+        Assert.Throws<EventContractException>(() =>
+            EventEnvelope.Deserialize<AnnotationApproved>(json));
+    }
+
+    [Fact]
+    public void Deserialize_chan_thieu_truong_bat_buoc()
+    {
+        var thieu = JsonNode.Parse(Json())!.AsObject();
+        thieu.Remove("correlationId");
+
+        Assert.Throws<EventContractException>(() =>
+            EventEnvelope.Deserialize<AnnotationApproved>(thieu.ToJsonString()));
+    }
+
+    [Fact]
+    public void Deserialize_chan_sai_hoa_thuong()
     {
         // PropertyNameCaseInsensitive = false: lệch hoa thường nổ lúc test,
         // không âm thầm chạy được ở C# rồi hỏng khi Python đọc.
-        var json = JsonSerializer.Serialize(Sample(), CrowdJson.Options);
-        var lech = JsonNode.Parse(json)!.AsObject();
+        var lech = JsonNode.Parse(Json())!.AsObject();
         lech["EventType"] = lech["eventType"]!.DeepClone();
         lech.Remove("eventType");
 
-        Assert.Throws<JsonException>(() =>
-            JsonSerializer.Deserialize<EventEnvelope<AnnotationApproved>>(
-                lech.ToJsonString(), CrowdJson.Options));
+        Assert.Throws<EventContractException>(() =>
+            EventEnvelope.Deserialize<AnnotationApproved>(lech.ToJsonString()));
     }
 
-    // ------------------------------------------- Đối chiếu với schema gốc
+    // ============================================ QUY ƯỚC PAYLOAD (lỗ 4)
 
-    private static readonly JsonSchema Schema =
-        JsonSchema.FromFile(Path.Combine(AppContext.BaseDirectory, "contracts", "envelope.schema.json"));
+    /// <summary>Positional record: tham số vị trí KHÔNG mang <c>required</c>.</summary>
+    private sealed record PayloadXau(long AmountVnd) : IEventPayload;
+
+    private sealed record PayloadTot : IEventPayload
+    {
+        public required long AmountVnd { get; init; }
+        public string? GhiChu { get; init; }          // nullable = vắng mặt có chủ đích
+        public Guid? NguoiDuyet { get; init; }
+    }
+
+    [Fact]
+    public void PayloadContract_bat_duoc_positional_record()
+    {
+        var loi = EventPayloadContract.FindViolations(typeof(PayloadXau));
+
+        // Không bắt được cái này thì một event annotation.approved thiếu trường
+        // số tiền sẽ âm thầm thành 0 đồng.
+        var chiTiet = Assert.Single(loi);
+        Assert.Contains("AmountVnd", chiTiet, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PayloadContract_chap_nhan_required_va_nullable()
+    {
+        Assert.Empty(EventPayloadContract.FindViolations(typeof(PayloadTot)));
+    }
+
+    [Fact]
+    public void PayloadContract_chap_nhan_payload_that_dang_dung()
+    {
+        Assert.Empty(EventPayloadContract.FindViolations(typeof(AnnotationApproved)));
+    }
+
+    // ============================================== ĐỐI CHIẾU SCHEMA GỐC
+
+    private static readonly JsonSchema Schema = JsonSchema.FromFile(
+        Path.Combine(AppContext.BaseDirectory, "contracts", "envelope.schema.json"));
 
     private static EvaluationResults Validate(object envelope)
     {
@@ -223,9 +283,7 @@ public sealed class EventEnvelopeTests
     [Fact]
     public void Envelope_khong_actor_khong_causation_khop_schema_goc()
     {
-        var results = Validate(Sample());
-
-        Assert.True(results.IsValid, ThongBaoLoi(results));
+        Assert.True(Validate(Sample()).IsValid, ThongBaoLoi(Validate(Sample())));
     }
 
     [Theory]
@@ -240,6 +298,41 @@ public sealed class EventEnvelopeTests
         var results = Validate(Sample(new EventActor(Guid.CreateVersion7(), role)));
 
         Assert.True(results.IsValid, ThongBaoLoi(results));
+    }
+
+    // ---------------------------------------------------------- Định dạng
+
+    [Fact]
+    public void Serialize_dung_camelCase_cho_moi_truong()
+    {
+        var node = JsonNode.Parse(Json())!.AsObject();
+
+        Assert.Equal(
+            ["actor", "causationId", "correlationId", "eventId", "eventType",
+             "occurredAt", "payload", "producer", "version"],
+            node.Select(kv => kv.Key).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Serialize_enum_thanh_chuoi_chu_thuong()
+    {
+        var json = Json(new EventActor(Guid.CreateVersion7(), ActorRole.Business));
+
+        // Số thứ tự enum sẽ vỡ ngay khi ai đó chèn giá trị vào giữa danh sách.
+        Assert.Equal("business", JsonNode.Parse(json)!["actor"]!["role"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Serialize_ghi_null_tuong_minh_thay_vi_bo_key()
+    {
+        // Định dạng trên dây đoán trước được => Python và Node không phải viết
+        // nhánh "key này có thể không tồn tại".
+        var node = JsonNode.Parse(Json())!.AsObject();
+
+        Assert.True(node.ContainsKey("actor"));
+        Assert.True(node.ContainsKey("causationId"));
+        Assert.Null(node["actor"]);
+        Assert.Null(node["causationId"]);
     }
 
     private static string ThongBaoLoi(EvaluationResults results) =>
