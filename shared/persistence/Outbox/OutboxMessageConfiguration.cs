@@ -22,25 +22,34 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
 
             builder.ToTable("outbox");
 
+            // Đặt tên cột snake_case TƯỜNG MINH thay vì để EF tự sinh PascalCase.
+            // Hai lý do:
+            //   - snake_case là quy ước của Postgres, gõ tay trong psql không
+            //     phải bọc dấu nháy kép
+            //   - dispatcher đọc bảng này bằng SQL thô (FOR UPDATE SKIP LOCKED
+            //     mà EF không sinh được), nên tên cột phải đoán trước được
+
             // ValueGeneratedNever: KHÔNG để database tự sinh khóa chính.
             // Id chính là EventId (UUIDv7) của envelope, ta tự gán.
-            builder.Property(x => x.Id).ValueGeneratedNever();
+            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
             builder.HasKey(x => x.Id);
 
-            builder.Property(x => x.EventType).HasMaxLength(100).IsRequired();
-            builder.Property(x => x.Version).IsRequired();
-            builder.Property(x => x.CorrelationId).IsRequired();
-            builder.Property(x => x.OccurredAt).IsRequired();
+            builder.Property(x => x.EventType)
+                .HasColumnName("event_type").HasMaxLength(100).IsRequired();
+            builder.Property(x => x.Version).HasColumnName("version").IsRequired();
+            builder.Property(x => x.CorrelationId).HasColumnName("correlation_id").IsRequired();
+            builder.Property(x => x.OccurredAt).HasColumnName("occurred_at").IsRequired();
 
             // jsonb chứ không phải text: cho phép truy vấn vào bên trong khi
             // điều tra, ví dụ tìm mọi event của một dự án mà không phải parse
             // ở tầng ứng dụng.
-            builder.Property(x => x.EnvelopeJson).HasColumnType("jsonb").IsRequired();
+            builder.Property(x => x.EnvelopeJson)
+                .HasColumnName("envelope_json").HasColumnType("jsonb").IsRequired();
 
-            builder.Property(x => x.PublishedAt);
-            builder.Property(x => x.AttemptCount).IsRequired();
-            builder.Property(x => x.LastError).HasMaxLength(2000);
-            builder.Property(x => x.NextAttemptAt).IsRequired();
+            builder.Property(x => x.PublishedAt).HasColumnName("published_at");
+            builder.Property(x => x.AttemptCount).HasColumnName("attempt_count").IsRequired();
+            builder.Property(x => x.LastError).HasColumnName("last_error").HasMaxLength(2000);
+            builder.Property(x => x.NextAttemptAt).HasColumnName("next_attempt_at").IsRequired();
 
             // INDEX BỘ PHẬN — chi tiết quan trọng nhất của cả file này.
             //

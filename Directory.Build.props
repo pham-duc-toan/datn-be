@@ -35,9 +35,14 @@
          CA1510-CA1513  doi dung ArgumentNullException.ThrowIfNull thay vi if+throw
          IDE0028,IDE0300,IDE0301,IDE0305  doi dung collection expression [ ... ]
          IDE0290        doi dung primary constructor
-         IDE0022,IDE0025  doi dung expression-bodied member -->
+         IDE0022,IDE0025  doi dung expression-bodied member
+         CA1848,CA1873    doi dung [LoggerMessage] source generator thay vi
+                          logger.LogInformation(...). Do la pattern partial +
+                          attribute — dung cai kho doc ma du an nay tranh. Day la
+                          luat hieu nang, khong phai luat dung sai; o muc vai
+                          chuc log moi lo thi khac biet khong dang ke -->
   <PropertyGroup>
-    <NoWarn>$(NoWarn);CA1510;CA1511;CA1512;CA1513;IDE0028;IDE0290;IDE0300;IDE0301;IDE0305;IDE0022;IDE0025</NoWarn>
+    <NoWarn>$(NoWarn);CA1510;CA1511;CA1512;CA1513;IDE0028;IDE0290;IDE0300;IDE0301;IDE0305;IDE0022;IDE0025;CA1848;CA1873</NoWarn>
   </PropertyGroup>
 
   <!-- Project test co quy uoc rieng, khong ap luat cua thu vien:
