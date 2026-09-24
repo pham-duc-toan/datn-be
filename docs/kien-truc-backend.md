@@ -9,7 +9,7 @@
 
 | # | Nguyên tắc | Hệ quả cụ thể |
 |---|---|---|
-| 1 | Mỗi service một **datastore container riêng**, chọn theo access pattern | Không tồn tại đường nào để service A chạm dữ liệu service B: khác process, khác credential, khác endpoint mạng |
+| 1 | Mỗi service một **datastore container riêng**, chọn theo access pattern | Service A không chạm được dữ liệu service B: khác tiến trình, khác credential. Mỗi service chỉ được cấp đúng connection string của mình |
 | 2 | Không gọi HTTP đồng bộ giữa các service trong đường nóng | Giao tiếp qua event; dữ liệu chéo giữ dưới dạng bản sao read-only cập nhật bằng event |
 | 3 | Tiền không bao giờ đi qua transaction phân tán | `ledger-svc` là service duy nhất ghi số dư; mọi thứ khác là saga |
 | 4 | Đường ghi nóng phải mỏng | `task`/`annotation`/`gate`: validate → ghi → phát event. Tính toán nặng đẩy sang worker |
@@ -123,7 +123,17 @@ Mỗi service có **container datastore độc lập** của riêng nó — Post
 4. Mỗi service một server riêng              ← ĐANG DÙNG
 ```
 
-Ở nấc 4, `task-svc` không có bất kỳ đường nào chạm `ledger_db` — không phải vì bị từ chối quyền, mà vì **không tồn tại kết nối nào để thử**. Cô lập đồng thời ở 4 mức: dữ liệu, hiệu năng, sự cố, và tài nguyên.
+Ở nấc 4, `task-svc` không chạm được `ledger_db` vì **nó không có credential** — mỗi service chỉ được cấp đúng connection string của mình qua biến môi trường. Cô lập đồng thời ở 4 mức: dữ liệu, hiệu năng, sự cố, và tài nguyên.
+
+**Giới hạn cần nói rõ — đã kiểm chứng bằng thực nghiệm:** mọi container nằm chung một Docker network, nên `db-ledger` vẫn **phân giải được tên và mở được cổng** từ container khác. Cô lập ở đây là **bằng credential, không phải bằng mạng**:
+
+```
+Trong container task, mở ledger_db            → FATAL: database "ledger_db" does not exist   ✓
+Từ container task nối mạng sang db-ledger
+  VỚI credential đúng của ledger              → kết nối thành công                            ✗
+```
+
+Đây là chuẩn mực công nghiệp và đủ cho môi trường phát triển — kẻ tấn công phải có sẵn mật khẩu thì mới khai thác được, mà mật khẩu thì chỉ nằm trong biến môi trường của đúng service sở hữu. Muốn đóng nốt đường mạng thì dùng NetworkPolicy của Kubernetes ở nhánh `NC-A`, chứ không phải bằng Docker Compose.
 
 **Hệ quả kèm theo:** không thể có foreign key, transaction, hay `JOIN` xuyên service — kể cả trong lúc vá lỗi khẩn cấp. Mọi liên kết dữ liệu phải đi qua event và bản sao read-only (mục 4).
 

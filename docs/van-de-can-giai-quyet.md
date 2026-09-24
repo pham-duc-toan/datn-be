@@ -6,7 +6,7 @@ Danh sách mọi rủi ro kỹ thuật, bảo mật, pháp lý và sản phẩm 
 
 **Mức độ:** `CHẶN` = không xử lý thì không được lên production · `CAO` = phải có trước khi bảo vệ · `TB` = nên có
 
-**Thống kê:** **109 vấn đề** (mục A–L, N) — 32 CHẶN · 58 CAO · 19 TB · kèm **29 hướng nâng cao** (mục M)
+**Thống kê:** **110 vấn đề** (mục A–L, N) — 32 CHẶN · 58 CAO · 20 TB · kèm **29 hướng nâng cao** (mục M)
 
 ---
 
@@ -131,6 +131,7 @@ Danh sách mọi rủi ro kỹ thuật, bảo mật, pháp lý và sản phẩm 
 | S-04 | BFF gọi service bằng service account đặc quyền | Một lỗi logic ở BFF = lộ toàn bộ dữ liệu tiền của mọi người | BFF chuyển tiếp nguyên token người dùng; BFF không có đặc quyền gì | CHẶN | P1 |
 | S-05 | JWT: alg confusion, thiếu kiểm `aud`/`iss`, TTL quá dài | Chiếm phiên | Cố định thuật toán; kiểm `aud`/`iss`; access 15 phút + refresh rotation | CHẶN | P0 |
 | S-06 | Service nội bộ phơi ra Internet, bỏ qua gateway | Nộp nhãn giả, đọc dữ liệu trực tiếp | Mạng private; chỉ gateway public; mTLS giữa các service nếu làm được | CHẶN | P0 |
+| S-15 | Mọi container nằm chung một Docker network, nên datastore của service này vẫn phân giải tên và mở cổng được từ container của service khác. Cô lập hiện tại là **bằng credential, không phải bằng mạng** — đã kiểm chứng bằng thực nghiệm | Rò một connection string là chạm được thẳng vào database của service khác, không cần đi qua service đó | Chấp nhận ở môi trường phát triển (chuẩn mực công nghiệp; mật khẩu chỉ nằm trong biến môi trường của đúng service sở hữu). Khi lên Kubernetes ở `NC-A-01`: dùng **NetworkPolicy** để mỗi datastore chỉ nhận kết nối từ đúng service của nó. Docker Compose không làm được việc này một cách gọn gàng | TB | P6 |
 | S-07 | Signed URL TTL dài hoặc bucket public chứa KYB/CCCD | Lộ dữ liệu định danh | Bucket private tuyệt đối; signed URL TTL ≤ 5 phút, gắn `userId`; mọi truy cập ghi audit | CHẶN | P0 |
 | S-08 | Secret nằm trong compose / commit vào repo | Lộ credential toàn hệ thống | Secret manager; `.env` không commit; đổi toàn bộ mật khẩu dev trước khi lên thật | CHẶN | P0 |
 | S-09 | Chiếm tài khoản → đổi số tài khoản ngân hàng → rút sạch | Mất tiền người dùng | Khóa rút 48h sau khi đổi phương thức rút; bắt buộc 2FA; cảnh báo về email cũ | CAO | P1 |

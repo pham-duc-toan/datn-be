@@ -40,7 +40,9 @@ services:
     healthcheck: { test: ["CMD","rabbitmq-diagnostics","-q","ping"], interval: 10s, timeout: 5s, retries: 20 }
 
   minio:
-    image: minio/minio:latest
+    # quay.io chu khong phai Docker Hub: MinIO da go image khoi Docker Hub,
+    # `docker pull minio/minio` tra ve "pull access denied".
+    image: quay.io/minio/minio:latest
     container_name: datn-minio
     # Dung chung nhung moi service mot bucket + access key gioi han vao
     # dung bucket do -> cach ly tuong duong, khong ton 15 container.
@@ -53,15 +55,18 @@ services:
     healthcheck: { test: ["CMD","mc","ready","local"], interval: 10s, timeout: 5s, retries: 20 }
 
   minio-init:
-    image: minio/mc:latest
+    # Dung CHINH image server thay vi minio/mc: image mc da bien mat khoi ca
+    # Docker Hub lan quay.io, nhung binary mc van nam san trong image server
+    # tai /usr/bin/mc. Bot mot phu thuoc, va chac chan cung phien ban.
+    image: quay.io/minio/minio:latest
     depends_on:
       minio: { condition: service_healthy }
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 datn dev_minio_pw;
-      mc mb -p local/datasets local/media local/exports local/kyb-docs local/avatars local/ml-models;
-      mc anonymous set none local/datasets;
-      mc anonymous set none local/media;
+      /usr/bin/mc alias set local http://minio:9000 datn dev_minio_pw;
+      /usr/bin/mc mb -p local/datasets local/media local/exports local/kyb-docs local/avatars local/ml-models;
+      /usr/bin/mc anonymous set none local/datasets;
+      /usr/bin/mc anonymous set none local/media;
       exit 0;
       "
 
