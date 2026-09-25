@@ -17,13 +17,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../building-blocks/Crowd.BuildingBlocks.csproj" />
+    <ProjectReference Include="../../building-blocks/Crowd.BuildingBlocks.csproj" />
   </ItemGroup>
 
   <!-- Schema gốc được copy ra thư mục build để test đối chiếu trực tiếp với nó.
        Sửa schema mà quên sửa C# => test đỏ ngay. -->
   <ItemGroup>
-    <Content Include="../../contracts/events/envelope.schema.json" Link="contracts/envelope.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../contracts/events/envelope.schema.json" Link="contracts/envelope.schema.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

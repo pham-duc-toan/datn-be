@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 
 namespace Crowd.BuildingBlocks.Persistence.Idempotency
 {
@@ -14,9 +13,6 @@ namespace Crowd.BuildingBlocks.Persistence.Idempotency
     /// </summary>
     public sealed class IdempotencyGuard : IIdempotencyGuard
     {
-        /// <summary>Ma loi cua Postgres cho vi pham rang buoc duy nhat.</summary>
-        private const string ViPhamDuyNhat = "23505";
-
         private readonly DbContext _db;
         private readonly TimeProvider _clock;
         private readonly ILogger<IdempotencyGuard> _logger;
@@ -101,7 +97,7 @@ namespace Crowd.BuildingBlocks.Persistence.Idempotency
 
                 return true;
             }
-            catch (DbUpdateException ex) when (LaViPhamDuyNhat(ex))
+            catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex))
             {
                 await tx.RollbackAsync(ct).ConfigureAwait(false);
 
@@ -131,16 +127,5 @@ namespace Crowd.BuildingBlocks.Persistence.Idempotency
             }
         }
 
-        private static bool LaViPhamDuyNhat(DbUpdateException ex)
-        {
-            PostgresException? loiPg = ex.InnerException as PostgresException;
-
-            if (loiPg == null)
-            {
-                return false;
-            }
-
-            return string.Equals(loiPg.SqlState, ViPhamDuyNhat, StringComparison.Ordinal);
-        }
     }
 }

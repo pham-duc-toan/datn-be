@@ -440,9 +440,13 @@ datn/
 ├─ shared/
 │  ├─ building-blocks/              ← Crowd.BuildingBlocks: hạ tầng dùng chung
 │  │                                  envelope, outbox, idempotency, correlation, auth
-│  ├─ building-blocks-tests/
 │  ├─ contracts/                    ← Crowd.Contracts: ~55 payload record
-│  └─ contracts-tests/              ← canh quy ước cho mọi payload
+│  ├─ persistence/                  ← Crowd.BuildingBlocks.Persistence: outbox, idempotency (EF Core)
+│  ├─ auth/                         ← Crowd.BuildingBlocks.Auth
+│  └─ test/                         ← mọi project test của shared gom một chỗ
+│     ├─ building-blocks-tests/
+│     ├─ contracts-tests/           ← canh quy ước cho mọi payload
+│     └─ persistence-tests/
 ├─ Directory.Build.props             ← thuộc tính chung mọi project C#
 ├─ Directory.Packages.props          ← Central Package Management: phiên bản gói ở MỘT chỗ
 ├─ datn.slnx
@@ -488,7 +492,21 @@ Lý do từng nhóm 4 project:
 | `payment` | `Infrastructure` tách adapter VNPay/MoMo ra sau interface → **mock được cổng thanh toán trong test**, đây mới là lý do chính |
 | `gate` | Chấm câu vàng và phát token — phải test được mà không cần ClickHouse lẫn Redis |
 
-Service 2 project vẫn tổ chức nội bộ theo **thư mục tính năng** (`Features/Auth/`, `Features/Profile/`), nên nâng lên 4 project về sau chỉ là di chuyển thư mục, không phải viết lại.
+Service 2 project tổ chức nội bộ theo **lớp** kiểu controller/service/helper — không dùng Minimal API:
+
+```
+X.Api/
+├─ Controllers/     ← [ApiController]: kiểm đầu vào (qua helper), gọi service, đổi kết quả thành mã HTTP
+├─ Services/        ← nghiệp vụ; trả kết quả nghiệp vụ, không biết gì về HTTP
+├─ Helpers/         ← hàm tĩnh dùng lại: validator, correlationId…
+├─ Dtos/            ← hình dạng request/response
+├─ Entities/        ← entity EF Core
+├─ Settings/        ← lớp Options đọc từ appsettings
+├─ Persistence/     ← DbContext, Configurations/, Migrations/
+└─ Program.cs       ← composition root: đăng ký DI + AddControllers/MapControllers
+```
+
+Service 4 project cũng dùng Controllers ở tầng `Api`; nghiệp vụ nằm ở `Domain` (DDD) thay vì `Services/`.
 
 Ba service Python (`quality`, `ml`, `fraud`) và một service Node (`collab`) có bố cục riêng, không thuộc bảng này.
 
@@ -528,7 +546,7 @@ P0→P3 là lõi bảo vệ được của đồ án. Nếu thời gian ép, c�
 ## 8. Stack
 
 ```
-C#       .NET 10 (LTS) · ASP.NET Core Minimal API · EF Core (Npgsql) · MassTransit
+C#       .NET 10 (LTS) · ASP.NET Core Web API (Controllers) · EF Core (Npgsql) · MassTransit
          YARP · FluentValidation · Serilog · OpenTelemetry
 Python   FastAPI · Arq (Redis) · numpy/scipy/scikit-learn · PyTorch (SAM)
 Node     TypeScript · Fastify · ws · Yjs (+ y-redis cho multi-instance)

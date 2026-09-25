@@ -32,7 +32,7 @@ public sealed class PayloadSnapshotTests
         }
 
         Assert.True(File.Exists(DuongDan),
-            $"Chưa có ảnh chụp. Sinh lần đầu bằng:\n  {BienMoiTruongCapNhat}=1 dotnet test shared/contracts-tests");
+            $"Chưa có ảnh chụp. Sinh lần đầu bằng:\n  {BienMoiTruongCapNhat}=1 dotnet test shared/test/contracts-tests");
 
         var daCommit = File.ReadAllText(DuongDan).Replace("\r\n", "\n", StringComparison.Ordinal);
         var moi = (TieuDe + hienTai).Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -42,7 +42,7 @@ public sealed class PayloadSnapshotTests
 
     private const string TieuDe =
         "# Ảnh chụp hợp đồng payload — SINH TỰ ĐỘNG, đừng sửa tay.\n" +
-        "# Cập nhật: UPDATE_CONTRACT_SNAPSHOT=1 dotnet test shared/contracts-tests\n" +
+        "# Cập nhật: UPDATE_CONTRACT_SNAPSHOT=1 dotnet test shared/test/contracts-tests\n" +
         "# Mọi thay đổi trong file này là BREAKING CHANGE — xem VD-D-12.\n" +
         "\n";
 
@@ -76,7 +76,7 @@ public sealed class PayloadSnapshotTests
 
               2. Chấp nhận deploy ĐỒNG LOẠT mọi service consume event này, rồi cập
                  nhật ảnh chụp:
-                     UPDATE_CONTRACT_SNAPSHOT=1 dotnet test shared/contracts-tests
+                     UPDATE_CONTRACT_SNAPSHOT=1 dotnet test shared/test/contracts-tests
 
               3. Hoàn tác thay đổi nếu nó ngoài ý muốn.
 

@@ -262,21 +262,48 @@ namespace Crowd.BuildingBlocks.Messaging
             Type? underlying = Nullable.GetUnderlyingType(prop.PropertyType);
             if (underlying != null)
             {
-                return underlying.Name + "?";
+                return TenDocDuoc(underlying) + "?";
             }
 
             if (prop.PropertyType.IsValueType)
             {
-                return prop.PropertyType.Name;
+                return TenDocDuoc(prop.PropertyType);
             }
 
             NullabilityInfo info = nullability.Create(prop);
             if (info.ReadState == NullabilityState.Nullable)
             {
-                return prop.PropertyType.Name + "?";
+                return TenDocDuoc(prop.PropertyType) + "?";
             }
 
-            return prop.PropertyType.Name;
+            return TenDocDuoc(prop.PropertyType);
+        }
+
+        /// <summary>
+        /// Ten kieu de NGUOI doc duoc trong diff: IReadOnlyList&lt;String&gt; thay vi
+        /// ten noi bo "IReadOnlyList`1" cua .NET.
+        /// </summary>
+        private static string TenDocDuoc(Type kieu)
+        {
+            if (!kieu.IsGenericType)
+            {
+                return kieu.Name;
+            }
+
+            string ten = kieu.Name;
+            int viTriDauHuyen = ten.IndexOf('`', StringComparison.Ordinal);
+            if (viTriDauHuyen >= 0)
+            {
+                ten = ten.Substring(0, viTriDauHuyen);
+            }
+
+            List<string> thamSo = new List<string>();
+            foreach (Type t in kieu.GetGenericArguments())
+            {
+                thamSo.Add(TenDocDuoc(t));
+            }
+
+            return ten + "<" + string.Join(", ", thamSo) + ">";
         }
     }
 }

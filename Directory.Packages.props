@@ -13,6 +13,7 @@
          keo 10.0.4, hai project bien dich ra hai phien ban khac nhau va
          linker bao CS1705. CentralPackageTransitivePinningEnabled dang bat
          nen mot dong nay dong bo ca cay phu thuoc. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">

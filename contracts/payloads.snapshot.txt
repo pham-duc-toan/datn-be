@@ -1,5 +1,5 @@
 # Ảnh chụp hợp đồng payload — SINH TỰ ĐỘNG, đừng sửa tay.
-# Cập nhật: UPDATE_CONTRACT_SNAPSHOT=1 dotnet test shared/contracts-tests
+# Cập nhật: UPDATE_CONTRACT_SNAPSHOT=1 dotnet test shared/test/contracts-tests
 # Mọi thay đổi trong file này là BREAKING CHANGE — xem VD-D-12.
 
 annotation.approved v1  (AnnotationApproved)
@@ -10,3 +10,9 @@ annotation.approved v1  (AnnotationApproved)
     ProjectId                Guid                 required
     Source                   AnnotationSource     required
     TaskId                   Guid                 required
+
+user.registered v1  (UserRegistered)
+    DisplayName              String               required
+    Email                    String               required
+    Roles                    IReadOnlyList<String> required
+    UserId                   Guid                 required
