@@ -29,7 +29,7 @@
 ```
                                   ┌──────────────────┐
    Web app (Next.js) ────────────►│   api-gateway    │  :8080
-   Trang vượt link   ────────────►│  YARP · authN    │
+   Trang vượt link   ────────────►│ Ocelot · authN   │
    API công khai (FS-05) ────────►│  rate limit      │
                                   └────────┬─────────┘
                                            │
@@ -547,7 +547,7 @@ P0→P3 là lõi bảo vệ được của đồ án. Nếu thời gian ép, c�
 
 ```
 C#       .NET 10 (LTS) · ASP.NET Core Web API (Controllers) · EF Core (Npgsql) · MassTransit
-         YARP · FluentValidation · Serilog · OpenTelemetry
+         Ocelot · FluentValidation · Serilog · OpenTelemetry
 Python   FastAPI · Arq (Redis) · numpy/scipy/scikit-learn · PyTorch (SAM)
 Node     TypeScript · Fastify · ws · Yjs (+ y-redis cho multi-instance)
 Store    PostgreSQL 16 · Redis 7 · RabbitMQ 3.13 · MinIO

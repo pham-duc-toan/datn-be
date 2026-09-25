@@ -4,4 +4,8 @@
     <ProjectReference Include="..\..\..\shared\building-blocks\Crowd.BuildingBlocks.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Ocelot" />
+  </ItemGroup>
+
 </Project>

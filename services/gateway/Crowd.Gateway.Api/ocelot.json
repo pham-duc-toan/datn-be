@@ -1,0 +1,25 @@
+{
+  "Routes": [
+    {
+      "UpstreamPathTemplate": "/auth/{everything}",
+      "UpstreamHttpMethod": ["Post"],
+      "DownstreamPathTemplate": "/auth/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8101 }]
+    },
+    {
+      //endpoint của gateway nhận được
+      "UpstreamPathTemplate": "/me",
+      "UpstreamHttpMethod": ["Get"],
+      //endpoint của gateway chuyển tới
+      "DownstreamPathTemplate": "/me",
+      "DownstreamScheme": "http",
+      // địa chỉ của service chuyển tới
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8101 }]
+    }
+  ],
+  // địa chỉ của gateway
+  "GlobalConfiguration": {
+    "BaseUrl": "http://localhost:8080"
+  }
+}
