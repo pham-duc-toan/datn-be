@@ -4,10 +4,10 @@
     <ProjectReference Include="..\Crowd.Project.Domain\Crowd.Project.Domain.csproj" />
     <ProjectReference Include="..\..\..\shared\building-blocks\Crowd.BuildingBlocks.csproj" />
     <ProjectReference Include="..\..\..\shared\persistence\Crowd.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\shared\storage\Crowd.BuildingBlocks.Storage.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

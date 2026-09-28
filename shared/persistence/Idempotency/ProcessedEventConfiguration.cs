@@ -10,6 +10,9 @@ namespace Crowd.BuildingBlocks.Persistence.Idempotency
     /// </summary>
     public sealed class ProcessedEventConfiguration : IEntityTypeConfiguration<ProcessedEvent>
     {
+        /// <summary>Ten rang buoc khoa chinh cua processed_events.</summary>
+        public const string KhoaChinh = "PK_processed_events";
+
         public void Configure(EntityTypeBuilder<ProcessedEvent> builder)
         {
             if (builder == null)
@@ -28,7 +31,10 @@ namespace Crowd.BuildingBlocks.Persistence.Idempotency
             // toan. Rang buoc duy nhat thi khong co ke ho do — mot trong hai
             // se nhan loi 23505 luc commit va toan bo transaction cua no bi
             // quay lui, ke ca phan nghiep vu.
-            builder.HasKey(x => new { x.EventId, x.Handler });
+            // Dat ten TUONG MINH (trung ten mac dinh EF da sinh, nen khong can
+            // migration moi): IdempotencyGuard dua vao DUNG ten nay de phan biet
+            // "trung dau vet" voi vi pham UNIQUE cua du lieu nghiep vu.
+            builder.HasKey(x => new { x.EventId, x.Handler }).HasName(KhoaChinh);
 
             builder.Property(x => x.EventId).HasColumnName("event_id");
             builder.Property(x => x.Handler).HasColumnName("handler").HasMaxLength(200);

@@ -4,7 +4,7 @@ using Crowd.BuildingBlocks.Correlation;
 using Crowd.BuildingBlocks.Messaging;
 using Microsoft.AspNetCore.Http;
 
-namespace Crowd.Project.Api.Helpers
+namespace Crowd.BuildingBlocks.Auth.Http
 {
     /// <summary>
     /// "Ai dang lam thao tac nay" — gom moi thu service can ve nguoi goi vao mot

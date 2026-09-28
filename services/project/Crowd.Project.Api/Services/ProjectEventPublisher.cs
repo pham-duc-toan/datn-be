@@ -1,7 +1,7 @@
 using System;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Outbox;
-using Crowd.Project.Api.Helpers;
 
 namespace Crowd.Project.Api.Services
 {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.Contracts.Project;
 using Crowd.Project.Api.Dtos;
 using Crowd.Project.Api.Exceptions;

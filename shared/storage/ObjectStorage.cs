@@ -7,7 +7,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
 
-namespace Crowd.Project.Infrastructure.Storage
+namespace Crowd.BuildingBlocks.Storage
 {
     /// <summary>Thong so ket noi MinIO. Doc tu muc "ObjectStorage".</summary>
     public sealed class ObjectStorageOptions

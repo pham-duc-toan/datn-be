@@ -34,6 +34,15 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8102 }],
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
+      // task-svc: mọi endpoint nằm dưới /tasks nên chỉ cần MỘT route.
+      "UpstreamPathTemplate": "/tasks/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/tasks/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8103 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     }
   ],
   // địa chỉ của gateway

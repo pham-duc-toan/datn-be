@@ -4,16 +4,16 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Storage;
 using Crowd.Project.Api.Dtos;
 using Crowd.Project.Api.Exceptions;
-using Crowd.Project.Api.Helpers;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.EntranceTests;
 using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
 using Crowd.Project.Domain.Projects;
 using Crowd.Project.Infrastructure.Persistence;
-using Crowd.Project.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
 namespace Crowd.Project.Api.Services

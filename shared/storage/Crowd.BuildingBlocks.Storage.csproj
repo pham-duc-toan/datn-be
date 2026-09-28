@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Kho file (MinIO qua giao thuc S3). Tach rieng: chi service nao dung anh
+       (project, task, media) moi phai keo theo AWSSDK. -->
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+
+</Project>

@@ -4,14 +4,14 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Project;
 using Crowd.Project.Api.Dtos;
-using Crowd.Project.Api.Helpers;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Projects;
 using Crowd.Project.Infrastructure.Datasets;
 using Crowd.Project.Infrastructure.Persistence;
-using Crowd.Project.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 

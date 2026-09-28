@@ -11,6 +11,16 @@ annotation.approved v1  (AnnotationApproved)
     Source                   AnnotationSource     required
     TaskId                   Guid                 required
 
+assignment.submitted v1  (AssignmentSubmitted)
+    AssignmentId             Guid                 required
+    LabelerId                Guid                 required
+    Labels                   IReadOnlyList<String> required
+    LeasedAt                 DateTimeOffset       required
+    ProjectId                Guid                 required
+    SampleId                 Guid                 required
+    SubmittedAt              DateTimeOffset       required
+    TaskId                   Guid                 required
+
 dataset.ingested v1  (DatasetIngested)
     BatchCount               Int32                required
     BatchIndex               Int32                required
@@ -29,6 +39,10 @@ escrow.reserved v1  (EscrowReserved)
 gold_set.updated v1  (GoldSetUpdated)
     Items                    IReadOnlyList<GoldSetItem> required
     ProjectId                Guid                 required
+
+level.changed v1  (LevelChanged)
+    Level                    Int32                required
+    UserId                   Guid                 required
 
 member.added v1  (MemberAdded)
     ProjectId                Guid                 required
@@ -85,6 +99,27 @@ project.published v1  (ProjectPublished)
 
 project.resumed v1  (ProjectResumed)
     ProjectId                Guid                 required
+
+reputation.changed v1  (ReputationChanged)
+    Reputation               Int32                required
+    UserId                   Guid                 required
+
+task.leased v1  (TaskLeased)
+    AssignmentId             Guid                 required
+    ExpiresAt                DateTimeOffset       required
+    LabelerId                Guid                 required
+    ProjectId                Guid                 required
+    TaskId                   Guid                 required
+
+task.redundancy_reached v1  (TaskRedundancyReached)
+    ProjectId                Guid                 required
+    Redundancy               Int32                required
+    SampleId                 Guid                 required
+    TaskId                   Guid                 required
+
+user.blocked v1  (UserBlocked)
+    Reason                   String?              nullable
+    UserId                   Guid                 required
 
 user.registered v1  (UserRegistered)
     DisplayName              String               required

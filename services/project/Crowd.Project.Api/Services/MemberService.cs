@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Persistence;
 using Crowd.Contracts.Project;
 using Crowd.Project.Api.Dtos;
@@ -199,7 +200,7 @@ namespace Crowd.Project.Api.Services
             {
                 await _db.SaveChangesAsync(ct);
             }
-            catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex))
+            catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "PK_project_members"))
             {
                 // Hai request tham gia cung luc: ca hai lot qua kiem tra o tren,
                 // khoa chinh (project_id, user_id) chon ra mot.

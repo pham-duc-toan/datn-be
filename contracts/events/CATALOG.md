@@ -28,7 +28,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `project.published` | task, notification, ml | Sinh task, thong bao labeler phu hop |
 | `project.paused` / `project.resumed` | task | Ngung/mo cap phat task |
 | `project.cancelled` | task, ledger | Dung task + hoan tien phan chua dung |
-| `project.completed` | ledger, notification | Giai phong escrow con du |
+| `project.completed` | task, ledger, notification | Giai phong escrow con du |
 | `dataset.ingested` | task, ml | Sinh task tu sample; ml bat dau pre-label |
 | `gold_set.updated` | task, gate | Cap nhat bo cau hoi vang |
 | `member.added` / `member.blocked` / `member.unblocked` / `member.removed` | task, annotation, media | Nhan ban `project_members` sang `*_members_cache` — nen cua phan quyen chieu ngang (VD-S-14) |
@@ -38,6 +38,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | Event | Consumer | Muc dich |
 |---|---|---|
 | `task.leased` | fraud | Do toc do lam bai (FM-07) |
+| `assignment.submitted` | annotation | Labeler nop nhan cho mot luot lease HOP LE — annotation-svc luu nhan roi phat `annotation.submitted`. Nop di qua task-svc vi kiem lease va danh dau da nop phai nguyen tu tren du lieu cua task-svc (VD-T-01) |
 | `task.lease_expired` | — | Metric |
 | `task.redundancy_reached` | quality | Du n ban nhan -> tinh dong thuan |
 | `task.redundancy_changed` | — | Audit cho redundancy thich ung (FQ-03) |

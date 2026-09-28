@@ -6,6 +6,12 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Caller can CorrelationHeaders va EventActor. -->
+    <ProjectReference Include="../building-blocks/Crowd.BuildingBlocks.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
   </ItemGroup>

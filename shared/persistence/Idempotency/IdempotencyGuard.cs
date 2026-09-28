@@ -97,7 +97,11 @@ namespace Crowd.BuildingBlocks.Persistence.Idempotency
 
                 return true;
             }
-            catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex))
+            // CHI khi trung CHINH khoa processed_events. Vi pham UNIQUE cua du lieu
+            // nghiep vu (vd hai consumer cung tao mot dong) KHONG phai "da xu ly
+            // roi" — nuot no o day la ack message ma nghiep vu chua chay: MAT event
+            // im lang. Loi do phai nem tiep de consumer nack va thu lai (VD-D-06).
+            catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, ProcessedEventConfiguration.KhoaChinh))
             {
                 await tx.RollbackAsync(ct).ConfigureAwait(false);
 

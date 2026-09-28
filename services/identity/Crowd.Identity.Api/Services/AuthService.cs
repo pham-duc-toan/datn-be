@@ -134,7 +134,7 @@ namespace Crowd.Identity.Api.Services
             {
                 await _db.SaveChangesAsync(ct);
             }
-            catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex))
+            catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "ux_users_email"))
             {
                 // Hai nguoi dang ky cung email trong cung mot khoanh khac: ca hai
                 // lot qua AnyAsync o tren, database chon ra mot nguoi.

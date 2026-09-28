@@ -36,5 +36,21 @@ namespace Crowd.BuildingBlocks.Persistence
 
             return string.Equals(loiPg.SqlState, UniqueViolation, StringComparison.Ordinal);
         }
+
+        /// <summary>
+        /// Loi co phai do dung DUNG rang buoc duy nhat <paramref name="tenRangBuoc"/>
+        /// khong. Dung khi mot SaveChanges co the vi pham NHIEU rang buoc khac nhau
+        /// va moi cai phai xu ly mot kieu — xem IdempotencyGuard.
+        /// </summary>
+        public static bool IsUniqueViolation(DbUpdateException ex, string tenRangBuoc)
+        {
+            if (!IsUniqueViolation(ex))
+            {
+                return false;
+            }
+
+            PostgresException loiPg = (PostgresException)ex.InnerException!;
+            return string.Equals(loiPg.ConstraintName, tenRangBuoc, StringComparison.Ordinal);
+        }
     }
 }

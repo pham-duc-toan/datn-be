@@ -257,23 +257,25 @@ Compensation: [Chờ duyệt] quá 72h không ai duyệt → project.cancelled �
 
 ### 3.5. Lease task 15 phút (FL-06)
 
-Redis giữ khóa, Postgres giữ sự thật:
+**Postgres là nguồn sự thật DUY NHẤT của lease** — mọi bước là một transaction có khóa dòng:
 
 ```
-POST /tasks/next
-  1. task_db: chọn ứng viên — điều kiện lọc đọc từ labeler_cache (bản sao read-only
-     của identity: reputation, level, verified, passed_tests) → FOR UPDATE SKIP LOCKED
-  2. Redis Lua: SET lease:{taskId} {labelerId} NX EX 900
-  3. task_db: INSERT assignment(state=leased, expires_at = now + 15m)
+POST /tasks/projects/{projectId}/next
+  1. Điều kiện: đọc bản sao trong task_db (project_snapshots, project_members_cache,
+     labeler_cache) — thiếu dữ liệu thì TỪ CHỐI (VD-D-04)
+  2. SELECT ... ORDER BY random() LIMIT 1 FOR UPDATE SKIP LOCKED   (VD-T-06)
+     không khóa được mà vẫn còn ứng viên → thử lại vài lần, không báo "hết task" oan
+  3. INSERT assignment(state=Leased, expires_at = now + 15m) + tăng active_lease_count
+     UNIQUE (project, labeler) WHERE Leased: mỗi người giữ tối đa 1 task/dự án
 
-POST /annotations
-  Lua atomic: GET lease:{taskId} == labelerId ? DEL : reject
-  → chống submit sau khi lease hết hạn và task đã sang người khác
+POST /tasks/assignments/{id}/submit
+  SELECT ... FOR UPDATE assignment → Leased và chưa hết hạn? → Submitted   (VD-T-01)
+  → phát assignment.submitted (annotation-svc lưu nhãn)
 
-Reaper (30s/lần): assignment quá hạn mà Redis không còn lease → trả task về pool
+Reaper (30s/lần): Leased quá hạn → Expired, trả chỗ về pool (SKIP LOCKED, chạy nhiều bản được)
 ```
 
-Redis mất sạch dữ liệu cũng không hỏng nghiệp vụ — reaper dựng lại từ Postgres, tệ nhất là task bị giữ thừa 15 phút.
+**Vì sao không dùng Redis cho lease (khác bản thiết kế đầu):** câu UPDATE có điều kiện trên dòng đã khóa đã nguyên tử sẵn. Thêm Redis tạo **hai** nguồn sự thật phải đồng bộ — VD-T-02 chính là lỗi hai nguồn đó lệch nhau. `redis-task` để dành cho cache eligibility khi hàng đợi lên hàng triệu task (VD-T-07, P2).
 
 ### 3.6. Cổng vượt link: đường nóng phải rỗng
 

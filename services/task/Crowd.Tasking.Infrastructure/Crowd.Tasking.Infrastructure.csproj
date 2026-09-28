@@ -3,6 +3,14 @@
   <ItemGroup>
     <ProjectReference Include="..\Crowd.Tasking.Domain\Crowd.Tasking.Domain.csproj" />
     <ProjectReference Include="..\..\..\shared\building-blocks\Crowd.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\..\shared\persistence\Crowd.BuildingBlocks.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
 </Project>

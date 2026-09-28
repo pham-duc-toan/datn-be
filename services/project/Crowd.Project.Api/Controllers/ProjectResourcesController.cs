@@ -1,10 +1,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.Project.Api.Dtos;
-using Crowd.Project.Api.Helpers;
 using Crowd.Project.Api.Services;
 using Crowd.Project.Domain.Common;
 using Microsoft.AspNetCore.Authorization;
