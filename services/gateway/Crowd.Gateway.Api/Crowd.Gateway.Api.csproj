@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\shared\building-blocks\Crowd.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\..\shared\auth\Crowd.BuildingBlocks.Auth.csproj" />
   </ItemGroup>
 
   <ItemGroup>

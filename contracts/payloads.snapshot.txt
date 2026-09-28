@@ -11,6 +11,81 @@ annotation.approved v1  (AnnotationApproved)
     Source                   AnnotationSource     required
     TaskId                   Guid                 required
 
+dataset.ingested v1  (DatasetIngested)
+    BatchCount               Int32                required
+    BatchIndex               Int32                required
+    DatasetId                Guid                 required
+    ProjectId                Guid                 required
+    Samples                  IReadOnlyList<IngestedSample> required
+
+escrow.rejected v1  (EscrowRejected)
+    ProjectId                Guid                 required
+    Reason                   String               required
+
+escrow.reserved v1  (EscrowReserved)
+    AmountVnd                Int64                required
+    ProjectId                Guid                 required
+
+gold_set.updated v1  (GoldSetUpdated)
+    Items                    IReadOnlyList<GoldSetItem> required
+    ProjectId                Guid                 required
+
+member.added v1  (MemberAdded)
+    ProjectId                Guid                 required
+    Role                     ProjectMemberRole    required
+    UserId                   Guid                 required
+
+member.blocked v1  (MemberBlocked)
+    ProjectId                Guid                 required
+    UserId                   Guid                 required
+
+member.removed v1  (MemberRemoved)
+    ProjectId                Guid                 required
+    UserId                   Guid                 required
+
+member.unblocked v1  (MemberUnblocked)
+    ProjectId                Guid                 required
+    UserId                   Guid                 required
+
+project.cancelled v1  (ProjectCancelled)
+    OwnerId                  Guid                 required
+    ProjectId                Guid                 required
+    Reason                   String?              nullable
+    WasEscrowed              Boolean              required
+
+project.completed v1  (ProjectCompleted)
+    OwnerId                  Guid                 required
+    ProjectId                Guid                 required
+
+project.paused v1  (ProjectPaused)
+    ProjectId                Guid                 required
+
+project.publish_requested v1  (ProjectPublishRequested)
+    EscrowAmountVnd          Int64                required
+    OwnerId                  Guid                 required
+    ProjectId                Guid                 required
+
+project.published v1  (ProjectPublished)
+    AllowCollaborative       Boolean              required
+    AllowLinkGateway         Boolean              required
+    AllowMultipleLabels      Boolean              required
+    AllowProfessional        Boolean              required
+    Deadline                 DateTimeOffset       required
+    IsPrivate                Boolean              required
+    LabelClasses             IReadOnlyList<String> required
+    MinLevel                 Int32?               nullable
+    MinReputation            Int32?               nullable
+    OwnerId                  Guid                 required
+    ProjectId                Guid                 required
+    Redundancy               Int32                required
+    RequireEntranceTest      Boolean              required
+    SampleCount              Int32                required
+    TaskType                 ProjectTaskType      required
+    UnitPriceVnd             Int64                required
+
+project.resumed v1  (ProjectResumed)
+    ProjectId                Guid                 required
+
 user.registered v1  (UserRegistered)
     DisplayName              String               required
     Email                    String               required

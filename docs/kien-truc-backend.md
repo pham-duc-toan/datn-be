@@ -336,8 +336,8 @@ Năm yêu cầu trong đặc tả **không thể** thỏa bằng RBAC thuần: F
 ```sql
 -- project_db, thuộc sở hữu của project-svc
 CREATE TABLE project_members (
-    project_id BIGINT NOT NULL,
-    user_id    BIGINT NOT NULL,
+    project_id UUID NOT NULL,     -- UUIDv7, cung kieu voi userId trong JWT va voi moi id trong event
+    user_id    UUID NOT NULL,
     role       TEXT   NOT NULL,   -- 'owner' | 'labeler' | 'reviewer'
     state      TEXT   NOT NULL DEFAULT 'active',   -- 'active' | 'blocked'
     joined_at  TIMESTAMPTZ NOT NULL,
@@ -360,12 +360,12 @@ project_db.project_members            ← nguồn sự thật
 
 ```csharp
 // trong shared/Platform.BuildingBlocks, áp lên bản sao cục bộ của từng service
-private Expression<Func<Project, bool>> MemberOf(long userId) =>
+private Expression<Func<Project, bool>> MemberOf(Guid userId) =>
     p => _db.ProjectMembersCache.Any(m =>
              m.ProjectId == p.Id && m.UserId == userId && m.State == "active");
 
-Task<bool> CanAccessAsync(long userId, long labelId, CancellationToken ct);  // kiểm 1 bản ghi
-IQueryable<Label> VisibleLabels(long userId);                                // lọc danh sách
+Task<bool> CanAccessAsync(Guid userId, Guid labelId, CancellationToken ct);  // kiểm 1 bản ghi
+IQueryable<Label> VisibleLabels(Guid userId);                                // lọc danh sách
 //          ↑ cả hai PHẢI dựng từ cùng một predicate
 ```
 

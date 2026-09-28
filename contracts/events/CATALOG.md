@@ -31,6 +31,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `project.completed` | ledger, notification | Giai phong escrow con du |
 | `dataset.ingested` | task, ml | Sinh task tu sample; ml bat dau pre-label |
 | `gold_set.updated` | task, gate | Cap nhat bo cau hoi vang |
+| `member.added` / `member.blocked` / `member.unblocked` / `member.removed` | task, annotation, media | Nhan ban `project_members` sang `*_members_cache` — nen cua phan quyen chieu ngang (VD-S-14) |
 
 ## task-svc
 

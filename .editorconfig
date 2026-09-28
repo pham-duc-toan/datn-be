@@ -1,0 +1,5 @@
+# Chi mot luat: file migration do `dotnet ef` SINH RA, khong phai code viet tay.
+# Danh dau generated_code de analyzer (TreatWarningsAsErrors) bo qua chung —
+# sua tay file migration de chieu analyzer la sai, lan sinh sau se mat het.
+[**/Migrations/*.cs]
+generated_code = true

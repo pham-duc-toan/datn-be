@@ -1,3 +1,4 @@
+using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.Gateway.Api.Middlewares;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -11,12 +12,20 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 // reloadOnChange: sua route luc dang chay khong phai khoi dong lai.
 builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange: true);
 
+// Kiem token o gateway bang CUNG bo cau hinh voi moi service (shared/auth).
+// Route nao trong ocelot.json co AuthenticationOptions "Bearer" thi Ocelot goi
+// scheme nay truoc khi chuyen tiep; token sai → 401 ngay tai gateway.
+builder.Services.AddCrowdJwtAuthentication(builder.Configuration);
+
 builder.Services.AddOcelot(builder.Configuration);
 
 WebApplication app = builder.Build();
 
 // Chay TRUOC Ocelot: gan correlationId roi moi chuyen tiep.
 app.UseMiddleware<CorrelationIdMiddleware>();
+
+// Nang tran body chi cho endpoint upload dataset.
+app.UseMiddleware<UploadLimitMiddleware>();
 
 // Ocelot la khau CUOI cua ong xu ly: request khop route thi chuyen
 // tiep, khong khop thi tra 404. Middleware nao can chay truoc

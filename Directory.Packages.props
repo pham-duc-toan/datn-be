@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Them bang `dotnet add package`, KHONG sua tay. -->
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.103.4" />
     <PackageVersion Include="JsonSchema.Net" Version="9.4.0" />
     <!-- Ghim tuong minh: EntityFrameworkCore.Design keo EF 10.0.12 con Npgsql
          keo 10.0.4, hai project bien dich ra hai phien ban khac nhau va

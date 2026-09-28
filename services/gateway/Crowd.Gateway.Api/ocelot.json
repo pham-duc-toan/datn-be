@@ -16,6 +16,24 @@
       "DownstreamScheme": "http",
       // địa chỉ của service chuyển tới
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8101 }]
+    },
+    {
+      // project-svc. Kiểm token NGAY Ở GATEWAY (lớp 1): token rác bị chặn ở biên,
+      // không đi sâu vào trong. project-svc VẪN tự kiểm lại (lớp 2, VD-S-06).
+      "UpstreamPathTemplate": "/projects",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/projects",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8102 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
+      "UpstreamPathTemplate": "/projects/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post", "Put", "Delete"],
+      "DownstreamPathTemplate": "/projects/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8102 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     }
   ],
   // địa chỉ của gateway

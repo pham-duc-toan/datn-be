@@ -1,0 +1,705 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Messaging;
+using Crowd.Contracts.Project;
+using Crowd.Project.Api.Dtos;
+using Crowd.Project.Api.Exceptions;
+using Crowd.Project.Api.Helpers;
+using Crowd.Project.Api.Settings;
+using Crowd.Project.Domain.Common;
+using Crowd.Project.Domain.Gold;
+using Crowd.Project.Domain.Members;
+using Crowd.Project.Domain.Projects;
+using Crowd.Project.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace Crowd.Project.Api.Services
+{
+    /// <summary>
+    /// Tang DIEU PHOI cho du an: nap aggregate → goi MOT phuong thuc domain →
+    /// phat event → luu. Khong chua luat nghiep vu; luat nam trong LabelingProject.
+    ///
+    /// Moi thao tac la MOT SaveChanges: thay doi du an va event trong outbox
+    /// commit cung nhau (VD-D-01).
+    /// </summary>
+    public sealed class ProjectService
+    {
+        private readonly ProjectDbContext _db;
+        private readonly ProjectAccessService _access;
+        private readonly ProjectEventPublisher _events;
+        private readonly ProjectSagaOptions _saga;
+        private readonly TimeProvider _clock;
+        private readonly ILogger<ProjectService> _logger;
+
+        public ProjectService(
+            ProjectDbContext db,
+            ProjectAccessService access,
+            ProjectEventPublisher events,
+            IOptions<ProjectSagaOptions> saga,
+            TimeProvider clock,
+            ILogger<ProjectService> logger)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            if (access == null)
+            {
+                throw new ArgumentNullException(nameof(access));
+            }
+
+            if (events == null)
+            {
+                throw new ArgumentNullException(nameof(events));
+            }
+
+            if (saga == null)
+            {
+                throw new ArgumentNullException(nameof(saga));
+            }
+
+            if (clock == null)
+            {
+                throw new ArgumentNullException(nameof(clock));
+            }
+
+            if (logger == null)
+            {
+                throw new ArgumentNullException(nameof(logger));
+            }
+
+            _db = db;
+            _access = access;
+            _events = events;
+            _saga = saga.Value;
+            _clock = clock;
+            _logger = logger;
+        }
+
+        // =====================================================================
+        // TAO VA CAU HINH
+        // =====================================================================
+
+        public async Task<ProjectResponse> TaoAsync(CreateProjectRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            Guid ownerId = caller.LayUserId();
+
+            LabelingProject duAn = LabelingProject.Tao(
+                ownerId,
+                body.Name ?? string.Empty,
+                body.Description,
+                body.TaskType ?? TaskType.ImageClassification,
+                body.Visibility ?? ProjectVisibility.Public,
+                bayGio);
+
+            // Chu du an cung la mot dong trong project_members — nho vay MOT
+            // predicate (ProjectAccessService) tra loi duoc moi cau hoi quyen.
+            ProjectMember chu = ProjectMember.TaoChuSoHuu(duAn.Id, ownerId, bayGio);
+
+            _db.Projects.Add(duAn);
+            _db.ProjectMembers.Add(chu);
+
+            _events.Phat(caller, new MemberAdded
+            {
+                ProjectId = duAn.Id,
+                UserId = ownerId,
+                Role = ProjectMemberRole.Owner,
+            });
+
+            await _db.SaveChangesAsync(ct);
+
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> CapNhatThongTinAsync(
+            Guid id, UpdateProjectInfoRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.CapNhatThongTin(
+                body.Name ?? string.Empty,
+                body.Description,
+                body.Visibility ?? duAn.Visibility,
+                _clock.GetUtcNow());
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> DatLabelSchemaAsync(
+            Guid id, LabelSchemaRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+
+            // Doi tap nhan sau khi da co cau hoi vang se lam dap an vang tro vao
+            // lop khong con ton tai. Bat xoa cau hoi vang truoc.
+            bool coCauVang = await _db.GoldItems.AnyAsync(g => g.ProjectId == id, ct);
+            if (coCauVang)
+            {
+                throw new RuleViolationException(
+                    "da_co_cau_hoi_vang",
+                    "Du an da co cau hoi vang. Xoa cau hoi vang truoc khi doi tap nhan.");
+            }
+
+            LabelSchema schema = LabelSchema.TaoPhanLoai(body.Classes ?? new List<string>(), body.AllowMultiple);
+            duAn.DatLabelSchema(schema, _clock.GetUtcNow());
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> DatHuongDanAsync(
+            Guid id, GuidelineRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+
+            List<GuidelineExample> viDu = new List<GuidelineExample>();
+            List<Guid> mauCanKiem = new List<Guid>();
+
+            if (body.Examples != null)
+            {
+                foreach (GuidelineExampleDto e in body.Examples)
+                {
+                    viDu.Add(new GuidelineExample(e.SampleId, e.Label, e.IsCorrect, e.Explanation ?? string.Empty));
+
+                    if (e.SampleId.HasValue)
+                    {
+                        mauCanKiem.Add(e.SampleId.Value);
+                    }
+                }
+            }
+
+            // Vi du chi duoc tro toi mau CUA CHINH du an nay — khong thi chu du an
+            // A nhet id anh cua du an B vao huong dan de xem trom (BOLA).
+            await KiemMauThuocDuAnAsync(id, mauCanKiem, ct);
+
+            duAn.DatHuongDan(Guideline.Tao(body.Markdown ?? string.Empty, viDu), _clock.GetUtcNow());
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> DatCauHinhGiaAsync(
+            Guid id, PricingRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            if (body.Deadline == null)
+            {
+                throw new InvalidValueException("thieu_deadline", "Phai co deadline.");
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.DatCauHinhGia(body.UnitPriceVnd, body.Redundancy, body.BudgetVnd, body.Deadline.Value, _clock.GetUtcNow());
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> DatKenhAsync(
+            Guid id, ChannelsRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.DatKenhPhanPhoi(body.AllowProfessional, body.AllowLinkGateway, body.AllowCollaborative, _clock.GetUtcNow());
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> DatDieuKienAsync(
+            Guid id, EligibilityRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.DatDieuKienThamGia(
+                body.MinLevel,
+                body.MinReputation,
+                body.RequireEntranceTest,
+                body.EntranceQuestionCount,
+                body.EntrancePassPercent,
+                _clock.GetUtcNow());
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        // =====================================================================
+        // DOC
+        // =====================================================================
+
+        public async Task<ProjectResponse> ChiTietAsync(Guid id, Caller caller, CancellationToken ct)
+        {
+            LabelingProject duAn = await _access.LayDeXemAsync(id, caller, ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        /// <summary>
+        /// Danh sach du an nguoi goi XEM DUOC — cung predicate voi ChiTietAsync.
+        /// chiCuaToi = chi du an minh la thanh vien (trang "Du an cua toi").
+        /// </summary>
+        public async Task<PagedResponse<ProjectListItem>> DanhSachAsync(
+            Caller caller,
+            ProjectStatus? status,
+            TaskType? taskType,
+            bool chiCuaToi,
+            int page,
+            int pageSize,
+            CancellationToken ct)
+        {
+            ChuanHoaTrang(ref page, ref pageSize);
+
+            IQueryable<LabelingProject> q = _access.XemDuoc(caller).AsNoTracking();
+
+            if (chiCuaToi && caller.UserId != null)
+            {
+                Guid uid = caller.UserId.Value;
+                q = q.Where(p => _db.ProjectMembers.Any(m => m.ProjectId == p.Id && m.UserId == uid));
+            }
+
+            if (status.HasValue)
+            {
+                ProjectStatus s = status.Value;
+                q = q.Where(p => p.Status == s);
+            }
+
+            if (taskType.HasValue)
+            {
+                TaskType t = taskType.Value;
+                q = q.Where(p => p.TaskType == t);
+            }
+
+            int tong = await q.CountAsync(ct);
+
+            List<LabelingProject> trang = await q
+                .OrderByDescending(p => p.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(ct);
+
+            List<ProjectListItem> items = new List<ProjectListItem>();
+            foreach (LabelingProject p in trang)
+            {
+                items.Add(new ProjectListItem
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    TaskType = p.TaskType,
+                    Status = p.Status,
+                    Visibility = p.Visibility,
+                    UnitPriceVnd = p.UnitPriceVnd,
+                    Deadline = p.Deadline,
+                    RequireEntranceTest = p.RequireEntranceTest,
+                    IsOwner = caller.UserId != null && p.OwnerId == caller.UserId.Value,
+                });
+            }
+
+            return new PagedResponse<ProjectListItem>
+            {
+                Items = items,
+                Page = page,
+                PageSize = pageSize,
+                Total = tong,
+            };
+        }
+
+        public async Task<ReadinessResponse> KiemTraSanSangAsync(Guid id, Caller caller, CancellationToken ct)
+        {
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+
+            int soMau = await DemMauAsync(id, ct);
+            int soVangTest = await DemVangTestAsync(id, ct);
+
+            IReadOnlyList<string> thieu = duAn.NhungGiConThieu(soMau, soVangTest, _clock.GetUtcNow());
+
+            return new ReadinessResponse
+            {
+                Ready = thieu.Count == 0,
+                Missing = thieu,
+                SampleCount = soMau,
+                EntranceGoldCount = soVangTest,
+                EstimatedCostVnd = duAn.ChiPhiUocTinhVnd(soMau),
+            };
+        }
+
+        // =====================================================================
+        // VONG DOI — SAGA PUBLISH (docs 3.4)
+        // =====================================================================
+
+        /// <summary>
+        /// Nhap → Cho ky quy, phat project.publish_requested cho ledger.
+        /// Dev chua co ledger (Saga:BoQuaKyQuy) thi di tiep luon sang Cho duyet.
+        /// </summary>
+        public async Task<ProjectResponse> YeuCauPublishAsync(Guid id, Caller caller, CancellationToken ct)
+        {
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+
+            int soMau = await DemMauAsync(id, ct);
+            int soVangTest = await DemVangTestAsync(id, ct);
+
+            duAn.YeuCauPublish(soMau, soVangTest, bayGio);
+
+            if (_saga.BoQuaKyQuy)
+            {
+                _logger.LogWarning(
+                    "Saga:BoQuaKyQuy = true — du an {ProjectId} coi nhu da ky quy, KHONG hoi ledger. Chi dung o dev.",
+                    duAn.Id);
+
+                duAn.XacNhanDaKyQuy(bayGio);
+            }
+            else
+            {
+                _events.Phat(caller, new ProjectPublishRequested
+                {
+                    ProjectId = duAn.Id,
+                    OwnerId = duAn.OwnerId,
+                    EscrowAmountVnd = duAn.BudgetVnd,
+                });
+            }
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        /// <summary>Danh sach cho admin duyet, cu nhat truoc (ai cho lau duoc xem truoc).</summary>
+        public async Task<IReadOnlyList<ProjectResponse>> DanhSachChoDuyetAsync(Caller caller, CancellationToken ct)
+        {
+            List<LabelingProject> ds = await _db.Projects
+                .AsNoTracking()
+                .Where(p => p.Status == ProjectStatus.PendingApproval)
+                .OrderBy(p => p.SubmittedForApprovalAt)
+                .Take(200)
+                .ToListAsync(ct);
+
+            List<ProjectResponse> ketQua = new List<ProjectResponse>();
+            foreach (LabelingProject p in ds)
+            {
+                ketQua.Add(TaoResponse(p, caller));
+            }
+
+            return ketQua;
+        }
+
+        /// <summary>Admin duyet: Cho duyet → Dang chay, phat project.published.</summary>
+        public async Task<ProjectResponse> DuyetAsync(Guid id, Caller caller, CancellationToken ct)
+        {
+            LabelingProject duAn = await LayTheoIdAsync(id, ct);
+            duAn.Duyet(_clock.GetUtcNow());
+
+            int soMau = await DemMauAsync(id, ct);
+            _events.Phat(caller, TaoProjectPublished(duAn, soMau));
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        /// <summary>Admin tu choi: huy + ledger hoan ky quy (compensation).</summary>
+        public async Task<ProjectResponse> TuChoiDuyetAsync(Guid id, string? lyDo, Caller caller, CancellationToken ct)
+        {
+            LabelingProject duAn = await LayTheoIdAsync(id, ct);
+            duAn.TuChoiDuyet(lyDo ?? string.Empty, _clock.GetUtcNow());
+
+            PhatDaHuy(duAn, caller);
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> TamDungAsync(Guid id, Caller caller, CancellationToken ct)
+        {
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.TamDung(_clock.GetUtcNow());
+
+            _events.Phat(caller, new ProjectPaused { ProjectId = duAn.Id });
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> TiepTucAsync(Guid id, Caller caller, CancellationToken ct)
+        {
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.TiepTuc(_clock.GetUtcNow());
+
+            _events.Phat(caller, new ProjectResumed { ProjectId = duAn.Id });
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> HoanThanhAsync(Guid id, Caller caller, CancellationToken ct)
+        {
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.HoanThanh(_clock.GetUtcNow());
+
+            _events.Phat(caller, new ProjectCompleted { ProjectId = duAn.Id, OwnerId = duAn.OwnerId });
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> HuyAsync(Guid id, string? lyDo, Caller caller, CancellationToken ct)
+        {
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.Huy(lyDo, _clock.GetUtcNow());
+
+            PhatDaHuy(duAn, caller);
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        /// <summary>
+        /// Worker goi dinh ky: huy moi du an cho duyet qua han (compensation cua
+        /// saga). Moi du an mot SaveChanges rieng — mot du an loi khong keo cac
+        /// du an khac.
+        /// </summary>
+        public async Task<int> HuyCacDuAnQuaHanAsync(CancellationToken ct)
+        {
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            DateTimeOffset moc = bayGio - _saga.HanChoDuyet;
+
+            List<Guid> ids = await _db.Projects
+                .Where(p => p.Status == ProjectStatus.PendingApproval && p.SubmittedForApprovalAt <= moc)
+                .Select(p => p.Id)
+                .Take(100)
+                .ToListAsync(ct);
+
+            int soDaHuy = 0;
+
+            foreach (Guid id in ids)
+            {
+                _db.ChangeTracker.Clear();
+
+                LabelingProject? duAn = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
+                if (duAn == null || !duAn.DaQuaHanChoDuyet(_saga.HanChoDuyet, bayGio))
+                {
+                    continue;
+                }
+
+                duAn.HuyDoQuaHanChoDuyet(_saga.HanChoDuyet, bayGio);
+                PhatDaHuy(duAn, Caller.HeThong(Guid.CreateVersion7(), null));
+
+                try
+                {
+                    await _db.SaveChangesAsync(ct);
+                    soDaHuy = soDaHuy + 1;
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    // Admin vua duyet dung luc nay — admin thang, bo qua.
+                    _logger.LogInformation("Du an {ProjectId} vua doi trang thai, bo qua huy qua han", id);
+                }
+            }
+
+            return soDaHuy;
+        }
+
+        // =====================================================================
+        // Ham dung chung (cung duoc consumer dung)
+        // =====================================================================
+
+        public static ProjectPublished TaoProjectPublished(LabelingProject duAn, int soMau)
+        {
+            if (duAn == null)
+            {
+                throw new ArgumentNullException(nameof(duAn));
+            }
+
+            if (duAn.LabelSchema == null || duAn.Deadline == null)
+            {
+                throw new InvalidOperationException("Du an dang chay phai co tap nhan va deadline.");
+            }
+
+            return new ProjectPublished
+            {
+                ProjectId = duAn.Id,
+                OwnerId = duAn.OwnerId,
+                TaskType = ContractMapper.ToContract(duAn.TaskType),
+                LabelClasses = new List<string>(duAn.LabelSchema.Classes),
+                AllowMultipleLabels = duAn.LabelSchema.AllowMultiple,
+                UnitPriceVnd = duAn.UnitPriceVnd,
+                Redundancy = duAn.Redundancy,
+                Deadline = duAn.Deadline.Value,
+                AllowProfessional = duAn.AllowProfessional,
+                AllowLinkGateway = duAn.AllowLinkGateway,
+                AllowCollaborative = duAn.AllowCollaborative,
+                IsPrivate = duAn.Visibility == ProjectVisibility.Private,
+                MinLevel = duAn.MinLevel,
+                MinReputation = duAn.MinReputation,
+                RequireEntranceTest = duAn.RequireEntranceTest,
+                SampleCount = soMau,
+            };
+        }
+
+        private void PhatDaHuy(LabelingProject duAn, Caller caller)
+        {
+            _events.Phat(caller, new ProjectCancelled
+            {
+                ProjectId = duAn.Id,
+                OwnerId = duAn.OwnerId,
+                WasEscrowed = duAn.WasEscrowed,
+                Reason = duAn.StatusReason,
+            });
+        }
+
+        private async Task<LabelingProject> LayTheoIdAsync(Guid id, CancellationToken ct)
+        {
+            LabelingProject? duAn = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
+            if (duAn == null)
+            {
+                throw new NotFoundException("Khong tim thay du an.");
+            }
+
+            return duAn;
+        }
+
+        private Task<int> DemMauAsync(Guid projectId, CancellationToken ct)
+        {
+            return _db.Samples.CountAsync(s => s.ProjectId == projectId, ct);
+        }
+
+        private Task<int> DemVangTestAsync(Guid projectId, CancellationToken ct)
+        {
+            return _db.GoldItems.CountAsync(
+                g => g.ProjectId == projectId && g.Purpose == Crowd.Project.Domain.Gold.GoldPurpose.EntranceTest,
+                ct);
+        }
+
+        private async Task KiemMauThuocDuAnAsync(Guid projectId, List<Guid> sampleIds, CancellationToken ct)
+        {
+            if (sampleIds.Count == 0)
+            {
+                return;
+            }
+
+            List<Guid> khacNhau = sampleIds.Distinct().ToList();
+            int soThuoc = await _db.Samples.CountAsync(s => s.ProjectId == projectId && khacNhau.Contains(s.Id), ct);
+
+            if (soThuoc != khacNhau.Count)
+            {
+                throw new InvalidValueException("mau_khong_thuoc_du_an", "Co mau khong thuoc du an nay.");
+            }
+        }
+
+        private static void ChuanHoaTrang(ref int page, ref int pageSize)
+        {
+            if (page < 1)
+            {
+                page = 1;
+            }
+
+            if (pageSize < 1 || pageSize > 100)
+            {
+                pageSize = 20;
+            }
+        }
+
+        public static ProjectResponse TaoResponse(LabelingProject p, Caller caller)
+        {
+            if (p == null)
+            {
+                throw new ArgumentNullException(nameof(p));
+            }
+
+            bool laChu = ProjectAccessService.LaChu(p, caller);
+
+            LabelSchemaResponse? schema = null;
+            if (p.LabelSchema != null)
+            {
+                schema = new LabelSchemaResponse
+                {
+                    Classes = p.LabelSchema.Classes,
+                    AllowMultiple = p.LabelSchema.AllowMultiple,
+                };
+            }
+
+            GuidelineResponse? huongDan = null;
+            if (p.Guideline != null)
+            {
+                List<GuidelineExampleDto> viDu = new List<GuidelineExampleDto>();
+                foreach (GuidelineExample e in p.Guideline.Examples)
+                {
+                    viDu.Add(new GuidelineExampleDto
+                    {
+                        SampleId = e.SampleId,
+                        Label = e.Label,
+                        IsCorrect = e.IsCorrect,
+                        Explanation = e.Explanation,
+                    });
+                }
+
+                huongDan = new GuidelineResponse { Markdown = p.Guideline.Markdown, Examples = viDu };
+            }
+
+            return new ProjectResponse
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Description = p.Description,
+                TaskType = p.TaskType,
+                Status = p.Status,
+                Visibility = p.Visibility,
+                LabelSchema = schema,
+                Guideline = huongDan,
+                UnitPriceVnd = p.UnitPriceVnd,
+                Redundancy = p.Redundancy,
+                Deadline = p.Deadline,
+                AllowProfessional = p.AllowProfessional,
+                AllowLinkGateway = p.AllowLinkGateway,
+                AllowCollaborative = p.AllowCollaborative,
+                MinLevel = p.MinLevel,
+                MinReputation = p.MinReputation,
+                RequireEntranceTest = p.RequireEntranceTest,
+                EntranceQuestionCount = p.EntranceQuestionCount,
+                EntrancePassPercent = p.EntrancePassPercent,
+                PublishedAt = p.PublishedAt,
+                IsOwner = caller.UserId != null && p.OwnerId == caller.UserId.Value,
+
+                OwnerId = laChu ? p.OwnerId : null,
+                BudgetVnd = laChu ? p.BudgetVnd : null,
+                StatusReason = laChu ? p.StatusReason : null,
+                CreatedAt = laChu ? p.CreatedAt : null,
+                UpdatedAt = laChu ? p.UpdatedAt : null,
+            };
+        }
+    }
+}
