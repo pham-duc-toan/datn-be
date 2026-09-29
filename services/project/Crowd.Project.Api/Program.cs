@@ -42,6 +42,7 @@ builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
 
 // ---- Nghiep vu ----
 builder.Services.Configure<ProjectSagaOptions>(builder.Configuration.GetSection(ProjectSagaOptions.SectionName));
+builder.Services.Configure<FeeOptions>(builder.Configuration.GetSection(FeeOptions.SectionName));
 builder.Services.AddScoped<ProjectAccessService>();
 builder.Services.AddScoped<ProjectEventPublisher>();
 builder.Services.AddScoped<ProjectService>();

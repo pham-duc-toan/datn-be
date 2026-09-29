@@ -11,6 +11,29 @@ annotation.approved v1  (AnnotationApproved)
     Source                   AnnotationSource     required
     TaskId                   Guid                 required
 
+annotation.rejected v1  (AnnotationRejected)
+    AnnotationId             Guid                 required
+    IsFinal                  Boolean              required
+    LabelerId                Guid?                nullable
+    ProjectId                Guid                 required
+    Reason                   String               required
+    TaskId                   Guid                 required
+
+annotation.submitted v1  (AnnotationSubmitted)
+    AnnotationId             Guid                 required
+    LabelerId                Guid?                nullable
+    Labels                   IReadOnlyList<String> required
+    ProjectId                Guid                 required
+    SampleId                 Guid                 required
+    Source                   AnnotationSource     required
+    TaskId                   Guid                 required
+
+appeal.opened v1  (AppealOpened)
+    AnnotationId             Guid                 required
+    LabelerId                Guid                 required
+    Message                  String               required
+    ProjectId                Guid                 required
+
 assignment.submitted v1  (AssignmentSubmitted)
     AssignmentId             Guid                 required
     LabelerId                Guid                 required
@@ -18,6 +41,7 @@ assignment.submitted v1  (AssignmentSubmitted)
     LeasedAt                 DateTimeOffset       required
     ProjectId                Guid                 required
     SampleId                 Guid                 required
+    StorageKey               String               required
     SubmittedAt              DateTimeOffset       required
     TaskId                   Guid                 required
 
@@ -28,17 +52,41 @@ dataset.ingested v1  (DatasetIngested)
     ProjectId                Guid                 required
     Samples                  IReadOnlyList<IngestedSample> required
 
+deposit.confirmed v1  (DepositConfirmed)
+    AmountVnd                Int64                required
+    BusinessId               Guid                 required
+    IntentId                 Guid                 required
+    Provider                 String               required
+    ProviderTxnId            String               required
+
 escrow.rejected v1  (EscrowRejected)
     ProjectId                Guid                 required
     Reason                   String               required
+
+escrow.released v1  (EscrowReleased)
+    AmountVnd                Int64                required
+    OwnerId                  Guid                 required
+    ProjectId                Guid                 required
 
 escrow.reserved v1  (EscrowReserved)
     AmountVnd                Int64                required
     ProjectId                Guid                 required
 
+funds.held v1  (FundsHeld)
+    AmountVnd                Int64                required
+    AnnotationId             Guid                 required
+    HoldId                   Guid                 required
+    LabelerId                Guid                 required
+    ReleaseAt                DateTimeOffset       required
+
 gold_set.updated v1  (GoldSetUpdated)
     Items                    IReadOnlyList<GoldSetItem> required
     ProjectId                Guid                 required
+
+hold.expired v1  (HoldExpired)
+    AmountVnd                Int64                required
+    HoldId                   Guid                 required
+    LabelerId                Guid                 required
 
 level.changed v1  (LevelChanged)
     Level                    Int32                required
@@ -60,6 +108,21 @@ member.removed v1  (MemberRemoved)
 member.unblocked v1  (MemberUnblocked)
     ProjectId                Guid                 required
     UserId                   Guid                 required
+
+payout.completed v1  (PayoutCompleted)
+    Provider                 String               required
+    ProviderTxnId            String               required
+    WithdrawalId             Guid                 required
+
+payout.failed v1  (PayoutFailed)
+    Reason                   String               required
+    WithdrawalId             Guid                 required
+
+payout.requested v1  (PayoutRequested)
+    BankAccount              String               required
+    LabelerId                Guid                 required
+    NetAmountVnd             Int64                required
+    WithdrawalId             Guid                 required
 
 project.cancelled v1  (ProjectCancelled)
     OwnerId                  Guid                 required
@@ -90,6 +153,7 @@ project.published v1  (ProjectPublished)
     MinLevel                 Int32?               nullable
     MinReputation            Int32?               nullable
     OwnerId                  Guid                 required
+    PlatformFeeVnd           Int64                required
     ProjectId                Guid                 required
     Redundancy               Int32                required
     RequireEntranceTest      Boolean              required
@@ -98,6 +162,11 @@ project.published v1  (ProjectPublished)
     UnitPriceVnd             Int64                required
 
 project.resumed v1  (ProjectResumed)
+    ProjectId                Guid                 required
+
+refund.issued v1  (RefundIssued)
+    AmountVnd                Int64                required
+    OwnerId                  Guid                 required
     ProjectId                Guid                 required
 
 reputation.changed v1  (ReputationChanged)

@@ -63,6 +63,13 @@ namespace Crowd.Contracts.Project
         /// <summary>Thu lao moi nhan, so nguyen dong.</summary>
         public required long UnitPriceVnd { get; init; }
 
+        /// <summary>
+        /// Phi nen tang moi nhan da CHOT luc publish, so nguyen dong (VD-M-15).
+        /// annotation-svc mang con so nay vao annotation.approved de ledger chia:
+        /// escrow −(don gia + phi) → labeler +don gia, platform +phi.
+        /// </summary>
+        public required long PlatformFeeVnd { get; init; }
+
         /// <summary>So nguoi gan cung mot mau.</summary>
         public required int Redundancy { get; init; }
 

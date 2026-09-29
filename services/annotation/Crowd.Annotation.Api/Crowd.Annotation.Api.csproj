@@ -4,7 +4,10 @@
     <ProjectReference Include="..\Crowd.Annotation.Domain\Crowd.Annotation.Domain.csproj" />
     <ProjectReference Include="..\Crowd.Annotation.Infrastructure\Crowd.Annotation.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\shared\building-blocks\Crowd.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\..\shared\persistence\Crowd.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\shared\auth\Crowd.BuildingBlocks.Auth.csproj" />
     <ProjectReference Include="..\..\..\shared\contracts\Crowd.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\shared\storage\Crowd.BuildingBlocks.Storage.csproj" />
   </ItemGroup>
 
 </Project>

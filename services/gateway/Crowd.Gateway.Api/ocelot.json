@@ -43,6 +43,52 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8103 }],
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
+      // annotation-svc: duyệt nhãn, khiếu nại, kết quả, xuất file.
+      "UpstreamPathTemplate": "/annotations/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/annotations/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8104 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
+      // ledger-svc: ví, lịch sử, rút tiền, đối soát.
+      "UpstreamPathTemplate": "/ledger/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/ledger/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8105 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
+      // Webhook cổng thanh toán: KHÔNG kiểm JWT (cổng không có token của ta),
+      // payment-svc kiểm CHỮ KÝ HMAC. Priority cao hơn route /payments/{everything}.
+      "UpstreamPathTemplate": "/payments/webhooks/{everything}",
+      "UpstreamHttpMethod": ["Post"],
+      "DownstreamPathTemplate": "/payments/webhooks/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8106 }],
+      "Priority": 3
+    },
+    {
+      // Trang thanh toán giả lập (chỉ dev) — đóng vai trang của cổng.
+      "UpstreamPathTemplate": "/payments/sandbox/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/payments/sandbox/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8106 }],
+      "Priority": 3
+    },
+    {
+      "UpstreamPathTemplate": "/payments/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/payments/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8106 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] },
+      "Priority": 1
     }
   ],
   // địa chỉ của gateway

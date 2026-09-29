@@ -37,6 +37,9 @@ namespace Crowd.Contracts.Tasking
 
         public required Guid SampleId { get; init; }
 
+        /// <summary>Khoa anh trong MinIO — annotation-svc hien anh khi duyet ma khong phai hoi ai.</summary>
+        public required string StorageKey { get; init; }
+
         public required Guid LabelerId { get; init; }
 
         public required IReadOnlyList<string> Labels { get; init; }

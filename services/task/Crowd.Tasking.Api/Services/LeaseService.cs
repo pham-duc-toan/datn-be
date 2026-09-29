@@ -232,6 +232,7 @@ namespace Crowd.Tasking.Api.Services
                     TaskId = a.TaskId,
                     ProjectId = a.ProjectId,
                     SampleId = a.SampleId,
+                    StorageKey = task.StorageKey,
                     LabelerId = a.LabelerId,
                     Labels = ds,
                     LeasedAt = a.LeasedAt,

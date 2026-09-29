@@ -38,7 +38,8 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("processed_at");
 
-                    b.HasKey("EventId", "Handler");
+                    b.HasKey("EventId", "Handler")
+                        .HasName("PK_processed_events");
 
                     b.HasIndex("ProcessedAt")
                         .HasDatabaseName("ix_processed_events_thoi_diem");
@@ -397,6 +398,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
+
+                    b.Property<int>("PlatformFeePercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("platform_fee_percent");
 
                     b.Property<DateTimeOffset?>("PublishedAt")
                         .HasColumnType("timestamp with time zone")

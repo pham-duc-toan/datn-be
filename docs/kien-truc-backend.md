@@ -204,29 +204,44 @@ Không mặc định Postgres cho tất cả. Mỗi service chọn store hợp v
 
 ### 3.3. Tiền: sổ cái ghi kép (double-entry)
 
-`ledger-svc` là service duy nhất chạm số dư. Số dư là **view dẫn xuất từ bút toán**, không phải cột bị `UPDATE`:
+`ledger-svc` là service duy nhất chạm số dư. **Nguồn sự thật là bảng bút toán** (`journal_entries` + `journal_lines`, số tiền có dấu); `accounts.balance` chỉ là bộ nhớ đệm được cập nhật **trong cùng transaction** và đối soát lại mỗi ngày.
 
 ```
 Tài khoản:
-  business:{id}:available   business:{id}:escrow
+  business:{id}:available   escrow:project:{id}        ← ký quỹ tách THEO DỰ ÁN
   labeler:{id}:pending      labeler:{id}:available
-  sharer:{id}:available
-  platform:fee              platform:tax_withheld     gateway:vnpay
+  platform:fee              platform:tax_withheld
+  payout:in_flight                                     ← tiền rút đang trên đường tới ngân hàng
+  gateway:{provider}                                   ← đối ứng thế giới ngoài, DUY NHẤT được âm
 
-Publish dự án      business:X:available → business:X:escrow
-                   (số task × đơn giá × redundancy × (1 + phí))
-Duyệt nhãn         business:X:escrow    → labeler:Y:pending
-                   business:X:escrow    → platform:fee
-Hết hold 3–7 ngày  labeler:Y:pending    → labeler:Y:available
-Rút ≥ 2 triệu      labeler:Y:available  → gateway:vnpay
-                   labeler:Y:available  → platform:tax_withheld   (10% TNCN)
-Hủy dự án          business:X:escrow    → business:X:available    (phần chưa dùng)
-CPM cổng link      business:X:escrow    → sharer:Z:pending
+Nạp tiền           gateway:sandbox        → business:X:available
+Publish dự án      business:X:available   → escrow:project:P   (số mẫu × redundancy × (đơn giá + phí))
+Duyệt nhãn         escrow:project:P       → labeler:Y:pending  (đơn giá)
+                   escrow:project:P       → platform:fee       (phí, VD-M-15)
+Hết treo 3–7 ngày  labeler:Y:pending      → labeler:Y:available
+Xin rút            labeler:Y:available    → payout:in_flight   (thực nhận)
+                   labeler:Y:available    → platform:tax_withheld (10% TNCN nếu ≥ 2 triệu/lần)
+Cổng chuyển xong   payout:in_flight       → gateway:sandbox
+Cổng thất bại      bút toán ĐẢO — trả labeler toàn bộ, kể cả thuế đã giữ
+Hủy / hoàn thành   escrow:project:P       → business:X:available   (toàn bộ số dư còn lại, VD-M-10)
 ```
 
-Bất biến kiểm được bằng một câu SQL: `SUM(amount) GROUP BY journal_entry_id = 0`. Job đối soát cuối ngày (FM-05) chạy chính câu này.
+**Vì sao ký quỹ tách theo dự án** (khác bản đầu `business:{id}:escrow`): số dư của `escrow:project:P` **chính là** phần chưa dùng của dự án đó — hoàn tiền lấy đúng con số này, không tính lại (VD-M-10); chi trả vượt ký quỹ của một dự án bị chặn ngay, không ăn sang tiền của dự án khác (VD-M-03).
 
-Mọi API tiền nhận header `Idempotency-Key`. Webhook VNPay/MoMo có thể đến 3 lần — `UNIQUE(provider, provider_txn_id)` chặn ghi trùng.
+**Các lớp bảo vệ:**
+
+| Rủi ro | Chặn bằng |
+|---|---|
+| Double-spend (VD-M-01) | Mọi lần ghi sổ xếp hàng sau `pg_advisory_xact_lock`; trừ tiền bằng `UPDATE … WHERE balance + Δ >= 0`, 0 dòng = không đủ tiền |
+| Trả trùng (VD-M-02) | `processed_events` **và** `UNIQUE(type, reference)` trên bút toán **và** `UNIQUE(annotation_id)` trên khoản treo |
+| Chi vượt redundancy (VD-M-03) | Đếm khoản treo theo `task_id` trong cùng transaction |
+| Sửa sổ (VD-M-04) | Trigger chặn `UPDATE/DELETE/TRUNCATE` (kể cả chủ DB) + **chuỗi băm** SHA-256: mỗi bút toán mang hash bút toán trước |
+| Số âm ở biên (VD-M-05) | Số tiền người dùng xin luôn > 0; dòng bút toán `CHECK (amount <> 0)`, tổng mỗi bút toán = 0 kiểm ngay khi tạo |
+| Gọi cổng trong transaction (VD-M-09) | payment-svc ba pha: ghi ý định → commit → gọi cổng → transaction mới ghi kết quả; lệnh kẹt thì **tra cứu ngược** cổng |
+
+Đối soát (`GET /ledger/admin/reconciliation`, FM-05) kiểm trên một snapshot `REPEATABLE READ`: tổng mỗi bút toán = 0, tổng toàn hệ thống = 0, `balance = SUM(lines)`, không tài khoản nào âm (trừ cổng), chuỗi băm nguyên vẹn.
+
+Mọi API tiền nhận header `Idempotency-Key`. Webhook cổng thanh toán ký HMAC-SHA256, so sánh thời gian hằng số; đến 3 lần thì `UNIQUE(provider, provider_txn_id)` chặn ghi trùng.
 
 ### 3.4. Saga: publish dự án
 

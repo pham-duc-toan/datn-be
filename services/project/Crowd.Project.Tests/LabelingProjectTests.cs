@@ -14,6 +14,9 @@ namespace Crowd.Project.Tests
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
         private static readonly Guid Owner = Guid.CreateVersion7();
 
+        /// <summary>Phi nen tang 30% nhu vi du trong VD-M-15.</summary>
+        private const int Phi = 30;
+
         private static LabelingProject DuAnMoi()
         {
             return LabelingProject.Tao(Owner, "Phan loai cho meo", "mo ta", TaskType.ImageClassification, ProjectVisibility.Public, Luc);
@@ -25,7 +28,7 @@ namespace Crowd.Project.Tests
             LabelingProject p = DuAnMoi();
             p.DatLabelSchema(LabelSchema.TaoPhanLoai(new List<string> { "cho", "meo" }, false), Luc);
             p.DatHuongDan(Guideline.Tao("# Huong dan", null), Luc);
-            p.DatCauHinhGia(1000, 3, 300000, Luc.AddDays(30), Luc);
+            p.DatCauHinhGia(1000, 3, 390000, Luc.AddDays(30), Luc);
             return p;
         }
 
@@ -51,7 +54,7 @@ namespace Crowd.Project.Tests
         [Fact]
         public void Checklist_liet_ke_dung_nhung_gi_con_thieu()
         {
-            IReadOnlyList<string> thieu = DuAnMoi().NhungGiConThieu(0, 0, Luc);
+            IReadOnlyList<string> thieu = DuAnMoi().NhungGiConThieu(0, 0, Phi, Luc);
 
             Assert.Contains("chua_co_tap_nhan", thieu);
             Assert.Contains("chua_co_huong_dan", thieu);
@@ -64,11 +67,11 @@ namespace Crowd.Project.Tests
         {
             LabelingProject p = DuAnSanSang();
 
-            // 100 mau x 3 nguoi x 1000d = 300.000d = dung bang ngan sach → du.
-            Assert.Empty(p.NhungGiConThieu(100, 0, Luc));
+            // 100 mau x 3 nguoi x (1.000 + phi 300) = 390.000d = dung bang ngan sach → du.
+            Assert.Empty(p.NhungGiConThieu(100, 0, Phi, Luc));
 
-            // 101 mau → 303.000d > 300.000d.
-            Assert.Contains("ngan_sach_khong_du", p.NhungGiConThieu(101, 0, Luc));
+            // 101 mau → 393.900d > 390.000d.
+            Assert.Contains("ngan_sach_khong_du", p.NhungGiConThieu(101, 0, Phi, Luc));
         }
 
         [Fact]
@@ -77,8 +80,8 @@ namespace Crowd.Project.Tests
             LabelingProject p = DuAnSanSang();
             p.DatDieuKienThamGia(null, null, true, 10, 80, Luc);
 
-            Assert.Contains("thieu_cau_hoi_vang_cho_test", p.NhungGiConThieu(100, 9, Luc));
-            Assert.Empty(p.NhungGiConThieu(100, 10, Luc));
+            Assert.Contains("thieu_cau_hoi_vang_cho_test", p.NhungGiConThieu(100, 9, Phi, Luc));
+            Assert.Empty(p.NhungGiConThieu(100, 10, Phi, Luc));
         }
 
         [Fact]
@@ -86,7 +89,7 @@ namespace Crowd.Project.Tests
         {
             LabelingProject p = DuAnSanSang();
 
-            p.YeuCauPublish(100, 0, Luc);
+            p.YeuCauPublish(100, 0, Phi, Luc);
             Assert.Equal(ProjectStatus.PendingEscrow, p.Status);
 
             p.XacNhanDaKyQuy(Luc.AddSeconds(2));
@@ -102,7 +105,7 @@ namespace Crowd.Project.Tests
         public void Ledger_tu_choi_ky_quy_thi_ve_Nhap_kem_ly_do()
         {
             LabelingProject p = DuAnSanSang();
-            p.YeuCauPublish(100, 0, Luc);
+            p.YeuCauPublish(100, 0, Phi, Luc);
 
             p.KyQuyBiTuChoi("So du khong du", Luc);
 
@@ -115,9 +118,9 @@ namespace Crowd.Project.Tests
         public void Khong_the_publish_hai_lan()
         {
             LabelingProject p = DuAnSanSang();
-            p.YeuCauPublish(100, 0, Luc);
+            p.YeuCauPublish(100, 0, Phi, Luc);
 
-            RuleViolationException ex = Assert.Throws<RuleViolationException>(() => p.YeuCauPublish(100, 0, Luc));
+            RuleViolationException ex = Assert.Throws<RuleViolationException>(() => p.YeuCauPublish(100, 0, Phi, Luc));
             Assert.Equal("chuyen_trang_thai_khong_hop_le", ex.Code);
         }
 
@@ -125,7 +128,7 @@ namespace Crowd.Project.Tests
         public void Khong_sua_duoc_cau_hinh_khi_da_roi_Nhap()
         {
             LabelingProject p = DuAnSanSang();
-            p.YeuCauPublish(100, 0, Luc);
+            p.YeuCauPublish(100, 0, Phi, Luc);
 
             Assert.Throws<RuleViolationException>(() => p.DatCauHinhGia(1, 1, 1, Luc.AddDays(1), Luc));
             Assert.Throws<RuleViolationException>(() => p.KiemTraCoTheNapDuLieu());
@@ -135,7 +138,7 @@ namespace Crowd.Project.Tests
         public void Khong_cho_huy_khi_dang_cho_ky_quy()
         {
             LabelingProject p = DuAnSanSang();
-            p.YeuCauPublish(100, 0, Luc);
+            p.YeuCauPublish(100, 0, Phi, Luc);
 
             Assert.Throws<RuleViolationException>(() => p.Huy("doi y", Luc));
         }
@@ -145,7 +148,7 @@ namespace Crowd.Project.Tests
         {
             TimeSpan han = TimeSpan.FromHours(72);
             LabelingProject p = DuAnSanSang();
-            p.YeuCauPublish(100, 0, Luc);
+            p.YeuCauPublish(100, 0, Phi, Luc);
             p.XacNhanDaKyQuy(Luc);
 
             Assert.False(p.DaQuaHanChoDuyet(han, Luc.AddHours(71)));
@@ -160,7 +163,7 @@ namespace Crowd.Project.Tests
         public void Tam_dung_tiep_tuc_hoan_thanh()
         {
             LabelingProject p = DuAnSanSang();
-            p.YeuCauPublish(100, 0, Luc);
+            p.YeuCauPublish(100, 0, Phi, Luc);
             p.XacNhanDaKyQuy(Luc);
             p.Duyet(Luc);
 
@@ -183,8 +186,8 @@ namespace Crowd.Project.Tests
             LabelingProject p = LabelingProject.Tao(Owner, "rieng", null, TaskType.ImageClassification, ProjectVisibility.Private, Luc);
             p.DatLabelSchema(LabelSchema.TaoPhanLoai(new List<string> { "a", "b" }, false), Luc);
             p.DatHuongDan(Guideline.Tao("x", null), Luc);
-            p.DatCauHinhGia(1000, 1, 1000, Luc.AddDays(1), Luc);
-            p.YeuCauPublish(1, 0, Luc);
+            p.DatCauHinhGia(1000, 1, 1300, Luc.AddDays(1), Luc);
+            p.YeuCauPublish(1, 0, Phi, Luc);
             p.XacNhanDaKyQuy(Luc);
             p.Duyet(Luc);
 
@@ -193,12 +196,23 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
+        public void Phi_cong_them_duoc_chot_luc_publish_VD_M_15()
+        {
+            // 200.000d + 30% = 60.000d phi → ky quy 260.000d moi nhan.
+            Assert.Equal(60000, LabelingProject.PhiMoiNhanVnd(200000, 30));
+
+            LabelingProject p = DuAnSanSang();
+            p.YeuCauPublish(100, 0, Phi, Luc);
+            Assert.Equal(Phi, p.PlatformFeePercent);
+        }
+
+        [Fact]
         public void Chi_phi_tran_so_thi_nem_loi_thay_vi_thanh_so_am()
         {
             LabelingProject p = DuAnMoi();
             p.DatCauHinhGia(long.MaxValue / 2, 3, 1, Luc.AddDays(1), Luc);
 
-            Assert.Throws<OverflowException>(() => p.ChiPhiUocTinhVnd(10));
+            Assert.Throws<OverflowException>(() => p.ChiPhiUocTinhVnd(10, Phi));
         }
 
         [Fact]

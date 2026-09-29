@@ -34,6 +34,7 @@ namespace Crowd.Project.Api.Services
         private readonly ProjectAccessService _access;
         private readonly ProjectEventPublisher _events;
         private readonly ProjectSagaOptions _saga;
+        private readonly FeeOptions _fees;
         private readonly TimeProvider _clock;
         private readonly ILogger<ProjectService> _logger;
 
@@ -42,6 +43,7 @@ namespace Crowd.Project.Api.Services
             ProjectAccessService access,
             ProjectEventPublisher events,
             IOptions<ProjectSagaOptions> saga,
+            IOptions<FeeOptions> fees,
             TimeProvider clock,
             ILogger<ProjectService> logger)
         {
@@ -65,6 +67,11 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(saga));
             }
 
+            if (fees == null)
+            {
+                throw new ArgumentNullException(nameof(fees));
+            }
+
             if (clock == null)
             {
                 throw new ArgumentNullException(nameof(clock));
@@ -79,6 +86,7 @@ namespace Crowd.Project.Api.Services
             _access = access;
             _events = events;
             _saga = saga.Value;
+            _fees = fees.Value;
             _clock = clock;
             _logger = logger;
         }
@@ -348,7 +356,8 @@ namespace Crowd.Project.Api.Services
             int soMau = await DemMauAsync(id, ct);
             int soVangTest = await DemVangTestAsync(id, ct);
 
-            IReadOnlyList<string> thieu = duAn.NhungGiConThieu(soMau, soVangTest, _clock.GetUtcNow());
+            int phi = _fees.PlatformFeePercent;
+            IReadOnlyList<string> thieu = duAn.NhungGiConThieu(soMau, soVangTest, phi, _clock.GetUtcNow());
 
             return new ReadinessResponse
             {
@@ -356,7 +365,9 @@ namespace Crowd.Project.Api.Services
                 Missing = thieu,
                 SampleCount = soMau,
                 EntranceGoldCount = soVangTest,
-                EstimatedCostVnd = duAn.ChiPhiUocTinhVnd(soMau),
+                PlatformFeePercent = phi,
+                PlatformFeePerLabelVnd = LabelingProject.PhiMoiNhanVnd(duAn.UnitPriceVnd, phi),
+                EstimatedCostVnd = duAn.ChiPhiUocTinhVnd(soMau, phi),
             };
         }
 
@@ -376,7 +387,7 @@ namespace Crowd.Project.Api.Services
             int soMau = await DemMauAsync(id, ct);
             int soVangTest = await DemVangTestAsync(id, ct);
 
-            duAn.YeuCauPublish(soMau, soVangTest, bayGio);
+            duAn.YeuCauPublish(soMau, soVangTest, _fees.PlatformFeePercent, bayGio);
 
             if (_saga.BoQuaKyQuy)
             {
@@ -558,6 +569,7 @@ namespace Crowd.Project.Api.Services
                 LabelClasses = new List<string>(duAn.LabelSchema.Classes),
                 AllowMultipleLabels = duAn.LabelSchema.AllowMultiple,
                 UnitPriceVnd = duAn.UnitPriceVnd,
+                PlatformFeeVnd = LabelingProject.PhiMoiNhanVnd(duAn.UnitPriceVnd, duAn.PlatformFeePercent),
                 Redundancy = duAn.Redundancy,
                 Deadline = duAn.Deadline.Value,
                 AllowProfessional = duAn.AllowProfessional,

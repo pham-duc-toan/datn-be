@@ -214,7 +214,15 @@ namespace Crowd.Project.Api.Dtos
 
         public required int EntranceGoldCount { get; init; }
 
-        /// <summary>SampleCount x Redundancy x UnitPrice. Ngan sach phai >= con so nay.</summary>
+        /// <summary>Phi nen tang se chot neu publish luc nay.</summary>
+        public required int PlatformFeePercent { get; init; }
+
+        public required long PlatformFeePerLabelVnd { get; init; }
+
+        /// <summary>
+        /// SampleCount x Redundancy x (UnitPrice + PlatformFeePerLabel) — so tien ky
+        /// quy toi thieu (dac ta 2.11). Ngan sach phai >= con so nay.
+        /// </summary>
         public required long EstimatedCostVnd { get; init; }
     }
 }

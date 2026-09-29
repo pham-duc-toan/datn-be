@@ -100,6 +100,13 @@ namespace Crowd.Project.Domain.Projects
         /// <summary>Ly do cua lan chuyen trang thai gan nhat (bi tu choi, bi huy...).</summary>
         public string? StatusReason { get; private set; }
 
+        /// <summary>
+        /// Phan tram phi nen tang CHOT luc publish (VD-M-15: phi CONG THEM vao ky
+        /// quy, khong tru vao thu lao). Chot lai de admin doi phi ve sau khong lam
+        /// thay doi hop dong da ky voi du an dang chay. 0 = chua publish.
+        /// </summary>
+        public int PlatformFeePercent { get; private set; }
+
         /// <summary>true tu luc ledger xac nhan giu tien. Huy luc do thi phai hoan tien.</summary>
         public bool WasEscrowed { get; private set; }
 
@@ -329,19 +336,31 @@ namespace Crowd.Project.Domain.Projects
         // =====================================================================
 
         /// <summary>
-        /// Chi phi toi da neu moi mau duoc gan du Redundancy lan. Dung checked de
-        /// tran so la NEM LOI, khong am tham quay vong thanh so am.
+        /// Phi nen tang cho MOT nhan, so nguyen dong, lam tron XUONG (VD-M-07).
+        /// Vd don gia 200.000d, phi 30% → 60.000d.
         /// </summary>
-        public long ChiPhiUocTinhVnd(int soMau)
+        public static long PhiMoiNhanVnd(long donGiaVnd, int phanTramPhi)
         {
-            return checked(soMau * (long)Redundancy * UnitPriceVnd);
+            return checked(donGiaVnd * phanTramPhi) / 100;
+        }
+
+        /// <summary>
+        /// Tien ky quy toi thieu (dac ta 2.11):
+        ///     so mau x redundancy x (don gia + phi moi nhan)
+        /// Vd 100 mau x 3 nguoi x (1.000 + 300) = 390.000d.
+        /// Dung checked: tran so la NEM LOI, khong am tham quay vong thanh so am.
+        /// </summary>
+        public long ChiPhiUocTinhVnd(int soMau, int phanTramPhi)
+        {
+            long moiNhan = checked(UnitPriceVnd + PhiMoiNhanVnd(UnitPriceVnd, phanTramPhi));
+            return checked(soMau * (long)Redundancy * moiNhan);
         }
 
         /// <summary>
         /// Danh sach nhung gi con thieu de publish. Rong = san sang.
         /// Frontend hien danh sach nay thanh checklist cho doanh nghiep.
         /// </summary>
-        public IReadOnlyList<string> NhungGiConThieu(int soMau, int soCauVangChoTest, DateTimeOffset luc)
+        public IReadOnlyList<string> NhungGiConThieu(int soMau, int soCauVangChoTest, int phanTramPhi, DateTimeOffset luc)
         {
             List<string> thieu = new List<string>();
 
@@ -366,7 +385,7 @@ namespace Crowd.Project.Domain.Projects
                     thieu.Add("deadline_da_qua");
                 }
 
-                if (soMau > 0 && BudgetVnd < ChiPhiUocTinhVnd(soMau))
+                if (soMau > 0 && BudgetVnd < ChiPhiUocTinhVnd(soMau, phanTramPhi))
                 {
                     thieu.Add("ngan_sach_khong_du");
                 }
@@ -389,11 +408,16 @@ namespace Crowd.Project.Domain.Projects
         /// Doanh nghiep bam publish: Nhap → Cho ky quy. Service phat
         /// project.publish_requested cho ledger (saga buoc 1).
         /// </summary>
-        public void YeuCauPublish(int soMau, int soCauVangChoTest, DateTimeOffset luc)
+        public void YeuCauPublish(int soMau, int soCauVangChoTest, int phanTramPhi, DateTimeOffset luc)
         {
             ChiKhiNhap("publish");
 
-            IReadOnlyList<string> thieu = NhungGiConThieu(soMau, soCauVangChoTest, luc);
+            if (phanTramPhi < 0 || phanTramPhi > 100)
+            {
+                throw new InvalidValueException("phi_khong_hop_le", "Phi nen tang phai tu 0 den 100%.");
+            }
+
+            IReadOnlyList<string> thieu = NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, luc);
             if (thieu.Count > 0)
             {
                 throw new RuleViolationException(
@@ -401,6 +425,7 @@ namespace Crowd.Project.Domain.Projects
                     "Chua the publish, con thieu: " + string.Join(", ", thieu));
             }
 
+            PlatformFeePercent = phanTramPhi;
             DoiTrangThai(ProjectStatus.PendingEscrow, null, luc);
         }
 

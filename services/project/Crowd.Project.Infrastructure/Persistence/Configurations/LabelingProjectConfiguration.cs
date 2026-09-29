@@ -66,6 +66,7 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.StatusReason).HasColumnName("status_reason").HasMaxLength(1000);
             builder.Property(x => x.WasEscrowed).HasColumnName("was_escrowed").IsRequired();
+            builder.Property(x => x.PlatformFeePercent).HasColumnName("platform_fee_percent").IsRequired();
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
             builder.Property(x => x.SubmittedForApprovalAt).HasColumnName("submitted_for_approval_at");
