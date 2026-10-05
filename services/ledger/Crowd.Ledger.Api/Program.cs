@@ -10,10 +10,12 @@ using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
 using Crowd.Ledger.Api.Consumers;
 using Crowd.Ledger.Api.Exceptions;
+using Crowd.Ledger.Api.Seeding;
 using Crowd.Ledger.Api.Services;
 using Crowd.Ledger.Api.Settings;
 using Crowd.Ledger.Api.Workers;
 using Crowd.Ledger.Infrastructure.Persistence;
+using Crowd.Seeding;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -50,6 +52,7 @@ builder.Services.AddScoped<MoneyFlowService>();
 builder.Services.AddScoped<WalletService>();
 builder.Services.AddScoped<ReconciliationService>();
 builder.Services.AddHostedService<HoldReleaseWorker>();
+builder.Services.AddScoped<LedgerSeeder>();
 
 // ---- HTTP ----
 builder.Services.AddCrowdJwtAuthentication(cfg);
@@ -68,6 +71,13 @@ using (IServiceScope scope = app.Services.CreateScope())
 {
     LedgerDbContext db = scope.ServiceProvider.GetRequiredService<LedgerDbContext>();
     await db.Database.MigrateAsync();
+
+    // Du lieu mau (chi Development + Seed:Enabled), truoc khi worker/consumer chay.
+    if (SeedSwitch.DuocChay(app.Environment, app.Configuration))
+    {
+        LedgerSeeder seeder = scope.ServiceProvider.GetRequiredService<LedgerSeeder>();
+        await seeder.ChayAsync(CancellationToken.None);
+    }
 }
 
 app.UseExceptionHandler();

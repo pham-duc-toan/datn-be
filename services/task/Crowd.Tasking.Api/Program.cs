@@ -8,7 +8,9 @@ using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Project;
 using Crowd.Tasking.Api.Consumers;
+using Crowd.Seeding;
 using Crowd.Tasking.Api.Exceptions;
+using Crowd.Tasking.Api.Seeding;
 using Crowd.Tasking.Api.Services;
 using Crowd.Tasking.Api.Settings;
 using Crowd.Tasking.Api.Workers;
@@ -58,6 +60,7 @@ builder.Services.AddScoped<TaskEventPublisher>();
 builder.Services.AddScoped<LeaseRevoker>();
 builder.Services.AddScoped<LeaseService>();
 builder.Services.AddHostedService<LeaseReaper>();
+builder.Services.AddScoped<TaskSeeder>();
 
 // ---- HTTP ----
 builder.Services.AddCrowdJwtAuthentication(cfg);
@@ -77,6 +80,13 @@ using (IServiceScope scope = app.Services.CreateScope())
 {
     TaskDbContext db = scope.ServiceProvider.GetRequiredService<TaskDbContext>();
     await db.Database.MigrateAsync();
+
+    // Du lieu mau (chi Development + Seed:Enabled), truoc khi reaper/consumer chay.
+    if (SeedSwitch.DuocChay(app.Environment, app.Configuration))
+    {
+        TaskSeeder seeder = scope.ServiceProvider.GetRequiredService<TaskSeeder>();
+        await seeder.ChayAsync(CancellationToken.None);
+    }
 }
 
 app.UseExceptionHandler();

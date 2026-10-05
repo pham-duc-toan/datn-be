@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- KICH BAN SEED dung chung cho moi service (chi chay o Development).
+
+       Mot noi duy nhat dinh nghia du lieu mau: tai khoan, du an, mau anh, luot
+       nop, tien nap. Moi service doc CUNG kich ban nay va tu ghi PHAN CUA MINH
+       vao database rieng — giong cach moi service tu nghe event va tu ghi ban
+       sao. Vi ID duoc tinh tat dinh tu ten (SeedIds), "du an P1" o project-svc,
+       task-svc, annotation-svc va ledger-svc la CUNG mot Guid. -->
+
+  <ItemGroup>
+    <ProjectReference Include="../building-blocks/Crowd.BuildingBlocks.csproj" />
+    <ProjectReference Include="../contracts/Crowd.Contracts.csproj" />
+    <ProjectReference Include="../persistence/Crowd.BuildingBlocks.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>

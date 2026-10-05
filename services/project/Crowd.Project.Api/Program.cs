@@ -8,10 +8,12 @@ using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Ledger;
 using Crowd.Project.Api.Consumers;
 using Crowd.Project.Api.Exceptions;
+using Crowd.Project.Api.Seeding;
 using Crowd.Project.Api.Services;
 using Crowd.Project.Api.Settings;
 using Crowd.Project.Api.Workers;
 using Crowd.Project.Infrastructure.Persistence;
+using Crowd.Seeding;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,6 +53,7 @@ builder.Services.AddScoped<DatasetService>();
 builder.Services.AddScoped<GoldSetService>();
 builder.Services.AddScoped<EntranceTestService>();
 builder.Services.AddHostedService<PendingApprovalTimeoutWorker>();
+builder.Services.AddScoped<ProjectSeeder>();
 
 // ---- Kiem token (giong moi service) ----
 builder.Services.AddCrowdJwtAuthentication(builder.Configuration);
@@ -75,6 +78,14 @@ using (IServiceScope scope = app.Services.CreateScope())
 {
     ProjectDbContext db = scope.ServiceProvider.GetRequiredService<ProjectDbContext>();
     await db.Database.MigrateAsync();
+
+    // Du lieu mau (chi Development + Seed:Enabled). Chay TRUOC app.RunAsync nen
+    // worker va consumer chua chay — khong ai chen vao giua luc seed.
+    if (SeedSwitch.DuocChay(app.Environment, app.Configuration))
+    {
+        ProjectSeeder seeder = scope.ServiceProvider.GetRequiredService<ProjectSeeder>();
+        await seeder.ChayAsync(CancellationToken.None);
+    }
 }
 
 app.UseExceptionHandler();

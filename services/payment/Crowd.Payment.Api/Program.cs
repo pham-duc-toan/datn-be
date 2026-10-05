@@ -7,11 +7,13 @@ using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Contracts.Ledger;
 using Crowd.Payment.Api.Consumers;
 using Crowd.Payment.Api.Exceptions;
+using Crowd.Payment.Api.Seeding;
 using Crowd.Payment.Api.Services;
 using Crowd.Payment.Api.Settings;
 using Crowd.Payment.Api.Workers;
 using Crowd.Payment.Infrastructure.Persistence;
 using Crowd.Payment.Infrastructure.Providers;
+using Crowd.Seeding;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -39,6 +41,7 @@ builder.Services.Configure<PayoutOptions>(cfg.GetSection(PayoutOptions.SectionNa
 builder.Services.AddScoped<PaymentEventPublisher>();
 builder.Services.AddScoped<DepositService>();
 builder.Services.AddHostedService<PayoutWorker>();
+builder.Services.AddScoped<PaymentSeeder>();
 
 builder.Services.AddCrowdJwtAuthentication(cfg);
 builder.Services
@@ -56,6 +59,13 @@ using (IServiceScope scope = app.Services.CreateScope())
 {
     PaymentDbContext db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
     await db.Database.MigrateAsync();
+
+    // Du lieu mau (chi Development + Seed:Enabled), truoc khi worker/consumer chay.
+    if (SeedSwitch.DuocChay(app.Environment, app.Configuration))
+    {
+        PaymentSeeder seeder = scope.ServiceProvider.GetRequiredService<PaymentSeeder>();
+        await seeder.ChayAsync(CancellationToken.None);
+    }
 }
 
 app.UseExceptionHandler();

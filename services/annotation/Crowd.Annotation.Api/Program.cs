@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Crowd.Annotation.Api.Consumers;
 using Crowd.Annotation.Api.Exceptions;
+using Crowd.Annotation.Api.Seeding;
 using Crowd.Annotation.Api.Services;
 using Crowd.Annotation.Infrastructure.Persistence;
 using Crowd.BuildingBlocks.Auth.Jwt;
@@ -11,6 +12,7 @@ using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Project;
 using Crowd.Contracts.Tasking;
+using Crowd.Seeding;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -43,6 +45,7 @@ builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
 // ---- Nghiep vu ----
 builder.Services.AddScoped<AnnotationEventPublisher>();
 builder.Services.AddScoped<AnnotationService>();
+builder.Services.AddScoped<AnnotationSeeder>();
 
 // ---- HTTP ----
 builder.Services.AddCrowdJwtAuthentication(cfg);
@@ -62,6 +65,13 @@ using (IServiceScope scope = app.Services.CreateScope())
 {
     AnnotationDbContext db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
     await db.Database.MigrateAsync();
+
+    // Du lieu mau (chi Development + Seed:Enabled), truoc khi consumer chay.
+    if (SeedSwitch.DuocChay(app.Environment, app.Configuration))
+    {
+        AnnotationSeeder seeder = scope.ServiceProvider.GetRequiredService<AnnotationSeeder>();
+        await seeder.ChayAsync(CancellationToken.None);
+    }
 }
 
 app.UseExceptionHandler();

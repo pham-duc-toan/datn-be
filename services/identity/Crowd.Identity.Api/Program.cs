@@ -1,11 +1,15 @@
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Identity.Api.Entities;
 using Crowd.Identity.Api.Persistence;
+using Crowd.Identity.Api.Seeding;
 using Crowd.Identity.Api.Services;
 using Crowd.Identity.Api.Settings;
+using Crowd.Seeding;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +21,7 @@ namespace Crowd.Identity.Api
 {
     public static class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -57,6 +61,7 @@ namespace Crowd.Identity.Api
 
             // Nghiep vu dang ky/dang nhap. Scoped vi dung IdentityDbContext.
             builder.Services.AddScoped<AuthService>();
+            builder.Services.AddScoped<IdentitySeeder>();
 
             // Controller nam o thu muc Controllers/, tu duoc tim thay qua
             // [ApiController] + [Route].
@@ -69,12 +74,26 @@ namespace Crowd.Identity.Api
 
             WebApplication app = builder.Build();
 
+            // Tu migrate luc khoi dong nhu moi service khac (VD-O-03), roi seed
+            // tai khoan mau neu dang o Development va bat Seed:Enabled.
+            using (IServiceScope scope = app.Services.CreateScope())
+            {
+                IdentityDbContext db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+                await db.Database.MigrateAsync();
+
+                if (SeedSwitch.DuocChay(app.Environment, app.Configuration))
+                {
+                    IdentitySeeder seeder = scope.ServiceProvider.GetRequiredService<IdentitySeeder>();
+                    await seeder.ChayAsync(CancellationToken.None);
+                }
+            }
+
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllers();
 
-            app.Run();
+            await app.RunAsync();
         }
     }
 }
