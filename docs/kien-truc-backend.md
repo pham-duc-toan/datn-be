@@ -558,6 +558,20 @@ Service 2 project: `Api → BuildingBlocks`, `Tests → Api`.
 
 P0→P3 là lõi bảo vệ được của đồ án. Nếu thời gian ép, cắt SAM (FA-03) và collab realtime (mục 2.5) trước — tốn công nhất trên mỗi điểm giá trị.
 
+### 7.1. Mở rộng sau đồ án
+
+Đặc tả ở [Phần III](../dac-ta-he-thong-gan-nhan-cong-dong.md#phần-iii-hướng-phát-triển-mở-rộng). Các service dưới đây là **dự kiến**: ranh giới và datastore sẽ chốt bằng bảng phương án khi bắt đầu từng phase, giống cách đã làm với các phase trên.
+
+| Phase | Nội dung | Service dự kiến | Tái dùng |
+|---|---|---|---|
+| **P7** | Chợ dữ liệu cơ bản (FD-01→07): phiên bản bộ dữ liệu, thẻ dữ liệu, công khai / bán, quyền truy cập, tải có dấu vân tay | `catalog-svc` (listing, phiên bản, entitlement, đơn hàng) | ledger (tiền, escrow), payment, media (xem trước có watermark), quality (chỉ số chất lượng) |
+| **P8** | Gán nhãn để mở khóa + chia doanh thu cho labeler (FD-08, FD-09); đặt thêm nhãn (FD-10) | mở rộng `catalog-svc` + ledger (tài khoản phi tiền tệ cho lượt tải) | task, annotation, quality (câu vàng chống farm lượt), fraud |
+| **P9** | Code mức 1 (FN-01→03) + cuộc thi (FX-01) | `code-svc` (notebook, phiên bản, fork), `competition-svc` (bài nộp, chấm điểm, bảng xếp hạng) | MinIO, escrow cho giải thưởng |
+| **P10** | Chạy code trong sandbox, cho thuê dữ liệu/code (FN-04, FN-05) | `runner` (hàng đợi job, sandbox cô lập, cụm máy tách riêng) | entitlement của P7 |
+| **P11** | Compute-to-data (FN-06) | mở rộng `runner` + kiểm duyệt output | — |
+
+Thay đổi lớn nhất về kiến trúc nằm ở P10: lần đầu hệ thống **chạy code do người dùng viết**. Cụm chạy sandbox phải tách hẳn khỏi cụm nghiệp vụ (mạng, máy, quyền truy cập datastore). Đây là một ranh giới bảo mật mới, cần ghi thêm vào [sổ vấn đề](van-de-can-giai-quyet.md) khi tới phase đó.
+
 ---
 
 ## 8. Stack
