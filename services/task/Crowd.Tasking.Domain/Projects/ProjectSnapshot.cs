@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Labeling;
 
 namespace Crowd.Tasking.Domain.Projects
 {
@@ -33,6 +34,7 @@ namespace Crowd.Tasking.Domain.Projects
         private ProjectSnapshot()
         {
             _labelClasses = new List<string>();
+            LabelTaskType = string.Empty;
         }
 
         public Guid ProjectId { get; private set; }
@@ -46,6 +48,13 @@ namespace Crowd.Tasking.Domain.Projects
 
         /// <summary>false = chua nhan project.published, chua co cau hinh de cap task.</summary>
         public bool IsConfigured { get; private set; }
+
+        /// <summary>
+        /// Loai nhan cua du an trong dinh dang nhan chung (Crowd.Labeling), vd
+        /// "imageClassification". Rong khi chua publish. Nhan labeler nop duoc
+        /// dung theo loai nay — client chi gui phan du lieu.
+        /// </summary>
+        public string LabelTaskType { get; private set; }
 
         public IReadOnlyList<string> LabelClasses
         {
@@ -86,6 +95,7 @@ namespace Crowd.Tasking.Domain.Projects
 
         public void ApDungPublished(
             Guid ownerId,
+            string labelTaskType,
             IReadOnlyList<string> labelClasses,
             bool allowMultiple,
             long unitPriceVnd,
@@ -102,7 +112,13 @@ namespace Crowd.Tasking.Domain.Projects
                 throw new ArgumentNullException(nameof(labelClasses));
             }
 
+            if (string.IsNullOrWhiteSpace(labelTaskType))
+            {
+                throw new ArgumentException("Thieu loai nhan.", nameof(labelTaskType));
+            }
+
             OwnerId = ownerId;
+            LabelTaskType = labelTaskType;
             _labelClasses = new List<string>(labelClasses);
             AllowMultiple = allowMultiple;
             UnitPriceVnd = unitPriceVnd;
@@ -146,6 +162,21 @@ namespace Crowd.Tasking.Domain.Projects
 
             GoldSetAt = occurredAt;
             return true;
+        }
+
+        /// <summary>
+        /// Nhan nop len co hop le voi du an khong: dung LOAI nhan cua du an, va
+        /// cac lop no dung deu co trong tap nhan. Dinh dang JSON da duoc
+        /// LabelPayload kiem truoc do.
+        /// </summary>
+        public bool LaNhanHopLe(LabelPayload nhan)
+        {
+            if (nhan == null || nhan.TaskType != LabelTaskType)
+            {
+                return false;
+            }
+
+            return LaBoNhanHopLe(nhan.CacLop());
         }
 
         /// <summary>

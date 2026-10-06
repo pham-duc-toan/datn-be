@@ -21,8 +21,8 @@ annotation.rejected v1  (AnnotationRejected)
 
 annotation.submitted v1  (AnnotationSubmitted)
     AnnotationId             Guid                 required
+    LabelPayload             LabelPayload         required
     LabelerId                Guid?                nullable
-    Labels                   IReadOnlyList<String> required
     ProjectId                Guid                 required
     SampleId                 Guid                 required
     Source                   AnnotationSource     required
@@ -36,8 +36,8 @@ appeal.opened v1  (AppealOpened)
 
 assignment.submitted v1  (AssignmentSubmitted)
     AssignmentId             Guid                 required
+    LabelPayload             LabelPayload         required
     LabelerId                Guid                 required
-    Labels                   IReadOnlyList<String> required
     LeasedAt                 DateTimeOffset       required
     ProjectId                Guid                 required
     SampleId                 Guid                 required

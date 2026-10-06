@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Crowd.Annotation.Domain.Common;
+using Crowd.Labeling;
 
 namespace Crowd.Annotation.Domain.Annotations
 {
@@ -75,13 +76,19 @@ namespace Crowd.Annotation.Domain.Annotations
         public const int DoDaiLyDoToiDa = 1000;
         public static readonly TimeSpan HanKhieuNai = TimeSpan.FromDays(7);
 
-        private List<string> _labels;
+        // Noi dung nhan o dinh dang chung (Crowd.Labeling) — ba cot task_type,
+        // schema_version, payload jsonb. Moi loai nhan mot hinh dang JSON, bang
+        // khong doi khi them loai moi.
+        private string _payloadTaskType;
+        private int _payloadSchemaVersion;
+        private string _payloadJson;
         private List<AnnotationHistoryEntry> _history;
 
         private LabelAnnotation()
         {
             StorageKey = string.Empty;
-            _labels = new List<string>();
+            _payloadTaskType = string.Empty;
+            _payloadJson = string.Empty;
             _history = new List<AnnotationHistoryEntry>();
         }
 
@@ -101,9 +108,10 @@ namespace Crowd.Annotation.Domain.Annotations
         /// <summary>null = khach vang lai o cong link (khong ai nhan tien).</summary>
         public Guid? LabelerId { get; private set; }
 
-        public IReadOnlyList<string> Labels
+        /// <summary>Noi dung nhan. Dung lai tu ba cot moi lan doc — LabelPayload kiem lai dinh dang.</summary>
+        public LabelPayload Payload
         {
-            get { return _labels; }
+            get { return LabelPayload.Tao(_payloadTaskType, _payloadSchemaVersion, _payloadJson); }
         }
 
         public LabelSource Source { get; private set; }
@@ -136,10 +144,12 @@ namespace Crowd.Annotation.Domain.Annotations
             Guid sampleId,
             string storageKey,
             Guid labelerId,
-            IReadOnlyList<string> labels,
+            LabelPayload nhan,
             DateTimeOffset submittedAt)
         {
-            if (labels == null || labels.Count == 0)
+            // LabelPayload luon hop le dinh dang (chi tao duoc qua LabelPayload.Tao),
+            // nen o day chi can kiem co hay khong.
+            if (nhan == null)
             {
                 throw new InvalidValueException("nhan_rong", "Nhan khong duoc rong.");
             }
@@ -152,7 +162,9 @@ namespace Crowd.Annotation.Domain.Annotations
             a.SampleId = sampleId;
             a.StorageKey = storageKey;
             a.LabelerId = labelerId;
-            a._labels = new List<string>(labels);
+            a._payloadTaskType = nhan.TaskType;
+            a._payloadSchemaVersion = nhan.SchemaVersion;
+            a._payloadJson = nhan.DataJson;
             a.Source = LabelSource.Professional;
             a.Status = AnnotationStatus.PendingReview;
             a.SubmittedAt = submittedAt;

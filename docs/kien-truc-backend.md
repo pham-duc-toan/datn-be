@@ -169,7 +169,7 @@ Không mặc định Postgres cho tất cả. Mỗi service chọn store hợp v
 | identity | PostgreSQL | 5401 | Quan hệ, giao dịch |
 | project | PostgreSQL (JSONB) | 5402 | `label_schema` mỗi dự án một hình dạng |
 | task | PostgreSQL + **Redis riêng** | 5403 / 6380 | `SKIP LOCKED` cho hàng đợi; Redis giữ lease TTL |
-| annotation | PostgreSQL (JSONB + GIN) | 5404 | Nhãn **đa hình** theo loại bài toán |
+| annotation | PostgreSQL (JSONB + GIN) | 5404 | Nhãn **đa hình** theo loại bài toán: cột `payload jsonb` + `task_type` + `schema_version` (định dạng ở `shared/labeling`), GIN `jsonb_path_ops` trên `payload`. Cùng cách lưu cho nhãn ở task-svc và đáp án câu vàng ở project/task |
 | ledger | PostgreSQL | 5405 | ACID là toàn bộ lý do service này tồn tại |
 | payment | PostgreSQL | 5406 | ACID |
 | link | PostgreSQL | 5407 | CRUD quan hệ |
@@ -458,12 +458,17 @@ datn/
 │  ├─ building-blocks/              ← Crowd.BuildingBlocks: hạ tầng dùng chung
 │  │                                  envelope, outbox, idempotency, correlation, auth
 │  ├─ contracts/                    ← Crowd.Contracts: ~55 payload record
+│  ├─ labeling/                     ← Crowd.Labeling: ĐỊNH DẠNG NHÃN chung (LabelPayload)
+│  │                                  loại nhãn + phiên bản + JSON; cột jsonb ở mọi bảng nhãn
 │  ├─ persistence/                  ← Crowd.BuildingBlocks.Persistence: outbox, idempotency (EF Core)
+│  ├─ seeding/                      ← Crowd.Seeding: kịch bản dữ liệu mẫu (chỉ Development)
 │  ├─ auth/                         ← Crowd.BuildingBlocks.Auth
 │  └─ test/                         ← mọi project test của shared gom một chỗ
 │     ├─ building-blocks-tests/
 │     ├─ contracts-tests/           ← canh quy ước cho mọi payload
-│     └─ persistence-tests/
+│     ├─ labeling-tests/
+│     ├─ persistence-tests/
+│     └─ seeding-tests/
 ├─ Directory.Build.props             ← thuộc tính chung mọi project C#
 ├─ Directory.Packages.props          ← Central Package Management: phiên bản gói ở MỘT chỗ
 ├─ datn.slnx

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Crowd.BuildingBlocks.Messaging;
+using Crowd.Labeling;
 
 namespace Crowd.Contracts.Annotation
 {
@@ -31,7 +32,8 @@ namespace Crowd.Contracts.Annotation
         /// <summary>null khi nhan den tu cong link (khach vang lai).</summary>
         public Guid? LabelerId { get; init; }
 
-        public required IReadOnlyList<string> Labels { get; init; }
+        /// <summary>Noi dung nhan o moi dang (phan loai, bounding box...) — xem Crowd.Labeling.</summary>
+        public required LabelPayload LabelPayload { get; init; }
 
         public required AnnotationSource Source { get; init; }
     }

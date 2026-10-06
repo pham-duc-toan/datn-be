@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Crowd.Annotation.Domain.Annotations;
 using Crowd.Annotation.Domain.Common;
+using Crowd.Labeling;
 
 namespace Crowd.Annotation.Tests
 {
@@ -17,7 +18,7 @@ namespace Crowd.Annotation.Tests
         private static LabelAnnotation NhanMoi()
         {
             return LabelAnnotation.TaoTuLuotNop(
-                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "k.png", Labeler, new List<string> { "cho" }, Luc);
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "k.png", Labeler, LabelPayload.PhanLoai("cho"), Luc);
         }
 
         private static LabelAnnotation NhanBiTuChoi()
@@ -110,7 +111,7 @@ namespace Crowd.Annotation.Tests
         private static LabelAnnotation Nhan(params string[] labels)
         {
             LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
-                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Mau, "k", Guid.NewGuid(), labels, DateTimeOffset.UtcNow);
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Mau, "k", Guid.NewGuid(), LabelPayload.PhanLoai(labels), DateTimeOffset.UtcNow);
             a.Duyet(Guid.NewGuid(), DateTimeOffset.UtcNow);
             return a;
         }

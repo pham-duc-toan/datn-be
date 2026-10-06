@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Common;
 
 namespace Crowd.Project.Domain.EntranceTests
@@ -11,8 +12,9 @@ namespace Crowd.Project.Domain.EntranceTests
     ///   - Toi da SoLanToiDa lan moi du an — khong cho thu mai de do dap an.
     ///   - Moi lan co han ThoiGianLamBai; nop tre tinh la truot.
     ///   - Chi cham cac cau DA GIAO trong lan nay; tra loi cau khac bi bo qua.
-    ///   - Mot cau dung khi tap nhan tra loi TRUNG KHOP tap dap an (khong tinh
-    ///     thu tu). Multi-label thieu hay thua mot nhan deu la sai.
+    ///   - Mot cau dung khi nhan tra loi KHOP dap an theo dinh dang nhan
+    ///     (LabelPayload.KhopDapAn). Phan loai: trung tap lop, khong tinh thu tu;
+    ///     multi-label thieu hay thua mot nhan deu la sai.
     /// </summary>
     public sealed class EntranceAttempt
     {
@@ -97,8 +99,8 @@ namespace Crowd.Project.Domain.EntranceTests
         /// tu cau hoi vang). Tra ve true neu dau.
         /// </summary>
         public bool Nop(
-            IReadOnlyDictionary<Guid, IReadOnlyCollection<string>> traLoi,
-            IReadOnlyDictionary<Guid, IReadOnlyCollection<string>> dapAn,
+            IReadOnlyDictionary<Guid, LabelPayload> traLoi,
+            IReadOnlyDictionary<Guid, LabelPayload> dapAn,
             int nguongPhanTram,
             DateTimeOffset luc)
         {
@@ -130,15 +132,17 @@ namespace Crowd.Project.Domain.EntranceTests
 
             foreach (Guid cau in _questionSampleIds)
             {
-                IReadOnlyCollection<string>? cuaLabeler;
-                IReadOnlyCollection<string>? dung;
+                LabelPayload? cuaLabeler;
+                LabelPayload? dung;
 
                 if (!traLoi.TryGetValue(cau, out cuaLabeler) || !dapAn.TryGetValue(cau, out dung))
                 {
                     continue;
                 }
 
-                if (TrungKhop(cuaLabeler, dung))
+                // "Khop" do DINH DANG nhan quyet dinh: phan loai so tap lop,
+                // bounding box sau nay so do chong lap.
+                if (cuaLabeler.KhopDapAn(dung))
                 {
                     soCauDung = soCauDung + 1;
                 }
@@ -147,13 +151,6 @@ namespace Crowd.Project.Domain.EntranceTests
             ScorePercent = soCauDung * 100 / _questionSampleIds.Count;
             Passed = ScorePercent.Value >= nguongPhanTram;
             return Passed.Value;
-        }
-
-        private static bool TrungKhop(IReadOnlyCollection<string> a, IReadOnlyCollection<string> b)
-        {
-            HashSet<string> tapA = new HashSet<string>(a, StringComparer.Ordinal);
-            HashSet<string> tapB = new HashSet<string>(b, StringComparer.Ordinal);
-            return tapA.SetEquals(tapB);
         }
     }
 }

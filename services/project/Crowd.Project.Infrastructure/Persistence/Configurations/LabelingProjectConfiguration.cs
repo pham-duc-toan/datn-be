@@ -27,6 +27,9 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             // Enum luu thanh chuoi: doc psql thay "Running" thay vi so 3, va chen
             // gia tri moi vao giua enum khong lam lech du lieu cu.
             builder.Property(x => x.TaskType).HasColumnName("task_type").HasConversion<string>().HasMaxLength(40).IsRequired();
+
+            // Suy ra tu TaskType, khong luu.
+            builder.Ignore(x => x.LabelTaskType);
             builder.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(30).IsRequired();
             builder.Property(x => x.Visibility).HasColumnName("visibility").HasConversion<string>().HasMaxLength(20).IsRequired();
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Common;
 
 namespace Crowd.Project.Domain.Projects
@@ -44,6 +45,26 @@ namespace Crowd.Project.Domain.Projects
         public string Description { get; private set; }
 
         public TaskType TaskType { get; private set; }
+
+        /// <summary>
+        /// Ten loai nhan cua du an trong dinh dang nhan chung (Crowd.Labeling) —
+        /// nhan va dap an cua du an nay deu mang loai nay.
+        /// </summary>
+        public string LabelTaskType
+        {
+            get
+            {
+                switch (TaskType)
+                {
+                    case TaskType.ImageClassification:
+                        return LabelTaskTypes.ImageClassification;
+                    default:
+                        throw new InvalidValueException(
+                            "loai_bai_toan_chua_ho_tro",
+                            "Chua co dinh dang nhan cho loai bai toan " + TaskType + ".");
+                }
+            }
+        }
 
         public ProjectStatus Status { get; private set; }
 

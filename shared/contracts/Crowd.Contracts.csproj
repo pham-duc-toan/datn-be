@@ -2,6 +2,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../building-blocks/Crowd.BuildingBlocks.csproj" />
+    <!-- Nhan trong event (assignment.submitted, annotation.submitted, gold_set.updated)
+         la LabelPayload — mot kieu, mot hinh dang JSON cho moi loai nhan. -->
+    <ProjectReference Include="../labeling/Crowd.Labeling.csproj" />
   </ItemGroup>
 
 </Project>

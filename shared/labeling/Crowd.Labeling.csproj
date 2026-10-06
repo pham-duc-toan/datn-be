@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- DINH DANG NHAN dung chung — "ngon ngu chung" ve nhan giua project-svc,
+       task-svc, annotation-svc va hop dong event.
+
+       Moi nhan duoc luu thanh (loai nhan, phien ban, JSON). Database chi biet
+       mot cot jsonb; HINH DANG JSON cua tung loai (phan loai, bounding box,
+       NER...) va cach kiem / so dap an nam o day. Them loai nhan moi = them mot
+       lop dinh dang o day, KHONG doi bang.
+
+       Khong phu thuoc gi ngoai thu vien chuan: domain cua ba service tham chieu
+       duoc ma khong keo theo EF, ASP.NET hay RabbitMQ. -->
+
+</Project>

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Contracts.Project;
+using Crowd.Labeling;
 using Crowd.Seeding;
 using Crowd.Tasking.Api.Consumers;
 using Crowd.Tasking.Api.Settings;
@@ -178,7 +179,7 @@ namespace Crowd.Tasking.Api.Seeding
 
                 Assignment luot = Assignment.Tao(task, s.LabelerId, lucNhan, _lease.ThoiHan);
                 SeedIds.GanId(luot, s.AssignmentId);
-                luot.Nop(task, new string[] { s.Label }, lucNop);
+                luot.Nop(task, LabelPayload.PhanLoai(s.Label), lucNop);
 
                 _db.Assignments.Add(luot);
             }

@@ -497,7 +497,7 @@ namespace Crowd.Annotation.Api.Services
                 SampleId = a.SampleId,
                 ImageUrl = await _storage.TaoLinkXemAsync(a.StorageKey),
                 LabelerId = a.LabelerId,
-                Labels = a.Labels,
+                Payload = a.Payload,
                 Status = a.Status,
                 SubmittedAt = a.SubmittedAt,
                 ReviewedAt = a.ReviewedAt,

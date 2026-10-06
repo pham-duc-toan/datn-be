@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Crowd.BuildingBlocks.Messaging;
+using Crowd.Labeling;
 
 namespace Crowd.Contracts.Project
 {
@@ -71,7 +72,8 @@ namespace Crowd.Contracts.Project
     {
         public required Guid SampleId { get; init; }
 
-        public required IReadOnlyList<string> ExpectedLabels { get; init; }
+        /// <summary>Dap an dung, cung dinh dang voi nhan labeler nop — xem Crowd.Labeling.</summary>
+        public required LabelPayload ExpectedPayload { get; init; }
 
         public required GoldPurpose Purpose { get; init; }
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 
 namespace Crowd.Tasking.Api.Dtos
 {
@@ -17,6 +18,14 @@ namespace Crowd.Tasking.Api.Dtos
         /// <summary>Link xem anh co han vai phut (S-07).</summary>
         public required string ImageUrl { get; init; }
 
+        /// <summary>
+        /// Loai nhan + phien ban dinh dang, vd "imageClassification" v1 — cho
+        /// frontend biet mo workspace nao va nop "payload" hinh dang gi.
+        /// </summary>
+        public required string TaskType { get; init; }
+
+        public required int SchemaVersion { get; init; }
+
         public required IReadOnlyList<string> LabelClasses { get; init; }
 
         public required bool AllowMultiple { get; init; }
@@ -29,7 +38,14 @@ namespace Crowd.Tasking.Api.Dtos
 
     public sealed class SubmitRequest
     {
-        public IReadOnlyList<string>? Labels { get; init; }
+        /// <summary>
+        /// Phan DU LIEU cua nhan theo loai nhan cua du an. Phan loai anh:
+        /// {"labelIds":["do"]}. Loai nhan khong can gui — lay theo du an.
+        /// </summary>
+        public JsonElement? Payload { get; init; }
+
+        /// <summary>Phien ban dinh dang nhan. Bo trong = phien ban moi nhat.</summary>
+        public int? SchemaVersion { get; init; }
     }
 
     public sealed class SubmitResponse

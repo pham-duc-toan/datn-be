@@ -118,10 +118,13 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Purpose).HasColumnName("purpose").HasConversion<string>().HasMaxLength(20).IsRequired();
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
 
-            // ExpectedLabels la thuoc tinh chi doc; thu luu xuong DB la truong
-            // private _expectedLabels. Postgres luu thanh mang text[].
-            builder.Ignore(x => x.ExpectedLabels);
-            builder.Property<List<string>>("_expectedLabels").HasColumnName("expected_labels").IsRequired();
+            // Dap an o dinh dang nhan chung: ba cot. payload la jsonb — moi loai
+            // nhan mot hinh dang JSON, them loai moi khong phai doi bang.
+            // ExpectedPayload chi la cach doc ba cot do thanh mot LabelPayload.
+            builder.Ignore(x => x.ExpectedPayload);
+            builder.Property<string>("_expectedTaskType").HasColumnName("expected_task_type").HasMaxLength(50).IsRequired();
+            builder.Property<int>("_expectedSchemaVersion").HasColumnName("expected_schema_version").IsRequired();
+            builder.Property<string>("_expectedPayloadJson").HasColumnName("expected_payload").HasColumnType("jsonb").IsRequired();
 
             builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             builder.HasOne<Sample>().WithMany().HasForeignKey(x => x.SampleId).OnDelete(DeleteBehavior.Cascade);

@@ -7,6 +7,7 @@ using Crowd.Annotation.Api.Consumers;
 using Crowd.Annotation.Domain.Annotations;
 using Crowd.Annotation.Infrastructure.Persistence;
 using Crowd.Contracts.Project;
+using Crowd.Labeling;
 using Crowd.Seeding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -115,7 +116,7 @@ namespace Crowd.Annotation.Api.Seeding
                     s.SampleId,
                     s.StorageKey,
                     s.LabelerId,
-                    new string[] { s.Label },
+                    LabelPayload.PhanLoai(s.Label),
                     bayGio - s.SubmittedAgo);
                 SeedIds.GanId(a, s.AnnotationId);
 

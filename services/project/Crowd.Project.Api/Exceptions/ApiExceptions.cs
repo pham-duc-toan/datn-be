@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Common;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -36,6 +37,7 @@ namespace Crowd.Project.Api.Exceptions
     /// Controller va service khong viet try/catch cho tung truong hop.
     ///
     ///   InvalidValueException          → 400  du lieu vao sai
+    ///   LabelFormatException           → 400  nhan sai dinh dang (Crowd.Labeling)
     ///   ForbiddenException             → 403
     ///   NotFoundException              → 404
     ///   RuleViolationException         → 409  trang thai khong cho phep
@@ -79,6 +81,13 @@ namespace Crowd.Project.Api.Exceptions
                 status = StatusCodes.Status400BadRequest;
                 code = invalid.Code;
                 message = invalid.Message;
+            }
+            else if (exception is LabelFormatException nhanSai)
+            {
+                // Nhan / dap an sai dinh dang (Crowd.Labeling) — cung la du lieu vao sai.
+                status = StatusCodes.Status400BadRequest;
+                code = nhanSai.Code;
+                message = nhanSai.Message;
             }
             else if (exception is RuleViolationException rule)
             {

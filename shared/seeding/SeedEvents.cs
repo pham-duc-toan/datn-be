@@ -4,6 +4,7 @@ using Crowd.BuildingBlocks.Messaging;
 using Crowd.Contracts.Annotation;
 using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
+using Crowd.Labeling;
 
 namespace Crowd.Seeding
 {
@@ -74,7 +75,7 @@ namespace Crowd.Seeding
                 items.Add(new GoldSetItem
                 {
                     SampleId = g.SampleId,
-                    ExpectedLabels = new string[] { g.Label },
+                    ExpectedPayload = LabelPayload.PhanLoai(g.Label),
                     Purpose = g.ForEntranceTest ? GoldPurpose.EntranceTest : GoldPurpose.QualityCheck,
                 });
             }

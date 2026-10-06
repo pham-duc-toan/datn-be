@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
@@ -150,7 +151,7 @@ namespace Crowd.Project.Api.Seeding
                 GoldItem vang = GoldItem.Tao(
                     sp.Id,
                     g.SampleId,
-                    new string[] { g.Label },
+                    LabelPayload.PhanLoai(g.Label),
                     g.ForEntranceTest ? GoldPurpose.EntranceTest : GoldPurpose.QualityCheck,
                     tapNhan,
                     lucTao);

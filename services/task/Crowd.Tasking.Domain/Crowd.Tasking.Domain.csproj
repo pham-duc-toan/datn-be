@@ -1,3 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <!-- Dinh dang nhan dung chung (LabelPayload) — nhan labeler nop, dap an cau vang. -->
+    <ProjectReference Include="..\..\..\shared\labeling\Crowd.Labeling.csproj" />
+  </ItemGroup>
+
 </Project>

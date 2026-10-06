@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.Labeling;
 using Crowd.Tasking.Domain.Common;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -69,6 +70,12 @@ namespace Crowd.Tasking.Api.Exceptions
             {
                 status = StatusCodes.Status400BadRequest;
                 code = invalid.Code;
+            }
+            else if (exception is LabelFormatException nhanSai)
+            {
+                // Nhan sai dinh dang (Crowd.Labeling) — du lieu vao sai.
+                status = StatusCodes.Status400BadRequest;
+                code = nhanSai.Code;
             }
             else if (exception is RuleViolationException rule)
             {

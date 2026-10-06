@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
 
@@ -66,7 +68,14 @@ namespace Crowd.Project.Api.Dtos
     {
         public Guid? SampleId { get; init; }
 
-        public IReadOnlyList<string>? ExpectedLabels { get; init; }
+        /// <summary>
+        /// Dap an — CHI phan du lieu nhan, vd {"labelIds":["do"]}. Loai nhan lay
+        /// theo du an, client khong phai gui.
+        /// </summary>
+        public JsonElement? ExpectedPayload { get; init; }
+
+        /// <summary>Phien ban dinh dang nhan. Bo trong = phien ban moi nhat.</summary>
+        public int? SchemaVersion { get; init; }
 
         public GoldPurpose? Purpose { get; init; }
     }
@@ -77,7 +86,8 @@ namespace Crowd.Project.Api.Dtos
 
         public required Guid SampleId { get; init; }
 
-        public required IReadOnlyList<string> ExpectedLabels { get; init; }
+        /// <summary>Ra JSON dang {"taskType":..., "schemaVersion":..., "data":{...}}.</summary>
+        public required LabelPayload ExpectedPayload { get; init; }
 
         public required GoldPurpose Purpose { get; init; }
     }
@@ -89,6 +99,11 @@ namespace Crowd.Project.Api.Dtos
         public required Guid AttemptId { get; init; }
 
         public required DateTimeOffset ExpiresAt { get; init; }
+
+        /// <summary>Loai nhan + phien ban — cho client biet tra loi theo hinh dang JSON nao.</summary>
+        public required string TaskType { get; init; }
+
+        public required int SchemaVersion { get; init; }
 
         public required IReadOnlyList<string> LabelClasses { get; init; }
 
@@ -114,7 +129,8 @@ namespace Crowd.Project.Api.Dtos
     {
         public Guid? SampleId { get; init; }
 
-        public IReadOnlyList<string>? Labels { get; init; }
+        /// <summary>Cau tra loi — phan du lieu nhan, vd {"labelIds":["do"]}.</summary>
+        public JsonElement? Payload { get; init; }
     }
 
     public sealed class EntranceResultResponse

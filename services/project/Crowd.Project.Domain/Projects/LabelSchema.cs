@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Common;
 
 namespace Crowd.Project.Domain.Projects
@@ -79,6 +80,20 @@ namespace Crowd.Project.Domain.Projects
             }
 
             return new LabelSchema(daCat, allowMultiple);
+        }
+
+        /// <summary>
+        /// Mot nhan (o dinh dang chung) co hop le voi tap nhan nay khong. Dinh dang
+        /// da duoc LabelPayload kiem; o day chi kiem cac LOP no dung.
+        /// </summary>
+        public bool LaNhanHopLe(LabelPayload nhan)
+        {
+            if (nhan == null)
+            {
+                return false;
+            }
+
+            return LaBoNhanHopLe(nhan.CacLop());
         }
 
         /// <summary>

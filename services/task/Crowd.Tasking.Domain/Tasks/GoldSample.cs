@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using Crowd.Labeling;
 
 namespace Crowd.Tasking.Domain.Tasks
 {
@@ -10,12 +10,16 @@ namespace Crowd.Tasking.Domain.Tasks
     /// </summary>
     public sealed class GoldSample
     {
-        private List<string> _expectedLabels;
+        // Dap an o dinh dang nhan chung — ba cot, giong project-svc.
+        private string _expectedTaskType;
+        private int _expectedSchemaVersion;
+        private string _expectedPayloadJson;
 
         private GoldSample()
         {
             Purpose = string.Empty;
-            _expectedLabels = new List<string>();
+            _expectedTaskType = string.Empty;
+            _expectedPayloadJson = string.Empty;
         }
 
         public Guid ProjectId { get; private set; }
@@ -25,18 +29,25 @@ namespace Crowd.Tasking.Domain.Tasks
         /// <summary>"entranceTest" | "qualityCheck" — giu nguyen chuoi tu hop dong.</summary>
         public string Purpose { get; private set; }
 
-        public IReadOnlyList<string> ExpectedLabels
+        public LabelPayload ExpectedPayload
         {
-            get { return _expectedLabels; }
+            get { return LabelPayload.Tao(_expectedTaskType, _expectedSchemaVersion, _expectedPayloadJson); }
         }
 
-        public static GoldSample Tao(Guid projectId, Guid sampleId, string purpose, IReadOnlyList<string> expectedLabels)
+        public static GoldSample Tao(Guid projectId, Guid sampleId, string purpose, LabelPayload dapAn)
         {
+            if (dapAn == null)
+            {
+                throw new ArgumentNullException(nameof(dapAn));
+            }
+
             GoldSample g = new GoldSample();
             g.ProjectId = projectId;
             g.SampleId = sampleId;
             g.Purpose = purpose;
-            g._expectedLabels = new List<string>(expectedLabels);
+            g._expectedTaskType = dapAn.TaskType;
+            g._expectedSchemaVersion = dapAn.SchemaVersion;
+            g._expectedPayloadJson = dapAn.DataJson;
             return g;
         }
     }

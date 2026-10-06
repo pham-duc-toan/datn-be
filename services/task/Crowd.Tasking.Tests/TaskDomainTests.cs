@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Labeling;
 using Crowd.Tasking.Domain.Assignments;
 using Crowd.Tasking.Domain.Common;
 using Crowd.Tasking.Domain.Eligibility;
@@ -14,7 +15,7 @@ namespace Crowd.Tasking.Tests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
         private static readonly TimeSpan MuoiLamPhut = TimeSpan.FromMinutes(15);
-        private static readonly string[] Cho = new string[] { "cho" };
+        private static readonly LabelPayload Cho = LabelPayload.PhanLoai("cho");
 
         private static LabelingTask Task3Nguoi()
         {
@@ -130,7 +131,7 @@ namespace Crowd.Tasking.Tests
         private static ProjectSnapshot DuAnChay(int? minLevel, int? minReputation)
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(DuAnId, Luc);
-            s.ApDungPublished(Guid.NewGuid(), new List<string> { "a", "b" }, false, 1000, 3, Luc.AddDays(10), true, false, minLevel, minReputation, Luc);
+            s.ApDungPublished(Guid.NewGuid(), LabelTaskTypes.ImageClassification, new List<string> { "a", "b" }, false, 1000, 3, Luc.AddDays(10), true, false, minLevel, minReputation, Luc);
             return s;
         }
 
@@ -206,7 +207,7 @@ namespace Crowd.Tasking.Tests
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
 
             s.TamDung(T2);
-            s.ApDungPublished(Guid.NewGuid(), new List<string> { "a", "b" }, false, 1000, 3, T2.AddDays(1), true, false, null, null, T1);
+            s.ApDungPublished(Guid.NewGuid(), LabelTaskTypes.ImageClassification, new List<string> { "a", "b" }, false, 1000, 3, T2.AddDays(1), true, false, null, null, T1);
 
             Assert.Equal(SnapshotStatus.Paused, s.Status);
             Assert.True(s.IsConfigured);
@@ -248,11 +249,25 @@ namespace Crowd.Tasking.Tests
         public void Kiem_nhan_theo_tap_nhan_cua_du_an()
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
-            s.ApDungPublished(Guid.NewGuid(), new List<string> { "cho", "meo" }, false, 1000, 3, T2, true, false, null, null, T1);
+            s.ApDungPublished(Guid.NewGuid(), LabelTaskTypes.ImageClassification, new List<string> { "cho", "meo" }, false, 1000, 3, T2, true, false, null, null, T1);
 
             Assert.True(s.LaBoNhanHopLe(new List<string> { "cho" }));
             Assert.False(s.LaBoNhanHopLe(new List<string> { "cho", "meo" }));
             Assert.False(s.LaBoNhanHopLe(new List<string> { "voi" }));
+
+            // Cung luat, qua dinh dang nhan chung.
+            Assert.True(s.LaNhanHopLe(LabelPayload.PhanLoai("cho")));
+            Assert.False(s.LaNhanHopLe(LabelPayload.PhanLoai("cho", "meo")));
+            Assert.False(s.LaNhanHopLe(LabelPayload.PhanLoai("voi")));
+        }
+
+        [Fact]
+        public void Du_an_chua_publish_thi_khong_nhan_nhan_nao()
+        {
+            ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
+
+            // Chua co loai nhan → nhan nao cung sai loai.
+            Assert.False(s.LaNhanHopLe(LabelPayload.PhanLoai("cho")));
         }
     }
 }

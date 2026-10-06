@@ -155,3 +155,30 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
    quyet dinh tien bac luon hoi lai chu so huu.
 4. **Doi schema = tang `version`,** phat song song 2 version, xoa version cu khi consumer
    cuoi cung da chuyen. Khong bao gio sua schema tai cho.
+
+   *Ngoai le da ghi nhan (2026-10-06):* `assignment.submitted`, `annotation.submitted`,
+   `gold_set.updated` doi `Labels`/`ExpectedLabels` (danh sach chuoi) sang `LabelPayload`
+   **ngay tren v1**. Ly do: chua co production, chua co consumer nao ngoai ba service deploy
+   dong loat — giu song song v1/v2 la ganh hai phien ban khong ai dung. Ke tu khi co
+   production, luat 4 ap dung khong ngoai le.
+
+## Dinh dang nhan (`LabelPayload`)
+
+Moi event mang noi dung nhan deu dung chung mot hinh dang, dinh nghia trong
+`shared/labeling` (Crowd.Labeling):
+
+```json
+{ "taskType": "imageClassification", "schemaVersion": 1, "data": { "labelIds": ["do"] } }
+```
+
+- `taskType` — loai nhan, trung gia tri JSON cua `ProjectTaskType`.
+- `schemaVersion` — phien ban hinh dang cua `data`. Doi hinh dang = them phien ban moi,
+  phien ban cu van doc duoc.
+- `data` — JSON long nhau (khong phai chuoi). Hinh dang theo tung loai:
+
+| taskType | schemaVersion | data |
+|---|---|---|
+| `imageClassification` | 1 | `{ "labelIds": ["lop", ...] }` — 1..100 lop, khong lap, khong truong la |
+
+Them loai nhan moi (bounding box, NER...) = them mot dong vao bang tren va mot lop
+`ILabelFormat` trong `shared/labeling` — **khong doi hop dong event, khong doi bang**.

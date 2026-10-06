@@ -55,8 +55,13 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
                 b.Property(x => x.StorageKey).HasColumnName("storage_key").HasMaxLength(300).IsRequired();
                 b.Property(x => x.LabelerId).HasColumnName("labeler_id");
-                b.Ignore(x => x.Labels);
-                b.Property<List<string>>("_labels").HasColumnName("labels").IsRequired();
+                // Nhan o dinh dang chung (Crowd.Labeling): ba cot. payload la jsonb —
+                // nhan "da hinh" theo loai bai toan (docs muc 3.2), them loai moi
+                // khong phai doi bang.
+                b.Ignore(x => x.Payload);
+                b.Property<string>("_payloadTaskType").HasColumnName("task_type").HasMaxLength(50).IsRequired();
+                b.Property<int>("_payloadSchemaVersion").HasColumnName("schema_version").IsRequired();
+                b.Property<string>("_payloadJson").HasColumnName("payload").HasColumnType("jsonb").IsRequired();
                 b.Property(x => x.Source).HasColumnName("source").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.SubmittedAt).HasColumnName("submitted_at").IsRequired();
@@ -92,6 +97,15 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.HasIndex(x => new { x.ProjectId, x.SampleId }).HasDatabaseName("ix_annotations_project_sample");
                 b.HasIndex(x => new { x.LabelerId, x.SubmittedAt }).HasDatabaseName("ix_annotations_labeler");
                 b.HasIndex(x => x.Status).HasFilter("status = 'Appealed'").HasDatabaseName("ix_annotations_appeals");
+
+                // GIN tren payload (docs muc 3.2: "JSONB + GIN"): truy van ben trong
+                // JSON co index, vd "nhan nao chon lop do":
+                //     WHERE payload @> '{"labelIds":["do"]}'
+                // jsonb_path_ops: nho hon ban mac dinh, du cho toan tu @>.
+                b.HasIndex("_payloadJson")
+                    .HasMethod("gin")
+                    .HasOperators("jsonb_path_ops")
+                    .HasDatabaseName("ix_annotations_payload");
             });
 
             modelBuilder.Entity<ProjectTerms>(b =>

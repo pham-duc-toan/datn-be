@@ -58,12 +58,17 @@ namespace Crowd.Tasking.Api.Controllers
             return Ok(await _service.DangGiuAsync(Labeler(), ct));
         }
 
-        /// <summary>POST /tasks/assignments/{id}/submit</summary>
+        /// <summary>POST /tasks/assignments/{id}/submit — body {"payload": {...}} theo loai nhan cua du an.</summary>
         [HttpPost("assignments/{assignmentId:guid}/submit")]
         [Authorize(Roles = CrowdRoles.Labeler)]
         public async Task<IActionResult> Nop(Guid assignmentId, [FromBody] SubmitRequest body, CancellationToken ct)
         {
-            return Ok(await _service.NopAsync(assignmentId, body == null ? null : body.Labels, Labeler(), ct));
+            if (body == null)
+            {
+                return Ok(await _service.NopAsync(assignmentId, null, null, Labeler(), ct));
+            }
+
+            return Ok(await _service.NopAsync(assignmentId, body.Payload, body.SchemaVersion, Labeler(), ct));
         }
 
         /// <summary>POST /tasks/assignments/{id}/release — bo qua task (FL-05).</summary>

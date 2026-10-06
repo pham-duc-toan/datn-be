@@ -75,7 +75,7 @@ namespace Crowd.Annotation.Api.Consumers
             }
 
             LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
-                p.AssignmentId, p.TaskId, p.ProjectId, p.SampleId, p.StorageKey, p.LabelerId, p.Labels, p.SubmittedAt);
+                p.AssignmentId, p.TaskId, p.ProjectId, p.SampleId, p.StorageKey, p.LabelerId, p.LabelPayload, p.SubmittedAt);
 
             _db.Annotations.Add(a);
 
@@ -86,7 +86,7 @@ namespace Crowd.Annotation.Api.Consumers
                 ProjectId = a.ProjectId,
                 SampleId = a.SampleId,
                 LabelerId = a.LabelerId,
-                Labels = p.Labels,
+                LabelPayload = p.LabelPayload,
                 Source = AnnotationSource.Professional,
             });
         }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Crowd.Annotation.Domain.Annotations;
+using Crowd.Labeling;
 
 namespace Crowd.Annotation.Api.Dtos
 {
@@ -19,7 +20,8 @@ namespace Crowd.Annotation.Api.Dtos
 
         public Guid? LabelerId { get; init; }
 
-        public required IReadOnlyList<string> Labels { get; init; }
+        /// <summary>Noi dung nhan: {"taskType":..., "schemaVersion":..., "data":{...}}.</summary>
+        public required LabelPayload Payload { get; init; }
 
         public required AnnotationStatus Status { get; init; }
 

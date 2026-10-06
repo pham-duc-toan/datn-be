@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.Contracts.Project;
+using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
 using Crowd.Project.Api.Exceptions;
 using Crowd.Project.Api.Helpers;
@@ -104,9 +105,9 @@ namespace Crowd.Project.Api.Services
             List<Guid> mauYeuCau = new List<Guid>();
             foreach (GoldItemInput i in body.Items)
             {
-                if (i.SampleId == null || i.Purpose == null)
+                if (i.SampleId == null || i.Purpose == null || i.ExpectedPayload == null)
                 {
-                    throw new InvalidValueException("thieu_thong_tin", "Moi cau hoi vang can sampleId va purpose.");
+                    throw new InvalidValueException("thieu_thong_tin", "Moi cau hoi vang can sampleId, expectedPayload va purpose.");
                 }
 
                 mauYeuCau.Add(i.SampleId.Value);
@@ -127,6 +128,9 @@ namespace Crowd.Project.Api.Services
             DateTimeOffset bayGio = _clock.GetUtcNow();
             List<GoldItem> moi = new List<GoldItem>();
 
+            // Loai nhan do DU AN quyet dinh, client chi gui phan du lieu.
+            string loaiNhan = duAn.LabelTaskType;
+
             foreach (GoldItemInput i in body.Items)
             {
                 if (daLaVang.Contains(i.SampleId!.Value))
@@ -134,10 +138,16 @@ namespace Crowd.Project.Api.Services
                     throw new RuleViolationException("da_la_cau_vang", "Mau " + i.SampleId + " da la cau hoi vang.");
                 }
 
+                // Sai dinh dang → LabelFormatException → 400 (ApiExceptionHandler).
+                LabelPayload dapAn = LabelPayload.Tao(
+                    loaiNhan,
+                    i.SchemaVersion ?? LabelFormats.PhienBanMoiNhat(loaiNhan),
+                    i.ExpectedPayload!.Value);
+
                 GoldItem g = GoldItem.Tao(
                     projectId,
                     i.SampleId.Value,
-                    i.ExpectedLabels ?? new List<string>(),
+                    dapAn,
                     i.Purpose!.Value,
                     schema,
                     bayGio);
@@ -190,7 +200,7 @@ namespace Crowd.Project.Api.Services
                 items.Add(new GoldSetItem
                 {
                     SampleId = g.SampleId,
-                    ExpectedLabels = new List<string>(g.ExpectedLabels),
+                    ExpectedPayload = g.ExpectedPayload,
                     Purpose = ContractMapper.ToContract(g.Purpose),
                 });
             }
@@ -204,7 +214,7 @@ namespace Crowd.Project.Api.Services
             {
                 Id = g.Id,
                 SampleId = g.SampleId,
-                ExpectedLabels = g.ExpectedLabels,
+                ExpectedPayload = g.ExpectedPayload,
                 Purpose = g.Purpose,
             };
         }

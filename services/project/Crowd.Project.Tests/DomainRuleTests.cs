@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.EntranceTests;
 using Crowd.Project.Domain.Gold;
@@ -53,18 +54,16 @@ namespace Crowd.Project.Tests
 
     public sealed class GoldItemTests
     {
-        private static readonly string[] Meo = new string[] { "meo" };
-
         [Fact]
         public void Dap_an_vang_phai_hop_le_theo_tap_nhan()
         {
             LabelSchema s = LabelSchema.TaoPhanLoai(new List<string> { "cho", "meo" }, false);
 
-            GoldItem g = GoldItem.Tao(Guid.NewGuid(), Guid.NewGuid(), new List<string> { "meo" }, GoldPurpose.EntranceTest, s, DateTimeOffset.UtcNow);
-            Assert.Equal(Meo, g.ExpectedLabels);
+            GoldItem g = GoldItem.Tao(Guid.NewGuid(), Guid.NewGuid(), LabelPayload.PhanLoai("meo"), GoldPurpose.EntranceTest, s, DateTimeOffset.UtcNow);
+            Assert.Equal(LabelPayload.PhanLoai("meo"), g.ExpectedPayload);
 
             Assert.Throws<InvalidValueException>(() =>
-                GoldItem.Tao(Guid.NewGuid(), Guid.NewGuid(), new List<string> { "voi" }, GoldPurpose.EntranceTest, s, DateTimeOffset.UtcNow));
+                GoldItem.Tao(Guid.NewGuid(), Guid.NewGuid(), LabelPayload.PhanLoai("voi"), GoldPurpose.EntranceTest, s, DateTimeOffset.UtcNow));
         }
     }
 
@@ -106,11 +105,11 @@ namespace Crowd.Project.Tests
         private static readonly Guid Cau1 = Guid.NewGuid();
         private static readonly Guid Cau2 = Guid.NewGuid();
 
-        private static Dictionary<Guid, IReadOnlyCollection<string>> DapAn()
+        private static Dictionary<Guid, LabelPayload> DapAn()
         {
-            Dictionary<Guid, IReadOnlyCollection<string>> d = new Dictionary<Guid, IReadOnlyCollection<string>>();
-            d[Cau1] = new List<string> { "cho" };
-            d[Cau2] = new List<string> { "meo", "ga" };
+            Dictionary<Guid, LabelPayload> d = new Dictionary<Guid, LabelPayload>();
+            d[Cau1] = LabelPayload.PhanLoai("cho");
+            d[Cau2] = LabelPayload.PhanLoai("meo", "ga");
             return d;
         }
 
@@ -123,9 +122,9 @@ namespace Crowd.Project.Tests
         public void Cham_theo_tap_nhan_trung_khop_khong_tinh_thu_tu()
         {
             EntranceAttempt a = LanMoi();
-            Dictionary<Guid, IReadOnlyCollection<string>> traLoi = new Dictionary<Guid, IReadOnlyCollection<string>>();
-            traLoi[Cau1] = new List<string> { "cho" };
-            traLoi[Cau2] = new List<string> { "ga", "meo" };
+            Dictionary<Guid, LabelPayload> traLoi = new Dictionary<Guid, LabelPayload>();
+            traLoi[Cau1] = LabelPayload.PhanLoai("cho");
+            traLoi[Cau2] = LabelPayload.PhanLoai("ga", "meo");
 
             bool dau = a.Nop(traLoi, DapAn(), 100, Luc.AddMinutes(5));
 
@@ -137,9 +136,9 @@ namespace Crowd.Project.Tests
         public void Multi_label_thieu_mot_nhan_la_sai()
         {
             EntranceAttempt a = LanMoi();
-            Dictionary<Guid, IReadOnlyCollection<string>> traLoi = new Dictionary<Guid, IReadOnlyCollection<string>>();
-            traLoi[Cau1] = new List<string> { "cho" };
-            traLoi[Cau2] = new List<string> { "meo" };
+            Dictionary<Guid, LabelPayload> traLoi = new Dictionary<Guid, LabelPayload>();
+            traLoi[Cau1] = LabelPayload.PhanLoai("cho");
+            traLoi[Cau2] = LabelPayload.PhanLoai("meo");
 
             bool dau = a.Nop(traLoi, DapAn(), 80, Luc.AddMinutes(5));
 
@@ -151,9 +150,9 @@ namespace Crowd.Project.Tests
         public void Nop_tre_la_truot_voi_0_diem()
         {
             EntranceAttempt a = LanMoi();
-            Dictionary<Guid, IReadOnlyCollection<string>> traLoi = new Dictionary<Guid, IReadOnlyCollection<string>>();
-            traLoi[Cau1] = new List<string> { "cho" };
-            traLoi[Cau2] = new List<string> { "meo", "ga" };
+            Dictionary<Guid, LabelPayload> traLoi = new Dictionary<Guid, LabelPayload>();
+            traLoi[Cau1] = LabelPayload.PhanLoai("cho");
+            traLoi[Cau2] = LabelPayload.PhanLoai("meo", "ga");
 
             bool dau = a.Nop(traLoi, DapAn(), 50, Luc + EntranceAttempt.ThoiGianLamBai);
 
@@ -165,10 +164,10 @@ namespace Crowd.Project.Tests
         public void Khong_nop_duoc_hai_lan()
         {
             EntranceAttempt a = LanMoi();
-            a.Nop(new Dictionary<Guid, IReadOnlyCollection<string>>(), DapAn(), 50, Luc);
+            a.Nop(new Dictionary<Guid, LabelPayload>(), DapAn(), 50, Luc);
 
             Assert.Throws<RuleViolationException>(() =>
-                a.Nop(new Dictionary<Guid, IReadOnlyCollection<string>>(), DapAn(), 50, Luc));
+                a.Nop(new Dictionary<Guid, LabelPayload>(), DapAn(), 50, Luc));
         }
 
         [Fact]

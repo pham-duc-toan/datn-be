@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Crowd.Labeling;
 
 namespace Crowd.Annotation.Domain.Annotations
 {
@@ -41,6 +42,11 @@ namespace Crowd.Annotation.Domain.Annotations
     /// Cung luat cho multi-label: moi lop xet doc lap. Day la luat don gian co the
     /// giai thich duoc; quality-svc (P3) se thay bang Dawid–Skene co trong so theo
     /// do tin cay tung labeler (FQ-01).
+    ///
+    /// CHI DUNG CHO PHAN LOAI. Dem phieu theo lop khong co nghia voi bounding box
+    /// (hai khung lech vai pixel van la cung mot vat — phai so do chong lap IoU).
+    /// Gap loai nhan khac thi NEM LOI thay vi am tham ra ket qua sai; loai moi can
+    /// bo gop ket qua rieng.
     /// </summary>
     public static class ResultAggregator
     {
@@ -60,7 +66,14 @@ namespace Crowd.Annotation.Domain.Annotations
 
                 foreach (LabelAnnotation a in nhom)
                 {
-                    foreach (string lop in a.Labels.Distinct(StringComparer.Ordinal))
+                    LabelPayload nhan = a.Payload;
+                    if (nhan.TaskType != LabelTaskTypes.ImageClassification)
+                    {
+                        throw new InvalidOperationException(
+                            "Chua co cach gop ket qua cho loai nhan '" + nhan.TaskType + "'.");
+                    }
+
+                    foreach (string lop in nhan.CacLop().Distinct(StringComparer.Ordinal))
                     {
                         int cu;
                         phieu.TryGetValue(lop, out cu);

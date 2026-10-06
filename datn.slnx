@@ -68,6 +68,7 @@
     <Project Path="shared/auth/Crowd.BuildingBlocks.Auth.csproj" />
     <Project Path="shared/building-blocks/Crowd.BuildingBlocks.csproj" />
     <Project Path="shared/contracts/Crowd.Contracts.csproj" />
+    <Project Path="shared/labeling/Crowd.Labeling.csproj" />
     <Project Path="shared/persistence/Crowd.BuildingBlocks.Persistence.csproj" />
     <Project Path="shared/seeding/Crowd.Seeding.csproj" />
     <Project Path="shared/storage/Crowd.BuildingBlocks.Storage.csproj" />
@@ -75,6 +76,7 @@
   <Folder Name="/shared/test/">
     <Project Path="shared/test/building-blocks-tests/Crowd.BuildingBlocks.Tests.csproj" />
     <Project Path="shared/test/contracts-tests/Crowd.Contracts.Tests.csproj" />
+    <Project Path="shared/test/labeling-tests/Crowd.Labeling.Tests.csproj" />
     <Project Path="shared/test/persistence-tests/Crowd.BuildingBlocks.Persistence.Tests.csproj" />
     <Project Path="shared/test/seeding-tests/Crowd.Seeding.Tests.csproj" />
   </Folder>

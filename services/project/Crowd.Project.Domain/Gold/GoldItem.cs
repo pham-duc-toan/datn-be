@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Projects;
 
@@ -21,14 +21,22 @@ namespace Crowd.Project.Domain.Gold
     /// Hai muc dich tach rieng: cau dung cho bai test dau vao se bi nhin thay
     /// nhieu lan (moi nguoi lam test deu thay). Neu cung cau do tron vao task
     /// that thi labeler da tung lam test se nho dap an — va cau vang mat tac dung.
+    ///
+    /// Dap an luu o DINH DANG NHAN CHUNG (LabelPayload): cung hinh dang voi nhan
+    /// labeler nop, o moi loai bai toan — phan loai hay bounding box deu vua.
     /// </summary>
     public sealed class GoldItem
     {
-        private List<string> _expectedLabels;
+        // Ba truong luu xuong ba cot (expected_task_type, expected_schema_version,
+        // expected_payload jsonb). Ben ngoai chi thay ExpectedPayload.
+        private string _expectedTaskType;
+        private int _expectedSchemaVersion;
+        private string _expectedPayloadJson;
 
         private GoldItem()
         {
-            _expectedLabels = new List<string>();
+            _expectedTaskType = string.Empty;
+            _expectedPayloadJson = string.Empty;
         }
 
         public Guid Id { get; private set; }
@@ -37,9 +45,10 @@ namespace Crowd.Project.Domain.Gold
 
         public Guid SampleId { get; private set; }
 
-        public IReadOnlyList<string> ExpectedLabels
+        /// <summary>Dap an dung. Dung lai tu ba cot moi lan doc — LabelPayload kiem lai dinh dang.</summary>
+        public LabelPayload ExpectedPayload
         {
-            get { return _expectedLabels; }
+            get { return LabelPayload.Tao(_expectedTaskType, _expectedSchemaVersion, _expectedPayloadJson); }
         }
 
         public GoldPurpose Purpose { get; private set; }
@@ -49,17 +58,22 @@ namespace Crowd.Project.Domain.Gold
         public static GoldItem Tao(
             Guid projectId,
             Guid sampleId,
-            IReadOnlyCollection<string> expectedLabels,
+            LabelPayload dapAn,
             GoldPurpose purpose,
             LabelSchema schema,
             DateTimeOffset luc)
         {
+            if (dapAn == null)
+            {
+                throw new ArgumentNullException(nameof(dapAn));
+            }
+
             if (schema == null)
             {
                 throw new ArgumentNullException(nameof(schema));
             }
 
-            if (!schema.LaBoNhanHopLe(expectedLabels))
+            if (!schema.LaNhanHopLe(dapAn))
             {
                 throw new InvalidValueException(
                     "dap_an_vang_khong_hop_le",
@@ -71,7 +85,9 @@ namespace Crowd.Project.Domain.Gold
             g.Id = Guid.CreateVersion7();
             g.ProjectId = projectId;
             g.SampleId = sampleId;
-            g._expectedLabels = new List<string>(expectedLabels);
+            g._expectedTaskType = dapAn.TaskType;
+            g._expectedSchemaVersion = dapAn.SchemaVersion;
+            g._expectedPayloadJson = dapAn.DataJson;
             g.Purpose = purpose;
             g.CreatedAt = luc;
             return g;

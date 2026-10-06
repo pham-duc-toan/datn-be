@@ -9,7 +9,7 @@ Mọi lệnh đều ghi đầy đủ địa chỉ và ID, copy là chạy đư�
 | Chỗ trống | Lấy ở đâu |
 |---|---|
 | `<token-admin>`, `<token-biz1>`, `<token-biz2>`, `<token-lab1>`, `<token-lab2>`, `<token-lab3>`, `<token-rev1>` | Trường `accessToken` khi đăng nhập tài khoản tương ứng (mục 5) |
-| `<assignmentId>`, `<attemptId>`, `<id-du-an-moi>`, `<intentId-moi>`, `<refreshToken>` | Trường cùng tên trong response của lệnh ngay trước đó |
+| `<assignmentId>`, `<attemptId>`, `<id-du-an-moi>`, `<intentId-moi>`, `<sampleId>`, `<refreshToken>` | Trường cùng tên trong response của lệnh ngay trước đó |
 
 Khi dán, xóa luôn cặp dấu `< >`. Ví dụ `Bearer <token-biz1>` sẽ thành `Bearer eyJhbGciOi...`.
 
@@ -346,13 +346,19 @@ curl -s -X POST http://localhost:8080/projects/2ae9dc42-5b32-518d-b24f-cdd7da800
 
 ### 6.6 Labeler nhận task, nộp, bỏ qua (task → annotation)
 
+**Định dạng nhãn.** Mọi nhãn trong hệ thống đi theo định dạng chung ([shared/labeling](../shared/labeling/LabelPayload.cs)): loại nhãn + phiên bản + dữ liệu JSON. Khi nộp, labeler **chỉ gửi phần dữ liệu** trong trường `payload`. Loại nhãn lấy theo dự án; `taskType` và `schemaVersion` có trong response của `next`. Với phân loại ảnh v1, dữ liệu là `{"labelIds": ["vang"]}`. Response trả nhãn về ở dạng đầy đủ:
+
+```json
+{"taskType":"imageClassification","schemaVersion":1,"data":{"labelIds":["vang"]}}
+```
+
 ```bash
-# 200 kèm assignmentId, imageUrl (xem ảnh để biết màu), labelClasses; 204 = hết task cho bạn
+# 200 kèm assignmentId, imageUrl (xem ảnh để biết màu), taskType, schemaVersion, labelClasses; 204 = hết task cho bạn
 curl -s -X POST http://localhost:8080/tasks/projects/3d904a1a-3920-530b-b055-793baae64f1b/next -H "Authorization: Bearer <token-lab1>"
 
 # Nộp nhãn cho assignmentId vừa nhận
 curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H "Authorization: Bearer <token-lab1>" \
-  -H "Content-Type: application/json" -d '{"labels":["vang"]}'
+  -H "Content-Type: application/json" -d '{"payload":{"labelIds":["vang"]}}'
 
 # Hoặc bỏ qua thay vì nộp
 curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/release -H "Authorization: Bearer <token-lab1>"
@@ -365,6 +371,10 @@ curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793b
 
 Kiểm tra thêm:
 - Nộp lại cùng `assignmentId`: bị từ chối `lease_khong_con`.
+- Thiếu trường `payload` (ví dụ gửi kiểu cũ `{"labels":["vang"]}`): **400** `thieu_nhan`.
+- `payload` sai hình dạng (ví dụ `{"payload":{"labels":["vang"]}}`): **400** `nhan_sai_dinh_dang`.
+- Chọn hai lớp ở dự án chỉ cho chọn một, hoặc lớp không có trong dự án: **400** `nhan_khong_hop_le`.
+- `"schemaVersion": 9`: **400** `loai_nhan_chua_ho_tro`.
 - lab3 nhận task ở P1 khi chưa tham gia: **403** `khong_phai_thanh_vien`.
 
 ```bash
@@ -446,10 +456,11 @@ curl -s -X POST http://localhost:8080/projects/2fde6d4c-ee31-57ae-8632-b2e6e0721
 ```bash
 curl -s -X POST http://localhost:8080/projects/2fde6d4c-ee31-57ae-8632-b2e6e0721217/entrance-test/attempts/<attemptId>/submit \
   -H "Authorization: Bearer <token-lab3>" -H "Content-Type: application/json" -d '{"answers":[
-    {"sampleId":"25bb3dd9-5900-5e1c-9d57-f84ed2c72645","labels":["do"]},
-    {"sampleId":"4a1785a8-3058-5313-a0e8-017d9070854d","labels":["xanh_la"]},
-    {"sampleId":"cf021f75-a9f0-5f11-be77-fc81779763de","labels":["vang"]}]}'
+    {"sampleId":"25bb3dd9-5900-5e1c-9d57-f84ed2c72645","payload":{"labelIds":["do"]}},
+    {"sampleId":"4a1785a8-3058-5313-a0e8-017d9070854d","payload":{"labelIds":["xanh_la"]}},
+    {"sampleId":"cf021f75-a9f0-5f11-be77-fc81779763de","payload":{"labelIds":["vang"]}}]}'
 # → scorePercent 100, passed true, joinedProject true
+# Câu trả lời sai định dạng → 400 nhan_sai_dinh_dang, bài CHƯA bị tính là đã nộp.
 
 # Lịch sử làm bài (tối đa 3 lần)
 curl -s http://localhost:8080/projects/2fde6d4c-ee31-57ae-8632-b2e6e0721217/entrance-test/attempts -H "Authorization: Bearer <token-lab3>"
@@ -516,6 +527,12 @@ curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/pricing -H "Authori
 
 curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/datasets -H "Authorization: Bearer <token-biz2>" -F "name=lo-1" -F "file=@anh.zip"
 
+# (Tùy chọn) Thêm câu vàng. Lấy "id" của ảnh vang.png từ danh sách mẫu, dán vào <sampleId>.
+# expectedPayload chỉ là phần dữ liệu, giống payload khi labeler nộp.
+curl -s "http://localhost:8080/projects/<id-du-an-moi>/samples?page=1&pageSize=20" -H "Authorization: Bearer <token-biz2>"
+curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/gold-items -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
+  -d '{"items":[{"sampleId":"<sampleId>","expectedPayload":{"labelIds":["vang"]},"purpose":"qualityCheck"}]}'
+
 curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/publish -H "Authorization: Bearer <token-biz2>"
 sleep 3
 
@@ -542,7 +559,9 @@ curl -s -X POST http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64
 curl -s -X POST http://localhost:8080/tasks/projects/3d904a1a-3920-530b-b055-793baae64f1b/next -H "Authorization: Bearer <token-lab1>"
 curl -s -X POST http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/resume -H "Authorization: Bearer <token-biz1>"
 
-# Câu hỏi vàng: chỉ sửa được khi Nháp hoặc Tạm dừng
+# Câu hỏi vàng: chỉ sửa được khi Nháp hoặc Tạm dừng. Đáp án ở dạng đầy đủ:
+# "expectedPayload": {"taskType":"imageClassification","schemaVersion":1,"data":{"labelIds":["vang"]}}
+# Cách thêm câu vàng: xem mục 6.11 (dự án nháp mới).
 curl -s http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/gold-items -H "Authorization: Bearer <token-biz1>"
 
 # Kết quả và xuất file (FB-22, FB-25)

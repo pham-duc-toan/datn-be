@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using Crowd.Labeling;
 using Crowd.Tasking.Domain.Common;
 using Crowd.Tasking.Domain.Tasks;
 
@@ -37,11 +37,14 @@ namespace Crowd.Tasking.Domain.Assignments
     /// </summary>
     public sealed class Assignment
     {
-        private List<string> _labels;
+        // Nhan da nop o dinh dang chung — ba cot (task_type, schema_version,
+        // payload jsonb). Ca ba null khi chua nop.
+        private string? _payloadTaskType;
+        private int? _payloadSchemaVersion;
+        private string? _payloadJson;
 
         private Assignment()
         {
-            _labels = new List<string>();
         }
 
         public Guid Id { get; private set; }
@@ -63,10 +66,18 @@ namespace Crowd.Tasking.Domain.Assignments
         /// <summary>Luc ket thuc (nop, bo qua, het han, thu hoi).</summary>
         public DateTimeOffset? EndedAt { get; private set; }
 
-        /// <summary>Nhan da nop. Rong khi chua nop.</summary>
-        public IReadOnlyList<string> Labels
+        /// <summary>Nhan da nop. null khi chua nop (dang giu, bo qua, het han, thu hoi).</summary>
+        public LabelPayload? Payload
         {
-            get { return _labels; }
+            get
+            {
+                if (_payloadTaskType == null || !_payloadSchemaVersion.HasValue || _payloadJson == null)
+                {
+                    return null;
+                }
+
+                return LabelPayload.Tao(_payloadTaskType, _payloadSchemaVersion.Value, _payloadJson);
+            }
         }
 
         public static Assignment Tao(LabelingTask task, Guid labelerId, DateTimeOffset luc, TimeSpan thoiHan)
@@ -97,7 +108,7 @@ namespace Crowd.Tasking.Domain.Assignments
         }
 
         /// <summary>Nop nhan. Tra ve true neu task vua du redundancy.</summary>
-        public bool Nop(LabelingTask task, IReadOnlyList<string> nhan, DateTimeOffset luc)
+        public bool Nop(LabelingTask task, LabelPayload nhan, DateTimeOffset luc)
         {
             if (task == null)
             {
@@ -125,7 +136,9 @@ namespace Crowd.Tasking.Domain.Assignments
 
             State = AssignmentState.Submitted;
             EndedAt = luc;
-            _labels = new List<string>(nhan);
+            _payloadTaskType = nhan.TaskType;
+            _payloadSchemaVersion = nhan.SchemaVersion;
+            _payloadJson = nhan.DataJson;
 
             return task.GhiNhanNop(luc);
         }

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.Contracts.Project;
+using Crowd.Labeling;
 using Crowd.Tasking.Api.Services;
 using Crowd.Tasking.Domain.Projects;
 using Crowd.Tasking.Domain.Tasks;
@@ -35,6 +36,22 @@ namespace Crowd.Tasking.Api.Consumers
             }
 
             return s;
+        }
+
+        /// <summary>
+        /// Loai bai toan trong hop dong → ten loai nhan (Crowd.Labeling). Loai chua
+        /// co dinh dang thi NEM LOI: message vao DLQ cho nguoi xem, khong am tham
+        /// mo du an ma labeler nop gi cung bi tu choi.
+        /// </summary>
+        public static string LoaiNhanCua(ProjectTaskType loai)
+        {
+            switch (loai)
+            {
+                case ProjectTaskType.ImageClassification:
+                    return LabelTaskTypes.ImageClassification;
+                default:
+                    throw new InvalidOperationException("Chua co dinh dang nhan cho loai bai toan " + loai + ".");
+            }
         }
     }
 
@@ -120,6 +137,7 @@ namespace Crowd.Tasking.Api.Consumers
 
             duAn.ApDungPublished(
                 p.OwnerId,
+                Snapshots.LoaiNhanCua(p.TaskType),
                 p.LabelClasses,
                 p.AllowMultipleLabels,
                 p.UnitPriceVnd,
@@ -335,7 +353,7 @@ namespace Crowd.Tasking.Api.Consumers
             foreach (GoldSetItem i in p.Items)
             {
                 string mucDich = i.Purpose == GoldPurpose.EntranceTest ? "entranceTest" : "qualityCheck";
-                _db.GoldSamples.Add(GoldSample.Tao(p.ProjectId, i.SampleId, mucDich, i.ExpectedLabels));
+                _db.GoldSamples.Add(GoldSample.Tao(p.ProjectId, i.SampleId, mucDich, i.ExpectedPayload));
                 vangMoi.Add(i.SampleId);
             }
 

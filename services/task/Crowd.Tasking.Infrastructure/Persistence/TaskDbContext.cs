@@ -88,7 +88,14 @@ namespace Crowd.Tasking.Infrastructure.Persistence
         {
             mb.Entity<Assignment>(b =>
             {
-                b.ToTable("assignments");
+                // Ba cot nhan di cung nhau: hoac ca ba null (chua nop) hoac ca ba
+                // co gia tri, va CHI luot da nop moi co nhan. Database tu chan
+                // trang thai nua voi, khong chi trong cay vao code.
+                b.ToTable("assignments", t => t.HasCheckConstraint(
+                    "ck_assignments_payload",
+                    "(task_type IS NULL) = (payload IS NULL) " +
+                    "AND (schema_version IS NULL) = (payload IS NULL) " +
+                    "AND (state = 'Submitted') = (payload IS NOT NULL)"));
                 b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
                 b.HasKey(x => x.Id);
                 b.Property(x => x.TaskId).HasColumnName("task_id").IsRequired();
@@ -100,8 +107,12 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property(x => x.ExpiresAt).HasColumnName("expires_at").IsRequired();
                 b.Property(x => x.EndedAt).HasColumnName("ended_at");
 
-                b.Ignore(x => x.Labels);
-                b.Property<List<string>>("_labels").HasColumnName("labels").IsRequired();
+                // Nhan da nop o dinh dang chung (Crowd.Labeling): ba cot, null khi
+                // chua nop. payload la jsonb — moi loai nhan mot hinh dang.
+                b.Ignore(x => x.Payload);
+                b.Property<string?>("_payloadTaskType").HasColumnName("task_type").HasMaxLength(50);
+                b.Property<int?>("_payloadSchemaVersion").HasColumnName("schema_version");
+                b.Property<string?>("_payloadJson").HasColumnName("payload").HasColumnType("jsonb");
 
                 // Khoa lac quan: reaper va nguoi nop cham cung mot dong — ben den sau
                 // nhan 0 dong thay vi ghi de (VD-D-11).
@@ -139,6 +150,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.StatusChangedAt).HasColumnName("status_changed_at").IsRequired();
                 b.Property(x => x.IsConfigured).HasColumnName("is_configured").IsRequired();
+                b.Property(x => x.LabelTaskType).HasColumnName("label_task_type").HasMaxLength(50).IsRequired();
                 b.Ignore(x => x.LabelClasses);
                 b.Property<List<string>>("_labelClasses").HasColumnName("label_classes").IsRequired();
                 b.Property(x => x.AllowMultiple).HasColumnName("allow_multiple").IsRequired();
@@ -183,8 +195,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property(x => x.SampleId).HasColumnName("sample_id");
                 b.HasKey(x => new { x.ProjectId, x.SampleId });
                 b.Property(x => x.Purpose).HasColumnName("purpose").HasMaxLength(20).IsRequired();
-                b.Ignore(x => x.ExpectedLabels);
-                b.Property<List<string>>("_expectedLabels").HasColumnName("expected_labels").IsRequired();
+                b.Ignore(x => x.ExpectedPayload);
+                b.Property<string>("_expectedTaskType").HasColumnName("expected_task_type").HasMaxLength(50).IsRequired();
+                b.Property<int>("_expectedSchemaVersion").HasColumnName("expected_schema_version").IsRequired();
+                b.Property<string>("_expectedPayloadJson").HasColumnName("expected_payload").HasColumnType("jsonb").IsRequired();
             });
         }
     }

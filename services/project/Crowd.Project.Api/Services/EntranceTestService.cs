@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
 using Crowd.Project.Api.Exceptions;
 using Crowd.Project.Domain.Common;
@@ -125,6 +126,8 @@ namespace Crowd.Project.Api.Services
             {
                 AttemptId = lanMoi.Id,
                 ExpiresAt = lanMoi.ExpiresAt,
+                TaskType = duAn.LabelTaskType,
+                SchemaVersion = LabelFormats.PhienBanMoiNhat(duAn.LabelTaskType),
                 LabelClasses = duAn.LabelSchema!.Classes,
                 AllowMultiple = duAn.LabelSchema.AllowMultiple,
                 Questions = ds,
@@ -159,20 +162,25 @@ namespace Crowd.Project.Api.Services
                 .Where(g => g.ProjectId == projectId && cauHoi.Contains(g.SampleId))
                 .ToListAsync(ct);
 
-            Dictionary<Guid, IReadOnlyCollection<string>> dapAn = new Dictionary<Guid, IReadOnlyCollection<string>>();
+            Dictionary<Guid, LabelPayload> dapAn = new Dictionary<Guid, LabelPayload>();
             foreach (GoldItem g in vang)
             {
-                dapAn[g.SampleId] = g.ExpectedLabels;
+                dapAn[g.SampleId] = g.ExpectedPayload;
             }
 
-            Dictionary<Guid, IReadOnlyCollection<string>> traLoi = new Dictionary<Guid, IReadOnlyCollection<string>>();
+            // Cau tra loi doc theo loai nhan cua DU AN, phien ban moi nhat. Sai
+            // dinh dang → LabelFormatException → 400, bai test chua bi tinh la da nop.
+            string loaiNhan = duAn.LabelTaskType;
+            int phienBan = LabelFormats.PhienBanMoiNhat(loaiNhan);
+
+            Dictionary<Guid, LabelPayload> traLoi = new Dictionary<Guid, LabelPayload>();
             if (body.Answers != null)
             {
                 foreach (EntranceAnswer a in body.Answers)
                 {
-                    if (a.SampleId.HasValue && a.Labels != null)
+                    if (a.SampleId.HasValue && a.Payload.HasValue)
                     {
-                        traLoi[a.SampleId.Value] = a.Labels.ToList();
+                        traLoi[a.SampleId.Value] = LabelPayload.Tao(loaiNhan, phienBan, a.Payload.Value);
                     }
                 }
             }
