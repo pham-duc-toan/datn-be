@@ -7,13 +7,15 @@ namespace Crowd.Labeling
     /// <summary>
     /// Hinh dang cua LabelPayload tren day (event, API):
     ///
-    ///     { "taskType": "imageClassification", "schemaVersion": 1, "data": { "labelIds": ["do"] } }
+    ///     { "taskType": "image", "schemaVersion": 1,
+    ///       "data": { "loai_anh": { "labelIds": ["do"] }, "vat_the": [ {"labelId":"xe","x":10,"y":20,"w":100,"h":50} ] } }
     ///
     /// "data" la JSON long nhau that su, khong phai chuoi chua JSON — mo
-    /// RabbitMQ UI la doc duoc ngay.
+    /// RabbitMQ UI la doc duoc ngay. Doc tu event KHONG kiem lai theo tap nhan
+    /// (ben phat da kiem luc tao) — chi kiem cau truc va chuan hoa.
     ///
     /// Doc CHAT nhu ca envelope (UnmappedMemberHandling = Disallow): thieu
-    /// truong hay co truong la deu nem loi, va "data" duoc kiem theo dinh dang.
+    /// truong hay co truong la deu nem loi.
     /// </summary>
     public sealed class LabelPayloadJsonConverter : JsonConverter<LabelPayload>
     {
@@ -75,7 +77,7 @@ namespace Crowd.Labeling
 
             try
             {
-                return LabelPayload.Tao(taskType, schemaVersion.Value, data.Value);
+                return LabelPayload.TuLuuTru(taskType, schemaVersion.Value, data.Value.GetRawText());
             }
             catch (LabelFormatException ex)
             {

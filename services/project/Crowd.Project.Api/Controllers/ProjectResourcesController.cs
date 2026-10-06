@@ -88,15 +88,46 @@ namespace Crowd.Project.Api.Controllers
         public const long KichThuocToiDa = 200L * 1024 * 1024;
 
         private readonly DatasetService _service;
+        private readonly UploadService _uploads;
 
-        public DatasetsController(DatasetService service)
+        public DatasetsController(DatasetService service, UploadService uploads)
         {
             if (service == null)
             {
                 throw new ArgumentNullException(nameof(service));
             }
 
+            if (uploads == null)
+            {
+                throw new ArgumentNullException(nameof(uploads));
+            }
+
             _service = service;
+            _uploads = uploads;
+        }
+
+        /// <summary>
+        /// POST /projects/{id}/uploads — xin link ky san de PUT file THANG len MinIO
+        /// (audio / video / anh lon / file manifest .jsonl). Moi file mot { key, uploadUrl }.
+        /// </summary>
+        [HttpPost("uploads")]
+        public async Task<IActionResult> XinLinkUpload(Guid projectId, [FromBody] CreateUploadsRequest body, CancellationToken ct)
+        {
+            return Ok(await _uploads.TaoLinkAsync(projectId, body, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
+        }
+
+        /// <summary>
+        /// POST /projects/{id}/datasets/manifest — tao lo tu manifest (moi loai du lieu):
+        /// {"name":..., "rows":[...]} hoac {"name":..., "manifestKey":"&lt;key file .jsonl&gt;"}.
+        /// Tra 202: lo o trang thai Pending, worker xu ly nen — xem GET /datasets.
+        /// </summary>
+        [HttpPost("datasets/manifest")]
+        public async Task<IActionResult> NapManifest(Guid projectId, [FromBody] CreateManifestDatasetRequest body, CancellationToken ct)
+        {
+            DatasetResponse d = await _service.TaoTuManifestAsync(
+                projectId, body, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
+
+            return Accepted("/projects/" + projectId + "/datasets", d);
         }
 
         /// <summary>
@@ -134,7 +165,7 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.DanhSachAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
         }
 
-        /// <summary>GET /projects/{id}/samples?page=&amp;pageSize= — kem link xem anh 5 phut.</summary>
+        /// <summary>GET /projects/{id}/samples?page=&amp;pageSize= — kem link xem file 5 phut (hoac noi dung text).</summary>
         [HttpGet("samples")]
         public async Task<IActionResult> Mau(Guid projectId, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
         {

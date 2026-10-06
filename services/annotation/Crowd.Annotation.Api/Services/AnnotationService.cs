@@ -15,6 +15,7 @@ using Crowd.Annotation.Infrastructure.Persistence;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Annotation;
+using Crowd.Labeling;
 using Microsoft.EntityFrameworkCore;
 
 namespace Crowd.Annotation.Api.Services
@@ -312,107 +313,68 @@ namespace Crowd.Annotation.Api.Services
         public async Task<ProjectResultsResponse> KetQuaAsync(Guid projectId, Caller caller, CancellationToken ct)
         {
             await KiemQuyenDuyetAsync(projectId, caller, ct);
+            ProjectTerms dieuKhoan = await LayDieuKhoanAsync(projectId, ct);
+            LabelSchema tapNhan = dieuKhoan.LabelSchema;
 
             List<LabelAnnotation> daDuyet = await _db.Annotations.AsNoTracking()
                 .Where(a => a.ProjectId == projectId && a.Status == AnnotationStatus.Approved)
                 .ToListAsync(ct);
 
-            IReadOnlyList<SampleResult> ketQua = ResultAggregator.Chot(daDuyet);
+            IReadOnlyList<SampleResult> ketQua = ResultAggregator.Chot(tapNhan, daDuyet);
 
-            SortedDictionary<string, int> phanBo = new SortedDictionary<string, int>(StringComparer.Ordinal);
             List<SampleResultResponse> mau = new List<SampleResultResponse>();
-
             foreach (SampleResult r in ketQua)
             {
-                foreach (string lop in r.FinalLabels)
-                {
-                    int cu;
-                    phanBo.TryGetValue(lop, out cu);
-                    phanBo[lop] = cu + 1;
-                }
-
+                LabelAnnotation dau = r.Approved[0];
                 mau.Add(new SampleResultResponse
                 {
                     SampleId = r.SampleId,
-                    FinalLabels = r.FinalLabels,
-                    Votes = r.Votes,
+                    StorageKey = dau.StorageKey,
+                    SampleContent = dau.SampleContent,
+                    SampleMetadata = dau.SampleMetadata,
                     ApprovedCount = r.ApprovedCount,
                     Disputed = r.Disputed,
+                    Tools = RawJson.Tu(r.Tools),
+                    Labels = r.Approved.Select(a => RawJson.Tu(a.Payload.DataJson)).ToList(),
                 });
             }
 
             return new ProjectResultsResponse
             {
                 ProjectId = projectId,
+                Modality = tapNhan.Modality,
+                LabelSchema = tapNhan.ToRawJson(),
                 SampleCount = mau.Count,
                 DisputedCount = mau.Count(x => x.Disputed),
-                LabelDistribution = phanBo,
+                LabelDistribution = ResultAggregator.PhanBo(tapNhan, ketQua),
                 Samples = mau,
             };
         }
 
-        /// <summary>Xuat ket qua (FB-25): "json" hoac "csv".</summary>
+        /// <summary>Xuat ket qua (FB-25): "json" (mac dinh), "csv", "coco" (anh co khung).</summary>
         public async Task<ExportFile> XuatAsync(
             Guid projectId, string? dinhDang, Caller caller, CancellationToken ct)
         {
             ProjectResultsResponse kq = await KetQuaAsync(projectId, caller, ct);
+            LabelSchema tapNhan = LabelSchema.Doc(kq.LabelSchema);
             string ten = "ket-qua-" + projectId.ToString();
 
             if (string.Equals(dinhDang, "csv", StringComparison.OrdinalIgnoreCase))
             {
-                StringBuilder sb = new StringBuilder();
-                sb.Append("sample_id,final_labels,approved_count,disputed\n");
+                return new ExportFile(ResultExporter.Csv(kq, tapNhan), "text/csv; charset=utf-8", ten + ".csv");
+            }
 
-                foreach (SampleResultResponse s in kq.Samples)
-                {
-                    sb.Append(s.SampleId).Append(',')
-                      .Append(OCsv(string.Join(";", s.FinalLabels))).Append(',')
-                      .Append(s.ApprovedCount).Append(',')
-                      .Append(s.Disputed ? "true" : "false").Append('\n');
-                }
-
-                // BOM UTF-8: Excel mo file tieng Viet khong bi loi font.
-                byte[] bom = new byte[] { 0xEF, 0xBB, 0xBF };
-                byte[] than = Encoding.UTF8.GetBytes(sb.ToString());
-                byte[] tatCa = new byte[bom.Length + than.Length];
-                Buffer.BlockCopy(bom, 0, tatCa, 0, bom.Length);
-                Buffer.BlockCopy(than, 0, tatCa, bom.Length, than.Length);
-
-                return new ExportFile(tatCa, "text/csv; charset=utf-8", ten + ".csv");
+            if (string.Equals(dinhDang, "coco", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ExportFile(ResultExporter.Coco(kq, tapNhan), "application/json", ten + ".coco.json");
             }
 
             if (dinhDang != null && !string.Equals(dinhDang, "json", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidValueException(
-                    "dinh_dang_chua_ho_tro",
-                    "Hien ho tro json, csv. COCO/YOLO/Pascal VOC danh cho bounding box (P6).");
+                throw new InvalidValueException("dinh_dang_chua_ho_tro", "Ho tro json, csv, coco.");
             }
 
             return new ExportFile(JsonSerializer.SerializeToUtf8Bytes(kq, JsonXuat), "application/json", ten + ".json");
-        }
-
-        /// <summary>
-        /// Mot o CSV an toan:
-        ///   - boc ngoac kep neu co dau phay/ngoac kep/xuong dong;
-        ///   - CHONG CSV INJECTION: o bat dau bang = + - @ se bi Excel chay nhu
-        ///     CONG THUC (vd ten lop "=HYPERLINK(...)" do doanh nghiep khac dat).
-        ///     Chen dau ' phia truoc de Excel coi la chu.
-        /// </summary>
-        private static string OCsv(string giaTri)
-        {
-            string v = giaTri;
-
-            if (v.Length > 0 && (v[0] == '=' || v[0] == '+' || v[0] == '-' || v[0] == '@'))
-            {
-                v = "'" + v;
-            }
-
-            if (v.Contains(',', StringComparison.Ordinal) || v.Contains('"', StringComparison.Ordinal) || v.Contains('\n', StringComparison.Ordinal))
-            {
-                v = "\"" + v.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
-            }
-
-            return v;
         }
 
         // =====================================================================
@@ -495,7 +457,9 @@ namespace Crowd.Annotation.Api.Services
                 ProjectId = a.ProjectId,
                 TaskId = a.TaskId,
                 SampleId = a.SampleId,
-                ImageUrl = await _storage.TaoLinkXemAsync(a.StorageKey),
+                FileUrl = a.StorageKey == null ? null : await _storage.TaoLinkXemAsync(a.StorageKey),
+                SampleContent = a.SampleContent,
+                SampleMetadata = a.SampleMetadata,
                 LabelerId = a.LabelerId,
                 Payload = a.Payload,
                 Status = a.Status,

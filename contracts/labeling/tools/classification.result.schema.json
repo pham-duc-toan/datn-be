@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu classification",
+  "description": "Chon mot hoac nhieu lop cho CA mau. Vd {\"labelIds\": [\"do\"]}",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["labelIds"],
+  "properties": {
+    "labelIds": {
+      "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 50 }
+    }
+  }
+}

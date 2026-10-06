@@ -76,7 +76,7 @@ namespace Crowd.Tasking.Domain.Assignments
                     return null;
                 }
 
-                return LabelPayload.Tao(_payloadTaskType, _payloadSchemaVersion.Value, _payloadJson);
+                return LabelPayload.TuLuuTru(_payloadTaskType, _payloadSchemaVersion.Value, _payloadJson);
             }
         }
 

@@ -116,6 +116,24 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("ErrorSummary")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("error_summary");
+
+                    b.Property<DateTimeOffset?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("finished_at");
+
+                    b.Property<string>("Manifest")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("manifest");
+
+                    b.Property<string>("ManifestKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("manifest_key");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -134,10 +152,20 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("skipped_count");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProjectId")
                         .HasDatabaseName("ix_datasets_project");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_datasets_dang_xu_ly")
+                        .HasFilter("status IN ('Pending','Ingesting')");
 
                     b.ToTable("datasets", (string)null);
                 });
@@ -148,10 +176,13 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Content")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content");
+
                     b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("content_type");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -161,6 +192,17 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("DatasetId")
                         .HasColumnType("uuid")
                         .HasColumnName("dataset_id");
+
+                    b.Property<string>("Metadata")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("Modality")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("modality");
 
                     b.Property<string>("OriginalName")
                         .IsRequired()
@@ -178,12 +220,11 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("sha256");
 
-                    b.Property<long>("SizeBytes")
+                    b.Property<long?>("SizeBytes")
                         .HasColumnType("bigint")
                         .HasColumnName("size_bytes");
 
                     b.Property<string>("StorageKey")
-                        .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)")
                         .HasColumnName("storage_key");
@@ -197,7 +238,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_samples_project_sha256");
 
-                    b.ToTable("samples", (string)null);
+                    b.ToTable("samples", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_samples_file_hoac_noi_dung", "(storage_key IS NULL) <> (content IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Crowd.Project.Domain.EntranceTests.EntranceAttempt", b =>
@@ -399,6 +443,12 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("min_reputation");
 
+                    b.Property<string>("Modality")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("modality");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -445,12 +495,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("SubmittedForApprovalAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("submitted_for_approval_at");
-
-                    b.Property<string>("TaskType")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("task_type");
 
                     b.Property<long>("UnitPriceVnd")
                         .HasColumnType("bigint")

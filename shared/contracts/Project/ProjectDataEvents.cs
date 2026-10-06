@@ -37,13 +37,26 @@ namespace Crowd.Contracts.Project
         public required IReadOnlyList<IngestedSample> Samples { get; init; }
     }
 
-    /// <summary>Mot mau trong lo. Chi dinh danh, khong chua anh.</summary>
+    /// <summary>
+    /// Mot mau trong lo. Mang du thong tin de task-svc phat viec ma khong phai
+    /// hoi lai project-svc: file (khoa MinIO) hoac noi dung (text), va metadata
+    /// de kiem nhan (kich thuoc anh, thoi luong, do dai van ban).
+    /// </summary>
     public sealed record IngestedSample
     {
         public required Guid SampleId { get; init; }
 
-        /// <summary>Khoa trong bucket "datasets" cua MinIO.</summary>
-        public required string StorageKey { get; init; }
+        /// <summary>image | text | audio | video | pair.</summary>
+        public required string Modality { get; init; }
+
+        /// <summary>Khoa trong bucket "datasets" cua MinIO. null voi du lieu khong phai file (text, pair).</summary>
+        public string? StorageKey { get; init; }
+
+        /// <summary>Noi dung khi du lieu khong phai file: {"text"} hoac {"prompt","a","b"}. null voi file.</summary>
+        public RawJson? Content { get; init; }
+
+        /// <summary>Thong tin mau (Crowd.Labeling.SampleMetadata): width/height, durationSec, length, doan cat.</summary>
+        public required RawJson Metadata { get; init; }
     }
 
     /// <summary>

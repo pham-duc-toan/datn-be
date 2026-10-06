@@ -162,23 +162,61 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
    dong loat — giu song song v1/v2 la ganh hai phien ban khong ai dung. Ke tu khi co
    production, luat 4 ap dung khong ngoai le.
 
-## Dinh dang nhan (`LabelPayload`)
+   *Ngoai le thu hai (2026-10-06, cung ly do):* ho tro nhieu loai du lieu —
+   `project.published` bo `TaskType`/`LabelClasses`/`AllowMultipleLabels`, them `Modality` +
+   `LabelSchema`; `dataset.ingested` (`IngestedSample`) them `Modality`, `Content`,
+   `Metadata`, `StorageKey` thanh nullable; `assignment.submitted` them `SampleContent`,
+   `SampleMetadata`, `StorageKey` nullable; `LabelPayload.taskType` doi tu
+   `imageClassification` sang loai du lieu (`image`...). Du lieu cu duoc chuyen bang
+   migration `NhieuLoaiDuLieu` cua project / task / annotation.
 
-Moi event mang noi dung nhan deu dung chung mot hinh dang, dinh nghia trong
-`shared/labeling` (Crowd.Labeling):
+## Dinh dang nhan: tap nhan (`LabelSchema`) + nhan (`LabelPayload`)
+
+Dinh nghia trong `shared/labeling` (Crowd.Labeling). Hinh dang JSON nam trong
+`contracts/labeling/*.schema.json` (JSON Schema 2020-12) — nguon su that cho ca backend
+(kiem bang JsonSchema.Net) va frontend sau nay.
+
+**Tap nhan** cua du an = loai du lieu + danh sach cong cu. Mang trong `project.published`
+(truong `LabelSchema`), task-svc va annotation-svc chep nguyen khoi:
 
 ```json
-{ "taskType": "imageClassification", "schemaVersion": 1, "data": { "labelIds": ["do"] } }
+{ "modality": "audio", "segmentSeconds": 10,
+  "tools": [ { "name": "loi_noi", "kind": "transcription" },
+             { "name": "doan", "kind": "temporalSegment", "classes": ["noi", "nhac"], "required": false } ] }
 ```
 
-- `taskType` — loai nhan, trung gia tri JSON cua `ProjectTaskType`.
-- `schemaVersion` — phien ban hinh dang cua `data`. Doi hinh dang = them phien ban moi,
-  phien ban cu van doc duoc.
-- `data` — JSON long nhau (khong phai chuoi). Hinh dang theo tung loai:
+- `modality` — `image` | `text` | `audio` | `video` | `pair`.
+- `segmentSeconds` — audio / video: file dai hon thi cat thanh nhieu mau (moi doan mot task).
+- `tools[].kind` — `classification` | `bbox` | `polygon` | `span` | `transcription` |
+  `temporalSegment` | `pairwise`. Cong cu nao dung voi loai du lieu nao: `ToolKinds.HopVoi`.
+- Tuy chon cua cong cu: `classes`, `allowMultiple`, `required` (mac dinh true), `minItems`,
+  `maxItems`, `maxLength`, `allowTie`, `matchThreshold` (nguong cham cau vang).
 
-| taskType | schemaVersion | data |
+**Nhan** — moi event mang noi dung nhan deu dung chung mot hinh dang:
+
+```json
+{ "taskType": "image", "schemaVersion": 1,
+  "data": { "loai": { "labelIds": ["xe"] }, "vat": [ { "labelId": "xe", "x": 10, "y": 20, "w": 50, "h": 40 } ] } }
+```
+
+- `taskType` — loai du lieu (`modality`) cua du an.
+- `schemaVersion` — phien ban hinh dang cua `data` (hien la 1).
+- `data` — JSON long nhau, khoa = ten cong cu. Hinh dang ket qua tung loai cong cu:
+
+| kind | ket qua | kiem them theo mau |
 |---|---|---|
-| `imageClassification` | 1 | `{ "labelIds": ["lop", ...] }` — 1..100 lop, khong lap, khong truong la |
+| `classification` | `{ "labelIds": ["lop", ...] }` | lop co trong tap nhan; single-label dung mot lop |
+| `bbox` | `[ { "labelId", "x", "y", "w", "h" } ]` | khung nam trong anh (`metadata.width/height`) |
+| `polygon` | `[ { "labelId", "points": [[x, y], ...] } ]` — 3..500 dinh | dinh nam trong anh |
+| `span` | `[ { "labelId", "start", "end" } ]` — chi so ky tu | `end <=` do dai van ban |
+| `transcription` | `{ "text": "..." }` | dai `<= maxLength` |
+| `temporalSegment` | `[ { "labelId", "start", "end" } ]` — giay, tinh tu dau doan | `end <=` thoi luong doan |
+| `pairwise` | `{ "choice": "a" \| "b" \| "tie" }` | `tie` chi khi `allowTie` |
 
-Them loai nhan moi (bounding box, NER...) = them mot dong vao bang tren va mot lop
-`ILabelFormat` trong `shared/labeling` — **khong doi hop dong event, khong doi bang**.
+**Metadata mau** (`IngestedSample.Metadata`, `AssignmentSubmitted.SampleMetadata`):
+`width`, `height`, `durationSec`, `length`, `segmentStart`, `segmentEnd`, `sourceDurationSec`
+— truong nao khong co thi bo. Mau la file (`StorageKey`) hoac noi dung (`Content`:
+`{"text"}` / `{"prompt"?, "a", "b"}`), khong bao gio ca hai.
+
+Them loai cong cu moi (keypoint, cuboid...) = them mot file `contracts/labeling/tools/*.result.schema.json`
+va mot lop `IToolKind` trong `shared/labeling/Tools` — **khong doi hop dong event, khong doi bang**.

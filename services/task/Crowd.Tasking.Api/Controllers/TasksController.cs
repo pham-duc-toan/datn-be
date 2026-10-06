@@ -65,10 +65,10 @@ namespace Crowd.Tasking.Api.Controllers
         {
             if (body == null)
             {
-                return Ok(await _service.NopAsync(assignmentId, null, null, Labeler(), ct));
+                return Ok(await _service.NopAsync(assignmentId, null, Labeler(), ct));
             }
 
-            return Ok(await _service.NopAsync(assignmentId, body.Payload, body.SchemaVersion, Labeler(), ct));
+            return Ok(await _service.NopAsync(assignmentId, body.Payload, Labeler(), ct));
         }
 
         /// <summary>POST /tasks/assignments/{id}/release — bo qua task (FL-05).</summary>

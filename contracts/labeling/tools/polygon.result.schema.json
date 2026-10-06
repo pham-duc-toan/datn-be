@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu polygon",
+  "description": "Danh sach da giac, moi diem [x, y] toa do PIXEL. Vd [{\"labelId\":\"so\",\"points\":[[10,10],[50,10],[30,40]]}]",
+  "type": "array",
+  "maxItems": 1000,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["labelId", "points"],
+    "properties": {
+      "labelId": { "type": "string", "minLength": 1, "maxLength": 50 },
+      "points": {
+        "type": "array", "minItems": 3, "maxItems": 500,
+        "items": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": { "type": "number", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

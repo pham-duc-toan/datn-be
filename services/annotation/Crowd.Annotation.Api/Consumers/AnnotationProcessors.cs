@@ -12,6 +12,7 @@ using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.Contracts.Annotation;
 using Crowd.Contracts.Project;
 using Crowd.Contracts.Tasking;
+using Crowd.Labeling;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -75,7 +76,16 @@ namespace Crowd.Annotation.Api.Consumers
             }
 
             LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
-                p.AssignmentId, p.TaskId, p.ProjectId, p.SampleId, p.StorageKey, p.LabelerId, p.LabelPayload, p.SubmittedAt);
+                p.AssignmentId,
+                p.TaskId,
+                p.ProjectId,
+                p.SampleId,
+                p.StorageKey,
+                p.SampleContent,
+                p.SampleMetadata,
+                p.LabelerId,
+                p.LabelPayload,
+                p.SubmittedAt);
 
             _db.Annotations.Add(a);
 
@@ -123,8 +133,9 @@ namespace Crowd.Annotation.Api.Consumers
                 return;
             }
 
+            // Doc qua dung cua kiem cua Crowd.Labeling: tap nhan hong → NEM LOI → DLQ.
             _db.ProjectTerms.Add(ProjectTerms.Tao(
-                p.ProjectId, p.OwnerId, p.UnitPriceVnd, p.PlatformFeeVnd, p.AllowMultipleLabels, p.LabelClasses));
+                p.ProjectId, p.OwnerId, p.UnitPriceVnd, p.PlatformFeeVnd, LabelSchema.Doc(p.LabelSchema)));
         }
     }
 

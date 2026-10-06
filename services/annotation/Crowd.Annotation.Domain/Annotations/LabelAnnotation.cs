@@ -86,7 +86,7 @@ namespace Crowd.Annotation.Domain.Annotations
 
         private LabelAnnotation()
         {
-            StorageKey = string.Empty;
+            SampleMetadata = Crowd.Labeling.SampleMetadata.Rong.ToRawJson();
             _payloadTaskType = string.Empty;
             _payloadJson = string.Empty;
             _history = new List<AnnotationHistoryEntry>();
@@ -103,7 +103,14 @@ namespace Crowd.Annotation.Domain.Annotations
 
         public Guid SampleId { get; private set; }
 
-        public string StorageKey { get; private set; }
+        /// <summary>Khoa file cua mau trong MinIO. null voi text / pair.</summary>
+        public string? StorageKey { get; private set; }
+
+        /// <summary>Noi dung text / pair cua mau — reviewer xem lai, xuat file. null voi du lieu file.</summary>
+        public RawJson? SampleContent { get; private set; }
+
+        /// <summary>Metadata mau (kich thuoc, thoi luong, doan) — de ve lai khung, xuat COCO.</summary>
+        public RawJson SampleMetadata { get; private set; }
 
         /// <summary>null = khach vang lai o cong link (khong ai nhan tien).</summary>
         public Guid? LabelerId { get; private set; }
@@ -111,7 +118,7 @@ namespace Crowd.Annotation.Domain.Annotations
         /// <summary>Noi dung nhan. Dung lai tu ba cot moi lan doc — LabelPayload kiem lai dinh dang.</summary>
         public LabelPayload Payload
         {
-            get { return LabelPayload.Tao(_payloadTaskType, _payloadSchemaVersion, _payloadJson); }
+            get { return LabelPayload.TuLuuTru(_payloadTaskType, _payloadSchemaVersion, _payloadJson); }
         }
 
         public LabelSource Source { get; private set; }
@@ -142,11 +149,18 @@ namespace Crowd.Annotation.Domain.Annotations
             Guid taskId,
             Guid projectId,
             Guid sampleId,
-            string storageKey,
+            string? storageKey,
+            RawJson? sampleContent,
+            RawJson sampleMetadata,
             Guid labelerId,
             LabelPayload nhan,
             DateTimeOffset submittedAt)
         {
+            if (sampleMetadata == null)
+            {
+                throw new ArgumentNullException(nameof(sampleMetadata));
+            }
+
             // LabelPayload luon hop le dinh dang (chi tao duoc qua LabelPayload.Tao),
             // nen o day chi can kiem co hay khong.
             if (nhan == null)
@@ -161,6 +175,8 @@ namespace Crowd.Annotation.Domain.Annotations
             a.ProjectId = projectId;
             a.SampleId = sampleId;
             a.StorageKey = storageKey;
+            a.SampleContent = sampleContent;
+            a.SampleMetadata = sampleMetadata;
             a.LabelerId = labelerId;
             a._payloadTaskType = nhan.TaskType;
             a._payloadSchemaVersion = nhan.SchemaVersion;

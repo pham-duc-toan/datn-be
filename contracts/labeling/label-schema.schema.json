@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tap nhan cua du an (label schema)",
+  "description": "Loai du lieu + danh sach cong cu gan nhan. Kiem HINH DANG o day; luat ngu nghia (ten cong cu khong trung, cong cu hop voi loai du lieu, ten lop khong trung) kiem trong code Crowd.Labeling.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["modality", "tools"],
+  "properties": {
+    "modality": { "enum": ["image", "text", "audio", "video", "pair"] },
+    "segmentSeconds": {
+      "description": "Chi audio/video: cat file dai thanh doan N giay, moi doan la mot task.",
+      "type": "integer", "minimum": 5, "maximum": 3600
+    },
+    "tools": {
+      "type": "array", "minItems": 1, "maxItems": 20,
+      "items": { "$ref": "#/$defs/tool" }
+    }
+  },
+  "$defs": {
+    "tenLop": { "type": "string", "minLength": 1, "maxLength": 50 },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$" },
+        "kind": { "enum": ["classification", "bbox", "polygon", "span", "transcription", "temporalSegment", "pairwise"] },
+        "classes": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/tenLop" } },
+        "allowMultiple": { "type": "boolean" },
+        "required": { "type": "boolean" },
+        "minItems": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "maxItems": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "maxLength": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "allowTie": { "type": "boolean" },
+        "matchThreshold": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "classification" } } },
+          "then": {
+            "required": ["classes"],
+            "properties": { "classes": { "minItems": 2 }, "minItems": false, "maxItems": false, "maxLength": false, "allowTie": false, "matchThreshold": false }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "enum": ["bbox", "polygon", "span", "temporalSegment"] } } },
+          "then": {
+            "required": ["classes"],
+            "properties": { "allowMultiple": false, "maxLength": false, "allowTie": false }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "transcription" } } },
+          "then": {
+            "properties": { "classes": false, "allowMultiple": false, "minItems": false, "maxItems": false, "allowTie": false }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "pairwise" } } },
+          "then": {
+            "properties": { "classes": false, "allowMultiple": false, "minItems": false, "maxItems": false, "maxLength": false, "matchThreshold": false }
+          }
+        }
+      ]
+    }
+  }
+}

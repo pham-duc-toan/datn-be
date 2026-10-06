@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Tasking.Domain.Assignments;
@@ -7,7 +6,9 @@ using Crowd.Tasking.Domain.Labelers;
 using Crowd.Tasking.Domain.Members;
 using Crowd.Tasking.Domain.Projects;
 using Crowd.Tasking.Domain.Tasks;
+using Crowd.Labeling;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Crowd.Tasking.Infrastructure.Persistence
 {
@@ -25,6 +26,15 @@ namespace Crowd.Tasking.Infrastructure.Persistence
             : base(options)
         {
         }
+
+        /// <summary>RawJson &lt;-&gt; cot jsonb. EF khong goi converter voi null nen "v!" an toan.</summary>
+        private static readonly ValueConverter<RawJson, string> RawJsonCot = new ValueConverter<RawJson, string>(
+            v => v.Json,
+            s => RawJson.Tu(s));
+
+        private static readonly ValueConverter<RawJson?, string> RawJsonCotNull = new ValueConverter<RawJson?, string>(
+            v => v!.Json,
+            s => RawJson.Tu(s));
 
         public DbSet<LabelingTask> Tasks => Set<LabelingTask>();
 
@@ -63,12 +73,18 @@ namespace Crowd.Tasking.Infrastructure.Persistence
         {
             mb.Entity<LabelingTask>(b =>
             {
-                b.ToTable("tasks");
+                // Moi task hoac la file (storage_key) hoac la noi dung (content), khong ca hai.
+                b.ToTable("tasks", t => t.HasCheckConstraint(
+                    "ck_tasks_file_hoac_noi_dung",
+                    "(storage_key IS NULL) <> (content IS NULL)"));
                 b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
                 b.HasKey(x => x.Id);
                 b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
                 b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
-                b.Property(x => x.StorageKey).HasColumnName("storage_key").HasMaxLength(300).IsRequired();
+                b.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
+                b.Property(x => x.StorageKey).HasColumnName("storage_key").HasMaxLength(300);
+                b.Property(x => x.Content).HasColumnName("content").HasColumnType("jsonb").HasConversion(RawJsonCotNull);
+                b.Property(x => x.Metadata).HasColumnName("metadata").HasColumnType("jsonb").HasConversion(RawJsonCot).IsRequired();
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.RedundancyTarget).HasColumnName("redundancy_target").IsRequired();
                 b.Property(x => x.ActiveLeaseCount).HasColumnName("active_lease_count").IsRequired();
@@ -150,10 +166,11 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.StatusChangedAt).HasColumnName("status_changed_at").IsRequired();
                 b.Property(x => x.IsConfigured).HasColumnName("is_configured").IsRequired();
-                b.Property(x => x.LabelTaskType).HasColumnName("label_task_type").HasMaxLength(50).IsRequired();
-                b.Ignore(x => x.LabelClasses);
-                b.Property<List<string>>("_labelClasses").HasColumnName("label_classes").IsRequired();
-                b.Property(x => x.AllowMultiple).HasColumnName("allow_multiple").IsRequired();
+                b.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
+
+                // Tap nhan dang chuan, chep nguyen tu project.published. null khi chua publish.
+                b.Ignore(x => x.LabelSchema);
+                b.Property<string?>("_labelSchemaJson").HasColumnName("label_schema").HasColumnType("jsonb");
                 b.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
                 b.Property(x => x.Redundancy).HasColumnName("redundancy").IsRequired();
                 b.Property(x => x.Deadline).HasColumnName("deadline");

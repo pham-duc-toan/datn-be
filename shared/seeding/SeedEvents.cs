@@ -75,7 +75,7 @@ namespace Crowd.Seeding
                 items.Add(new GoldSetItem
                 {
                     SampleId = g.SampleId,
-                    ExpectedPayload = LabelPayload.PhanLoai(g.Label),
+                    ExpectedPayload = LabelPayload.Tao(p.TapNhan(), g.PayloadJson, p.Mau(g.SampleId).Metadata),
                     Purpose = g.ForEntranceTest ? GoldPurpose.EntranceTest : GoldPurpose.QualityCheck,
                 });
             }
@@ -111,9 +111,8 @@ namespace Crowd.Seeding
             {
                 ProjectId = p.Id,
                 OwnerId = p.OwnerId,
-                TaskType = ProjectTaskType.ImageClassification,
-                LabelClasses = new List<string>(p.Classes),
-                AllowMultipleLabels = false,
+                Modality = p.Modality,
+                LabelSchema = p.TapNhan().ToRawJson(),
                 UnitPriceVnd = p.UnitPriceVnd,
                 PlatformFeeVnd = p.PlatformFeePerLabelVnd,
                 Redundancy = p.Redundancy,
@@ -127,6 +126,22 @@ namespace Crowd.Seeding
                 RequireEntranceTest = p.RequireEntranceTest,
                 SampleCount = p.Samples.Count,
             };
+        }
+
+        /// <summary>Nhan cua mot luot nop — KIEM theo tap nhan va thong tin mau nhu khi labeler nop that.</summary>
+        public static LabelPayload NhanCua(SeedProject p, SeedSubmission s)
+        {
+            if (p == null)
+            {
+                throw new ArgumentNullException(nameof(p));
+            }
+
+            if (s == null)
+            {
+                throw new ArgumentNullException(nameof(s));
+            }
+
+            return LabelPayload.Tao(p.TapNhan(), s.PayloadJson, p.Mau(s.SampleId).Metadata);
         }
 
         /// <summary>annotation.approved — so tien chot theo dieu khoan luc publish.</summary>

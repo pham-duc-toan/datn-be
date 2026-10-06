@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu temporalSegment",
+  "description": "Danh sach doan thoi gian, don vi GIAY, tinh tu dau MAU (doan cat). Vd [{\"labelId\":\"noi\",\"start\":1.5,\"end\":4.0}]",
+  "type": "array",
+  "maxItems": 1000,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["labelId", "start", "end"],
+    "properties": {
+      "labelId": { "type": "string", "minLength": 1, "maxLength": 50 },
+      "start": { "type": "number", "minimum": 0 },
+      "end": { "type": "number", "exclusiveMinimum": 0 }
+    }
+  }
+}

@@ -1,24 +1,5 @@
 namespace Crowd.Contracts.Project
 {
-    /// <summary>
-    /// Loai bai toan gan nhan — muc 2.2 cua dac ta. Ra JSON thanh chuoi
-    /// camelCase ("imageClassification"), khong phai so thu tu, nen chen them
-    /// gia tri moi khong lam lech du lieu cu.
-    /// </summary>
-    public enum ProjectTaskType
-    {
-        ImageClassification,
-        BoundingBox,
-        Segmentation,
-        TextClassification,
-        NamedEntityRecognition,
-        Sentiment,
-        PairwiseComparison,
-        AudioTranscription,
-        VideoTracking,
-        LlmResponseComparison,
-    }
-
     /// <summary>Vai tro cua mot nguoi TRONG MOT du an (khac vai tro tai khoan).</summary>
     public enum ProjectMemberRole
     {

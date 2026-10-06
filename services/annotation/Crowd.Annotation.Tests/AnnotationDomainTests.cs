@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using Crowd.Annotation.Domain.Annotations;
 using Crowd.Annotation.Domain.Common;
 using Crowd.Labeling;
@@ -18,7 +19,16 @@ namespace Crowd.Annotation.Tests
         private static LabelAnnotation NhanMoi()
         {
             return LabelAnnotation.TaoTuLuotNop(
-                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "k.png", Labeler, LabelPayload.PhanLoai("cho"), Luc);
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "k.png",
+                null,
+                SampleMetadata.Rong.ToRawJson(),
+                Labeler,
+                LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null),
+                Luc);
         }
 
         private static LabelAnnotation NhanBiTuChoi()
@@ -105,42 +115,93 @@ namespace Crowd.Annotation.Tests
 
     public sealed class ResultAggregatorTests
     {
+        /// <summary>Anh: mot cong cu phan loai nhieu lop + mot cong cu khung.</summary>
+        internal static readonly LabelSchema TapNhan = LabelSchema.Doc(
+            "{\"modality\":\"image\",\"tools\":["
+            + "{\"name\":\"loai\",\"kind\":\"classification\",\"classes\":[\"cho\",\"meo\",\"ga\"],\"allowMultiple\":true},"
+            + "{\"name\":\"vat\",\"kind\":\"bbox\",\"classes\":[\"mat\"],\"required\":false}]}");
+
         private static readonly Guid Mau = Guid.NewGuid();
         private static readonly string[] ChiCho = new string[] { "cho" };
+        private static readonly SampleMetadata Anh = new SampleMetadata { Width = 100, Height = 100 };
 
-        private static LabelAnnotation Nhan(params string[] labels)
+        private static LabelAnnotation Nhan(string duLieu)
         {
             LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
-                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Mau, "k", Guid.NewGuid(), LabelPayload.PhanLoai(labels), DateTimeOffset.UtcNow);
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Mau,
+                "k",
+                null,
+                Anh.ToRawJson(),
+                Guid.NewGuid(),
+                LabelPayload.Tao(TapNhan, duLieu, Anh),
+                DateTimeOffset.UtcNow);
             a.Duyet(Guid.NewGuid(), DateTimeOffset.UtcNow);
             return a;
+        }
+
+        private static LabelAnnotation Lop(params string[] lop)
+        {
+            return Nhan("{\"loai\":{\"labelIds\":[\"" + string.Join("\",\"", lop) + "\"]}}");
+        }
+
+        private static string[] Chot(SampleResult r)
+        {
+            JsonNode? final = r.Tools["loai"]!["final"];
+            if (final == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            return ((JsonArray)final["labelIds"]!).Select(n => n!.GetValue<string>()).ToArray();
         }
 
         [Fact]
         public void Da_so_tuyet_doi_thang()
         {
-            SampleResult r = ResultAggregator.Chot(new[] { Nhan("cho"), Nhan("cho"), Nhan("meo") }).Single();
+            SampleResult r = ResultAggregator.Chot(TapNhan, new[] { Lop("cho"), Lop("cho"), Lop("meo") }).Single();
 
-            Assert.Equal(ChiCho, r.FinalLabels.ToArray());
-            Assert.Equal(2, r.Votes["cho"]);
+            Assert.Equal(ChiCho, Chot(r));
+            Assert.Equal(2, r.Tools["loai"]!["votes"]!["cho"]!.GetValue<int>());
             Assert.False(r.Disputed);
         }
 
         [Fact]
         public void Hoa_phieu_la_tranh_chap_FB_22()
         {
-            SampleResult r = ResultAggregator.Chot(new[] { Nhan("cho"), Nhan("meo") }).Single();
+            SampleResult r = ResultAggregator.Chot(TapNhan, new[] { Lop("cho"), Lop("meo") }).Single();
 
             Assert.True(r.Disputed);
-            Assert.Empty(r.FinalLabels);
+            Assert.Empty(Chot(r));
         }
 
         [Fact]
         public void Multi_label_xet_tung_lop_doc_lap()
         {
-            SampleResult r = ResultAggregator.Chot(new[] { Nhan("cho", "meo"), Nhan("cho"), Nhan("cho", "ga") }).Single();
+            SampleResult r = ResultAggregator.Chot(TapNhan, new[] { Lop("cho", "meo"), Lop("cho"), Lop("cho", "ga") }).Single();
 
-            Assert.Equal(ChiCho, r.FinalLabels.ToArray());
+            Assert.Equal(ChiCho, Chot(r));
+        }
+
+        [Fact]
+        public void Khung_chua_gop_tu_dong_nhung_van_dem_phan_bo()
+        {
+            LabelAnnotation a = Nhan(
+                "{\"loai\":{\"labelIds\":[\"cho\"]},\"vat\":[{\"labelId\":\"mat\",\"x\":1,\"y\":1,\"w\":10,\"h\":10},"
+                + "{\"labelId\":\"mat\",\"x\":50,\"y\":50,\"w\":10,\"h\":10}]}");
+            LabelAnnotation b = Lop("cho");
+
+            IReadOnlyList<SampleResult> kq = ResultAggregator.Chot(TapNhan, new[] { a, b });
+            SampleResult r = kq.Single();
+
+            Assert.Equal("none", r.Tools["vat"]!["method"]!.GetValue<string>());
+            Assert.Equal(2, r.Approved.Count);
+
+            SortedDictionary<string, SortedDictionary<string, int>> phanBo = ResultAggregator.PhanBo(TapNhan, kq);
+            Assert.Equal(1, phanBo["loai"]["cho"]);
+            Assert.Equal(2, phanBo["vat"]["mat"]);
         }
     }
 }

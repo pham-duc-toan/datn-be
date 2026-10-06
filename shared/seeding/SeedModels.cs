@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Labeling;
 
 namespace Crowd.Seeding
 {
@@ -49,7 +50,10 @@ namespace Crowd.Seeding
         public required SeedMemberRole Role { get; init; }
     }
 
-    /// <summary>Mot anh mau: anh PNG mot mau, sinh ngay luc seed.</summary>
+    /// <summary>
+    /// Mot mau. File (anh PNG mot mau, am thanh WAV mot tan so) duoc SINH luc
+    /// seed; text / pair thi noi dung nam san trong ContentJson.
+    /// </summary>
     public sealed class SeedSample
     {
         public required Guid Id { get; init; }
@@ -59,17 +63,33 @@ namespace Crowd.Seeding
 
         public required string FileName { get; init; }
 
-        /// <summary>Khoa trong bucket datasets — cung cong thuc voi Sample.Tao: "{projectId}/{sampleId}.png".</summary>
-        public required string StorageKey { get; init; }
+        public required string Modality { get; init; }
 
-        /// <summary>Dap an dung (mau cua anh). Dung cho cau hoi vang va de doc kich ban.</summary>
-        public required string TrueLabel { get; init; }
+        /// <summary>
+        /// Khoa trong bucket datasets. Anh: "{projectId}/{sampleId}.png" (cung cong thuc
+        /// Sample.TaoAnhTrongZip). Doan audio cat tu mot file: CAC DOAN DUNG CHUNG khoa.
+        /// null voi text / pair.
+        /// </summary>
+        public string? StorageKey { get; init; }
 
-        public required byte R { get; init; }
+        /// <summary>Noi dung text / pair: {"text"} hoac {"prompt","a","b"}.</summary>
+        public string? ContentJson { get; init; }
 
-        public required byte G { get; init; }
+        public required SampleMetadata Metadata { get; init; }
 
-        public required byte B { get; init; }
+        /// <summary>Anh: mau dung (do / xanh_la ...) — dap an de doc kich ban.</summary>
+        public string? TrueLabel { get; init; }
+
+        public byte R { get; init; }
+
+        public byte G { get; init; }
+
+        public byte B { get; init; }
+
+        /// <summary>Audio: tan so am (Hz) va do dai CA FILE (giay) de sinh WAV.</summary>
+        public double ToneHz { get; init; }
+
+        public double FileSeconds { get; init; }
     }
 
     public sealed class SeedGold
@@ -78,7 +98,8 @@ namespace Crowd.Seeding
 
         public required Guid SampleId { get; init; }
 
-        public required string Label { get; init; }
+        /// <summary>Dap an — phan du lieu nhan theo cac cong cu, vd {"label":{"labelIds":["do"]}}.</summary>
+        public required string PayloadJson { get; init; }
 
         /// <summary>true = cau hoi bai test dau vao; false = cau kiem tra chat luong.</summary>
         public required bool ForEntranceTest { get; init; }
@@ -112,11 +133,12 @@ namespace Crowd.Seeding
 
         public required Guid SampleId { get; init; }
 
-        public required string StorageKey { get; init; }
+        public string? StorageKey { get; init; }
 
         public required Guid LabelerId { get; init; }
 
-        public required string Label { get; init; }
+        /// <summary>Nhan da nop — phan du lieu theo cac cong cu cua tap nhan.</summary>
+        public required string PayloadJson { get; init; }
 
         public required SeedReview Review { get; init; }
 
@@ -151,11 +173,15 @@ namespace Crowd.Seeding
 
         public required string GuidelineMarkdown { get; init; }
 
+        /// <summary>image | text | audio | video | pair.</summary>
+        public required string Modality { get; init; }
+
+        /// <summary>Tap nhan (Crowd.Labeling.LabelSchema) dang JSON.</summary>
+        public required string LabelSchemaJson { get; init; }
+
         public required SeedStage Stage { get; init; }
 
         public required bool IsPrivate { get; init; }
-
-        public required IReadOnlyList<string> Classes { get; init; }
 
         public required long UnitPriceVnd { get; init; }
 
@@ -199,6 +225,24 @@ namespace Crowd.Seeding
         public bool DaKyQuy
         {
             get { return Stage == SeedStage.PendingApproval || Stage == SeedStage.Running; }
+        }
+
+        public LabelSchema TapNhan()
+        {
+            return LabelSchema.Doc(LabelSchemaJson);
+        }
+
+        public SeedSample Mau(Guid sampleId)
+        {
+            foreach (SeedSample s in Samples)
+            {
+                if (s.Id == sampleId)
+                {
+                    return s;
+                }
+            }
+
+            throw new InvalidOperationException("Du an seed '" + Key + "' khong co mau " + sampleId + ".");
         }
 
         public DateTimeOffset Deadline(DateTimeOffset bayGio)

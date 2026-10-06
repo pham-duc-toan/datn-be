@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Storage;
@@ -17,8 +20,8 @@ using Microsoft.Extensions.Logging;
 namespace Crowd.Project.Api.Seeding
 {
     /// <summary>
-    /// Seed DU AN cua kich ban: du an, thanh vien, dataset + anh mau (len MinIO
-    /// that), cau hoi vang.
+    /// Seed DU AN cua kich ban: du an, thanh vien, dataset + mau (anh PNG / am
+    /// thanh WAV len MinIO that; van ban / cap luu noi dung), cau hoi vang.
     ///
     /// Moi buoc di qua PHUONG THUC DOMAIN that (Tao, DatCauHinhGia, YeuCauPublish,
     /// XacNhanDaKyQuy, Duyet...) — kich ban sai luat (vd ngan sach khong du ky
@@ -67,33 +70,43 @@ namespace Crowd.Project.Api.Seeding
 
         public async Task ChayAsync(CancellationToken ct)
         {
-            Guid moc = KichBanSeed.Project("p1").Id;
-            if (await _db.Projects.AnyAsync(p => p.Id == moc, ct))
-            {
-                _logger.LogInformation("Seed project: da co du lieu seed — bo qua");
-                return;
-            }
+            // Idempotent THEO TUNG DU AN: DB cu da co P1-P4 thi van them P5-P7 khi
+            // kich ban moi bo sung du an.
+            List<Guid> ids = KichBanSeed.Projects.Select(p => p.Id).ToList();
+            HashSet<Guid> daCo = new HashSet<Guid>(
+                await _db.Projects.Where(p => ids.Contains(p.Id)).Select(p => p.Id).ToListAsync(ct));
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            int soAnh = 0;
+            int soDuAn = 0;
+            int soMau = 0;
+            HashSet<string> fileDaDay = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (SeedProject sp in KichBanSeed.Projects)
             {
-                soAnh = soAnh + await TaoDuAnAsync(sp, bayGio, ct);
+                if (daCo.Contains(sp.Id))
+                {
+                    continue;
+                }
+
+                soMau = soMau + await TaoDuAnAsync(sp, bayGio, fileDaDay, ct);
+                soDuAn++;
+            }
+
+            if (soDuAn == 0)
+            {
+                _logger.LogInformation("Seed project: da du du an seed — bo qua");
+                return;
             }
 
             // Mot SaveChanges cho ca kich ban: hong o dau thi khong luu gi ca.
-            // Anh da day len MinIO van nam do — khoa tat dinh nen lan seed sau ghi de.
+            // File da day len MinIO van nam do — khoa tat dinh nen lan seed sau ghi de.
             SeedOutbox.BoEventChuaGui(_db);
             await _db.SaveChangesAsync(ct);
 
-            _logger.LogInformation(
-                "Seed project: tao {SoDuAn} du an, {SoAnh} anh mau",
-                KichBanSeed.Projects.Count,
-                soAnh);
+            _logger.LogInformation("Seed project: tao {SoDuAn} du an, {SoMau} mau", soDuAn, soMau);
         }
 
-        private async Task<int> TaoDuAnAsync(SeedProject sp, DateTimeOffset bayGio, CancellationToken ct)
+        private async Task<int> TaoDuAnAsync(SeedProject sp, DateTimeOffset bayGio, HashSet<string> fileDaDay, CancellationToken ct)
         {
             DateTimeOffset lucTao = bayGio - sp.CreatedAgo;
 
@@ -102,12 +115,12 @@ namespace Crowd.Project.Api.Seeding
                 sp.OwnerId,
                 sp.Name,
                 sp.Description,
-                TaskType.ImageClassification,
+                sp.Modality,
                 sp.IsPrivate ? ProjectVisibility.Private : ProjectVisibility.Public,
                 lucTao);
             SeedIds.GanId(duAn, sp.Id);
 
-            LabelSchema tapNhan = LabelSchema.TaoPhanLoai(sp.Classes, false);
+            LabelSchema tapNhan = sp.TapNhan();
             duAn.DatLabelSchema(tapNhan, lucTao);
             duAn.DatHuongDan(Guideline.Tao(sp.GuidelineMarkdown, null), lucTao);
             duAn.DatCauHinhGia(sp.UnitPriceVnd, sp.Redundancy, sp.BudgetVnd, sp.Deadline(bayGio), lucTao);
@@ -122,38 +135,37 @@ namespace Crowd.Project.Api.Seeding
 
             _db.Projects.Add(duAn);
 
-            // ---- 2. Dataset + anh mau ----
-            Dataset lo = Dataset.Tao(sp.Id, "Lo anh mau (seed)", lucTao);
+            // ---- 2. Dataset + mau ----
+            Dataset lo = Dataset.Tao(sp.Id, "Lo du lieu mau (seed)", lucTao);
             SeedIds.GanId(lo, sp.DatasetId);
 
             foreach (SeedSample s in sp.Samples)
             {
-                byte[] png = AnhMauPng.Tao(s.R, s.G, s.B, KichThuocAnh);
-                string sha = Convert.ToHexStringLower(SHA256.HashData(png));
-
-                Sample mau = Sample.Tao(sp.Id, sp.DatasetId, s.FileName, AnhMauPng.ContentType, ".png", png.Length, sha, lucTao);
-
-                // Sample.Tao tinh StorageKey tu ID ngau nhien cua no — doi ID thi
-                // phai doi khoa theo, cho khop khoa ma task-svc / annotation-svc seed.
+                Sample mau = await TaoMauAsync(sp, s, lucTao, fileDaDay, ct);
                 SeedIds.GanId(mau, s.Id);
-                SeedIds.GanThuocTinh(mau, "StorageKey", s.StorageKey);
 
-                await _storage.LuuAsync(s.StorageKey, png, AnhMauPng.ContentType, ct);
+                // Khoa file do kich ban dat — khop khoa ma task-svc / annotation-svc seed.
+                if (s.StorageKey != null)
+                {
+                    SeedIds.GanThuocTinh(mau, "StorageKey", s.StorageKey);
+                }
+
                 _db.Samples.Add(mau);
             }
 
             lo.GhiNhanKetQuaNap(sp.Samples.Count, 0);
             _db.Datasets.Add(lo);
 
-            // ---- 3. Cau hoi vang ----
+            // ---- 3. Cau hoi vang — kiem bang tap nhan + metadata nhu API that ----
             foreach (SeedGold g in sp.Gold)
             {
+                LabelPayload dapAn = LabelPayload.Tao(tapNhan, g.PayloadJson, sp.Mau(g.SampleId).Metadata);
+
                 GoldItem vang = GoldItem.Tao(
                     sp.Id,
                     g.SampleId,
-                    LabelPayload.PhanLoai(g.Label),
+                    dapAn,
                     g.ForEntranceTest ? GoldPurpose.EntranceTest : GoldPurpose.QualityCheck,
-                    tapNhan,
                     lucTao);
                 SeedIds.GanId(vang, g.Id);
                 _db.GoldItems.Add(vang);
@@ -189,6 +201,54 @@ namespace Crowd.Project.Api.Seeding
             }
 
             return sp.Samples.Count;
+        }
+
+        private async Task<Sample> TaoMauAsync(
+            SeedProject sp, SeedSample s, DateTimeOffset luc, HashSet<string> fileDaDay, CancellationToken ct)
+        {
+            switch (s.Modality)
+            {
+                case Modalities.Image:
+                {
+                    byte[] png = AnhMauPng.Tao(s.R, s.G, s.B, KichThuocAnh);
+                    await _storage.LuuAsync(s.StorageKey!, png, AnhMauPng.ContentType, ct);
+
+                    return Sample.TaoAnhTrongZip(
+                        sp.Id, sp.DatasetId, s.FileName, AnhMauPng.ContentType, ".png", png.Length, Bam(png), s.Metadata, luc);
+                }
+
+                case Modalities.Audio:
+                {
+                    // Cac doan cat tu MOT file dung chung khoa — chi day file mot lan.
+                    byte[] wav = AmThanhMau.TaoWav(s.ToneHz, s.FileSeconds);
+                    if (fileDaDay.Add(s.StorageKey!))
+                    {
+                        await _storage.LuuAsync(s.StorageKey!, wav, AmThanhMau.ContentType, ct);
+                    }
+
+                    // Dau van tay doan = bam(file + "#" + diem bat dau) — cung cong thuc DatasetIngestor.
+                    string sha = Bam(wav);
+                    if (s.Metadata.SegmentStart.HasValue)
+                    {
+                        sha = Bam(Encoding.UTF8.GetBytes(sha + "#" + s.Metadata.SegmentStart.Value.ToString("0.###", CultureInfo.InvariantCulture)));
+                    }
+
+                    return Sample.TaoTuFile(
+                        sp.Id, sp.DatasetId, Modalities.Audio, s.StorageKey!, s.FileName, AmThanhMau.ContentType, wav.Length, sha, s.Metadata, luc);
+                }
+
+                default:
+                {
+                    string noiDung = s.ContentJson!;
+                    return Sample.TaoTuNoiDung(
+                        sp.Id, sp.DatasetId, s.Modality, RawJson.Tu(noiDung), s.FileName, Bam(Encoding.UTF8.GetBytes(noiDung)), s.Metadata, luc);
+                }
+            }
+        }
+
+        private static string Bam(byte[] b)
+        {
+            return Convert.ToHexStringLower(SHA256.HashData(b));
         }
     }
 }

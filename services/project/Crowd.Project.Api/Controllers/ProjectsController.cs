@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
@@ -56,14 +57,14 @@ namespace Crowd.Project.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> DanhSach(
             [FromQuery] ProjectStatus? status,
-            [FromQuery] TaskType? taskType,
+            [FromQuery] string? modality,
             [FromQuery] bool mine,
             [FromQuery] int page,
             [FromQuery] int pageSize,
             CancellationToken ct)
         {
             Caller caller = Caller.TuHttp(HttpContext, ActorRole.Labeler);
-            return Ok(await _service.DanhSachAsync(caller, status, taskType, mine, page, pageSize, ct));
+            return Ok(await _service.DanhSachAsync(caller, status, modality, mine, page, pageSize, ct));
         }
 
         /// <summary>GET /projects/{id}</summary>
@@ -90,7 +91,7 @@ namespace Crowd.Project.Api.Controllers
 
         /// <summary>PUT /projects/{id}/label-schema (FB-12)</summary>
         [HttpPut("{id:guid}/label-schema")]
-        public async Task<IActionResult> DatTapNhan(Guid id, [FromBody] LabelSchemaRequest body, CancellationToken ct)
+        public async Task<IActionResult> DatTapNhan(Guid id, [FromBody] JsonElement body, CancellationToken ct)
         {
             return Ok(await _service.DatLabelSchemaAsync(id, body, ChuDuAn(), ct));
         }

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu bbox",
+  "description": "Danh sach khung chu nhat, toa do PIXEL, goc tren-trai. Vd [{\"labelId\":\"xe\",\"x\":10,\"y\":20,\"w\":100,\"h\":50}]",
+  "type": "array",
+  "maxItems": 1000,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["labelId", "x", "y", "w", "h"],
+    "properties": {
+      "labelId": { "type": "string", "minLength": 1, "maxLength": 50 },
+      "x": { "type": "number", "minimum": 0 },
+      "y": { "type": "number", "minimum": 0 },
+      "w": { "type": "number", "exclusiveMinimum": 0 },
+      "h": { "type": "number", "exclusiveMinimum": 0 }
+    }
+  }
+}

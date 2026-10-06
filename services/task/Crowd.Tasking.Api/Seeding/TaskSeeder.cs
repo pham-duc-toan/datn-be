@@ -73,10 +73,16 @@ namespace Crowd.Tasking.Api.Seeding
 
         public async Task ChayAsync(CancellationToken ct)
         {
-            Guid moc = KichBanSeed.Project("p1").Id;
-            if (await _db.ProjectSnapshots.AnyAsync(p => p.ProjectId == moc, ct))
+            // Idempotent THEO TUNG DU AN: DB cu da co P1-P4 thi van them du an moi
+            // cua kich ban (P5-P7...).
+            List<Guid> ids = KichBanSeed.Projects.Select(p => p.Id).ToList();
+            HashSet<Guid> daCo = new HashSet<Guid>(
+                await _db.ProjectSnapshots.Where(p => ids.Contains(p.ProjectId)).Select(p => p.ProjectId).ToListAsync(ct));
+
+            List<SeedProject> canTao = KichBanSeed.Projects.Where(p => !daCo.Contains(p.Id)).ToList();
+            if (canTao.Count == 0)
             {
-                _logger.LogInformation("Seed task: da co du lieu seed — bo qua");
+                _logger.LogInformation("Seed task: da du du an seed — bo qua");
                 return;
             }
 
@@ -86,24 +92,24 @@ namespace Crowd.Tasking.Api.Seeding
             // ngay xuong DB, nhung van rollback duoc neu buoc sau hong.
             using (IDbContextTransaction tx = await _db.Database.BeginTransactionAsync(ct))
             {
-                await TaoTaskAsync(bayGio, ct);
-                await PhatLaiEventAsync(bayGio, ct);
-                int soLuot = await TaoLuotNopAsync(bayGio, ct);
+                await TaoTaskAsync(canTao, bayGio, ct);
+                await PhatLaiEventAsync(canTao, bayGio, ct);
+                int soLuot = await TaoLuotNopAsync(canTao, bayGio, ct);
 
                 await tx.CommitAsync(ct);
 
                 _logger.LogInformation(
                     "Seed task: {SoDuAn} du an, {SoTask} task, {SoLuot} luot da nop",
-                    KichBanSeed.Projects.Count,
-                    KichBanSeed.Projects.Sum(p => p.Samples.Count),
+                    canTao.Count,
+                    canTao.Sum(p => p.Samples.Count),
                     soLuot);
             }
         }
 
         /// <summary>Buoc 1: ban sao "chua publish" + task redundancy 0 — dung nhu DatasetIngestedProcessor.</summary>
-        private async Task TaoTaskAsync(DateTimeOffset bayGio, CancellationToken ct)
+        private async Task TaoTaskAsync(List<SeedProject> duAn, DateTimeOffset bayGio, CancellationToken ct)
         {
-            foreach (SeedProject sp in KichBanSeed.Projects)
+            foreach (SeedProject sp in duAn)
             {
                 DateTimeOffset lucTao = bayGio - sp.CreatedAgo;
 
@@ -111,7 +117,15 @@ namespace Crowd.Tasking.Api.Seeding
 
                 foreach (SeedSample s in sp.Samples)
                 {
-                    LabelingTask t = LabelingTask.Tao(sp.Id, s.Id, s.StorageKey, 0, lucTao);
+                    LabelingTask t = LabelingTask.Tao(
+                        sp.Id,
+                        s.Id,
+                        s.Modality,
+                        s.StorageKey,
+                        s.ContentJson == null ? null : RawJson.Tu(s.ContentJson),
+                        s.Metadata.ToRawJson(),
+                        0,
+                        lucTao);
                     SeedIds.GanId(t, KichBanSeed.TaskIdCua(s.Id));
                     _db.Tasks.Add(t);
                 }
@@ -121,13 +135,13 @@ namespace Crowd.Tasking.Api.Seeding
         }
 
         /// <summary>Buoc 2: phat lai event cua project-svc, theo dung thu tu thoi gian.</summary>
-        private async Task PhatLaiEventAsync(DateTimeOffset bayGio, CancellationToken ct)
+        private async Task PhatLaiEventAsync(List<SeedProject> duAn, DateTimeOffset bayGio, CancellationToken ct)
         {
             MemberAddedProcessor thanhVien = new MemberAddedProcessor(_db);
             GoldSetUpdatedProcessor cauVang = new GoldSetUpdatedProcessor(_db, _loggers.CreateLogger<GoldSetUpdatedProcessor>());
             ProjectPublishedProcessor daPublish = new ProjectPublishedProcessor(_db);
 
-            foreach (SeedProject sp in KichBanSeed.Projects)
+            foreach (SeedProject sp in duAn)
             {
                 DateTimeOffset lucTao = bayGio - sp.CreatedAgo;
                 List<MemberAdded> dsThanhVien = SeedEvents.ThanhVien(sp);
@@ -163,9 +177,9 @@ namespace Crowd.Tasking.Api.Seeding
         }
 
         /// <summary>Buoc 3: moi luot nop = lease (Assignment.Tao) roi Nop, cu nhat truoc.</summary>
-        private async Task<int> TaoLuotNopAsync(DateTimeOffset bayGio, CancellationToken ct)
+        private async Task<int> TaoLuotNopAsync(List<SeedProject> duAn, DateTimeOffset bayGio, CancellationToken ct)
         {
-            List<SeedSubmission> tatCa = KichBanSeed.Projects
+            List<SeedSubmission> tatCa = duAn
                 .SelectMany(p => p.Submissions)
                 .OrderByDescending(s => s.SubmittedAgo)
                 .ToList();
@@ -179,7 +193,8 @@ namespace Crowd.Tasking.Api.Seeding
 
                 Assignment luot = Assignment.Tao(task, s.LabelerId, lucNhan, _lease.ThoiHan);
                 SeedIds.GanId(luot, s.AssignmentId);
-                luot.Nop(task, LabelPayload.PhanLoai(s.Label), lucNop);
+                // Kiem nhu API that: tap nhan cua du an + metadata mau.
+                luot.Nop(task, SeedEvents.NhanCua(KichBanSeed.Projects.First(p => p.Id == s.ProjectId), s), lucNop);
 
                 _db.Assignments.Add(luot);
             }

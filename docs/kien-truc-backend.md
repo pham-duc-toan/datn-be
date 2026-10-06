@@ -110,7 +110,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 
 ---
 
-## 3. Tám quyết định kỹ thuật cốt lõi
+## 3. Chín quyết định kỹ thuật cốt lõi
 
 ### 3.1. Cô lập datastore ở mức tiến trình — *database server per service*
 
@@ -388,6 +388,32 @@ IQueryable<Label> VisibleLabels(Guid userId);                                // 
 
 Viết hai bản luật riêng thì chúng sẽ lệch nhau: danh sách hiện ra bản ghi mà bấm vào báo 403 — hoặc tệ hơn, chiều ngược lại. Đây là lỗi rất khó bắt bằng test vì mỗi bên nhìn riêng đều đúng.
 
+### 3.9. Đa loại dữ liệu: tập nhãn là danh sách công cụ
+
+Một nền tảng gán nhãn phải nhận được ảnh, văn bản, âm thanh, video, cặp câu trả lời (RLHF)… và mỗi loại có nhiều kiểu nhãn (phân loại, khung, đa giác, đoạn văn bản, chép lời, đoạn thời gian, so sánh cặp). Thiết kế chọn để **thêm kiểu nhãn mới không phải đổi bảng, không phải đổi hợp đồng event**:
+
+| # | Câu hỏi | Chọn | Lý do |
+|---|---|---|---|
+| Q1 | Mô hình hóa "loại bài toán" | **Loại dữ liệu × công cụ**: dự án có một `modality`; tập nhãn là danh sách công cụ (`classification`, `bbox`, `polygon`, `span`, `transcription`, `temporalSegment`, `pairwise`) | Một màn hình thường cần nhiều công cụ cùng lúc (phân loại cảm xúc + gắn thực thể). Liệt kê từng "task type" ghép sẵn sẽ bùng nổ tổ hợp |
+| Q2 | Kiểm nhãn ở đâu | **JSON Schema cho hình dạng** ([contracts/labeling](../contracts/labeling)) + **code C# cho ngữ nghĩa** (lớp có trong tập nhãn, khung nằm trong ảnh, đoạn nằm trong audio) | Schema dùng chung được cho frontend; luật phụ thuộc mẫu thì schema không diễn đạt được |
+| Q3 | Nạp file lớn | **Upload thẳng lên MinIO bằng link ký sẵn + manifest + worker nền** (ffprobe đo thời lượng) | Video vài GB không đi qua service. ZIP trong request chỉ giữ cho ảnh nhỏ |
+| Q4 | Lưu mẫu | `samples` thêm `modality`, `content jsonb` (text/pair), `metadata jsonb`; `storage_key` nullable; CHECK đúng một trong hai | Văn bản không cần file; metadata (kích thước, thời lượng, đoạn) là thứ server cần để kiểm nhãn |
+| Q5 | Bản sao ở task / annotation | `label_schema jsonb` chép nguyên từ `project.published` | Kiểm nhãn lúc nộp và gộp kết quả không phải gọi HTTP sang project-svc (luật 1 mục 4) |
+| Q6 | Media dài | **Cắt đoạn** theo `segmentSeconds`, mỗi đoạn một task, giá theo task | Labeler không phải nghe 1 giờ cho một task; tiền và redundancy giữ nguyên mô hình cũ |
+| Q7 | Chấm câu vàng / gộp kết quả | Chấm trong C# theo từng công cụ: tập lớp bằng nhau, bbox IoU ≥ 0,5, polygon IoU, span F1, CER ≤ 0,1, IoU thời gian; ngưỡng đổi bằng `matchThreshold`. Gộp: đa số cho phân loại / cặp; công cụ khác **chưa gộp tự động**, kết quả là các nhãn đã duyệt | Gộp khung / bản chép (WBF, ROVER, Dawid–Skene) là việc của quality-svc (P3) |
+
+```
+project.published { modality, labelSchema }          ← tập nhãn dạng chuẩn
+        │
+        ├─► task-svc: project_snapshots.label_schema  → kiểm nhãn lúc nộp
+        └─► annotation-svc: project_terms.label_schema → gộp kết quả, xuất COCO
+
+assignments / annotations / gold_items:  task_type = modality,
+  payload jsonb = {"<tên công cụ>": <kết quả theo kind>, ...}
+```
+
+Đánh đổi: nhãn có hình dạng do dữ liệu quyết định nên database không ràng buộc được bên trong `payload`. Bù lại, **mọi đường ghi nhãn** (nộp, câu vàng, bài test, seed) đều đi qua một cửa `LabelPayload.Tao(tậpNhãn, dữLiệu, metadataMẫu)`, và đọc lại từ DB dùng `TuLuuTru` không kiểm lại (tập nhãn không đổi sau publish).
+
 ---
 
 ## 4. Dữ liệu chéo — ba luật cứng
@@ -450,6 +476,7 @@ datn/
 ├─ docs/
 │  └─ kien-truc-backend.md
 ├─ contracts/                       ← hợp đồng giữa 3 ngôn ngữ
+│  ├─ labeling/                     ← JSON Schema của tập nhãn + kết quả từng loại công cụ
 │  └─ events/
 │     ├─ envelope.schema.json
 │     ├─ CATALOG.md                 ← danh mục event đầy đủ
@@ -458,8 +485,8 @@ datn/
 │  ├─ building-blocks/              ← Crowd.BuildingBlocks: hạ tầng dùng chung
 │  │                                  envelope, outbox, idempotency, correlation, auth
 │  ├─ contracts/                    ← Crowd.Contracts: ~55 payload record
-│  ├─ labeling/                     ← Crowd.Labeling: ĐỊNH DẠNG NHÃN chung (LabelPayload)
-│  │                                  loại nhãn + phiên bản + JSON; cột jsonb ở mọi bảng nhãn
+│  ├─ labeling/                     ← Crowd.Labeling: TẬP NHÃN (LabelSchema: loại dữ liệu + công cụ)
+│  │                                  và NHÃN (LabelPayload) — kiểm, chấm câu vàng, gộp kết quả
 │  ├─ persistence/                  ← Crowd.BuildingBlocks.Persistence: outbox, idempotency (EF Core)
 │  ├─ seeding/                      ← Crowd.Seeding: kịch bản dữ liệu mẫu (chỉ Development)
 │  ├─ auth/                         ← Crowd.BuildingBlocks.Auth
@@ -553,13 +580,13 @@ Service 2 project: `Api → BuildingBlocks`, `Tests → Api`.
 
 | Phase | Service dựng thêm | Kiểm chứng được |
 |---|---|---|
-| **P0** | gateway, identity, project, task, annotation | Chạy end-to-end **một loại bài toán: phân loại ảnh**. Tạo dự án → upload → gán nhãn → xem kết quả |
+| **P0** | gateway, identity, project, task, annotation | Chạy end-to-end **mọi loại dữ liệu** (ảnh, văn bản, âm thanh, video, cặp) với 7 loại công cụ nhãn (mục 3.9). Tạo dự án → upload → gán nhãn → xem kết quả, xuất JSON / CSV / COCO |
 | **P1** | ledger, payment | Vòng tiền khép kín: nạp → ký quỹ → duyệt nhãn → hold → rút |
 | **P2** | link, gate | Kênh thu thập thứ hai + chống lạm dụng |
 | **P3** | quality | Chất lượng đo được bằng số: kappa, Dawid–Skene, redundancy thích ứng |
 | **P4** | ml, fraud | Pre-labeling + active learning (SAM để sau cùng) |
 | **P5** | collab | Kênh thu thập thứ ba |
-| **P6** | media, notification, admin | Watermark, audit, export đa định dạng, bảng quản trị; workspace bounding box + NER |
+| **P6** | media, notification, admin | Watermark, audit, export thêm định dạng (YOLO, Pascal VOC, CoNLL), bảng quản trị; workspace frontend cho từng công cụ |
 
 P0→P3 là lõi bảo vệ được của đồ án. Nếu thời gian ép, cắt SAM (FA-03) và collab realtime (mục 2.5) trước — tốn công nhất trên mỗi điểm giá trị.
 

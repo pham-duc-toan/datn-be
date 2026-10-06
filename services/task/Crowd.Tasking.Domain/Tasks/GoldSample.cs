@@ -31,7 +31,7 @@ namespace Crowd.Tasking.Domain.Tasks
 
         public LabelPayload ExpectedPayload
         {
-            get { return LabelPayload.Tao(_expectedTaskType, _expectedSchemaVersion, _expectedPayloadJson); }
+            get { return LabelPayload.TuLuuTru(_expectedTaskType, _expectedSchemaVersion, _expectedPayloadJson); }
         }
 
         public static GoldSample Tao(Guid projectId, Guid sampleId, string purpose, LabelPayload dapAn)

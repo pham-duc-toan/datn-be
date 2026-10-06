@@ -2,15 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Storage;
-using Crowd.Contracts.Project;
+using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
+using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Projects;
 using Crowd.Project.Infrastructure.Datasets;
+using Crowd.Project.Infrastructure.Media;
 using Crowd.Project.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -18,16 +21,19 @@ using Microsoft.Extensions.Logging;
 namespace Crowd.Project.Api.Services
 {
     /// <summary>
-    /// Nap dataset tu file ZIP anh (FB-11) va xem mau.
+    /// Nap dataset (FB-11) va xem mau. Hai duong:
+    ///   - ZIP anh: xu ly NGAY trong request (chi du an image, anh nho).
+    ///   - Manifest: tao lo Pending, DatasetIngestor xu ly nen (moi loai du lieu).
     ///
+    /// Duong ZIP:
     /// Thu tu: doc ZIP → day tung anh len MinIO → ghi cac dong samples + event
     /// dataset.ingested trong MOT SaveChanges. Anh len MinIO TRUOC khi commit:
     /// neu commit hong thi don anh da day (khong de file mo coi).
     /// </summary>
     public sealed class DatasetService
     {
-        /// <summary>So mau moi lo dataset.ingested — giu message nho (vai chuc KB).</summary>
-        public const int CoLo = 500;
+        /// <summary>So dong toi da gui kem request — nhieu hon thi dung file manifest trong MinIO.</summary>
+        public const int SoDongGuiKemToiDa = 1000;
 
         private readonly ProjectDbContext _db;
         private readonly ProjectAccessService _access;
@@ -92,6 +98,13 @@ namespace Crowd.Project.Api.Services
             LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
             duAn.KiemTraCoTheNapDuLieu();
 
+            if (duAn.Modality != Modalities.Image)
+            {
+                throw new RuleViolationException(
+                    "zip_chi_cho_anh",
+                    "Upload ZIP chi danh cho du an anh. Du lieu " + duAn.Modality + " dung upload thang + manifest.");
+            }
+
             DateTimeOffset bayGio = _clock.GetUtcNow();
             Dataset dataset = Dataset.Tao(projectId, name, bayGio);
 
@@ -120,7 +133,13 @@ namespace Crowd.Project.Api.Services
                             return;
                         }
 
-                        Sample mau = Sample.Tao(
+                        // Kich thuoc anh — de kiem khung (bbox / polygon) nam trong anh.
+                        (int Width, int Height)? kichThuoc = ImageHeader.DocKichThuoc(anh.Content);
+                        SampleMetadata md = kichThuoc.HasValue
+                            ? new SampleMetadata { Width = kichThuoc.Value.Width, Height = kichThuoc.Value.Height }
+                            : SampleMetadata.Rong;
+
+                        Sample mau = Sample.TaoAnhTrongZip(
                             projectId,
                             dataset.Id,
                             anh.OriginalName,
@@ -128,10 +147,12 @@ namespace Crowd.Project.Api.Services
                             anh.Extension,
                             anh.Content.Length,
                             anh.Sha256,
+                            md,
                             bayGio);
 
-                        await _storage.LuuAsync(mau.StorageKey, anh.Content, anh.ContentType, ct);
-                        khoaDaDay.Add(mau.StorageKey);
+                        string khoa = mau.StorageKey!;
+                        await _storage.LuuAsync(khoa, anh.Content, anh.ContentType, ct);
+                        khoaDaDay.Add(khoa);
                         mauMoi.Add(mau);
                     },
                     ct);
@@ -140,7 +161,7 @@ namespace Crowd.Project.Api.Services
 
                 _db.Datasets.Add(dataset);
                 _db.Samples.AddRange(mauMoi);
-                PhatCacLo(projectId, dataset.Id, mauMoi, caller);
+                DatasetEvents.PhatCacLo(_events, projectId, dataset.Id, mauMoi, caller);
 
                 await _db.SaveChangesAsync(ct);
             }
@@ -180,8 +201,45 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// Mau kem link xem anh. CHI chu du an: link cho phep xem anh goc, va anh
-        /// goc la tai san cua doanh nghiep (P-01).
+        /// Lo MANIFEST — moi loai du lieu. Chi TAO lo Pending; DatasetIngestor xu ly
+        /// nen (doc file tu MinIO, do thoi luong, cat doan) vi file co the vai GB.
+        /// </summary>
+        public async Task<DatasetResponse> TaoTuManifestAsync(
+            Guid projectId, CreateManifestDatasetRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
+            duAn.KiemTraCoTheNapDuLieu();
+
+            RawJson? dong = null;
+            if (body.Rows.HasValue && body.Rows.Value.ValueKind != JsonValueKind.Null)
+            {
+                JsonElement r = body.Rows.Value;
+                if (r.ValueKind != JsonValueKind.Array || r.GetArrayLength() == 0 || r.GetArrayLength() > SoDongGuiKemToiDa)
+                {
+                    throw new InvalidValueException(
+                        "manifest_khong_hop_le",
+                        "Truong rows phai la mang 1-" + SoDongGuiKemToiDa + " dong. Nhieu hon thi upload file .jsonl va dung manifestKey.");
+                }
+
+                dong = RawJson.Tu(r);
+            }
+
+            Dataset lo = Dataset.TaoTuManifest(projectId, body.Name ?? string.Empty, dong, body.ManifestKey, _clock.GetUtcNow());
+            _db.Datasets.Add(lo);
+            await _db.SaveChangesAsync(ct);
+
+            _logger.LogInformation("Tao lo manifest {DatasetId} cho du an {ProjectId} — cho worker xu ly", lo.Id, projectId);
+            return TaoResponse(lo);
+        }
+
+        /// <summary>
+        /// Mau kem link xem file. CHI chu du an: link cho phep xem du lieu goc, va du
+        /// lieu goc la tai san cua doanh nghiep (P-01).
         /// </summary>
         public async Task<PagedResponse<SampleResponse>> DanhSachMauAsync(
             Guid projectId, int page, int pageSize, Caller caller, CancellationToken ct)
@@ -214,9 +272,12 @@ namespace Crowd.Project.Api.Services
                 {
                     Id = s.Id,
                     DatasetId = s.DatasetId,
+                    Modality = s.Modality,
                     OriginalName = s.OriginalName,
                     SizeBytes = s.SizeBytes,
-                    ImageUrl = await _storage.TaoLinkXemAsync(s.StorageKey),
+                    FileUrl = s.StorageKey == null ? null : await _storage.TaoLinkXemAsync(s.StorageKey),
+                    Content = s.Content,
+                    Metadata = s.Metadata,
                 });
             }
 
@@ -227,29 +288,6 @@ namespace Crowd.Project.Api.Services
                 PageSize = pageSize,
                 Total = tong,
             };
-        }
-
-        private void PhatCacLo(Guid projectId, Guid datasetId, List<Sample> mau, Caller caller)
-        {
-            int soLo = (mau.Count + CoLo - 1) / CoLo;
-
-            for (int lo = 0; lo < soLo; lo++)
-            {
-                List<IngestedSample> trongLo = new List<IngestedSample>();
-                foreach (Sample s in mau.Skip(lo * CoLo).Take(CoLo))
-                {
-                    trongLo.Add(new IngestedSample { SampleId = s.Id, StorageKey = s.StorageKey });
-                }
-
-                _events.Phat(caller, new DatasetIngested
-                {
-                    ProjectId = projectId,
-                    DatasetId = datasetId,
-                    BatchIndex = lo,
-                    BatchCount = soLo,
-                    Samples = trongLo,
-                });
-            }
         }
 
         private async Task DonAnhMoCoiAsync(List<string> khoa)
@@ -269,15 +307,23 @@ namespace Crowd.Project.Api.Services
             }
         }
 
-        private static DatasetResponse TaoResponse(Dataset d)
+        public static DatasetResponse TaoResponse(Dataset d)
         {
+            if (d == null)
+            {
+                throw new ArgumentNullException(nameof(d));
+            }
+
             return new DatasetResponse
             {
                 Id = d.Id,
                 Name = d.Name,
+                Status = d.Status,
                 SampleCount = d.SampleCount,
                 SkippedCount = d.SkippedCount,
+                ErrorSummary = d.ErrorSummary,
                 CreatedAt = d.CreatedAt,
+                FinishedAt = d.FinishedAt,
             };
         }
     }

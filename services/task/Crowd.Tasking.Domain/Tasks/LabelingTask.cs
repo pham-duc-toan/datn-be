@@ -1,4 +1,5 @@
 using System;
+using Crowd.Labeling;
 using Crowd.Tasking.Domain.Common;
 
 namespace Crowd.Tasking.Domain.Tasks
@@ -36,7 +37,8 @@ namespace Crowd.Tasking.Domain.Tasks
     {
         private LabelingTask()
         {
-            StorageKey = string.Empty;
+            Modality = string.Empty;
+            Metadata = SampleMetadata.Rong.ToRawJson();
         }
 
         public Guid Id { get; private set; }
@@ -45,8 +47,21 @@ namespace Crowd.Tasking.Domain.Tasks
 
         public Guid SampleId { get; private set; }
 
-        /// <summary>Khoa anh trong MinIO — de sinh link xem khi cap task.</summary>
-        public string StorageKey { get; private set; }
+        /// <summary>Loai du lieu cua mau (image / text / audio / video / pair).</summary>
+        public string Modality { get; private set; }
+
+        /// <summary>Khoa file trong MinIO — de sinh link xem khi cap task. null voi text / pair.</summary>
+        public string? StorageKey { get; private set; }
+
+        /// <summary>Noi dung text / pair. null voi du lieu file.</summary>
+        public RawJson? Content { get; private set; }
+
+        /// <summary>
+        /// Metadata mau (rong x cao, thoi luong, doan [start, end] cua file goc...).
+        /// Gui cho labeler cung task, va dung de kiem nhan nop len (khung trong anh,
+        /// doan thoi gian trong doan audio).
+        /// </summary>
+        public RawJson Metadata { get; private set; }
 
         public TaskState State { get; private set; }
 
@@ -61,13 +76,34 @@ namespace Crowd.Tasking.Domain.Tasks
 
         public DateTimeOffset? CompletedAt { get; private set; }
 
-        public static LabelingTask Tao(Guid projectId, Guid sampleId, string storageKey, int redundancyTarget, DateTimeOffset luc)
+        public static LabelingTask Tao(
+            Guid projectId,
+            Guid sampleId,
+            string modality,
+            string? storageKey,
+            RawJson? content,
+            RawJson metadata,
+            int redundancyTarget,
+            DateTimeOffset luc)
         {
+            if ((storageKey == null) == (content == null))
+            {
+                throw new ArgumentException("Mau phai co DUNG MOT trong hai: file (storageKey) hoac noi dung (content).");
+            }
+
+            if (metadata == null)
+            {
+                throw new ArgumentNullException(nameof(metadata));
+            }
+
             LabelingTask t = new LabelingTask();
             t.Id = Guid.CreateVersion7();
             t.ProjectId = projectId;
             t.SampleId = sampleId;
+            t.Modality = modality;
             t.StorageKey = storageKey;
+            t.Content = content;
+            t.Metadata = metadata;
             t.State = TaskState.Open;
             t.RedundancyTarget = redundancyTarget;
             t.CreatedAt = luc;

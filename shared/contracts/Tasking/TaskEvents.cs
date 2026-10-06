@@ -38,8 +38,14 @@ namespace Crowd.Contracts.Tasking
 
         public required Guid SampleId { get; init; }
 
-        /// <summary>Khoa anh trong MinIO — annotation-svc hien anh khi duyet ma khong phai hoi ai.</summary>
-        public required string StorageKey { get; init; }
+        /// <summary>Khoa file trong MinIO — annotation-svc hien file khi duyet ma khong phai hoi ai. null voi text / pair.</summary>
+        public string? StorageKey { get; init; }
+
+        /// <summary>Noi dung mau khi khong phai file (text, pair) — nguoi duyet can doc lai.</summary>
+        public RawJson? SampleContent { get; init; }
+
+        /// <summary>Thong tin mau — annotation-svc dung khi xuat (COCO can kich thuoc anh, doan cat can moc thoi gian).</summary>
+        public required RawJson SampleMetadata { get; init; }
 
         public required Guid LabelerId { get; init; }
 

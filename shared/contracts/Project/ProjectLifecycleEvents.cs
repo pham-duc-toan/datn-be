@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Crowd.BuildingBlocks.Messaging;
+using Crowd.Labeling;
 
 namespace Crowd.Contracts.Project
 {
@@ -53,12 +54,15 @@ namespace Crowd.Contracts.Project
 
         public required Guid OwnerId { get; init; }
 
-        public required ProjectTaskType TaskType { get; init; }
+        /// <summary>Loai du lieu: image | text | audio | video | pair (Crowd.Labeling.Modalities).</summary>
+        public required string Modality { get; init; }
 
-        /// <summary>Cac lop nhan hop le — annotation-svc kiem nhan nop len theo day.</summary>
-        public required IReadOnlyList<string> LabelClasses { get; init; }
-
-        public required bool AllowMultipleLabels { get; init; }
+        /// <summary>
+        /// TAP NHAN o dang chuan (Crowd.Labeling.LabelSchema): loai du lieu + danh
+        /// sach cong cu. task-svc va annotation-svc chep nguyen khoi nay — kiem nhan,
+        /// cham cau vang, gop ket qua deu theo no, khong phai hoi lai project-svc.
+        /// </summary>
+        public required RawJson LabelSchema { get; init; }
 
         /// <summary>Thu lao moi nhan, so nguyen dong.</summary>
         public required long UnitPriceVnd { get; init; }

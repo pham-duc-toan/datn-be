@@ -40,8 +40,10 @@ assignment.submitted v1  (AssignmentSubmitted)
     LabelerId                Guid                 required
     LeasedAt                 DateTimeOffset       required
     ProjectId                Guid                 required
+    SampleContent            RawJson?             nullable
     SampleId                 Guid                 required
-    StorageKey               String               required
+    SampleMetadata           RawJson              required
+    StorageKey               String?              nullable
     SubmittedAt              DateTimeOffset       required
     TaskId                   Guid                 required
 
@@ -145,20 +147,19 @@ project.publish_requested v1  (ProjectPublishRequested)
 project.published v1  (ProjectPublished)
     AllowCollaborative       Boolean              required
     AllowLinkGateway         Boolean              required
-    AllowMultipleLabels      Boolean              required
     AllowProfessional        Boolean              required
     Deadline                 DateTimeOffset       required
     IsPrivate                Boolean              required
-    LabelClasses             IReadOnlyList<String> required
+    LabelSchema              RawJson              required
     MinLevel                 Int32?               nullable
     MinReputation            Int32?               nullable
+    Modality                 String               required
     OwnerId                  Guid                 required
     PlatformFeeVnd           Int64                required
     ProjectId                Guid                 required
     Redundancy               Int32                required
     RequireEntranceTest      Boolean              required
     SampleCount              Int32                required
-    TaskType                 ProjectTaskType      required
     UnitPriceVnd             Int64                required
 
 project.resumed v1  (ProjectResumed)

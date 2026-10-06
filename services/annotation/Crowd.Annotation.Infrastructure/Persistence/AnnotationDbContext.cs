@@ -5,7 +5,9 @@ using Crowd.Annotation.Domain.Members;
 using Crowd.Annotation.Domain.Projects;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.Labeling;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Crowd.Annotation.Infrastructure.Persistence
 {
@@ -24,6 +26,15 @@ namespace Crowd.Annotation.Infrastructure.Persistence
             : base(options)
         {
         }
+
+        /// <summary>RawJson &lt;-&gt; cot jsonb. EF khong goi converter voi null nen "v!" an toan.</summary>
+        private static readonly ValueConverter<RawJson, string> RawJsonCot = new ValueConverter<RawJson, string>(
+            v => v.Json,
+            s => RawJson.Tu(s));
+
+        private static readonly ValueConverter<RawJson?, string> RawJsonCotNull = new ValueConverter<RawJson?, string>(
+            v => v!.Json,
+            s => RawJson.Tu(s));
 
         public DbSet<LabelAnnotation> Annotations => Set<LabelAnnotation>();
 
@@ -53,7 +64,9 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.Property(x => x.TaskId).HasColumnName("task_id").IsRequired();
                 b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
                 b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
-                b.Property(x => x.StorageKey).HasColumnName("storage_key").HasMaxLength(300).IsRequired();
+                b.Property(x => x.StorageKey).HasColumnName("storage_key").HasMaxLength(300);
+                b.Property(x => x.SampleContent).HasColumnName("sample_content").HasColumnType("jsonb").HasConversion(RawJsonCotNull);
+                b.Property(x => x.SampleMetadata).HasColumnName("sample_metadata").HasColumnType("jsonb").HasConversion(RawJsonCot).IsRequired();
                 b.Property(x => x.LabelerId).HasColumnName("labeler_id");
                 // Nhan o dinh dang chung (Crowd.Labeling): ba cot. payload la jsonb —
                 // nhan "da hinh" theo loai bai toan (docs muc 3.2), them loai moi
@@ -116,9 +129,11 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.Property(x => x.OwnerId).HasColumnName("owner_id").IsRequired();
                 b.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
                 b.Property(x => x.PlatformFeeVnd).HasColumnName("platform_fee_vnd").IsRequired();
-                b.Property(x => x.AllowMultiple).HasColumnName("allow_multiple").IsRequired();
-                b.Ignore(x => x.LabelClasses);
-                b.Property<List<string>>("_labelClasses").HasColumnName("label_classes").IsRequired();
+                b.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
+
+                // Tap nhan dang chuan, chep nguyen tu project.published.
+                b.Ignore(x => x.LabelSchema);
+                b.Property<string>("_labelSchemaJson").HasColumnName("label_schema").HasColumnType("jsonb").IsRequired();
             });
 
             modelBuilder.Entity<MemberCache>(b =>

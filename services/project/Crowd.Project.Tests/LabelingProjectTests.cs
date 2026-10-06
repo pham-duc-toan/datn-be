@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Projects;
 
@@ -19,14 +20,14 @@ namespace Crowd.Project.Tests
 
         private static LabelingProject DuAnMoi()
         {
-            return LabelingProject.Tao(Owner, "Phan loai cho meo", "mo ta", TaskType.ImageClassification, ProjectVisibility.Public, Luc);
+            return LabelingProject.Tao(Owner, "Phan loai cho meo", "mo ta", Modalities.Image, ProjectVisibility.Public, Luc);
         }
 
         /// <summary>Du an cau hinh day du, san sang publish voi 100 mau.</summary>
         private static LabelingProject DuAnSanSang()
         {
             LabelingProject p = DuAnMoi();
-            p.DatLabelSchema(LabelSchema.TaoPhanLoai(new List<string> { "cho", "meo" }, false), Luc);
+            p.DatLabelSchema(PhanLoaiAnh("cho", "meo"), Luc);
             p.DatHuongDan(Guideline.Tao("# Huong dan", null), Luc);
             p.DatCauHinhGia(1000, 3, 390000, Luc.AddDays(30), Luc);
             return p;
@@ -42,13 +43,39 @@ namespace Crowd.Project.Tests
             Assert.False(p.WasEscrowed);
         }
 
+        /// <summary>Tap nhan anh mot cong cu phan loai "label".</summary>
+        internal static LabelSchema PhanLoaiAnh(string a, string b)
+        {
+            return LabelSchema.Doc(
+                "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\""
+                + a + "\",\"" + b + "\"]}]}");
+        }
+
         [Fact]
-        public void Chi_ho_tro_phan_loai_anh()
+        public void Loai_du_lieu_phai_hop_le()
         {
             InvalidValueException ex = Assert.Throws<InvalidValueException>(() =>
-                LabelingProject.Tao(Owner, "x", null, TaskType.BoundingBox, ProjectVisibility.Public, Luc));
+                LabelingProject.Tao(Owner, "x", null, "hologram", ProjectVisibility.Public, Luc));
 
-            Assert.Equal("loai_bai_toan_chua_ho_tro", ex.Code);
+            Assert.Equal("loai_du_lieu_khong_hop_le", ex.Code);
+        }
+
+        [Fact]
+        public void Tap_nhan_phai_cung_loai_du_lieu_voi_du_an()
+        {
+            LabelingProject p = LabelingProject.Tao(Owner, "van ban", null, Modalities.Text, ProjectVisibility.Public, Luc);
+
+            InvalidValueException ex = Assert.Throws<InvalidValueException>(() => p.DatLabelSchema(PhanLoaiAnh("a", "b"), Luc));
+            Assert.Equal("loai_du_lieu_khong_khop", ex.Code);
+
+            // Cung loai thi nhan, ke ca nhieu cong cu.
+            p.DatLabelSchema(
+                LabelSchema.Doc(
+                    "{\"modality\":\"text\",\"tools\":["
+                    + "{\"name\":\"cam_xuc\",\"kind\":\"classification\",\"classes\":[\"vui\",\"buon\"]},"
+                    + "{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"nguoi\",\"noi\"]}]}"),
+                Luc);
+            Assert.Equal(2, p.LabelSchema!.Tools.Count);
         }
 
         [Fact]
@@ -183,8 +210,8 @@ namespace Crowd.Project.Tests
         [Fact]
         public void Khong_tu_tham_gia_duoc_du_an_rieng_tu()
         {
-            LabelingProject p = LabelingProject.Tao(Owner, "rieng", null, TaskType.ImageClassification, ProjectVisibility.Private, Luc);
-            p.DatLabelSchema(LabelSchema.TaoPhanLoai(new List<string> { "a", "b" }, false), Luc);
+            LabelingProject p = LabelingProject.Tao(Owner, "rieng", null, Modalities.Image, ProjectVisibility.Private, Luc);
+            p.DatLabelSchema(PhanLoaiAnh("a", "b"), Luc);
             p.DatHuongDan(Guideline.Tao("x", null), Luc);
             p.DatCauHinhGia(1000, 1, 1300, Luc.AddDays(1), Luc);
             p.YeuCauPublish(1, 0, Phi, Luc);

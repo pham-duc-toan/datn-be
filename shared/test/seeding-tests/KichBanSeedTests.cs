@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Globalization;
 using System.Security.Cryptography;
+using System.Text;
+using Crowd.Labeling;
 
 namespace Crowd.Seeding.Tests
 {
@@ -120,7 +123,9 @@ namespace Crowd.Seeding.Tests
                     Assert.DoesNotContain(s.SampleId, mauVang);
 
                     Assert.Contains(s.LabelerId, labeler);
-                    Assert.Contains(s.Label, p.Classes);
+                    // Nhan kiem nhu API that: tap nhan + metadata mau.
+                    LabelPayload nhan = SeedEvents.NhanCua(p, s);
+                    Assert.Equal(p.Modality, nhan.TaskType);
                     Assert.True(bayGio - s.SubmittedAgo > p.LucDuyet(bayGio), "nop truoc khi du an chay");
 
                     if (s.Review != SeedReview.PendingReview)
@@ -162,14 +167,90 @@ namespace Crowd.Seeding.Tests
             Assert.Equal(lan1, lan2);
             Assert.Equal(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }, lan1.Take(8).ToArray());
 
-            // project-svc UNIQUE (project_id, sha256): hai anh trung noi dung → loi luc seed.
+            // project-svc UNIQUE (project_id, sha256): hai mau trung dau van tay → loi luc
+            // seed. Cung cong thuc voi ProjectSeeder.
             foreach (SeedProject p in KichBanSeed.Projects)
             {
-                List<string> sha = p.Samples
-                    .Select(s => Convert.ToHexStringLower(SHA256.HashData(AnhMauPng.Tao(s.R, s.G, s.B, 32))))
-                    .ToList();
+                List<string> sha = p.Samples.Select(DauVanTay).ToList();
                 Assert.Equal(sha.Count, sha.Distinct().Count());
             }
+        }
+
+        [Fact]
+        public void Tap_nhan_mau_va_cau_vang_hop_le_theo_loai_du_lieu()
+        {
+            foreach (SeedProject p in KichBanSeed.Projects)
+            {
+                LabelSchema tapNhan = p.TapNhan();
+                Assert.Equal(p.Modality, tapNhan.Modality);
+
+                foreach (SeedSample s in p.Samples)
+                {
+                    Assert.Equal(p.Modality, s.Modality);
+
+                    // File (anh, am thanh) co khoa thuoc du an; text / pair co noi dung.
+                    if (Modalities.LaFile(s.Modality))
+                    {
+                        Assert.NotNull(s.StorageKey);
+                        Assert.StartsWith(p.Id + "/", s.StorageKey, StringComparison.Ordinal);
+                        Assert.Null(s.ContentJson);
+                    }
+                    else
+                    {
+                        Assert.Null(s.StorageKey);
+                        Assert.NotNull(s.ContentJson);
+                    }
+                }
+
+                // Dap an vang kiem nhu POST /gold-items that.
+                foreach (SeedGold g in p.Gold)
+                {
+                    LabelPayload dapAn = LabelPayload.Tao(tapNhan, g.PayloadJson, p.Mau(g.SampleId).Metadata);
+                    Assert.Equal(p.Modality, dapAn.TaskType);
+                }
+            }
+        }
+
+        [Fact]
+        public void Am_thanh_cat_doan_dung_segmentSeconds()
+        {
+            SeedProject p6 = KichBanSeed.Project("p6");
+            int? seg = p6.TapNhan().SegmentSeconds;
+            Assert.NotNull(seg);
+
+            foreach (SeedSample s in p6.Samples.Where(x => x.Metadata.SegmentStart.HasValue))
+            {
+                Assert.True(s.Metadata.SegmentEnd - s.Metadata.SegmentStart <= seg.Value);
+                Assert.Equal(s.Metadata.SegmentEnd - s.Metadata.SegmentStart, s.Metadata.DurationSec);
+                Assert.True(s.Metadata.SegmentEnd <= s.FileSeconds);
+            }
+
+            byte[] wav = AmThanhMau.TaoWav(440, 1);
+            Assert.Equal("RIFF", Encoding.ASCII.GetString(wav, 0, 4));
+            Assert.Equal(44 + 16000 * 2, wav.Length);
+        }
+
+        private static string DauVanTay(SeedSample s)
+        {
+            if (s.Modality == Modalities.Image)
+            {
+                return Bam(AnhMauPng.Tao(s.R, s.G, s.B, 32));
+            }
+
+            if (s.Modality == Modalities.Audio)
+            {
+                string sha = Bam(AmThanhMau.TaoWav(s.ToneHz, s.FileSeconds));
+                return s.Metadata.SegmentStart.HasValue
+                    ? Bam(Encoding.UTF8.GetBytes(sha + "#" + s.Metadata.SegmentStart.Value.ToString("0.###", CultureInfo.InvariantCulture)))
+                    : sha;
+            }
+
+            return Bam(Encoding.UTF8.GetBytes(s.ContentJson!));
+        }
+
+        private static string Bam(byte[] b)
+        {
+            return Convert.ToHexStringLower(SHA256.HashData(b));
         }
     }
 }

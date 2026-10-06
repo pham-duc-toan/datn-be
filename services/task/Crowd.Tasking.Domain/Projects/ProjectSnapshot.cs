@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Crowd.Labeling;
 
 namespace Crowd.Tasking.Domain.Projects
@@ -29,12 +28,14 @@ namespace Crowd.Tasking.Domain.Projects
     /// </summary>
     public sealed class ProjectSnapshot
     {
-        private List<string> _labelClasses;
+        // Tap nhan dang chuan (Crowd.Labeling), chep nguyen tu project.published.
+        // Luu chuoi JSON (cot jsonb); doc thanh LabelSchema mot lan roi giu lai.
+        private string? _labelSchemaJson;
+        private LabelSchema? _labelSchema;
 
         private ProjectSnapshot()
         {
-            _labelClasses = new List<string>();
-            LabelTaskType = string.Empty;
+            Modality = string.Empty;
         }
 
         public Guid ProjectId { get; private set; }
@@ -49,19 +50,25 @@ namespace Crowd.Tasking.Domain.Projects
         /// <summary>false = chua nhan project.published, chua co cau hinh de cap task.</summary>
         public bool IsConfigured { get; private set; }
 
+        /// <summary>Loai du lieu (image / text / audio / video / pair). Rong khi chua publish.</summary>
+        public string Modality { get; private set; }
+
         /// <summary>
-        /// Loai nhan cua du an trong dinh dang nhan chung (Crowd.Labeling), vd
-        /// "imageClassification". Rong khi chua publish. Nhan labeler nop duoc
-        /// dung theo loai nay — client chi gui phan du lieu.
+        /// Tap nhan cua du an. Nhan labeler nop duoc kiem theo no (cong cu, lop,
+        /// khung nam trong anh...) — client chi gui phan du lieu. null khi chua publish.
         /// </summary>
-        public string LabelTaskType { get; private set; }
-
-        public IReadOnlyList<string> LabelClasses
+        public LabelSchema? LabelSchema
         {
-            get { return _labelClasses; }
-        }
+            get
+            {
+                if (_labelSchema == null && _labelSchemaJson != null)
+                {
+                    _labelSchema = LabelSchema.Doc(_labelSchemaJson);
+                }
 
-        public bool AllowMultiple { get; private set; }
+                return _labelSchema;
+            }
+        }
 
         public long UnitPriceVnd { get; private set; }
 
@@ -95,9 +102,7 @@ namespace Crowd.Tasking.Domain.Projects
 
         public void ApDungPublished(
             Guid ownerId,
-            string labelTaskType,
-            IReadOnlyList<string> labelClasses,
-            bool allowMultiple,
+            LabelSchema labelSchema,
             long unitPriceVnd,
             int redundancy,
             DateTimeOffset deadline,
@@ -107,20 +112,15 @@ namespace Crowd.Tasking.Domain.Projects
             int? minReputation,
             DateTimeOffset occurredAt)
         {
-            if (labelClasses == null)
+            if (labelSchema == null)
             {
-                throw new ArgumentNullException(nameof(labelClasses));
-            }
-
-            if (string.IsNullOrWhiteSpace(labelTaskType))
-            {
-                throw new ArgumentException("Thieu loai nhan.", nameof(labelTaskType));
+                throw new ArgumentNullException(nameof(labelSchema));
             }
 
             OwnerId = ownerId;
-            LabelTaskType = labelTaskType;
-            _labelClasses = new List<string>(labelClasses);
-            AllowMultiple = allowMultiple;
+            Modality = labelSchema.Modality;
+            _labelSchemaJson = labelSchema.ToRawJson().Json;
+            _labelSchema = labelSchema;
             UnitPriceVnd = unitPriceVnd;
             Redundancy = redundancy;
             Deadline = deadline;
@@ -161,49 +161,6 @@ namespace Crowd.Tasking.Domain.Projects
             }
 
             GoldSetAt = occurredAt;
-            return true;
-        }
-
-        /// <summary>
-        /// Nhan nop len co hop le voi du an khong: dung LOAI nhan cua du an, va
-        /// cac lop no dung deu co trong tap nhan. Dinh dang JSON da duoc
-        /// LabelPayload kiem truoc do.
-        /// </summary>
-        public bool LaNhanHopLe(LabelPayload nhan)
-        {
-            if (nhan == null || nhan.TaskType != LabelTaskType)
-            {
-                return false;
-            }
-
-            return LaBoNhanHopLe(nhan.CacLop());
-        }
-
-        /// <summary>
-        /// Cung luat voi LabelSchema.LaBoNhanHopLe cua project-svc: khong rong,
-        /// moi nhan la lop co that, khong lap, single-label thi dung mot nhan.
-        /// </summary>
-        public bool LaBoNhanHopLe(IReadOnlyCollection<string> nhan)
-        {
-            if (nhan == null || nhan.Count == 0)
-            {
-                return false;
-            }
-
-            if (!AllowMultiple && nhan.Count != 1)
-            {
-                return false;
-            }
-
-            HashSet<string> daGap = new HashSet<string>(StringComparer.Ordinal);
-            foreach (string n in nhan)
-            {
-                if (n == null || !_labelClasses.Contains(n) || !daGap.Add(n))
-                {
-                    return false;
-                }
-            }
-
             return true;
         }
 

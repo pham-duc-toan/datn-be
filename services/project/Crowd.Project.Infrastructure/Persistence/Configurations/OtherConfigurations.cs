@@ -59,7 +59,15 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Name).HasColumnName("name").HasMaxLength(Dataset.DoDaiTenToiDa).IsRequired();
             builder.Property(x => x.SampleCount).HasColumnName("sample_count").IsRequired();
             builder.Property(x => x.SkippedCount).HasColumnName("skipped_count").IsRequired();
+            builder.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
+            builder.Property(x => x.ErrorSummary).HasColumnName("error_summary").HasMaxLength(Dataset.DoDaiLoiToiDa);
+            builder.Property(x => x.Manifest).HasColumnName("manifest").HasColumnType("jsonb").HasConversion(JsonColumns.RawJsonCotNull);
+            builder.Property(x => x.ManifestKey).HasColumnName("manifest_key").HasMaxLength(300);
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.FinishedAt).HasColumnName("finished_at");
+
+            // Worker tim lo cho xu ly.
+            builder.HasIndex(x => x.Status).HasFilter("status IN ('Pending','Ingesting')").HasDatabaseName("ix_datasets_dang_xu_ly");
 
             builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             builder.HasIndex(x => x.ProjectId).HasDatabaseName("ix_datasets_project");
@@ -82,10 +90,15 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
             builder.Property(x => x.DatasetId).HasColumnName("dataset_id").IsRequired();
-            builder.Property(x => x.StorageKey).HasColumnName("storage_key").HasMaxLength(300).IsRequired();
-            builder.Property(x => x.OriginalName).HasColumnName("original_name").HasMaxLength(500).IsRequired();
-            builder.Property(x => x.ContentType).HasColumnName("content_type").HasMaxLength(50).IsRequired();
-            builder.Property(x => x.SizeBytes).HasColumnName("size_bytes").IsRequired();
+            builder.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
+
+            // File (image/audio/video) co storage_key; noi dung (text/pair) co content.
+            builder.Property(x => x.StorageKey).HasColumnName("storage_key").HasMaxLength(300);
+            builder.Property(x => x.Content).HasColumnName("content").HasColumnType("jsonb").HasConversion(JsonColumns.RawJsonCotNull);
+            builder.Property(x => x.Metadata).HasColumnName("metadata").HasColumnType("jsonb").HasConversion(JsonColumns.RawJsonCot).IsRequired();
+            builder.Property(x => x.OriginalName).HasColumnName("original_name").HasMaxLength(Sample.DoDaiTenToiDa).IsRequired();
+            builder.Property(x => x.ContentType).HasColumnName("content_type").HasMaxLength(100);
+            builder.Property(x => x.SizeBytes).HasColumnName("size_bytes");
             builder.Property(x => x.Sha256).HasColumnName("sha256").HasMaxLength(64).IsRequired();
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
 
@@ -96,6 +109,9 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             // lan nap song song cung khong lot duoc.
             builder.HasIndex(x => new { x.ProjectId, x.Sha256 }).IsUnique().HasDatabaseName("ux_samples_project_sha256");
             builder.HasIndex(x => x.DatasetId).HasDatabaseName("ix_samples_dataset");
+
+            // Moi mau la file HOAC noi dung, khong bao gio ca hai hay khong co gi.
+            builder.ToTable(t => t.HasCheckConstraint("ck_samples_file_hoac_noi_dung", "(storage_key IS NULL) <> (content IS NULL)"));
         }
     }
 

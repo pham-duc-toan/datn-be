@@ -1,16 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.Contracts.Project;
+using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
 using Crowd.Project.Api.Exceptions;
 using Crowd.Project.Api.Helpers;
 using Crowd.Project.Api.Settings;
 using Crowd.Project.Domain.Common;
+using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
 using Crowd.Project.Domain.Projects;
@@ -109,7 +112,7 @@ namespace Crowd.Project.Api.Services
                 ownerId,
                 body.Name ?? string.Empty,
                 body.Description,
-                body.TaskType ?? TaskType.ImageClassification,
+                body.Modality ?? string.Empty,
                 body.Visibility ?? ProjectVisibility.Public,
                 bayGio);
 
@@ -151,12 +154,17 @@ namespace Crowd.Project.Api.Services
             return TaoResponse(duAn, caller);
         }
 
+        /// <summary>
+        /// Dat tap nhan: body la chinh tap nhan {"tools":[...], "segmentSeconds"?: ...}.
+        /// "modality" co the bo — lay theo du an; neu gui thi phai trung.
+        /// Kiem hinh dang bang JSON Schema roi ngu nghia (Crowd.Labeling.LabelSchema).
+        /// </summary>
         public async Task<ProjectResponse> DatLabelSchemaAsync(
-            Guid id, LabelSchemaRequest body, Caller caller, CancellationToken ct)
+            Guid id, JsonElement body, Caller caller, CancellationToken ct)
         {
-            if (body == null)
+            if (body.ValueKind != JsonValueKind.Object)
             {
-                throw new ArgumentNullException(nameof(body));
+                throw new InvalidValueException("tap_nhan_sai_dinh_dang", "Tap nhan phai la mot object JSON.");
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
@@ -171,7 +179,13 @@ namespace Crowd.Project.Api.Services
                     "Du an da co cau hoi vang. Xoa cau hoi vang truoc khi doi tap nhan.");
             }
 
-            LabelSchema schema = LabelSchema.TaoPhanLoai(body.Classes ?? new List<string>(), body.AllowMultiple);
+            System.Text.Json.Nodes.JsonObject o = (System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(body.GetRawText())!;
+            if (o["modality"] == null)
+            {
+                o["modality"] = duAn.Modality;
+            }
+
+            LabelSchema schema = LabelSchema.Doc(o.ToJsonString());
             duAn.DatLabelSchema(schema, _clock.GetUtcNow());
 
             await _db.SaveChangesAsync(ct);
@@ -287,7 +301,7 @@ namespace Crowd.Project.Api.Services
         public async Task<PagedResponse<ProjectListItem>> DanhSachAsync(
             Caller caller,
             ProjectStatus? status,
-            TaskType? taskType,
+            string? modality,
             bool chiCuaToi,
             int page,
             int pageSize,
@@ -309,10 +323,10 @@ namespace Crowd.Project.Api.Services
                 q = q.Where(p => p.Status == s);
             }
 
-            if (taskType.HasValue)
+            if (!string.IsNullOrEmpty(modality))
             {
-                TaskType t = taskType.Value;
-                q = q.Where(p => p.TaskType == t);
+                string m = modality;
+                q = q.Where(p => p.Modality == m);
             }
 
             int tong = await q.CountAsync(ct);
@@ -330,7 +344,7 @@ namespace Crowd.Project.Api.Services
                 {
                     Id = p.Id,
                     Name = p.Name,
-                    TaskType = p.TaskType,
+                    Modality = p.Modality,
                     Status = p.Status,
                     Visibility = p.Visibility,
                     UnitPriceVnd = p.UnitPriceVnd,
@@ -356,8 +370,10 @@ namespace Crowd.Project.Api.Services
             int soMau = await DemMauAsync(id, ct);
             int soVangTest = await DemVangTestAsync(id, ct);
 
+            bool dangXuLy = await CoDuLieuDangXuLyAsync(id, ct);
+
             int phi = _fees.PlatformFeePercent;
-            IReadOnlyList<string> thieu = duAn.NhungGiConThieu(soMau, soVangTest, phi, _clock.GetUtcNow());
+            IReadOnlyList<string> thieu = duAn.NhungGiConThieu(soMau, soVangTest, phi, dangXuLy, _clock.GetUtcNow());
 
             return new ReadinessResponse
             {
@@ -387,7 +403,9 @@ namespace Crowd.Project.Api.Services
             int soMau = await DemMauAsync(id, ct);
             int soVangTest = await DemVangTestAsync(id, ct);
 
-            duAn.YeuCauPublish(soMau, soVangTest, _fees.PlatformFeePercent, bayGio);
+            bool dangXuLy = await CoDuLieuDangXuLyAsync(id, ct);
+
+            duAn.YeuCauPublish(soMau, soVangTest, _fees.PlatformFeePercent, dangXuLy, bayGio);
 
             if (_saga.BoQuaKyQuy)
             {
@@ -565,9 +583,8 @@ namespace Crowd.Project.Api.Services
             {
                 ProjectId = duAn.Id,
                 OwnerId = duAn.OwnerId,
-                TaskType = ContractMapper.ToContract(duAn.TaskType),
-                LabelClasses = new List<string>(duAn.LabelSchema.Classes),
-                AllowMultipleLabels = duAn.LabelSchema.AllowMultiple,
+                Modality = duAn.Modality,
+                LabelSchema = duAn.LabelSchema.ToRawJson(),
                 UnitPriceVnd = duAn.UnitPriceVnd,
                 PlatformFeeVnd = LabelingProject.PhiMoiNhanVnd(duAn.UnitPriceVnd, duAn.PlatformFeePercent),
                 Redundancy = duAn.Redundancy,
@@ -603,6 +620,14 @@ namespace Crowd.Project.Api.Services
             }
 
             return duAn;
+        }
+
+        /// <summary>Con lo manifest dang cho / dang xu ly — chua biet het so mau.</summary>
+        private Task<bool> CoDuLieuDangXuLyAsync(Guid projectId, CancellationToken ct)
+        {
+            return _db.Datasets.AnyAsync(
+                d => d.ProjectId == projectId && (d.Status == DatasetStatus.Pending || d.Status == DatasetStatus.Ingesting),
+                ct);
         }
 
         private Task<int> DemMauAsync(Guid projectId, CancellationToken ct)
@@ -655,16 +680,6 @@ namespace Crowd.Project.Api.Services
 
             bool laChu = ProjectAccessService.LaChu(p, caller);
 
-            LabelSchemaResponse? schema = null;
-            if (p.LabelSchema != null)
-            {
-                schema = new LabelSchemaResponse
-                {
-                    Classes = p.LabelSchema.Classes,
-                    AllowMultiple = p.LabelSchema.AllowMultiple,
-                };
-            }
-
             GuidelineResponse? huongDan = null;
             if (p.Guideline != null)
             {
@@ -688,10 +703,10 @@ namespace Crowd.Project.Api.Services
                 Id = p.Id,
                 Name = p.Name,
                 Description = p.Description,
-                TaskType = p.TaskType,
+                Modality = p.Modality,
                 Status = p.Status,
                 Visibility = p.Visibility,
-                LabelSchema = schema,
+                LabelSchema = p.LabelSchema == null ? null : p.LabelSchema.ToRawJson(),
                 Guideline = huongDan,
                 UnitPriceVnd = p.UnitPriceVnd,
                 Redundancy = p.Redundancy,

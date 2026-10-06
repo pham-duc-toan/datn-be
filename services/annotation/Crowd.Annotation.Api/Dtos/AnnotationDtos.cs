@@ -15,8 +15,14 @@ namespace Crowd.Annotation.Api.Dtos
 
         public required Guid SampleId { get; init; }
 
-        /// <summary>Link xem anh co han vai phut (S-07).</summary>
-        public required string ImageUrl { get; init; }
+        /// <summary>Link xem / nghe file cua mau, co han vai phut (S-07). null voi text / pair.</summary>
+        public string? FileUrl { get; init; }
+
+        /// <summary>Noi dung text / pair cua mau. null voi du lieu file.</summary>
+        public RawJson? SampleContent { get; init; }
+
+        /// <summary>Metadata mau: kich thuoc, thoi luong, doan [segmentStart, segmentEnd].</summary>
+        public required RawJson SampleMetadata { get; init; }
 
         public Guid? LabelerId { get; init; }
 
@@ -98,25 +104,41 @@ namespace Crowd.Annotation.Api.Dtos
     {
         public required Guid SampleId { get; init; }
 
-        public required IReadOnlyList<string> FinalLabels { get; init; }
+        public string? StorageKey { get; init; }
 
-        public required IReadOnlyDictionary<string, int> Votes { get; init; }
+        public RawJson? SampleContent { get; init; }
+
+        public required RawJson SampleMetadata { get; init; }
 
         public required int ApprovedCount { get; init; }
 
+        /// <summary>Co cong cu gop theo da so ma khong lua chon nao qua ban (FB-22).</summary>
         public required bool Disputed { get; init; }
+
+        /// <summary>
+        /// Ket qua gop theo TUNG CONG CU: {"ten":{"kind","method","final","votes","disputed"}}.
+        /// method "none" = chua gop tu dong, xem Labels.
+        /// </summary>
+        public required RawJson Tools { get; init; }
+
+        /// <summary>Phan du lieu cua cac nhan DA DUYET (moi nguoi mot phan tu), cu nhat truoc.</summary>
+        public required IReadOnlyList<RawJson> Labels { get; init; }
     }
 
     public sealed class ProjectResultsResponse
     {
         public required Guid ProjectId { get; init; }
 
+        public required string Modality { get; init; }
+
+        public required RawJson LabelSchema { get; init; }
+
         public required int SampleCount { get; init; }
 
         public required int DisputedCount { get; init; }
 
-        /// <summary>Phan bo nhan chot — nen cua canh bao lech lop (FB-24).</summary>
-        public required IReadOnlyDictionary<string, int> LabelDistribution { get; init; }
+        /// <summary>Phan bo nhan theo tung cong cu: {"ten cong cu":{"lop":so}} — nen cua canh bao lech lop (FB-24).</summary>
+        public required IReadOnlyDictionary<string, SortedDictionary<string, int>> LabelDistribution { get; init; }
 
         public required IReadOnlyList<SampleResultResponse> Samples { get; init; }
     }

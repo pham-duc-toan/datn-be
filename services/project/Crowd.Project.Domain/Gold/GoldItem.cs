@@ -1,7 +1,5 @@
 using System;
 using Crowd.Labeling;
-using Crowd.Project.Domain.Common;
-using Crowd.Project.Domain.Projects;
 
 namespace Crowd.Project.Domain.Gold
 {
@@ -24,6 +22,8 @@ namespace Crowd.Project.Domain.Gold
     ///
     /// Dap an luu o DINH DANG NHAN CHUNG (LabelPayload): cung hinh dang voi nhan
     /// labeler nop, o moi loai bai toan — phan loai hay bounding box deu vua.
+    /// Service da KIEM dap an theo tap nhan va thong tin mau (LabelPayload.Tao)
+    /// truoc khi goi Tao.
     /// </summary>
     public sealed class GoldItem
     {
@@ -45,10 +45,10 @@ namespace Crowd.Project.Domain.Gold
 
         public Guid SampleId { get; private set; }
 
-        /// <summary>Dap an dung. Dung lai tu ba cot moi lan doc — LabelPayload kiem lai dinh dang.</summary>
+        /// <summary>Dap an dung, dung lai tu ba cot moi lan doc (da kiem luc tao).</summary>
         public LabelPayload ExpectedPayload
         {
-            get { return LabelPayload.Tao(_expectedTaskType, _expectedSchemaVersion, _expectedPayloadJson); }
+            get { return LabelPayload.TuLuuTru(_expectedTaskType, _expectedSchemaVersion, _expectedPayloadJson); }
         }
 
         public GoldPurpose Purpose { get; private set; }
@@ -60,25 +60,11 @@ namespace Crowd.Project.Domain.Gold
             Guid sampleId,
             LabelPayload dapAn,
             GoldPurpose purpose,
-            LabelSchema schema,
             DateTimeOffset luc)
         {
             if (dapAn == null)
             {
                 throw new ArgumentNullException(nameof(dapAn));
-            }
-
-            if (schema == null)
-            {
-                throw new ArgumentNullException(nameof(schema));
-            }
-
-            if (!schema.LaNhanHopLe(dapAn))
-            {
-                throw new InvalidValueException(
-                    "dap_an_vang_khong_hop_le",
-                    "Dap an cua cau hoi vang phai la lop co trong tap nhan"
-                    + (schema.AllowMultiple ? "." : ", va chi mot lop."));
             }
 
             GoldItem g = new GoldItem();

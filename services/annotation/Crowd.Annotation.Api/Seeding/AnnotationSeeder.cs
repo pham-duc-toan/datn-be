@@ -54,10 +54,16 @@ namespace Crowd.Annotation.Api.Seeding
 
         public async Task ChayAsync(CancellationToken ct)
         {
-            Guid moc = KichBanSeed.Project("p1").Id;
-            if (await _db.ProjectTerms.AnyAsync(t => t.ProjectId == moc, ct))
+            // Idempotent THEO TUNG DU AN (moc: thanh vien chu du an — du an Nhap
+            // chua co project_terms). DB cu da co P1-P4 thi van them du an moi.
+            List<Guid> ids = KichBanSeed.Projects.Select(p => p.Id).ToList();
+            HashSet<Guid> daCo = new HashSet<Guid>(
+                await _db.Members.Where(m => ids.Contains(m.ProjectId)).Select(m => m.ProjectId).Distinct().ToListAsync(ct));
+
+            List<SeedProject> canTao = KichBanSeed.Projects.Where(p => !daCo.Contains(p.Id)).ToList();
+            if (canTao.Count == 0)
             {
-                _logger.LogInformation("Seed annotation: da co du lieu seed — bo qua");
+                _logger.LogInformation("Seed annotation: da du du an seed — bo qua");
                 return;
             }
 
@@ -65,8 +71,8 @@ namespace Crowd.Annotation.Api.Seeding
 
             using (IDbContextTransaction tx = await _db.Database.BeginTransactionAsync(ct))
             {
-                await PhatLaiEventAsync(bayGio, ct);
-                int soNhan = TaoNhan(bayGio);
+                await PhatLaiEventAsync(canTao, bayGio, ct);
+                int soNhan = TaoNhan(canTao, bayGio);
 
                 SeedOutbox.BoEventChuaGui(_db);
                 await _db.SaveChangesAsync(ct);
@@ -76,12 +82,12 @@ namespace Crowd.Annotation.Api.Seeding
             }
         }
 
-        private async Task PhatLaiEventAsync(DateTimeOffset bayGio, CancellationToken ct)
+        private async Task PhatLaiEventAsync(List<SeedProject> duAn, DateTimeOffset bayGio, CancellationToken ct)
         {
             MemberAddedProcessor thanhVien = new MemberAddedProcessor(_db);
             ProjectPublishedProcessor daPublish = new ProjectPublishedProcessor(_db);
 
-            foreach (SeedProject sp in KichBanSeed.Projects)
+            foreach (SeedProject sp in duAn)
             {
                 DateTimeOffset lucTao = bayGio - sp.CreatedAgo;
                 List<MemberAdded> dsThanhVien = SeedEvents.ThanhVien(sp);
@@ -103,29 +109,42 @@ namespace Crowd.Annotation.Api.Seeding
             }
         }
 
-        private int TaoNhan(DateTimeOffset bayGio)
+        private int TaoNhan(List<SeedProject> duAn, DateTimeOffset bayGio)
         {
-            List<SeedSubmission> tatCa = KichBanSeed.Projects.SelectMany(p => p.Submissions).ToList();
+            int dem = 0;
 
-            foreach (SeedSubmission s in tatCa)
+            foreach (SeedProject sp in duAn)
             {
-                LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
-                    s.AssignmentId,
-                    s.TaskId,
-                    s.ProjectId,
-                    s.SampleId,
-                    s.StorageKey,
-                    s.LabelerId,
-                    LabelPayload.PhanLoai(s.Label),
-                    bayGio - s.SubmittedAgo);
-                SeedIds.GanId(a, s.AnnotationId);
-
-                ApKetQuaDuyet(a, s, bayGio);
-
-                _db.Annotations.Add(a);
+                foreach (SeedSubmission s in sp.Submissions)
+                {
+                    TaoMotNhan(sp, s, bayGio);
+                    dem++;
+                }
             }
 
-            return tatCa.Count;
+            return dem;
+        }
+
+        private void TaoMotNhan(SeedProject sp, SeedSubmission s, DateTimeOffset bayGio)
+        {
+            SeedSample mau = sp.Mau(s.SampleId);
+
+            LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
+                s.AssignmentId,
+                s.TaskId,
+                s.ProjectId,
+                s.SampleId,
+                s.StorageKey,
+                mau.ContentJson == null ? null : RawJson.Tu(mau.ContentJson),
+                mau.Metadata.ToRawJson(),
+                s.LabelerId,
+                SeedEvents.NhanCua(sp, s),
+                bayGio - s.SubmittedAgo);
+            SeedIds.GanId(a, s.AnnotationId);
+
+            ApKetQuaDuyet(a, s, bayGio);
+
+            _db.Annotations.Add(a);
         }
 
         private static void ApKetQuaDuyet(LabelAnnotation a, SeedSubmission s, DateTimeOffset bayGio)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using Crowd.Labeling;
 
 namespace Crowd.Tasking.Api.Dtos
 {
@@ -15,20 +16,29 @@ namespace Crowd.Tasking.Api.Dtos
 
         public required Guid SampleId { get; init; }
 
-        /// <summary>Link xem anh co han vai phut (S-07).</summary>
-        public required string ImageUrl { get; init; }
+        /// <summary>Loai du lieu: image | text | audio | video | pair — frontend mo workspace tuong ung.</summary>
+        public required string Modality { get; init; }
+
+        /// <summary>Link xem / nghe file co han vai phut (S-07). null voi text / pair.</summary>
+        public string? FileUrl { get; init; }
+
+        /// <summary>Noi dung text / pair: {"text"} hoac {"prompt"?,"a","b"}. null voi du lieu file.</summary>
+        public RawJson? Content { get; init; }
 
         /// <summary>
-        /// Loai nhan + phien ban dinh dang, vd "imageClassification" v1 — cho
-        /// frontend biet mo workspace nao va nop "payload" hinh dang gi.
+        /// Metadata mau: width/height (anh, video), durationSec, segmentStart/segmentEnd
+        /// (doan cat tu file dai — player chi phat doan nay; thoi gian trong nhan
+        /// tinh tu DAU DOAN).
         /// </summary>
-        public required string TaskType { get; init; }
+        public required RawJson Metadata { get; init; }
+
+        /// <summary>
+        /// Tap nhan cua du an: danh sach cong cu (ten, loai, lop...). "payload" nop
+        /// len la object co khoa = ten cong cu, vd {"label":{"labelIds":["do"]}}.
+        /// </summary>
+        public required RawJson LabelSchema { get; init; }
 
         public required int SchemaVersion { get; init; }
-
-        public required IReadOnlyList<string> LabelClasses { get; init; }
-
-        public required bool AllowMultiple { get; init; }
 
         public required DateTimeOffset ExpiresAt { get; init; }
 
@@ -39,13 +49,11 @@ namespace Crowd.Tasking.Api.Dtos
     public sealed class SubmitRequest
     {
         /// <summary>
-        /// Phan DU LIEU cua nhan theo loai nhan cua du an. Phan loai anh:
-        /// {"labelIds":["do"]}. Loai nhan khong can gui — lay theo du an.
+        /// Phan DU LIEU cua nhan, khoa = ten cong cu trong tap nhan, vd
+        /// {"label":{"labelIds":["do"]}} hoac {"vat":[{"labelId":"xe","x":1,"y":2,"w":30,"h":20}]}.
+        /// Loai du lieu khong can gui — lay theo du an.
         /// </summary>
         public JsonElement? Payload { get; init; }
-
-        /// <summary>Phien ban dinh dang nhan. Bo trong = phien ban moi nhat.</summary>
-        public int? SchemaVersion { get; init; }
     }
 
     public sealed class SubmitResponse

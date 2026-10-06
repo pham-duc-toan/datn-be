@@ -75,7 +75,7 @@ namespace Crowd.Annotation.Api.Controllers
             return Ok(await _service.KetQuaAsync(projectId, NguoiDuyet(), ct));
         }
 
-        /// <summary>GET /annotations/projects/{projectId}/export?format=json|csv (FB-25)</summary>
+        /// <summary>GET /annotations/projects/{projectId}/export?format=json|csv|coco (FB-25)</summary>
         [HttpGet("projects/{projectId:guid}/export")]
         public async Task<IActionResult> Xuat(Guid projectId, [FromQuery] string? format, CancellationToken ct)
         {

@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Projects;
 
 namespace Crowd.Project.Api.Dtos
 {
     // Request: moi truong nullable vi client gui gi len cung duoc. Kiem tra that
     // su nam o DOMAIN (LabelingProject, LabelSchema...) — mot cho duy nhat.
-    // Enum nhan/tra dang chuoi camelCase ("imageClassification").
+    // Enum nhan/tra dang chuoi camelCase ("running").
 
     public sealed class CreateProjectRequest
     {
@@ -14,7 +15,8 @@ namespace Crowd.Project.Api.Dtos
 
         public string? Description { get; init; }
 
-        public TaskType? TaskType { get; init; }
+        /// <summary>Loai du lieu: image | text | audio | video | pair. Khong doi duoc sau khi tao.</summary>
+        public string? Modality { get; init; }
 
         public ProjectVisibility? Visibility { get; init; }
     }
@@ -26,13 +28,6 @@ namespace Crowd.Project.Api.Dtos
         public string? Description { get; init; }
 
         public ProjectVisibility? Visibility { get; init; }
-    }
-
-    public sealed class LabelSchemaRequest
-    {
-        public IReadOnlyList<string>? Classes { get; init; }
-
-        public bool AllowMultiple { get; init; }
     }
 
     public sealed class GuidelineRequest
@@ -93,13 +88,6 @@ namespace Crowd.Project.Api.Dtos
 
     // ---- Response ----
 
-    public sealed class LabelSchemaResponse
-    {
-        public required IReadOnlyList<string> Classes { get; init; }
-
-        public required bool AllowMultiple { get; init; }
-    }
-
     public sealed class GuidelineResponse
     {
         public required string Markdown { get; init; }
@@ -120,13 +108,14 @@ namespace Crowd.Project.Api.Dtos
 
         public required string Description { get; init; }
 
-        public required TaskType TaskType { get; init; }
+        public required string Modality { get; init; }
 
         public required ProjectStatus Status { get; init; }
 
         public required ProjectVisibility Visibility { get; init; }
 
-        public LabelSchemaResponse? LabelSchema { get; init; }
+        /// <summary>Tap nhan dang chuan (Crowd.Labeling): {"modality":..., "tools":[...]}. null = chua dat.</summary>
+        public RawJson? LabelSchema { get; init; }
 
         public GuidelineResponse? Guideline { get; init; }
 
@@ -176,7 +165,7 @@ namespace Crowd.Project.Api.Dtos
 
         public required string Name { get; init; }
 
-        public required TaskType TaskType { get; init; }
+        public required string Modality { get; init; }
 
         public required ProjectStatus Status { get; init; }
 

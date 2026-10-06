@@ -26,6 +26,12 @@ namespace Crowd.BuildingBlocks.Storage
 
         /// <summary>Tuoi cua link xem anh. S-07: toi da 5 phut.</summary>
         public TimeSpan LinkTtl { get; set; } = TimeSpan.FromMinutes(5);
+
+        /// <summary>
+        /// Tuoi cua link UPLOAD (PUT) phat cho chu du an. Dai hon link xem vi file
+        /// video lon can thoi gian tai len; van chi phat cho chu du an dang Nhap.
+        /// </summary>
+        public TimeSpan UploadLinkTtl { get; set; } = TimeSpan.FromHours(1);
     }
 
     /// <summary>
@@ -43,6 +49,26 @@ namespace Crowd.BuildingBlocks.Storage
         /// het han, nen han phai ngan va chi phat cho nguoi co quyen.
         /// </summary>
         Task<string> TaoLinkXemAsync(string key);
+
+        /// <summary>
+        /// Link UPLOAD co han (presigned PUT): client tai file THANG len kho, khong
+        /// di qua service — video vai GB khong lam nghen service.
+        /// </summary>
+        Task<string> TaoLinkTaiLenAsync(string key);
+
+        /// <summary>Thong tin file; null neu khong ton tai.</summary>
+        Task<ThongTinFile?> ThongTinAsync(string key, CancellationToken ct);
+
+        /// <summary>Mo luong doc file — nguoi goi Dispose. Doc tung khuc, khong nap ca file vao RAM.</summary>
+        Task<Stream> MoDocAsync(string key, CancellationToken ct);
+    }
+
+    /// <summary>Thong tin co ban cua mot file trong kho.</summary>
+    public sealed class ThongTinFile
+    {
+        public required long SizeBytes { get; init; }
+
+        public string? ContentType { get; init; }
     }
 
     /// <summary>
@@ -120,6 +146,43 @@ namespace Crowd.BuildingBlocks.Storage
             }
 
             return _client.GetPreSignedURLAsync(yeuCau);
+        }
+
+        public Task<string> TaoLinkTaiLenAsync(string key)
+        {
+            GetPreSignedUrlRequest yeuCau = new GetPreSignedUrlRequest();
+            yeuCau.BucketName = _options.Bucket;
+            yeuCau.Key = key;
+            yeuCau.Verb = HttpVerb.PUT;
+            yeuCau.Expires = DateTime.UtcNow.Add(_options.UploadLinkTtl);
+
+            // KHONG ky kem Content-Type: client (curl, trinh duyet) gui header nao
+            // cung duoc. Loai file that duoc worker kiem lai bang noi dung.
+            if (_options.ServiceUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            {
+                yeuCau.Protocol = Protocol.HTTP;
+            }
+
+            return _client.GetPreSignedURLAsync(yeuCau);
+        }
+
+        public async Task<ThongTinFile?> ThongTinAsync(string key, CancellationToken ct)
+        {
+            try
+            {
+                GetObjectMetadataResponse r = await _client.GetObjectMetadataAsync(_options.Bucket, key, ct).ConfigureAwait(false);
+                return new ThongTinFile { SizeBytes = r.ContentLength, ContentType = r.Headers.ContentType };
+            }
+            catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+        }
+
+        public async Task<Stream> MoDocAsync(string key, CancellationToken ct)
+        {
+            GetObjectResponse r = await _client.GetObjectAsync(_options.Bucket, key, ct).ConfigureAwait(false);
+            return r.ResponseStream;
         }
 
         public void Dispose()

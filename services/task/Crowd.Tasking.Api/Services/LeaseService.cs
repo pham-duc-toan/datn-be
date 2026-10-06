@@ -197,7 +197,7 @@ namespace Crowd.Tasking.Api.Services
         /// dong phai cho — nen "het han" va "nop" khong the cung thanh cong.
         /// </summary>
         public async Task<SubmitResponse> NopAsync(
-            Guid assignmentId, JsonElement? duLieuNhan, int? schemaVersion, Caller caller, CancellationToken ct)
+            Guid assignmentId, JsonElement? duLieuNhan, Caller caller, CancellationToken ct)
         {
             Guid labelerId = caller.LayUserId();
 
@@ -218,25 +218,18 @@ namespace Crowd.Tasking.Api.Services
                     throw new InvalidValueException("thieu_nhan", "Can truong \"payload\" chua nhan.");
                 }
 
-                // Loai nhan do DU AN quyet dinh (ban sao tu project.published); client
-                // chi gui phan du lieu. Sai dinh dang → LabelFormatException → 400.
-                string loaiNhan = duAn.LabelTaskType;
-                LabelPayload nhan = LabelPayload.Tao(
-                    loaiNhan,
-                    schemaVersion ?? LabelFormats.PhienBanMoiNhat(loaiNhan),
-                    duLieuNhan.Value);
-
-                if (!duAn.LaNhanHopLe(nhan))
+                if (duAn.LabelSchema == null)
                 {
-                    throw new InvalidValueException(
-                        "nhan_khong_hop_le",
-                        duAn.AllowMultiple
-                            ? "Nhan phai la cac lop co trong du an, khong lap lai."
-                            : "Phai chon DUNG MOT lop co trong du an.");
+                    throw new RuleViolationException("du_an_chua_san_sang", "Du an chua co tap nhan.");
                 }
 
                 List<LabelingTask> khoa = await TaskQueries.KhoaTaskAsync(_db, new[] { a.TaskId }, ct);
                 LabelingTask task = khoa[0];
+
+                // Kiem theo TAP NHAN cua du an (ban sao tu project.published) va
+                // metadata MAU (khung trong anh, doan thoi gian trong doan audio).
+                // Sai → LabelFormatException → 400, luot lease van giu de sua va nop lai.
+                LabelPayload nhan = LabelPayload.Tao(duAn.LabelSchema, duLieuNhan.Value, SampleMetadata.Tu(task.Metadata));
 
                 DateTimeOffset bayGio = _clock.GetUtcNow();
                 bool vuaDu = a.Nop(task, nhan, bayGio);
@@ -248,6 +241,8 @@ namespace Crowd.Tasking.Api.Services
                     ProjectId = a.ProjectId,
                     SampleId = a.SampleId,
                     StorageKey = task.StorageKey,
+                    SampleContent = task.Content,
+                    SampleMetadata = task.Metadata,
                     LabelerId = a.LabelerId,
                     LabelPayload = nhan,
                     LeasedAt = a.LeasedAt,
@@ -417,11 +412,12 @@ namespace Crowd.Tasking.Api.Services
                 ProjectId = a.ProjectId,
                 TaskId = a.TaskId,
                 SampleId = a.SampleId,
-                ImageUrl = await _storage.TaoLinkXemAsync(t.StorageKey),
-                TaskType = p.LabelTaskType,
-                SchemaVersion = LabelFormats.PhienBanMoiNhat(p.LabelTaskType),
-                LabelClasses = p.LabelClasses,
-                AllowMultiple = p.AllowMultiple,
+                Modality = t.Modality,
+                FileUrl = t.StorageKey == null ? null : await _storage.TaoLinkXemAsync(t.StorageKey),
+                Content = t.Content,
+                Metadata = t.Metadata,
+                LabelSchema = p.LabelSchema!.ToRawJson(),
+                SchemaVersion = LabelPayload.PhienBanHienTai,
                 ExpiresAt = a.ExpiresAt,
                 UnitPriceVnd = p.UnitPriceVnd,
             };

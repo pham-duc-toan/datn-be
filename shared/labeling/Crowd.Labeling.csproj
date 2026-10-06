@@ -3,12 +3,26 @@
   <!-- DINH DANG NHAN dung chung — "ngon ngu chung" ve nhan giua project-svc,
        task-svc, annotation-svc va hop dong event.
 
-       Moi nhan duoc luu thanh (loai nhan, phien ban, JSON). Database chi biet
-       mot cot jsonb; HINH DANG JSON cua tung loai (phan loai, bounding box,
-       NER...) va cach kiem / so dap an nam o day. Them loai nhan moi = them mot
-       lop dinh dang o day, KHONG doi bang.
+       Mo hinh: LOAI DU LIEU (image, text, audio, video, pair) x CONG CU gan nhan
+       (classification, bbox, polygon, span, transcription, temporalSegment,
+       pairwise). Tap nhan cua du an = mot loai du lieu + danh sach cong cu.
 
-       Khong phu thuoc gi ngoai thu vien chuan: domain cua ba service tham chieu
-       duoc ma khong keo theo EF, ASP.NET hay RabbitMQ. -->
+       Hai lop kiem:
+         1. HINH DANG bang JSON Schema — file goc o contracts/labeling, nhung vao
+            assembly duoi dang tai nguyen. Python (quality-svc) doc CUNG file.
+         2. NGU NGHIA bang code — khung nam trong anh, doan van nam trong van ban,
+            lop co trong tap nhan...
+
+       Them cong cu moi = them mot file schema + mot lop IToolKind. KHONG doi
+       bang, KHONG doi event. -->
+
+  <ItemGroup>
+    <PackageReference Include="JsonSchema.Net" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\contracts\labeling\label-schema.schema.json" LogicalName="schemas/label-schema.schema.json" />
+    <EmbeddedResource Include="..\..\contracts\labeling\tools\*.result.schema.json" LogicalName="schemas/tools/%(Filename)%(Extension)" />
+  </ItemGroup>
 
 </Project>

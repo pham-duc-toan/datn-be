@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu span (NER)",
+  "description": "Danh sach doan van ban, vi tri tinh theo KY TU, [start, end) - end khong tinh. Vd [{\"labelId\":\"TEN_NGUOI\",\"start\":0,\"end\":12}]",
+  "type": "array",
+  "maxItems": 1000,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["labelId", "start", "end"],
+    "properties": {
+      "labelId": { "type": "string", "minLength": 1, "maxLength": 50 },
+      "start": { "type": "integer", "minimum": 0 },
+      "end": { "type": "integer", "minimum": 1 }
+    }
+  }
+}

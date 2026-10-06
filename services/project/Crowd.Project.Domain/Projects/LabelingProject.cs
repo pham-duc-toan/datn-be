@@ -31,6 +31,7 @@ namespace Crowd.Project.Domain.Projects
         /// <summary>EF Core dung constructor nay de dung lai doi tuong tu database.</summary>
         private LabelingProject()
         {
+            Modality = string.Empty;
             Name = string.Empty;
             Description = string.Empty;
         }
@@ -44,33 +45,21 @@ namespace Crowd.Project.Domain.Projects
 
         public string Description { get; private set; }
 
-        public TaskType TaskType { get; private set; }
-
         /// <summary>
-        /// Ten loai nhan cua du an trong dinh dang nhan chung (Crowd.Labeling) —
-        /// nhan va dap an cua du an nay deu mang loai nay.
+        /// LOAI DU LIEU cua du an: image | text | audio | video | pair
+        /// (Crowd.Labeling.Modalities). Moi mau cua du an deu thuoc loai nay; nhan
+        /// va dap an mang loai nay. Chon luc tao, khong doi duoc.
         /// </summary>
-        public string LabelTaskType
-        {
-            get
-            {
-                switch (TaskType)
-                {
-                    case TaskType.ImageClassification:
-                        return LabelTaskTypes.ImageClassification;
-                    default:
-                        throw new InvalidValueException(
-                            "loai_bai_toan_chua_ho_tro",
-                            "Chua co dinh dang nhan cho loai bai toan " + TaskType + ".");
-                }
-            }
-        }
+        public string Modality { get; private set; }
 
         public ProjectStatus Status { get; private set; }
 
         public ProjectVisibility Visibility { get; private set; }
 
-        /// <summary>null = chua dinh nghia tap nhan.</summary>
+        /// <summary>
+        /// Tap nhan: danh sach cong cu (classification, bbox, span, transcription...)
+        /// cho loai du lieu cua du an — xem Crowd.Labeling.LabelSchema. null = chua dinh nghia.
+        /// </summary>
         public LabelSchema? LabelSchema { get; private set; }
 
         /// <summary>null = chua viet huong dan.</summary>
@@ -150,7 +139,7 @@ namespace Crowd.Project.Domain.Projects
             Guid ownerId,
             string name,
             string? description,
-            TaskType taskType,
+            string modality,
             ProjectVisibility visibility,
             DateTimeOffset luc)
         {
@@ -159,20 +148,18 @@ namespace Crowd.Project.Domain.Projects
                 throw new InvalidValueException("owner_rong", "Thieu chu so huu.");
             }
 
-            // Hien chi ho tro phan loai anh: dataset nhan ZIP anh, schema la danh
-            // sach lop. Loai khac can workspace va dinh dang nhan rieng (P6).
-            if (taskType != TaskType.ImageClassification)
+            if (!Modalities.HopLe(modality))
             {
                 throw new InvalidValueException(
-                    "loai_bai_toan_chua_ho_tro",
-                    "Hien chi ho tro bai toan phan loai anh.");
+                    "loai_du_lieu_khong_hop_le",
+                    "Loai du lieu phai la mot trong: " + string.Join(", ", Modalities.TatCa) + ".");
             }
 
             LabelingProject duAn = new LabelingProject();
 
             duAn.Id = Guid.CreateVersion7();
             duAn.OwnerId = ownerId;
-            duAn.TaskType = taskType;
+            duAn.Modality = modality;
             duAn.Status = ProjectStatus.Draft;
             duAn.CreatedAt = luc;
             duAn.GanThongTin(name, description, visibility, luc);
@@ -199,6 +186,14 @@ namespace Crowd.Project.Domain.Projects
             }
 
             ChiKhiNhap("doi tap nhan");
+
+            // Tap nhan cho anh khong dung duoc cho du an am thanh.
+            if (schema.Modality != Modality)
+            {
+                throw new InvalidValueException(
+                    "loai_du_lieu_khong_khop",
+                    "Tap nhan danh cho du lieu " + schema.Modality + ", du an la du lieu " + Modality + ".");
+            }
 
             LabelSchema = schema;
             UpdatedAt = luc;
@@ -383,7 +378,22 @@ namespace Crowd.Project.Domain.Projects
         /// </summary>
         public IReadOnlyList<string> NhungGiConThieu(int soMau, int soCauVangChoTest, int phanTramPhi, DateTimeOffset luc)
         {
+            return NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, false, luc);
+        }
+
+        /// <summary>
+        /// coDuLieuDangXuLy: con lo du lieu (manifest) dang duoc worker xu ly —
+        /// chua biet het so mau nen chua tinh duoc ky quy, khong cho publish.
+        /// </summary>
+        public IReadOnlyList<string> NhungGiConThieu(
+            int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, DateTimeOffset luc)
+        {
             List<string> thieu = new List<string>();
+
+            if (coDuLieuDangXuLy)
+            {
+                thieu.Add("du_lieu_dang_xu_ly");
+            }
 
             if (LabelSchema == null)
             {
@@ -431,6 +441,11 @@ namespace Crowd.Project.Domain.Projects
         /// </summary>
         public void YeuCauPublish(int soMau, int soCauVangChoTest, int phanTramPhi, DateTimeOffset luc)
         {
+            YeuCauPublish(soMau, soCauVangChoTest, phanTramPhi, false, luc);
+        }
+
+        public void YeuCauPublish(int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, DateTimeOffset luc)
+        {
             ChiKhiNhap("publish");
 
             if (phanTramPhi < 0 || phanTramPhi > 100)
@@ -438,7 +453,7 @@ namespace Crowd.Project.Domain.Projects
                 throw new InvalidValueException("phi_khong_hop_le", "Phi nen tang phai tu 0 den 100%.");
             }
 
-            IReadOnlyList<string> thieu = NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, luc);
+            IReadOnlyList<string> thieu = NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, luc);
             if (thieu.Count > 0)
             {
                 throw new RuleViolationException(

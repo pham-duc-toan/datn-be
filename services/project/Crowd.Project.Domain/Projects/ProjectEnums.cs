@@ -33,21 +33,6 @@ namespace Crowd.Project.Domain.Projects
         Cancelled,
     }
 
-    /// <summary>Loai bai toan — muc 2.2 dac ta.</summary>
-    public enum TaskType
-    {
-        ImageClassification,
-        BoundingBox,
-        Segmentation,
-        TextClassification,
-        NamedEntityRecognition,
-        Sentiment,
-        PairwiseComparison,
-        AudioTranscription,
-        VideoTracking,
-        LlmResponseComparison,
-    }
-
     public enum ProjectVisibility
     {
         /// <summary>Moi labeler du dieu kien deu thay va tham gia duoc.</summary>

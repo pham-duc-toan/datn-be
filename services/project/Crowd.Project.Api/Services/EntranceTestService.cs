@@ -10,6 +10,7 @@ using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
 using Crowd.Project.Api.Exceptions;
 using Crowd.Project.Domain.Common;
+using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.EntranceTests;
 using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
@@ -108,17 +109,23 @@ namespace Crowd.Project.Api.Services
             _db.EntranceAttempts.Add(lanMoi);
             await _db.SaveChangesAsync(ct);
 
-            Dictionary<Guid, string> khoa = await _db.Samples
+            Dictionary<Guid, Sample> mau = await _db.Samples
+                .AsNoTracking()
                 .Where(s => cauHoi.Contains(s.Id))
-                .ToDictionaryAsync(s => s.Id, s => s.StorageKey, ct);
+                .ToDictionaryAsync(s => s.Id, ct);
 
+            // Cau hoi hien thi giong het mot task that: file (link ky san) hoac
+            // noi dung (van ban / cap), kem metadata (kich thuoc, doan thoi gian).
             List<EntranceQuestion> ds = new List<EntranceQuestion>();
             foreach (Guid id in lanMoi.QuestionSampleIds)
             {
+                Sample s = mau[id];
                 ds.Add(new EntranceQuestion
                 {
                     SampleId = id,
-                    ImageUrl = await _storage.TaoLinkXemAsync(khoa[id]),
+                    FileUrl = s.StorageKey == null ? null : await _storage.TaoLinkXemAsync(s.StorageKey),
+                    Content = s.Content,
+                    Metadata = s.Metadata,
                 });
             }
 
@@ -126,10 +133,8 @@ namespace Crowd.Project.Api.Services
             {
                 AttemptId = lanMoi.Id,
                 ExpiresAt = lanMoi.ExpiresAt,
-                TaskType = duAn.LabelTaskType,
-                SchemaVersion = LabelFormats.PhienBanMoiNhat(duAn.LabelTaskType),
-                LabelClasses = duAn.LabelSchema!.Classes,
-                AllowMultiple = duAn.LabelSchema.AllowMultiple,
+                LabelSchema = duAn.LabelSchema!.ToRawJson(),
+                SchemaVersion = LabelPayload.PhienBanHienTai,
                 Questions = ds,
             };
         }
@@ -168,25 +173,30 @@ namespace Crowd.Project.Api.Services
                 dapAn[g.SampleId] = g.ExpectedPayload;
             }
 
-            // Cau tra loi doc theo loai nhan cua DU AN, phien ban moi nhat. Sai
-            // dinh dang → LabelFormatException → 400, bai test chua bi tinh la da nop.
-            string loaiNhan = duAn.LabelTaskType;
-            int phienBan = LabelFormats.PhienBanMoiNhat(loaiNhan);
+            Dictionary<Guid, RawJson> metadataMau = await _db.Samples
+                .AsNoTracking()
+                .Where(s => cauHoi.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, s => s.Metadata, ct);
+
+            // Cau tra loi doc theo TAP NHAN cua du an. Sai dinh dang → LabelFormatException
+            // → 400, bai test chua bi tinh la da nop. Cau tra loi cho mau ngoai bai → bo qua.
+            LabelSchema tapNhan = duAn.LabelSchema!;
 
             Dictionary<Guid, LabelPayload> traLoi = new Dictionary<Guid, LabelPayload>();
             if (body.Answers != null)
             {
                 foreach (EntranceAnswer a in body.Answers)
                 {
-                    if (a.SampleId.HasValue && a.Payload.HasValue)
+                    RawJson? md;
+                    if (a.SampleId.HasValue && a.Payload.HasValue && metadataMau.TryGetValue(a.SampleId.Value, out md))
                     {
-                        traLoi[a.SampleId.Value] = LabelPayload.Tao(loaiNhan, phienBan, a.Payload.Value);
+                        traLoi[a.SampleId.Value] = LabelPayload.Tao(tapNhan, a.Payload.Value, SampleMetadata.Tu(md));
                     }
                 }
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            bool dau = lan.Nop(traLoi, dapAn, duAn.EntrancePassPercent, bayGio);
+            bool dau = lan.Nop(traLoi, dapAn, tapNhan, duAn.EntrancePassPercent, bayGio);
 
             int soLanDaLam = await _db.EntranceAttempts.CountAsync(a => a.ProjectId == projectId && a.UserId == userId, ct);
             bool vuaThamGia = false;

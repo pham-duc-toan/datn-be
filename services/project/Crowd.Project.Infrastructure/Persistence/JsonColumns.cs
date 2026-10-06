@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using Crowd.Labeling;
 using Crowd.Project.Domain.Projects;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Crowd.Project.Infrastructure.Persistence
 {
@@ -18,6 +20,19 @@ namespace Crowd.Project.Infrastructure.Persistence
     /// </summary>
     public static class JsonColumns
     {
+        /// <summary>RawJson (khoi JSON bat bien) &lt;-&gt; cot jsonb.</summary>
+        public static readonly ValueConverter<RawJson, string> RawJsonCot = new ValueConverter<RawJson, string>(
+            v => v.Json,
+            s => RawJson.Tu(s));
+
+        /// <summary>
+        /// Ban cho cot cho phep NULL. EF khong goi converter voi null (cot null thi
+        /// EF tu ghi NULL), nen "v!" an toan.
+        /// </summary>
+        public static readonly ValueConverter<RawJson?, string> RawJsonCotNull = new ValueConverter<RawJson?, string>(
+            v => v!.Json,
+            s => RawJson.Tu(s));
+
         private static readonly JsonSerializerOptions Options = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -34,22 +49,15 @@ namespace Crowd.Project.Infrastructure.Persistence
                 throw new ArgumentNullException(nameof(schema));
             }
 
-            LabelSchemaJson dto = new LabelSchemaJson();
-            dto.Kind = "classification";
-            dto.Classes = new List<string>(schema.Classes);
-            dto.AllowMultiple = schema.AllowMultiple;
-            return JsonSerializer.Serialize(dto, Options);
+            // Dang CHUAN cua Crowd.Labeling: cung khoi JSON nay duoc chep sang
+            // task-svc / annotation-svc qua project.published.
+            return schema.ToRawJson().Json;
         }
 
         public static LabelSchema DocLabelSchema(string json)
         {
-            LabelSchemaJson? dto = JsonSerializer.Deserialize<LabelSchemaJson>(json, Options);
-            if (dto == null || dto.Classes == null)
-            {
-                throw new InvalidOperationException("Cot label_schema hong: " + json);
-            }
-
-            return LabelSchema.TaoPhanLoai(dto.Classes, dto.AllowMultiple);
+            // Doc lai cung qua dung cua kiem (JSON Schema + ngu nghia) nhu luc tao.
+            return LabelSchema.Doc(json);
         }
 
         public static string VietGuideline(Guideline? guideline)
@@ -97,16 +105,6 @@ namespace Crowd.Project.Infrastructure.Persistence
         }
 
         // ---- Hinh dang luu tru. Setter public vi System.Text.Json can. ----
-
-        private sealed class LabelSchemaJson
-        {
-            /// <summary>Loai schema — de sau nay them bounding box, NER... ma khong vo du lieu cu.</summary>
-            public string? Kind { get; set; }
-
-            public List<string>? Classes { get; set; }
-
-            public bool AllowMultiple { get; set; }
-        }
 
         private sealed class GuidelineJson
         {

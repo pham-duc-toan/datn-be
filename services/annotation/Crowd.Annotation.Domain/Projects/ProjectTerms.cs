@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using Crowd.Labeling;
 
 namespace Crowd.Annotation.Domain.Projects
 {
@@ -13,11 +13,15 @@ namespace Crowd.Annotation.Domain.Projects
     /// </summary>
     public sealed class ProjectTerms
     {
-        private List<string> _labelClasses;
+        // Tap nhan dang chuan (Crowd.Labeling) — cot jsonb. Doc thanh LabelSchema
+        // mot lan roi giu lai.
+        private string _labelSchemaJson;
+        private LabelSchema? _labelSchema;
 
         private ProjectTerms()
         {
-            _labelClasses = new List<string>();
+            Modality = string.Empty;
+            _labelSchemaJson = string.Empty;
         }
 
         public Guid ProjectId { get; private set; }
@@ -30,11 +34,21 @@ namespace Crowd.Annotation.Domain.Projects
         /// <summary>Phi nen tang moi nhan, da chot luc publish (VD-M-15).</summary>
         public long PlatformFeeVnd { get; private set; }
 
-        public bool AllowMultiple { get; private set; }
+        /// <summary>Loai du lieu (image / text / audio / video / pair).</summary>
+        public string Modality { get; private set; }
 
-        public IReadOnlyList<string> LabelClasses
+        /// <summary>Tap nhan — de gop ket qua theo tung cong cu va xuat file (COCO...).</summary>
+        public LabelSchema LabelSchema
         {
-            get { return _labelClasses; }
+            get
+            {
+                if (_labelSchema == null)
+                {
+                    _labelSchema = LabelSchema.Doc(_labelSchemaJson);
+                }
+
+                return _labelSchema;
+            }
         }
 
         public static ProjectTerms Tao(
@@ -42,12 +56,11 @@ namespace Crowd.Annotation.Domain.Projects
             Guid ownerId,
             long unitPriceVnd,
             long platformFeeVnd,
-            bool allowMultiple,
-            IReadOnlyList<string> labelClasses)
+            LabelSchema labelSchema)
         {
-            if (labelClasses == null)
+            if (labelSchema == null)
             {
-                throw new ArgumentNullException(nameof(labelClasses));
+                throw new ArgumentNullException(nameof(labelSchema));
             }
 
             ProjectTerms t = new ProjectTerms();
@@ -55,8 +68,9 @@ namespace Crowd.Annotation.Domain.Projects
             t.OwnerId = ownerId;
             t.UnitPriceVnd = unitPriceVnd;
             t.PlatformFeeVnd = platformFeeVnd;
-            t.AllowMultiple = allowMultiple;
-            t._labelClasses = new List<string>(labelClasses);
+            t.Modality = labelSchema.Modality;
+            t._labelSchemaJson = labelSchema.ToRawJson().Json;
+            t._labelSchema = labelSchema;
             return t;
         }
     }

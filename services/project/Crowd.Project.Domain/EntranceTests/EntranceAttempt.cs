@@ -101,6 +101,7 @@ namespace Crowd.Project.Domain.EntranceTests
         public bool Nop(
             IReadOnlyDictionary<Guid, LabelPayload> traLoi,
             IReadOnlyDictionary<Guid, LabelPayload> dapAn,
+            LabelSchema tapNhan,
             int nguongPhanTram,
             DateTimeOffset luc)
         {
@@ -112,6 +113,11 @@ namespace Crowd.Project.Domain.EntranceTests
             if (dapAn == null)
             {
                 throw new ArgumentNullException(nameof(dapAn));
+            }
+
+            if (tapNhan == null)
+            {
+                throw new ArgumentNullException(nameof(tapNhan));
             }
 
             if (SubmittedAt != null)
@@ -140,9 +146,9 @@ namespace Crowd.Project.Domain.EntranceTests
                     continue;
                 }
 
-                // "Khop" do DINH DANG nhan quyet dinh: phan loai so tap lop,
-                // bounding box sau nay so do chong lap.
-                if (cuaLabeler.KhopDapAn(dung))
+                // "Khop" do tung CONG CU quyet dinh: phan loai so tap lop, bbox so
+                // IoU, transcription so ti le loi ky tu... (Crowd.Labeling).
+                if (cuaLabeler.KhopDapAn(tapNhan, dung))
                 {
                     soCauDung = soCauDung + 1;
                 }

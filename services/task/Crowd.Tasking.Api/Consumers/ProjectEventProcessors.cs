@@ -37,22 +37,6 @@ namespace Crowd.Tasking.Api.Consumers
 
             return s;
         }
-
-        /// <summary>
-        /// Loai bai toan trong hop dong → ten loai nhan (Crowd.Labeling). Loai chua
-        /// co dinh dang thi NEM LOI: message vao DLQ cho nguoi xem, khong am tham
-        /// mo du an ma labeler nop gi cung bi tu choi.
-        /// </summary>
-        public static string LoaiNhanCua(ProjectTaskType loai)
-        {
-            switch (loai)
-            {
-                case ProjectTaskType.ImageClassification:
-                    return LabelTaskTypes.ImageClassification;
-                default:
-                    throw new InvalidOperationException("Chua co dinh dang nhan cho loai bai toan " + loai + ".");
-            }
-        }
     }
 
     /// <summary>
@@ -105,7 +89,7 @@ namespace Crowd.Tasking.Api.Consumers
                     continue;
                 }
 
-                LabelingTask t = LabelingTask.Tao(p.ProjectId, s.SampleId, s.StorageKey, redundancy, bayGio);
+                LabelingTask t = LabelingTask.Tao(p.ProjectId, s.SampleId, s.Modality, s.StorageKey, s.Content, s.Metadata, redundancy, bayGio);
                 t.LoaiTruVi(vang.Contains(s.SampleId));
                 _db.Tasks.Add(t);
             }
@@ -135,11 +119,12 @@ namespace Crowd.Tasking.Api.Consumers
             ProjectPublished p = envelope.Payload;
             ProjectSnapshot duAn = await Snapshots.LayHoacTaoAsync(_db, p.ProjectId, ct);
 
+            // Tap nhan doc qua dung cua kiem cua Crowd.Labeling: phien ban hop dong
+            // la hay hong thi NEM LOI → message vao DLQ cho nguoi xem, khong am tham
+            // mo du an ma labeler nop gi cung bi tu choi.
             duAn.ApDungPublished(
                 p.OwnerId,
-                Snapshots.LoaiNhanCua(p.TaskType),
-                p.LabelClasses,
-                p.AllowMultipleLabels,
+                LabelSchema.Doc(p.LabelSchema),
                 p.UnitPriceVnd,
                 p.Redundancy,
                 p.Deadline,

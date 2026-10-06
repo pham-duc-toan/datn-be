@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu pairwise",
+  "description": "Chon ben tot hon trong cap (a, b). Vd {\"choice\": \"a\"}",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["choice"],
+  "properties": {
+    "choice": { "enum": ["a", "b", "tie"] }
+  }
+}

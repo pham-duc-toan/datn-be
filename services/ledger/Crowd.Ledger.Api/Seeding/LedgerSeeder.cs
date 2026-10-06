@@ -92,10 +92,16 @@ namespace Crowd.Ledger.Api.Seeding
 
         public async Task ChayAsync(CancellationToken ct)
         {
-            Guid moc = KichBanSeed.Project("p1").Id;
-            if (await _db.Escrows.AnyAsync(e => e.ProjectId == moc, ct))
+            // Idempotent THEO TUNG DU AN: du an da co ky quy thi bo qua ca chuoi
+            // (ky quy → redundancy → chi tra) cua no. DB cu da co P1-P4 thi van
+            // them du an moi cua kich ban. Nap tien tu idempotent theo IntentId.
+            List<Guid> ids = KichBanSeed.Projects.Select(p => p.Id).ToList();
+            HashSet<Guid> daCo = new HashSet<Guid>(
+                await _db.Escrows.Where(e => ids.Contains(e.ProjectId)).Select(e => e.ProjectId).ToListAsync(ct));
+
+            if (KichBanSeed.Projects.Where(p => p.DaKyQuy).All(p => daCo.Contains(p.Id)))
             {
-                _logger.LogInformation("Seed ledger: da co du lieu seed — bo qua");
+                _logger.LogInformation("Seed ledger: da du du an seed — bo qua");
                 return;
             }
 
@@ -115,7 +121,7 @@ namespace Crowd.Ledger.Api.Seeding
 
                 // ---- 2. Ky quy, theo thu tu thoi gian ----
                 List<SeedProject> daKyQuy = KichBanSeed.Projects
-                    .Where(p => p.DaKyQuy)
+                    .Where(p => p.DaKyQuy && !daCo.Contains(p.Id))
                     .OrderBy(p => p.LucKyQuy(bayGio))
                     .ToList();
 

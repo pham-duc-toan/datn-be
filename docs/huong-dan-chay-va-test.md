@@ -49,6 +49,7 @@ curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/j
 | Git Bash | có sẵn khi cài Git | Các lệnh trong tài liệu viết cho bash |
 | curl | có sẵn trong Git Bash | Trong **PowerShell 5.1**, `curl` là alias của `Invoke-WebRequest` nên phải gõ `curl.exe` |
 | Python 3 | tùy chọn | Chỉ dùng cho mục 6.11 (tạo file ZIP ảnh) |
+| FFmpeg (ffprobe) | tùy chọn | Đo thời lượng / kích thước audio, video khi nạp (mục 6.14). Windows: `winget install Gyan.FFmpeg`, mở terminal mới để có trong PATH. Không có thì manifest audio/video phải khai `durationSec` |
 
 ---
 
@@ -90,14 +91,14 @@ Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledge
 
 ```text
 Seed identity: tao 7 tai khoan, mat khau chung 'Matkhau@123'
-Seed project: tao 4 du an, 23 anh mau
-Seed task: 4 du an, 23 task, 8 luot da nop
-Seed annotation: tao 8 nhan
-Seed ledger: 3 ky quy, 4 lan chi tra, 3 khoan treo da giai phong
+Seed project: tao 7 du an, 34 mau
+Seed task: 7 du an, 34 task, 14 luot da nop
+Seed annotation: tao 14 nhan
+Seed ledger: 6 ky quy, 7 lan chi tra, 6 khoan treo da giai phong
 Seed payment: tao 2 lenh nap
 ```
 
-Từ lần chạy thứ hai, log sẽ là `Seed ...: da co du lieu seed — bo qua`.
+Từ lần chạy thứ hai, log sẽ là `Seed ...: da co du lieu seed — bo qua` (identity, payment) hoặc `da du du an seed — bo qua` (project, task, annotation, ledger). DB cũ chỉ có P1–P4 thì lần chạy đầu sau khi cập nhật code sẽ seed thêm P5–P7.
 
 Nếu muốn bật cả 7 service trong **một** terminal Git Bash (log ghi ra thư mục `logs/`):
 
@@ -141,7 +142,7 @@ tài khoản   dự án, ảnh   task,      nhãn +          ký quỹ,     lệ
 - **Seed không phát event nào ra RabbitMQ.** Code nghiệp vụ có xếp event vào outbox, nhưng seeder gỡ các event đó trước khi lưu (`SeedOutbox.BoEventChuaGui`), vì service nào cũng đã tự seed phần của mình.
 - **Ledger seed bằng "đồng hồ lùi về quá khứ"** (`DongHoCoDinh`). Nhãn được duyệt 4 ngày trước thì khoản treo đã hết hạn, nên labeler rút được tiền ngay.
 - **Chỉ chạy khi môi trường là `Development` và `Seed:Enabled = true`** ([`SeedSwitch`](../shared/seeding/SeedHelpers.cs)). Ở production, quên tắt cờ cũng không seed được.
-- **Chạy lại an toàn:** nếu đã có bản ghi mốc (ví dụ dự án P1) thì service bỏ qua.
+- **Chạy lại an toàn, theo từng dự án:** dự án nào đã có thì bỏ qua, dự án mới thêm vào kịch bản thì được seed thêm. Ví dụ DB cũ đã có P1–P4 thì lần chạy sau chỉ thêm P5–P7.
 - [shared/test/seeding-tests](../shared/test/seeding-tests/KichBanSeedTests.cs) kiểm kịch bản đúng luật: ngân sách ≥ ký quỹ tối thiểu, không vượt redundancy, reviewer không tự duyệt, khiếu nại còn trong hạn…
 
 ### 4.2 Tài khoản (mật khẩu chung `Matkhau@123`)
@@ -149,10 +150,10 @@ tài khoản   dự án, ảnh   task,      nhãn +          ký quỹ,     lệ
 | Key | Email | ID | Vai trò | Dùng để test |
 |---|---|---|---|---|
 | admin | `admin@crowd.local` | `e142c9aa-4f06-542c-9ac7-7c9bbaa6f65a` | admin | Duyệt dự án, phân xử khiếu nại, đối soát |
-| biz1 | `doanhnghiep1@crowd.local` | `37665dec-c58e-5c8f-a244-476f27222311` | business | Chủ 4 dự án, đã nạp 2.000.000đ |
+| biz1 | `doanhnghiep1@crowd.local` | `37665dec-c58e-5c8f-a244-476f27222311` | business | Chủ 7 dự án, đã nạp 2.000.000đ |
 | biz2 | `doanhnghiep2@crowd.local` | `d3b5a5c5-0232-5935-9e4a-55812983f1a6` | business | **Chưa có tiền**, có một lệnh nạp 1.000.000đ chưa trả |
-| lab1 | `labeler1@crowd.local` | `1f5e19a7-9f58-589b-8c74-45334ff35d05` | labeler | Có **60.000đ rút được ngay**, 2 nhãn chờ duyệt |
-| lab2 | `labeler2@crowd.local` | `0398f264-d694-5176-9614-844201175b74` | labeler | 1 nhãn được duyệt, 1 bị từ chối, 1 đang khiếu nại |
+| lab1 | `labeler1@crowd.local` | `1f5e19a7-9f58-589b-8c74-45334ff35d05` | labeler | Có **63.000đ rút được ngay**, 2 nhãn P1 chờ duyệt. Thành viên P1, P5, P6, P7 |
+| lab2 | `labeler2@crowd.local` | `0398f264-d694-5176-9614-844201175b74` | labeler | Ở P1: 1 nhãn được duyệt, 1 bị từ chối, 1 đang khiếu nại. Thành viên P1, P5, P7 |
 | lab3 | `labeler3@crowd.local` | `14299c5f-f7c3-5075-b65a-cd4fbc2aa194` | labeler | Chưa vào dự án nào, dùng để test tham gia và bài test đầu vào |
 | rev1 | `reviewer1@crowd.local` | `0d352aaf-338d-5930-8bd7-e737a04e3ba3` | labeler (**reviewer của P1**) | Duyệt nhãn với tư cách reviewer |
 
@@ -167,7 +168,17 @@ tài khoản   dự án, ảnh   task,      nhãn +          ký quỹ,     lệ
 | **P3** | `32cdcbe6-837a-5c7c-929d-607db130deba` | `draft` | 4 | 15.000 | 2 | 200.000 | Đã cấu hình đủ, `readiness` = ready. Dùng để test saga publish |
 | **P4** | `2fde6d4c-ee31-57ae-8632-b2e6e0721217` | `running` | 7 | 30.000 | 1 | 300.000 | **Bắt buộc test đầu vào**: 3 câu, đậu khi đúng ≥ 60%. Ảnh 5–7 là câu hỏi test |
 
-Mọi dự án dùng tập nhãn `do`, `xanh_la`, `xanh_duong`, `vang`. Ảnh mẫu là PNG một màu 256×256 có viền sáng, nên nhìn ảnh là biết đáp án đúng. Phí nền tảng chốt 30%, cộng thêm vào ký quỹ chứ không trừ vào thù lao (VD-M-15).
+P1–P4 là dự án **ảnh**, tập nhãn có một công cụ phân loại tên `label` với các lớp `do`, `xanh_la`, `xanh_duong`, `vang`. Ảnh mẫu là PNG một màu 256×256 có viền sáng, nên nhìn ảnh là biết đáp án đúng. Phí nền tảng chốt 30%, cộng thêm vào ký quỹ chứ không trừ vào thù lao (VD-M-15).
+
+Ba dự án loại dữ liệu khác, cùng đang `running`, ngân sách 50.000:
+
+| Key | ID | Loại dữ liệu | Mẫu | Đơn giá | Redundancy | Công cụ trong tập nhãn | Nhãn seed |
+|---|---|---|---|---|---|---|---|
+| **P5** | `8dc63fe1-e23e-5097-b891-51fe72b61245` | `text` | 4 câu | 5.000 | 1 | `cam_xuc` (classification: `tich_cuc`, `tieu_cuc`, `trung_tinh`), `thuc_the` (span: `TEN_NGUOI`, `DIA_DIEM`, `TO_CHUC`) | câu 1: lab1 chờ duyệt; câu 2: lab2 đã duyệt |
+| **P6** | `8309618e-25b2-5b99-a301-0632197c96e1` | `audio` | 4 đoạn | 8.000 | 1 | `loi_noi` (transcription), `doan` (temporalSegment: `giong_noi`, `nhac`, `im_lang`). `segmentSeconds: 10` | đoạn 0–10s: lab1 chờ duyệt |
+| **P7** | `12d52faa-09b4-5cd1-b21d-16984c952fec` | `pair` | 3 cặp | 3.000 | 2 | `tot_hon` (pairwise, cho hòa), `an_toan` (classification: `an_toan`, `khong_an_toan`) | cặp 1: lab1 + lab2 đều chọn `a`, đã duyệt → kết quả gộp `a`; cặp 2: lab2 chờ duyệt |
+
+P6 có hai file WAV trong MinIO: `cuoc-goi-01.wav` dài 25 giây được **cắt thành 3 đoạn** (0–10, 10–20, 20–25; ba mẫu dùng chung một file, khác `segmentStart`/`segmentEnd`), và `loi-chao.wav` dài 8 giây (ngắn hơn một đoạn nên giữ nguyên). Âm thanh là một nốt sine, chỉ để test luồng.
 
 ### 4.4 Nhãn của P1
 
@@ -198,10 +209,10 @@ Tiến độ P1 lúc vừa seed: 8 task, 2 hoàn thành (ảnh 1, 2), 1 bị lo�
 
 | Tài khoản | Số dư |
 |---|---|
-| biz1 | khả dụng **1.100.000**, ký quỹ **796.000** (P1 còn 396.000 sau 4 lần chi × 26.000; P2 100.000; P4 300.000) |
+| biz1 | khả dụng **950.000**, ký quỹ **931.700** (P1 còn 396.000 sau 4 lần chi × 26.000; P2 100.000; P4 300.000; P5 còn 43.500; P6 50.000; P7 còn 42.200) |
 | biz2 | 0. Lệnh nạp 1.000.000 đang `pending`, ID `8d241233-a997-5c1a-9f2f-2924b419164c` |
-| lab1 | khả dụng **60.000** |
-| lab2 | treo 20.000, sau ~2 phút worker chuyển sang khả dụng |
+| lab1 | khả dụng **63.000** (60.000 ở P1 + 3.000 ở P7) |
+| lab2 | khả dụng 8.000 (P5 5.000 + P7 3.000), treo 20.000 (P1), sau ~2 phút worker chuyển sang khả dụng |
 | Đối soát | `healthy: true` |
 
 Ở dev, thời gian treo là **2 phút** (`Ledger:ThoiGianTreo` trong [appsettings.Development.json](../services/ledger/Crowd.Ledger.Api/appsettings.Development.json)) và worker quét mỗi 30 giây. Production giữ mặc định 3 ngày.
@@ -271,12 +282,14 @@ curl -s -X POST http://localhost:8080/auth/logout  -H "Content-Type: application
 ### 6.2 Xem dữ liệu seed
 
 ```bash
-curl -s "http://localhost:8080/projects?mine=true" -H "Authorization: Bearer <token-biz1>"        # 4 dự án [Seed]
+curl -s "http://localhost:8080/projects?mine=true" -H "Authorization: Bearer <token-biz1>"        # 7 dự án [Seed]
 curl -s http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b -H "Authorization: Bearer <token-biz1>"
 curl -s http://localhost:8080/projects/32cdcbe6-837a-5c7c-929d-607db130deba/readiness -H "Authorization: Bearer <token-biz1>"   # ready: true
 
-# imageUrl trong response mở được trên trình duyệt trong 5 phút
+# fileUrl trong response mở được trên trình duyệt trong 5 phút; metadata có width/height của ảnh
 curl -s "http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/samples?page=1&pageSize=20" -H "Authorization: Bearer <token-biz1>"
+# Mẫu văn bản (P5): không có fileUrl, nội dung nằm trong "content"
+curl -s "http://localhost:8080/projects/8dc63fe1-e23e-5097-b891-51fe72b61245/samples?page=1&pageSize=20" -H "Authorization: Bearer <token-biz1>"
 
 curl -s http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/members -H "Authorization: Bearer <token-biz1>"
 curl -s http://localhost:8080/tasks/projects/3d904a1a-3920-530b-b055-793baae64f1b/progress -H "Authorization: Bearer <token-biz1>"
@@ -346,19 +359,19 @@ curl -s -X POST http://localhost:8080/projects/2ae9dc42-5b32-518d-b24f-cdd7da800
 
 ### 6.6 Labeler nhận task, nộp, bỏ qua (task → annotation)
 
-**Định dạng nhãn.** Mọi nhãn trong hệ thống đi theo định dạng chung ([shared/labeling](../shared/labeling/LabelPayload.cs)): loại nhãn + phiên bản + dữ liệu JSON. Khi nộp, labeler **chỉ gửi phần dữ liệu** trong trường `payload`. Loại nhãn lấy theo dự án; `taskType` và `schemaVersion` có trong response của `next`. Với phân loại ảnh v1, dữ liệu là `{"labelIds": ["vang"]}`. Response trả nhãn về ở dạng đầy đủ:
+**Định dạng nhãn.** Mỗi dự án có một **tập nhãn** gồm một hoặc nhiều **công cụ** ([shared/labeling](../shared/labeling/LabelSchema.cs)), ví dụ P1 có một công cụ phân loại tên `label`. Khi nộp, labeler **chỉ gửi phần dữ liệu** trong trường `payload`: một object, khóa là tên công cụ. Với P1 đó là `{"label": {"labelIds": ["vang"]}}`. Server kiểm hình dạng bằng JSON Schema ([contracts/labeling](../contracts/labeling)) và kiểm nghĩa theo tập nhãn và mẫu (lớp có trong tập nhãn, khung nằm trong ảnh, đoạn thời gian nằm trong đoạn audio...). Response trả nhãn về ở dạng đầy đủ, `taskType` là loại dữ liệu:
 
 ```json
-{"taskType":"imageClassification","schemaVersion":1,"data":{"labelIds":["vang"]}}
+{"taskType":"image","schemaVersion":1,"data":{"label":{"labelIds":["vang"]}}}
 ```
 
 ```bash
-# 200 kèm assignmentId, imageUrl (xem ảnh để biết màu), taskType, schemaVersion, labelClasses; 204 = hết task cho bạn
+# 200 kèm assignmentId, modality, fileUrl (xem ảnh để biết màu), metadata (width/height), labelSchema; 204 = hết task cho bạn
 curl -s -X POST http://localhost:8080/tasks/projects/3d904a1a-3920-530b-b055-793baae64f1b/next -H "Authorization: Bearer <token-lab1>"
 
 # Nộp nhãn cho assignmentId vừa nhận
 curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H "Authorization: Bearer <token-lab1>" \
-  -H "Content-Type: application/json" -d '{"payload":{"labelIds":["vang"]}}'
+  -H "Content-Type: application/json" -d '{"payload":{"label":{"labelIds":["vang"]}}}'
 
 # Hoặc bỏ qua thay vì nộp
 curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/release -H "Authorization: Bearer <token-lab1>"
@@ -372,9 +385,8 @@ curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793b
 Kiểm tra thêm:
 - Nộp lại cùng `assignmentId`: bị từ chối `lease_khong_con`.
 - Thiếu trường `payload` (ví dụ gửi kiểu cũ `{"labels":["vang"]}`): **400** `thieu_nhan`.
-- `payload` sai hình dạng (ví dụ `{"payload":{"labels":["vang"]}}`): **400** `nhan_sai_dinh_dang`.
-- Chọn hai lớp ở dự án chỉ cho chọn một, hoặc lớp không có trong dự án: **400** `nhan_khong_hop_le`.
-- `"schemaVersion": 9`: **400** `loai_nhan_chua_ho_tro`.
+- `payload` sai hình dạng, ví dụ thiếu tên công cụ `{"payload":{"labelIds":["vang"]}}` hoặc thêm công cụ lạ: **400** `nhan_sai_dinh_dang`, `detail` chỉ rõ chỗ sai.
+- Chọn hai lớp ở công cụ chỉ cho chọn một, hoặc lớp không có trong tập nhãn: **400** `nhan_khong_hop_le`.
 - lab3 nhận task ở P1 khi chưa tham gia: **403** `khong_phai_thanh_vien`.
 
 ```bash
@@ -441,7 +453,7 @@ curl -s -X POST http://localhost:8080/tasks/projects/3d904a1a-3920-530b-b055-793
 # P4 yêu cầu test → join bị chặn (409), phải làm bài
 curl -s -X POST http://localhost:8080/projects/2fde6d4c-ee31-57ae-8632-b2e6e0721217/join -H "Authorization: Bearer <token-lab3>"
 
-# Bắt đầu bài test → attemptId + 3 câu (sampleId, imageUrl). Server không trả đáp án.
+# Bắt đầu bài test → attemptId, labelSchema + 3 câu (sampleId, fileUrl, metadata). Server không trả đáp án.
 curl -s -X POST http://localhost:8080/projects/2fde6d4c-ee31-57ae-8632-b2e6e0721217/entrance-test/attempts -H "Authorization: Bearer <token-lab3>"
 ```
 
@@ -456,9 +468,9 @@ curl -s -X POST http://localhost:8080/projects/2fde6d4c-ee31-57ae-8632-b2e6e0721
 ```bash
 curl -s -X POST http://localhost:8080/projects/2fde6d4c-ee31-57ae-8632-b2e6e0721217/entrance-test/attempts/<attemptId>/submit \
   -H "Authorization: Bearer <token-lab3>" -H "Content-Type: application/json" -d '{"answers":[
-    {"sampleId":"25bb3dd9-5900-5e1c-9d57-f84ed2c72645","payload":{"labelIds":["do"]}},
-    {"sampleId":"4a1785a8-3058-5313-a0e8-017d9070854d","payload":{"labelIds":["xanh_la"]}},
-    {"sampleId":"cf021f75-a9f0-5f11-be77-fc81779763de","payload":{"labelIds":["vang"]}}]}'
+    {"sampleId":"25bb3dd9-5900-5e1c-9d57-f84ed2c72645","payload":{"label":{"labelIds":["do"]}}},
+    {"sampleId":"4a1785a8-3058-5313-a0e8-017d9070854d","payload":{"label":{"labelIds":["xanh_la"]}}},
+    {"sampleId":"cf021f75-a9f0-5f11-be77-fc81779763de","payload":{"label":{"labelIds":["vang"]}}}]}'
 # → scorePercent 100, passed true, joinedProject true
 # Câu trả lời sai định dạng → 400 nhan_sai_dinh_dang, bài CHƯA bị tính là đã nộp.
 
@@ -514,10 +526,10 @@ EOF
 ```bash
 # Tạo dự án → copy "id" trong response
 curl -s -X POST http://localhost:8080/projects -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
-  -d '{"name":"Thu thieu tien","description":"x","taskType":"imageClassification","visibility":"public"}'
+  -d '{"name":"Thu thieu tien","description":"x","modality":"image","visibility":"public"}'
 
 curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/label-schema -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
-  -d '{"classes":["do","xanh_la","vang"],"allowMultiple":false}'
+  -d '{"modality":"image","tools":[{"name":"label","kind":"classification","classes":["do","xanh_la","vang"]}]}'
 
 curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/guideline -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
   -d '{"markdown":"Chon theo mau.","examples":[]}'
@@ -531,7 +543,7 @@ curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/datasets -H "Autho
 # expectedPayload chỉ là phần dữ liệu, giống payload khi labeler nộp.
 curl -s "http://localhost:8080/projects/<id-du-an-moi>/samples?page=1&pageSize=20" -H "Authorization: Bearer <token-biz2>"
 curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/gold-items -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
-  -d '{"items":[{"sampleId":"<sampleId>","expectedPayload":{"labelIds":["vang"]},"purpose":"qualityCheck"}]}'
+  -d '{"items":[{"sampleId":"<sampleId>","expectedPayload":{"label":{"labelIds":["vang"]}},"purpose":"qualityCheck"}]}'
 
 curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/publish -H "Authorization: Bearer <token-biz2>"
 sleep 3
@@ -540,7 +552,7 @@ sleep 3
 curl -s http://localhost:8080/projects/<id-du-an-moi> -H "Authorization: Bearer <token-biz2>"
 ```
 
-Cùng file ZIP này cũng dùng được để test **upload dataset** cho bất kỳ dự án nháp nào.
+Cùng file ZIP này cũng dùng được để test **upload dataset** cho bất kỳ dự án **ảnh** nháp nào. Dữ liệu khác ảnh (và ảnh lớn) đi đường upload thẳng + manifest, xem mục 6.14.
 
 ### 6.12 Quản lý dự án đang chạy
 
@@ -560,11 +572,14 @@ curl -s -X POST http://localhost:8080/tasks/projects/3d904a1a-3920-530b-b055-793
 curl -s -X POST http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/resume -H "Authorization: Bearer <token-biz1>"
 
 # Câu hỏi vàng: chỉ sửa được khi Nháp hoặc Tạm dừng. Đáp án ở dạng đầy đủ:
-# "expectedPayload": {"taskType":"imageClassification","schemaVersion":1,"data":{"labelIds":["vang"]}}
+# "expectedPayload": {"taskType":"image","schemaVersion":1,"data":{"label":{"labelIds":["vang"]}}}
 # Cách thêm câu vàng: xem mục 6.11 (dự án nháp mới).
 curl -s http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/gold-items -H "Authorization: Bearer <token-biz1>"
 
-# Kết quả và xuất file (FB-22, FB-25)
+# Kết quả và xuất file (FB-22, FB-25). Kết quả gộp THEO TỪNG CÔNG CỤ trong "tools":
+#   classification / pairwise: đa số tuyệt đối (method "majority", final, votes, disputed);
+#   bbox / polygon / span / temporalSegment / transcription: method "none" (chưa gộp tự động), xem "labels" = các nhãn đã duyệt.
+# format=coco chỉ dùng cho dự án ảnh có công cụ bbox / polygon (xem mục 6.14).
 curl -s http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/results -H "Authorization: Bearer <token-biz1>"
 curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/export?format=csv" -H "Authorization: Bearer <token-biz1>" -o ketqua.csv
 curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/export?format=json" -H "Authorization: Bearer <token-biz1>"
@@ -594,6 +609,105 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:8080/annotations/proj
 curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8080/projects/2ae9dc42-5b32-518d-b24f-cdd7da800a96/approve -H "Authorization: Bearer <token-lab1>"
 ```
 
+### 6.14 Nhiều loại dữ liệu: văn bản, âm thanh, video, cặp, khung ảnh
+
+Mỗi dự án chọn **một loại dữ liệu** (`modality`) lúc tạo: `image`, `text`, `audio`, `video`, `pair`. Tập nhãn là danh sách **công cụ**, mỗi công cụ có `name` (tự đặt, là khóa trong payload) và `kind`:
+
+| kind | Dùng cho | Dữ liệu nộp của công cụ | Server kiểm thêm | Cách gộp kết quả |
+|---|---|---|---|---|
+| `classification` | mọi loại | `{"labelIds":["a"]}` | lớp có trong tập nhãn; `allowMultiple: false` thì đúng một lớp | đa số tuyệt đối |
+| `bbox` | image | `[{"labelId":"xe","x":10,"y":20,"w":50,"h":40}]` | khung nằm trong ảnh (`metadata.width/height`) | chưa gộp (`none`) |
+| `polygon` | image | `[{"labelId":"duong","points":[[0,0],[10,0],[10,10]]}]` | 3–500 đỉnh, nằm trong ảnh | chưa gộp |
+| `span` | text | `[{"labelId":"TEN_NGUOI","start":4,"end":8}]` | `0 ≤ start < end ≤` độ dài văn bản | chưa gộp |
+| `transcription` | audio, video | `{"text":"..."}` | dài ≤ `maxLength` (mặc định 5000) | chưa gộp |
+| `temporalSegment` | audio, video | `[{"labelId":"nhac","start":0,"end":2.5}]` | nằm trong thời lượng **của đoạn**, tính từ đầu đoạn | chưa gộp |
+| `pairwise` | pair | `{"choice":"a"}` (`a` / `b` / `tie`) | `tie` chỉ khi `allowTie: true` | đa số tuyệt đối |
+
+Công cụ có `"required": false` thì được bỏ trống. Câu vàng chấm theo từng công cụ: phân loại so tập lớp, bbox theo IoU ≥ 0,5, polygon IoU, span F1, transcription CER ≤ 0,1, temporalSegment IoU thời gian; ngưỡng đổi được bằng `matchThreshold` của công cụ.
+
+**Test trên dữ liệu seed P5–P7** (lab1 là thành viên):
+
+```bash
+# P5 văn bản: task có "content":{"text":...}, "metadata":{"length":...}, không có fileUrl
+curl -s -X POST http://localhost:8080/tasks/projects/8dc63fe1-e23e-5097-b891-51fe72b61245/next -H "Authorization: Bearer <token-lab1>"
+curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H "Authorization: Bearer <token-lab1>" -H "Content-Type: application/json" \
+  -d '{"payload":{"cam_xuc":{"labelIds":["tich_cuc"]},"thuc_the":[{"labelId":"TO_CHUC","start":0,"end":8}]}}'
+# span vượt độ dài văn bản → 400 nhan_khong_hop_le
+
+# P6 âm thanh: fileUrl nghe được, metadata có durationSec + segmentStart/segmentEnd (đoạn cắt từ file dài)
+curl -s -X POST http://localhost:8080/tasks/projects/8309618e-25b2-5b99-a301-0632197c96e1/next -H "Authorization: Bearer <token-lab1>"
+curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H "Authorization: Bearer <token-lab1>" -H "Content-Type: application/json" \
+  -d '{"payload":{"loi_noi":{"text":"xin chao"},"doan":[{"labelId":"giong_noi","start":0,"end":2}]}}'
+# "end" lớn hơn durationSec của đoạn → 400
+
+# P7 cặp câu trả lời: content có prompt, a, b
+curl -s -X POST http://localhost:8080/tasks/projects/12d52faa-09b4-5cd1-b21d-16984c952fec/next -H "Authorization: Bearer <token-lab1>"
+curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H "Authorization: Bearer <token-lab1>" -H "Content-Type: application/json" \
+  -d '{"payload":{"tot_hon":{"choice":"a"},"an_toan":{"labelIds":["an_toan"]}}}'
+
+# Kết quả P7: cặp 1 có tools.tot_hon.final = {"choice":"a"}, votes {"a":2}
+curl -s http://localhost:8080/annotations/projects/12d52faa-09b4-5cd1-b21d-16984c952fec/results -H "Authorization: Bearer <token-biz1>"
+```
+
+**Nạp dữ liệu không phải ZIP: upload thẳng lên MinIO + manifest.** File (audio, video, ảnh lớn) không đi qua service:
+
+1. `POST /projects/{id}/uploads` xin link: mỗi file nhận một `key` và `uploadUrl` (ký sẵn, sống 1 giờ). Đuôi file được lọc sơ bộ theo loại dữ liệu; tối đa 100 file, mỗi file ≤ 5 GB.
+2. `PUT` file lên `uploadUrl`.
+3. `POST /projects/{id}/datasets/manifest` với `rows` (≤ 1.000 dòng, gửi kèm) hoặc `manifestKey` (key của file `.jsonl` / `.json` đã upload, ≤ 50.000 dòng). Trả **202**, lô ở trạng thái `pending`.
+4. Worker nền xử lý lô: đọc file, kiểm **loại thật theo nội dung** (đổi tên `.exe` thành `.png` vẫn bị loại), đo kích thước ảnh, đo thời lượng / kích thước audio-video bằng **ffprobe**, cắt đoạn theo `segmentSeconds`, bỏ mẫu trùng. Xem kết quả ở `GET /projects/{id}/datasets`: `status` `ready` / `failed`, `sampleCount`, `skippedCount`, `errorSummary` (lý do từng dòng bị bỏ).
+
+Mỗi dòng manifest theo loại dữ liệu:
+
+| modality | Dòng manifest |
+|---|---|
+| image, audio, video | `{"file":"<key>","name":"tuy-chon"}`. Không có ffprobe thì audio/video phải khai thêm `"durationSec"` |
+| text | `{"text":"...","name":"tuy-chon"}` |
+| pair | `{"prompt":"tuy chon","a":"...","b":"..."}` |
+
+Ví dụ trọn vẹn một dự án âm thanh cắt đoạn 10 giây (cần một file WAV, ví dụ tạo bằng `ffmpeg -f lavfi -i "sine=frequency=500:duration=23" -ac 1 -ar 16000 cuoc-goi.wav`):
+
+```bash
+curl -s -X POST http://localhost:8080/projects -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"name":"Chep loi cuoc goi","description":"x","modality":"audio","visibility":"public"}'
+curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/label-schema -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"modality":"audio","segmentSeconds":10,"tools":[{"name":"chep","kind":"transcription"},{"name":"doan","kind":"temporalSegment","classes":["noi","im"],"required":false}]}'
+
+# 1. Xin link upload → copy "key" và "uploadUrl"
+curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/uploads -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"files":[{"name":"cuoc-goi.wav","sizeBytes":736078}]}'
+# 2. Upload thẳng lên MinIO (dán nguyên uploadUrl, giữ dấu nháy)
+curl -s -X PUT --upload-file cuoc-goi.wav "<uploadUrl>"
+# 3. Tạo lô manifest → 202, status pending
+curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/datasets/manifest -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"name":"lo-1","rows":[{"file":"<key>","name":"cuoc-goi.wav"}]}'
+# 4. Vài giây sau: status ready, sampleCount 3 (file 23 giây → đoạn 0–10, 10–20, 20–23)
+curl -s http://localhost:8080/projects/<id-du-an-moi>/datasets -H "Authorization: Bearer <token-biz1>"
+curl -s "http://localhost:8080/projects/<id-du-an-moi>/samples?page=1&pageSize=20" -H "Authorization: Bearer <token-biz1>"
+```
+
+Sau đó cấu hình hướng dẫn, giá, publish, admin duyệt, labeler tham gia và nhận task như mục 6.4–6.6.
+
+Dự án **ảnh có khung** dùng tập nhãn như sau; task trả `metadata.width/height` để vẽ khung, và kết quả xuất được COCO:
+
+```bash
+curl -s -X PUT http://localhost:8080/projects/<id-du-an-anh>/label-schema -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"modality":"image","tools":[{"name":"loai","kind":"classification","classes":["ngoai_troi","trong_nha"]},{"name":"vat","kind":"bbox","classes":["xe","nguoi"],"required":false},{"name":"vung","kind":"polygon","classes":["duong"],"required":false}]}'
+
+# Nộp: khung tràn ra ngoài ảnh → 400; polygon dưới 3 đỉnh → 400
+curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H "Authorization: Bearer <token-lab1>" -H "Content-Type: application/json" \
+  -d '{"payload":{"loai":{"labelIds":["ngoai_troi"]},"vat":[{"labelId":"xe","x":20,"y":30,"w":100,"h":50}],"vung":[{"labelId":"duong","points":[[0,200],[300,200],[300,150],[0,150]]}]}}'
+
+# Sau khi duyệt: COCO (images có width/height, mỗi khung của mỗi nhãn đã duyệt là một annotation)
+curl -s "http://localhost:8080/annotations/projects/<id-du-an-anh>/export?format=coco" -H "Authorization: Bearer <token-biz1>" -o ketqua.coco.json
+```
+
+Kiểm tra thêm:
+- Upload ZIP cho dự án không phải ảnh: **409** `zip_chi_cho_anh`.
+- Xin link file `.wav` cho dự án video, hoặc `.exe` cho dự án ảnh: **400** `duoi_file_khong_hop_le`.
+- Dòng manifest trỏ tới file của dự án khác: dòng bị bỏ, `errorSummary` ghi `khong thuoc du an nay`.
+- File WAV đổi tên thành `.mp4` nạp vào dự án video: ffprobe thấy không có hình, dòng bị bỏ (`khong phai video`).
+- Đang có lô `pending` / `ingesting` thì chưa publish được.
+
 ---
 
 ## 7. Kiểm tra tổng sau khi test
@@ -617,9 +731,11 @@ Xem event chạy qua hệ thống: mở RabbitMQ UI tại http://localhost:15672
 | `401` dù vừa đăng nhập | Token hết hạn sau 15 phút. Đăng nhập lại (mục 5) |
 | `401` ngay lập tức | Còn sót dấu `< >` khi dán token, hoặc dán nhầm `refreshToken` |
 | `curl` trong PowerShell báo lỗi tham số | Dùng `curl.exe`, hoặc dùng Git Bash |
-| Log `Seed ... da co du lieu seed — bo qua` nhưng dữ liệu khác bảng ở mục 4 | DB đã bị thay đổi bởi các lần test trước. Seed lại từ đầu theo mục 4.6 |
+| Log `Seed ... da du du an seed — bo qua` nhưng dữ liệu khác bảng ở mục 4 | DB đã bị thay đổi bởi các lần test trước. Seed lại từ đầu theo mục 4.6 |
 | Seed ném lỗi khi khởi động (ví dụ `khong_du_so_du`, `chuyen_trang_thai_khong_hop_le`) | Kịch bản bị sửa sai luật. Chạy `dotnet test shared/test/seeding-tests` để biết sai ở đâu |
-| `imageUrl` trả 403 / hết hạn | Link MinIO chỉ sống 5 phút (S-07). Gọi lại API để lấy link mới |
+| `fileUrl` trả 403 / hết hạn | Link MinIO chỉ sống 5 phút (S-07). Gọi lại API để lấy link mới |
+| Lô manifest `failed`, `errorSummary` ghi `khong doc duoc thoi luong` | project-svc không tìm thấy ffprobe. Cài FFmpeg, hoặc đặt `Media:FfprobePath` trong appsettings, hoặc khai `durationSec` trong dòng manifest |
+| Lô manifest đứng mãi ở `pending` | project-svc không chạy (worker nạp dữ liệu chạy bên trong nó). Bật lên là lô được xử lý; lô `ingesting` dở dang được làm lại từ đầu |
 | Lỗi bucket `datasets` không tồn tại | `minio-init` chưa chạy. Chạy lại `docker compose ... up -d` |
 | Nhãn đã duyệt nhưng labeler chưa thấy tiền | ledger-svc chưa chạy, hoặc event đang nằm trong outbox của annotation. Bật ledger lên thì event sẽ được giao (at-least-once) |
 | P2 tự chuyển sang `cancelled` | Đúng thiết kế: dự án chờ duyệt quá 72 giờ thì tự hủy và hoàn ký quỹ (compensation của saga) |

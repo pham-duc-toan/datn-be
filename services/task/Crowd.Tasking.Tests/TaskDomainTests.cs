@@ -15,11 +15,29 @@ namespace Crowd.Tasking.Tests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
         private static readonly TimeSpan MuoiLamPhut = TimeSpan.FromMinutes(15);
-        private static readonly LabelPayload Cho = LabelPayload.PhanLoai("cho");
+        private static readonly LabelPayload Cho = LabelPayload.Tao(
+            OutOfOrderEventTests.TapNhanAnh("cho", "meo"), "{\"label\":{\"labelIds\":[\"cho\"]}}", null);
+
+        private static readonly RawJson KhongMetadata = SampleMetadata.Rong.ToRawJson();
 
         private static LabelingTask Task3Nguoi()
         {
-            return LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), "k.png", 3, Luc);
+            return LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 3, Luc);
+        }
+
+        [Fact]
+        public void Task_phai_co_dung_mot_trong_file_hoac_noi_dung()
+        {
+            RawJson vanBan = RawJson.Tu("{\"text\":\"xin chao\"}");
+
+            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Text, null, vanBan, KhongMetadata, 1, Luc);
+            Assert.Null(t.StorageKey);
+            Assert.Equal(vanBan, t.Content);
+
+            Assert.Throws<ArgumentException>(() =>
+                LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Text, null, null, KhongMetadata, 1, Luc));
+            Assert.Throws<ArgumentException>(() =>
+                LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", vanBan, KhongMetadata, 1, Luc));
         }
 
         [Fact]
@@ -38,7 +56,7 @@ namespace Crowd.Tasking.Tests
         [Fact]
         public void Task_chua_co_redundancy_thi_chua_cap()
         {
-            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), "k.png", 0, Luc);
+            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 0, Luc);
             Assert.False(t.CoTheCapThem());
         }
 
@@ -131,7 +149,7 @@ namespace Crowd.Tasking.Tests
         private static ProjectSnapshot DuAnChay(int? minLevel, int? minReputation)
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(DuAnId, Luc);
-            s.ApDungPublished(Guid.NewGuid(), LabelTaskTypes.ImageClassification, new List<string> { "a", "b" }, false, 1000, 3, Luc.AddDays(10), true, false, minLevel, minReputation, Luc);
+            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 1000, 3, Luc.AddDays(10), true, false, minLevel, minReputation, Luc);
             return s;
         }
 
@@ -207,7 +225,7 @@ namespace Crowd.Tasking.Tests
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
 
             s.TamDung(T2);
-            s.ApDungPublished(Guid.NewGuid(), LabelTaskTypes.ImageClassification, new List<string> { "a", "b" }, false, 1000, 3, T2.AddDays(1), true, false, null, null, T1);
+            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("a", "b"), 1000, 3, T2.AddDays(1), true, false, null, null, T1);
 
             Assert.Equal(SnapshotStatus.Paused, s.Status);
             Assert.True(s.IsConfigured);
@@ -246,28 +264,31 @@ namespace Crowd.Tasking.Tests
         }
 
         [Fact]
-        public void Kiem_nhan_theo_tap_nhan_cua_du_an()
+        public void Ban_sao_giu_tap_nhan_va_doc_lai_duoc()
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
-            s.ApDungPublished(Guid.NewGuid(), LabelTaskTypes.ImageClassification, new List<string> { "cho", "meo" }, false, 1000, 3, T2, true, false, null, null, T1);
+            Assert.Null(s.LabelSchema);
 
-            Assert.True(s.LaBoNhanHopLe(new List<string> { "cho" }));
-            Assert.False(s.LaBoNhanHopLe(new List<string> { "cho", "meo" }));
-            Assert.False(s.LaBoNhanHopLe(new List<string> { "voi" }));
+            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("cho", "meo"), 1000, 3, T2, true, false, null, null, T1);
 
-            // Cung luat, qua dinh dang nhan chung.
-            Assert.True(s.LaNhanHopLe(LabelPayload.PhanLoai("cho")));
-            Assert.False(s.LaNhanHopLe(LabelPayload.PhanLoai("cho", "meo")));
-            Assert.False(s.LaNhanHopLe(LabelPayload.PhanLoai("voi")));
+            Assert.Equal(Modalities.Image, s.Modality);
+            Assert.NotNull(s.LabelSchema);
+
+            // Nhan nop len kiem theo tap nhan cua ban sao.
+            LabelPayload hopLe = LabelPayload.Tao(s.LabelSchema!, "{\"label\":{\"labelIds\":[\"cho\"]}}", null);
+            Assert.Equal(Modalities.Image, hopLe.TaskType);
+
+            Assert.Throws<LabelFormatException>(() =>
+                LabelPayload.Tao(s.LabelSchema!, "{\"label\":{\"labelIds\":[\"cho\",\"meo\"]}}", null));
+            Assert.Throws<LabelFormatException>(() =>
+                LabelPayload.Tao(s.LabelSchema!, "{\"label\":{\"labelIds\":[\"voi\"]}}", null));
         }
 
-        [Fact]
-        public void Du_an_chua_publish_thi_khong_nhan_nhan_nao()
+        internal static LabelSchema TapNhanAnh(string a, string b)
         {
-            ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
-
-            // Chua co loai nhan → nhan nao cung sai loai.
-            Assert.False(s.LaNhanHopLe(LabelPayload.PhanLoai("cho")));
+            return LabelSchema.Doc(
+                "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\""
+                + a + "\",\"" + b + "\"]}]}");
         }
     }
 }

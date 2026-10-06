@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu transcription",
+  "description": "Chep lai loi noi / noi dung thanh van ban. Vd {\"text\": \"xin chao cac ban\"}",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text"],
+  "properties": {
+    "text": { "type": "string", "maxLength": 100000 }
+  }
+}

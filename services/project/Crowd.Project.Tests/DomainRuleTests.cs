@@ -10,60 +10,51 @@ using Crowd.Project.Infrastructure.Datasets;
 
 namespace Crowd.Project.Tests
 {
-    public sealed class LabelSchemaTests
-    {
-        private static readonly string[] ChoMeo = new string[] { "cho", "meo" };
-
-        [Fact]
-        public void Cat_khoang_trang_va_chan_lop_trung_khong_phan_biet_hoa_thuong()
-        {
-            LabelSchema s = LabelSchema.TaoPhanLoai(new List<string> { " cho ", "meo" }, false);
-            Assert.Equal(ChoMeo, s.Classes);
-
-            InvalidValueException ex = Assert.Throws<InvalidValueException>(() =>
-                LabelSchema.TaoPhanLoai(new List<string> { "Meo", "meo" }, false));
-            Assert.Equal("ten_lop_trung", ex.Code);
-        }
-
-        [Fact]
-        public void Phan_loai_can_it_nhat_hai_lop()
-        {
-            Assert.Throws<InvalidValueException>(() => LabelSchema.TaoPhanLoai(new List<string> { "cho" }, false));
-        }
-
-        [Fact]
-        public void Single_label_chi_nhan_dung_mot_nhan_co_that()
-        {
-            LabelSchema s = LabelSchema.TaoPhanLoai(new List<string> { "cho", "meo", "ga" }, false);
-
-            Assert.True(s.LaBoNhanHopLe(new List<string> { "cho" }));
-            Assert.False(s.LaBoNhanHopLe(new List<string>()));
-            Assert.False(s.LaBoNhanHopLe(new List<string> { "cho", "meo" }));
-            Assert.False(s.LaBoNhanHopLe(new List<string> { "voi" }));
-        }
-
-        [Fact]
-        public void Multi_label_nhan_nhieu_nhan_nhung_khong_lap()
-        {
-            LabelSchema s = LabelSchema.TaoPhanLoai(new List<string> { "cho", "meo", "ga" }, true);
-
-            Assert.True(s.LaBoNhanHopLe(new List<string> { "cho", "meo" }));
-            Assert.False(s.LaBoNhanHopLe(new List<string> { "cho", "cho" }));
-        }
-    }
-
     public sealed class GoldItemTests
     {
         [Fact]
-        public void Dap_an_vang_phai_hop_le_theo_tap_nhan()
+        public void Dap_an_vang_kiem_theo_tap_nhan_truoc_khi_tao()
         {
-            LabelSchema s = LabelSchema.TaoPhanLoai(new List<string> { "cho", "meo" }, false);
+            LabelSchema s = LabelingProjectTests.PhanLoaiAnh("cho", "meo");
 
-            GoldItem g = GoldItem.Tao(Guid.NewGuid(), Guid.NewGuid(), LabelPayload.PhanLoai("meo"), GoldPurpose.EntranceTest, s, DateTimeOffset.UtcNow);
-            Assert.Equal(LabelPayload.PhanLoai("meo"), g.ExpectedPayload);
+            LabelPayload dapAn = LabelPayload.Tao(s, "{\"label\":{\"labelIds\":[\"meo\"]}}", null);
+            GoldItem g = GoldItem.Tao(Guid.NewGuid(), Guid.NewGuid(), dapAn, GoldPurpose.EntranceTest, DateTimeOffset.UtcNow);
+            Assert.Equal(dapAn, g.ExpectedPayload);
+            Assert.Equal(Modalities.Image, g.ExpectedPayload.TaskType);
 
-            Assert.Throws<InvalidValueException>(() =>
-                GoldItem.Tao(Guid.NewGuid(), Guid.NewGuid(), LabelPayload.PhanLoai("voi"), GoldPurpose.EntranceTest, s, DateTimeOffset.UtcNow));
+            // Lop khong co trong tap nhan → khong tao duoc dap an.
+            Assert.Throws<LabelFormatException>(() =>
+                LabelPayload.Tao(s, "{\"label\":{\"labelIds\":[\"voi\"]}}", null));
+        }
+    }
+
+    public sealed class CatDoanTests
+    {
+        [Fact]
+        public void Khong_khai_segmentSeconds_hoac_file_ngan_thi_khong_cat()
+        {
+            Assert.Single(Crowd.Project.Api.Services.DatasetIngestor.CatDoan(25, null));
+            Assert.Single(Crowd.Project.Api.Services.DatasetIngestor.CatDoan(8, 10));
+        }
+
+        [Fact]
+        public void Cat_deu_va_doan_cuoi_ngan_hon()
+        {
+            List<(double BatDau, double KetThuc)> d = Crowd.Project.Api.Services.DatasetIngestor.CatDoan(25, 10);
+
+            Assert.Equal(3, d.Count);
+            Assert.Equal((0d, 10d), d[0]);
+            Assert.Equal((10d, 20d), d[1]);
+            Assert.Equal((20d, 25d), d[2]);
+        }
+
+        [Fact]
+        public void Doan_cuoi_duoi_mot_giay_gop_vao_doan_truoc()
+        {
+            List<(double BatDau, double KetThuc)> d = Crowd.Project.Api.Services.DatasetIngestor.CatDoan(20.4, 10);
+
+            Assert.Equal(2, d.Count);
+            Assert.Equal((10d, 20.4d), d[1]);
         }
     }
 
@@ -105,11 +96,23 @@ namespace Crowd.Project.Tests
         private static readonly Guid Cau1 = Guid.NewGuid();
         private static readonly Guid Cau2 = Guid.NewGuid();
 
+        private static readonly LabelSchema TapNhan = LabelSchema.Doc(
+            "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\","
+            + "\"classes\":[\"cho\",\"meo\",\"ga\"],\"allowMultiple\":true}]}");
+
+        private static LabelPayload Nhan(params string[] lop)
+        {
+            return LabelPayload.Tao(
+                TapNhan,
+                "{\"label\":{\"labelIds\":[\"" + string.Join("\",\"", lop) + "\"]}}",
+                null);
+        }
+
         private static Dictionary<Guid, LabelPayload> DapAn()
         {
             Dictionary<Guid, LabelPayload> d = new Dictionary<Guid, LabelPayload>();
-            d[Cau1] = LabelPayload.PhanLoai("cho");
-            d[Cau2] = LabelPayload.PhanLoai("meo", "ga");
+            d[Cau1] = Nhan("cho");
+            d[Cau2] = Nhan("meo", "ga");
             return d;
         }
 
@@ -123,10 +126,10 @@ namespace Crowd.Project.Tests
         {
             EntranceAttempt a = LanMoi();
             Dictionary<Guid, LabelPayload> traLoi = new Dictionary<Guid, LabelPayload>();
-            traLoi[Cau1] = LabelPayload.PhanLoai("cho");
-            traLoi[Cau2] = LabelPayload.PhanLoai("ga", "meo");
+            traLoi[Cau1] = Nhan("cho");
+            traLoi[Cau2] = Nhan("ga", "meo");
 
-            bool dau = a.Nop(traLoi, DapAn(), 100, Luc.AddMinutes(5));
+            bool dau = a.Nop(traLoi, DapAn(), TapNhan, 100, Luc.AddMinutes(5));
 
             Assert.True(dau);
             Assert.Equal(100, a.ScorePercent);
@@ -137,10 +140,10 @@ namespace Crowd.Project.Tests
         {
             EntranceAttempt a = LanMoi();
             Dictionary<Guid, LabelPayload> traLoi = new Dictionary<Guid, LabelPayload>();
-            traLoi[Cau1] = LabelPayload.PhanLoai("cho");
-            traLoi[Cau2] = LabelPayload.PhanLoai("meo");
+            traLoi[Cau1] = Nhan("cho");
+            traLoi[Cau2] = Nhan("meo");
 
-            bool dau = a.Nop(traLoi, DapAn(), 80, Luc.AddMinutes(5));
+            bool dau = a.Nop(traLoi, DapAn(), TapNhan, 80, Luc.AddMinutes(5));
 
             Assert.False(dau);
             Assert.Equal(50, a.ScorePercent);
@@ -151,10 +154,10 @@ namespace Crowd.Project.Tests
         {
             EntranceAttempt a = LanMoi();
             Dictionary<Guid, LabelPayload> traLoi = new Dictionary<Guid, LabelPayload>();
-            traLoi[Cau1] = LabelPayload.PhanLoai("cho");
-            traLoi[Cau2] = LabelPayload.PhanLoai("meo", "ga");
+            traLoi[Cau1] = Nhan("cho");
+            traLoi[Cau2] = Nhan("meo", "ga");
 
-            bool dau = a.Nop(traLoi, DapAn(), 50, Luc + EntranceAttempt.ThoiGianLamBai);
+            bool dau = a.Nop(traLoi, DapAn(), TapNhan, 50, Luc + EntranceAttempt.ThoiGianLamBai);
 
             Assert.False(dau);
             Assert.Equal(0, a.ScorePercent);
@@ -164,10 +167,10 @@ namespace Crowd.Project.Tests
         public void Khong_nop_duoc_hai_lan()
         {
             EntranceAttempt a = LanMoi();
-            a.Nop(new Dictionary<Guid, LabelPayload>(), DapAn(), 50, Luc);
+            a.Nop(new Dictionary<Guid, LabelPayload>(), DapAn(), TapNhan, 50, Luc);
 
             Assert.Throws<RuleViolationException>(() =>
-                a.Nop(new Dictionary<Guid, LabelPayload>(), DapAn(), 50, Luc));
+                a.Nop(new Dictionary<Guid, LabelPayload>(), DapAn(), TapNhan, 50, Luc));
         }
 
         [Fact]

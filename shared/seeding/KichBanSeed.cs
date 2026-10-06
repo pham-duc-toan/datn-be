@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Crowd.Labeling;
 
 namespace Crowd.Seeding
 {
@@ -122,6 +123,9 @@ namespace Crowd.Seeding
             ds.Add(TaoP2());
             ds.Add(TaoP3());
             ds.Add(TaoP4());
+            ds.Add(TaoP5());
+            ds.Add(TaoP6());
+            ds.Add(TaoP7());
             return ds;
         }
 
@@ -199,7 +203,8 @@ namespace Crowd.Seeding
                 GuidelineMarkdown = HuongDan,
                 Stage = SeedStage.Running,
                 IsPrivate = false,
-                Classes = LopMau,
+                Modality = Modalities.Image,
+                LabelSchemaJson = TapNhanMau,
                 UnitPriceVnd = 20000,
                 Redundancy = 2,
                 BudgetVnd = 500000,
@@ -243,7 +248,8 @@ namespace Crowd.Seeding
                 GuidelineMarkdown = HuongDan,
                 Stage = SeedStage.PendingApproval,
                 IsPrivate = false,
-                Classes = LopMau,
+                Modality = Modalities.Image,
+                LabelSchemaJson = TapNhanMau,
                 UnitPriceVnd = 10000,
                 Redundancy = 1,
                 BudgetVnd = 100000,
@@ -281,7 +287,8 @@ namespace Crowd.Seeding
                 GuidelineMarkdown = HuongDan,
                 Stage = SeedStage.Draft,
                 IsPrivate = false,
-                Classes = LopMau,
+                Modality = Modalities.Image,
+                LabelSchemaJson = TapNhanMau,
                 UnitPriceVnd = 15000,
                 Redundancy = 2,
                 BudgetVnd = 200000,
@@ -324,7 +331,8 @@ namespace Crowd.Seeding
                 GuidelineMarkdown = HuongDan,
                 Stage = SeedStage.Running,
                 IsPrivate = false,
-                Classes = LopMau,
+                Modality = Modalities.Image,
+                LabelSchemaJson = TapNhanMau,
                 UnitPriceVnd = 30000,
                 Redundancy = 1,
                 BudgetVnd = 300000,
@@ -383,8 +391,230 @@ namespace Crowd.Seeding
         }
 
         // =====================================================================
+        // P5 — TEXT, P6 — AUDIO, P7 — PAIR (cac loai du lieu khac anh)
+        // =====================================================================
+
+        /// <summary>
+        /// P5 — VAN BAN, DANG CHAY: hai cong cu tren cung mot cau — phan loai cam xuc
+        /// va gan the thuc the (NER, span). 4 cau, redundancy 1.
+        /// Ky quy 50.000d ≥ 4 x 1 x (5.000 + 1.500) = 26.000d.
+        /// </summary>
+        private static SeedProject TaoP5()
+        {
+            const string k = "p5";
+            Guid id = SeedIds.Tu("project:" + k);
+
+            string[] cau = new string[]
+            {
+                "Anh Minh rat hai long voi dich vu cua Viettel tai Ha Noi.",
+                "Chi Lan noi giao hang cham va nhan vien thieu lich su.",
+                "Cong ty FPT mo van phong moi o Da Nang.",
+                "Hom nay troi mua nhe.",
+            };
+
+            List<SeedSample> mau = new List<SeedSample>();
+            for (int i = 0; i < cau.Length; i++)
+            {
+                mau.Add(MauVanBan(k, i + 1, cau[i]));
+            }
+
+            Guid biz1 = User("biz1").Id;
+
+            List<SeedSubmission> nop = new List<SeedSubmission>
+            {
+                NopJson(k, id, mau[0], "lab1",
+                    "{\"cam_xuc\":{\"labelIds\":[\"tich_cuc\"]},\"thuc_the\":["
+                    + Doan(cau[0], "Minh", "TEN_NGUOI") + "," + Doan(cau[0], "Viettel", "TO_CHUC") + "," + Doan(cau[0], "Ha Noi", "DIA_DIEM") + "]}",
+                    SeedReview.PendingReview, null, TimeSpan.FromMinutes(40), null),
+                NopJson(k, id, mau[1], "lab2",
+                    "{\"cam_xuc\":{\"labelIds\":[\"tieu_cuc\"]},\"thuc_the\":[" + Doan(cau[1], "Lan", "TEN_NGUOI") + "]}",
+                    SeedReview.Approved, biz1, NgayGio(1, 2), NgayGio(1, 0)),
+            };
+
+            return new SeedProject
+            {
+                Key = k,
+                Id = id,
+                OwnerId = biz1,
+                DatasetId = SeedIds.Tu("dataset:" + k),
+                Name = "[Seed] Van ban - cam xuc va thuc the",
+                Description = "Moi cau: chon cam xuc va boi den ten nguoi, dia diem, to chuc.",
+                GuidelineMarkdown = "# Huong dan\n\nChon cam xuc cua ca cau. Boi den tung thuc the (vi tri tinh theo ky tu, end khong tinh).",
+                Modality = Modalities.Text,
+                LabelSchemaJson =
+                    "{\"modality\":\"text\",\"tools\":["
+                    + "{\"name\":\"cam_xuc\",\"kind\":\"classification\",\"classes\":[\"tich_cuc\",\"tieu_cuc\",\"trung_tinh\"]},"
+                    + "{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"TEN_NGUOI\",\"DIA_DIEM\",\"TO_CHUC\"]}]}",
+                Stage = SeedStage.Running,
+                IsPrivate = false,
+                UnitPriceVnd = 5000,
+                Redundancy = 1,
+                BudgetVnd = 50000,
+                DeadlineInDays = 30,
+                RequireEntranceTest = false,
+                EntranceQuestionCount = 10,
+                EntrancePassPercent = 80,
+                CreatedAgo = NgayGio(2, 2),
+                EscrowedAgo = NgayGio(2, 1),
+                PublishedAgo = NgayGio(2, 0),
+                Samples = mau,
+                Members = new SeedMember[]
+                {
+                    new SeedMember { UserId = User("lab1").Id, Role = SeedMemberRole.Labeler },
+                    new SeedMember { UserId = User("lab2").Id, Role = SeedMemberRole.Labeler },
+                },
+                Gold = Array.Empty<SeedGold>(),
+                Submissions = nop,
+            };
+        }
+
+        /// <summary>
+        /// P6 — AM THANH, DANG CHAY, CAT DOAN 10 GIAY: file 25 giay thanh 3 mau
+        /// (0-10, 10-20, 20-25), file 8 giay giu nguyen. Cong cu: chep loi + danh
+        /// dau doan thoi gian. Ky quy 50.000d ≥ 4 x 1 x (8.000 + 2.400) = 41.600d.
+        /// </summary>
+        private static SeedProject TaoP6()
+        {
+            const string k = "p6";
+            Guid id = SeedIds.Tu("project:" + k);
+
+            string fileDai = id.ToString() + "/" + SeedIds.Tu("file:" + k + ":1").ToString() + ".wav";
+            string fileNgan = id.ToString() + "/" + SeedIds.Tu("file:" + k + ":2").ToString() + ".wav";
+
+            List<SeedSample> mau = new List<SeedSample>
+            {
+                MauAmThanh(k, 1, "cuoc-goi-01.wav", fileDai, 440, 25, 0, 10),
+                MauAmThanh(k, 2, "cuoc-goi-01.wav", fileDai, 440, 25, 10, 20),
+                MauAmThanh(k, 3, "cuoc-goi-01.wav", fileDai, 440, 25, 20, 25),
+                MauAmThanh(k, 4, "loi-chao.wav", fileNgan, 660, 8, null, null),
+            };
+
+            return new SeedProject
+            {
+                Key = k,
+                Id = id,
+                OwnerId = User("biz1").Id,
+                DatasetId = SeedIds.Tu("dataset:" + k),
+                Name = "[Seed] Am thanh - chep loi va danh dau doan",
+                Description = "Nghe tung doan 10 giay: chep lai loi noi va danh dau doan giong noi / nhac / im lang.",
+                GuidelineMarkdown = "# Huong dan\n\nChep dung tung tu nghe duoc. Thoi gian tinh tu dau DOAN (0 den do dai doan).",
+                Modality = Modalities.Audio,
+                LabelSchemaJson =
+                    "{\"modality\":\"audio\",\"segmentSeconds\":10,\"tools\":["
+                    + "{\"name\":\"loi_noi\",\"kind\":\"transcription\"},"
+                    + "{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"giong_noi\",\"nhac\",\"im_lang\"]}]}",
+                Stage = SeedStage.Running,
+                IsPrivate = false,
+                UnitPriceVnd = 8000,
+                Redundancy = 1,
+                BudgetVnd = 50000,
+                DeadlineInDays = 30,
+                RequireEntranceTest = false,
+                EntranceQuestionCount = 10,
+                EntrancePassPercent = 80,
+                CreatedAgo = NgayGio(1, 6),
+                EscrowedAgo = NgayGio(1, 5),
+                PublishedAgo = NgayGio(1, 4),
+                Samples = mau,
+                Members = new SeedMember[]
+                {
+                    new SeedMember { UserId = User("lab1").Id, Role = SeedMemberRole.Labeler },
+                },
+                Gold = Array.Empty<SeedGold>(),
+                Submissions = new SeedSubmission[]
+                {
+                    NopJson(k, id, mau[0], "lab1",
+                        "{\"loi_noi\":{\"text\":\"(chi co tieng nhac nen)\"},\"doan\":[{\"labelId\":\"nhac\",\"start\":0,\"end\":10}]}",
+                        SeedReview.PendingReview, null, TimeSpan.FromMinutes(25), null),
+                },
+            };
+        }
+
+        /// <summary>
+        /// P7 — CAP CAU TRA LOI (RLHF), DANG CHAY: chon cau tra loi tot hon va
+        /// danh gia an toan. Redundancy 2 — hai nguoi cung chon a → gop da so ra "a".
+        /// Ky quy 50.000d ≥ 3 x 2 x (3.000 + 900) = 23.400d.
+        /// </summary>
+        private static SeedProject TaoP7()
+        {
+            const string k = "p7";
+            Guid id = SeedIds.Tu("project:" + k);
+            Guid biz1 = User("biz1").Id;
+
+            List<SeedSample> mau = new List<SeedSample>
+            {
+                MauCap(k, 1, "Thu do cua Viet Nam la gi?",
+                    "Thu do cua Viet Nam la Ha Noi.",
+                    "Viet Nam co rat nhieu thanh pho dep."),
+                MauCap(k, 2, "Lam sao de luoc trung long dao?",
+                    "Luoc trung khoang 6 phut trong nuoc soi roi ngam nuoc lanh.",
+                    "Luoc trung that lau, cang lau cang ngon."),
+                MauCap(k, 3, "Viet mot cau chao buoi sang.",
+                    "Chao buoi sang, chuc ban mot ngay tot lanh!",
+                    "Chao."),
+            };
+
+            const string chonA = "{\"tot_hon\":{\"choice\":\"a\"},\"an_toan\":{\"labelIds\":[\"an_toan\"]}}";
+
+            return new SeedProject
+            {
+                Key = k,
+                Id = id,
+                OwnerId = biz1,
+                DatasetId = SeedIds.Tu("dataset:" + k),
+                Name = "[Seed] So sanh cap cau tra loi LLM",
+                Description = "Doc cau hoi va hai cau tra loi a, b: chon cau tot hon va danh gia co an toan khong.",
+                GuidelineMarkdown = "# Huong dan\n\nChon cau tra loi DUNG va HUU ICH hon. Bang nhau thi chon tie.",
+                Modality = Modalities.Pair,
+                LabelSchemaJson =
+                    "{\"modality\":\"pair\",\"tools\":["
+                    + "{\"name\":\"tot_hon\",\"kind\":\"pairwise\",\"allowTie\":true},"
+                    + "{\"name\":\"an_toan\",\"kind\":\"classification\",\"classes\":[\"an_toan\",\"khong_an_toan\"]}]}",
+                Stage = SeedStage.Running,
+                IsPrivate = false,
+                UnitPriceVnd = 3000,
+                Redundancy = 2,
+                BudgetVnd = 50000,
+                DeadlineInDays = 30,
+                RequireEntranceTest = false,
+                EntranceQuestionCount = 10,
+                EntrancePassPercent = 80,
+                CreatedAgo = NgayGio(3, 0),
+                EscrowedAgo = NgayGio(2, 23),
+                PublishedAgo = NgayGio(2, 22),
+                Samples = mau,
+                Members = new SeedMember[]
+                {
+                    new SeedMember { UserId = User("lab1").Id, Role = SeedMemberRole.Labeler },
+                    new SeedMember { UserId = User("lab2").Id, Role = SeedMemberRole.Labeler },
+                },
+                Gold = Array.Empty<SeedGold>(),
+                Submissions = new SeedSubmission[]
+                {
+                    NopJson(k, id, mau[0], "lab1", chonA, SeedReview.Approved, biz1, NgayGio(2, 10), NgayGio(2, 8)),
+                    NopJson(k, id, mau[0], "lab2", chonA, SeedReview.Approved, biz1, NgayGio(2, 9), NgayGio(2, 8)),
+                    NopJson(k, id, mau[1], "lab2", chonA, SeedReview.PendingReview, null, TimeSpan.FromMinutes(15), null),
+                },
+            };
+        }
+
+        // =====================================================================
         // Ham phu tro dung kich ban
         // =====================================================================
+
+        /// <summary>Tap nhan cua P1-P4: mot cong cu phan loai mau, ten "label".</summary>
+        public const string TapNhanMau =
+            "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\","
+            + "\"classes\":[\"do\",\"xanh_la\",\"xanh_duong\",\"vang\"]}]}";
+
+        /// <summary>Kich thuoc anh mau (px) — ProjectSeeder sinh anh dung kich thuoc nay.</summary>
+        public const int KichThuocAnh = 256;
+
+        /// <summary>Nhan phan loai cho P1-P4: {"label":{"labelIds":["do"]}}.</summary>
+        public static string PhanLoai(string nhan)
+        {
+            return "{\"label\":{\"labelIds\":[\"" + nhan + "\"]}}";
+        }
 
         private static SeedSample Mau(Guid projectId, string projectKey, int index, string nhan, byte r, byte g, byte b)
         {
@@ -395,13 +625,90 @@ namespace Crowd.Seeding
                 Id = id,
                 Index = index,
                 FileName = nhan + "-" + index.ToString("00", CultureInfo.InvariantCulture) + ".png",
-                // Cung cong thuc voi Sample.Tao cua project-svc.
+                Modality = Modalities.Image,
+                // Cung cong thuc voi Sample.TaoAnhTrongZip cua project-svc.
                 StorageKey = projectId.ToString() + "/" + id.ToString() + ".png",
+                Metadata = new SampleMetadata { Width = KichThuocAnh, Height = KichThuocAnh },
                 TrueLabel = nhan,
                 R = r,
                 G = g,
                 B = b,
             };
+        }
+
+        private static SeedSample MauVanBan(string projectKey, int index, string text)
+        {
+            System.Text.Json.Nodes.JsonObject noiDung = new System.Text.Json.Nodes.JsonObject { ["text"] = text };
+
+            return new SeedSample
+            {
+                Id = SeedIds.Tu("sample:" + projectKey + ":" + index.ToString(CultureInfo.InvariantCulture)),
+                Index = index,
+                FileName = "cau-" + index.ToString("00", CultureInfo.InvariantCulture),
+                Modality = Modalities.Text,
+                ContentJson = noiDung.ToJsonString(),
+                Metadata = new SampleMetadata { Length = text.Length },
+            };
+        }
+
+        private static SeedSample MauCap(string projectKey, int index, string prompt, string a, string b)
+        {
+            System.Text.Json.Nodes.JsonObject noiDung = new System.Text.Json.Nodes.JsonObject
+            {
+                ["prompt"] = prompt,
+                ["a"] = a,
+                ["b"] = b,
+            };
+
+            return new SeedSample
+            {
+                Id = SeedIds.Tu("sample:" + projectKey + ":" + index.ToString(CultureInfo.InvariantCulture)),
+                Index = index,
+                FileName = "cap-" + index.ToString("00", CultureInfo.InvariantCulture),
+                Modality = Modalities.Pair,
+                ContentJson = noiDung.ToJsonString(),
+                Metadata = SampleMetadata.Rong,
+            };
+        }
+
+        /// <summary>Mot mau audio — ca file (batDau null) hoac mot doan [batDau, ketThuc] cua file.</summary>
+        private static SeedSample MauAmThanh(
+            string projectKey, int index, string tenFile, string khoaFile, double tanSo, double giayCaFile, double? batDau, double? ketThuc)
+        {
+            SampleMetadata md = batDau.HasValue && ketThuc.HasValue
+                ? new SampleMetadata
+                {
+                    DurationSec = ketThuc.Value - batDau.Value,
+                    SegmentStart = batDau.Value,
+                    SegmentEnd = ketThuc.Value,
+                    SourceDurationSec = giayCaFile,
+                }
+                : new SampleMetadata { DurationSec = giayCaFile };
+
+            return new SeedSample
+            {
+                Id = SeedIds.Tu("sample:" + projectKey + ":" + index.ToString(CultureInfo.InvariantCulture)),
+                Index = index,
+                FileName = tenFile,
+                Modality = Modalities.Audio,
+                StorageKey = khoaFile,
+                Metadata = md,
+                ToneHz = tanSo,
+                FileSeconds = giayCaFile,
+            };
+        }
+
+        /// <summary>Mot span NER cho cum tu trong cau — tinh vi tri bang IndexOf de khoi dem tay.</summary>
+        private static string Doan(string cau, string cumTu, string nhan)
+        {
+            int batDau = cau.IndexOf(cumTu, StringComparison.Ordinal);
+            if (batDau < 0)
+            {
+                throw new InvalidOperationException("Cau khong chua cum tu: " + cumTu);
+            }
+
+            return "{\"labelId\":\"" + nhan + "\",\"start\":" + batDau.ToString(CultureInfo.InvariantCulture)
+                   + ",\"end\":" + (batDau + cumTu.Length).ToString(CultureInfo.InvariantCulture) + "}";
         }
 
         /// <summary>Bon anh, moi mau mot anh.</summary>
@@ -422,17 +729,51 @@ namespace Crowd.Seeding
             {
                 Id = SeedIds.Tu("gold:" + projectKey + ":" + mau.Index.ToString(CultureInfo.InvariantCulture)),
                 SampleId = mau.Id,
-                Label = mau.TrueLabel,
+                PayloadJson = PhanLoai(mau.TrueLabel!),
                 ForEntranceTest = choTest,
             };
         }
 
+        /// <summary>Luot nop PHAN LOAI cho P1-P4.</summary>
         private static SeedSubmission Nop(
             string projectKey,
             Guid projectId,
             SeedSample mau,
             string labelerKey,
             string nhan,
+            SeedReview ketQua,
+            Guid? reviewerId,
+            string? lyDoTuChoi,
+            string? noiDungKhieuNai,
+            TimeSpan nopCach,
+            TimeSpan? duyetCach,
+            TimeSpan? khieuNaiCach)
+        {
+            return TaoLuotNop(projectKey, projectId, mau, labelerKey, PhanLoai(nhan), ketQua, reviewerId,
+                lyDoTuChoi, noiDungKhieuNai, nopCach, duyetCach, khieuNaiCach);
+        }
+
+        /// <summary>Luot nop voi nhan JSON tuy y (text, audio, pair...).</summary>
+        private static SeedSubmission NopJson(
+            string projectKey,
+            Guid projectId,
+            SeedSample mau,
+            string labelerKey,
+            string payloadJson,
+            SeedReview ketQua,
+            Guid? reviewerId,
+            TimeSpan nopCach,
+            TimeSpan? duyetCach)
+        {
+            return TaoLuotNop(projectKey, projectId, mau, labelerKey, payloadJson, ketQua, reviewerId, null, null, nopCach, duyetCach, null);
+        }
+
+        private static SeedSubmission TaoLuotNop(
+            string projectKey,
+            Guid projectId,
+            SeedSample mau,
+            string labelerKey,
+            string payloadJson,
             SeedReview ketQua,
             Guid? reviewerId,
             string? lyDoTuChoi,
@@ -452,7 +793,7 @@ namespace Crowd.Seeding
                 SampleId = mau.Id,
                 StorageKey = mau.StorageKey,
                 LabelerId = User(labelerKey).Id,
-                Label = nhan,
+                PayloadJson = payloadJson,
                 Review = ketQua,
                 ReviewerId = reviewerId,
                 RejectReason = lyDoTuChoi,

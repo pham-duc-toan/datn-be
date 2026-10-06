@@ -1,30 +1,41 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Crowd.Labeling.Schemas;
+using Crowd.Labeling.Tools;
 
 namespace Crowd.Labeling
 {
     /// <summary>
-    /// MOT NHAN, o moi dang: loai nhan + phien ban dinh dang + du lieu JSON.
+    /// MOT NHAN, o moi loai du lieu va moi cong cu:
     ///
-    ///     TaskType      "imageClassification"
-    ///     SchemaVersion 1
-    ///     DataJson      {"labelIds":["do"]}
+    ///     TaskType      "image"          ← loai du lieu cua du an
+    ///     SchemaVersion 1                ← phien ban dinh dang "ket qua theo cong cu"
+    ///     DataJson      {"loai_anh":{"labelIds":["ngay"]},
+    ///                    "vat_the":[{"labelId":"xe","x":10,"y":20,"w":100,"h":50}]}
     ///
-    /// Trong database la ba cot (task_type, schema_version, payload jsonb). Tren
-    /// bus la mot object JSON long nhau (xem LabelPayloadJsonConverter).
+    /// DataJson la object: KHOA = ten cong cu trong tap nhan, GIA TRI = ket qua
+    /// cua cong cu do (hinh dang theo loai cong cu, xem ToolKinds).
     ///
-    /// BAT BIEN va LUON HOP LE: chi tao duoc qua Tao(...), ma Tao luon kiem cau
-    /// truc theo dinh dang va luu ban CHUAN HOA. Code nao cam duoc mot
-    /// LabelPayload thi khong phai kiem lai.
+    /// Database: ba cot (task_type, schema_version, payload jsonb). Event: mot
+    /// object long nhau (LabelPayloadJsonConverter).
     ///
-    /// So sanh THEO GIA TRI (Equals tren ca ba truong): hai nhan cung y nghia la
-    /// bang nhau — can cho record event so sanh duoc khi test round-trip.
+    /// Hai cach tao:
+    ///   - Tao(tapNhan, duLieu, mau): tu nguoi dung — KIEM DAY DU (JSON Schema +
+    ///     ngu nghia theo tap nhan va thong tin mau), roi chuan hoa.
+    ///   - TuLuuTru(...): doc lai tu database / event — du lieu da duoc kiem luc
+    ///     tao, chi chuan hoa.
+    ///
+    /// So sanh THEO GIA TRI tren ca ba truong.
     /// </summary>
     [JsonConverter(typeof(LabelPayloadJsonConverter))]
     public sealed class LabelPayload : IEquatable<LabelPayload>
     {
+        /// <summary>Phien ban dinh dang "ket qua theo cong cu". Doi hinh dang = tang so nay.</summary>
+        public const int PhienBanHienTai = 1;
+
         private LabelPayload(string taskType, int schemaVersion, string dataJson)
         {
             TaskType = taskType;
@@ -32,6 +43,7 @@ namespace Crowd.Labeling
             DataJson = dataJson;
         }
 
+        /// <summary>Loai du lieu: image | text | audio | video | pair.</summary>
         public string TaskType { get; }
 
         public int SchemaVersion { get; }
@@ -43,61 +55,107 @@ namespace Crowd.Labeling
         // TAO
         // =====================================================================
 
-        /// <summary>Tao tu du lieu JSON client gui / event mang. Sai dinh dang thi nem LabelFormatException.</summary>
-        public static LabelPayload Tao(string taskType, int schemaVersion, JsonElement data)
+        /// <summary>
+        /// Tu du lieu nguoi dung gui: kiem theo tap nhan va thong tin mau. Sai thi
+        /// nem LabelFormatException — ma "nhan_sai_dinh_dang" (hinh dang) hoac
+        /// "nhan_khong_hop_le" (ngu nghia).
+        /// </summary>
+        public static LabelPayload Tao(LabelSchema tapNhan, JsonElement duLieu, SampleMetadata? mau)
         {
-            if (string.IsNullOrWhiteSpace(taskType))
+            if (tapNhan == null)
             {
-                throw new LabelFormatException("Thieu loai nhan.");
+                throw new ArgumentNullException(nameof(tapNhan));
             }
 
-            ILabelFormat dinhDang = LabelFormats.Lay(taskType, schemaVersion);
-            return new LabelPayload(taskType, schemaVersion, dinhDang.ChuanHoa(data));
+            // 1. Hinh dang: JSON Schema ghep tu tap nhan.
+            JsonSchemas.KiemNhan(tapNhan, duLieu);
+
+            // 2. Ngu nghia + chuan hoa, tung cong cu.
+            SampleMetadata thongTinMau = mau ?? SampleMetadata.Rong;
+            JsonObject vao = (JsonObject)JsonNode.Parse(duLieu.GetRawText())!;
+            JsonObject ra = new JsonObject();
+
+            foreach (ToolDefinition t in tapNhan.Tools)
+            {
+                JsonNode? ketQua = vao[t.Name];
+                if (ketQua == null)
+                {
+                    continue;
+                }
+
+                ra[t.Name] = ToolKindRegistry.Lay(t.Kind).KiemVaChuanHoa(ketQua, t, thongTinMau);
+            }
+
+            return new LabelPayload(tapNhan.Modality, PhienBanHienTai, JsonCanonical.Viet(ra));
         }
 
-        /// <summary>Tao tu chuoi JSON — dung khi doc tu database.</summary>
-        public static LabelPayload Tao(string taskType, int schemaVersion, string dataJson)
+        public static LabelPayload Tao(LabelSchema tapNhan, string duLieuJson, SampleMetadata? mau)
         {
-            using (JsonDocument doc = DocJson(dataJson))
+            using (JsonDocument doc = DocJson(duLieuJson))
             {
-                return Tao(taskType, schemaVersion, doc.RootElement);
+                return Tao(tapNhan, doc.RootElement, mau);
             }
         }
 
-        /// <summary>Loi tat cho phan loai anh, phien ban moi nhat: PhanLoai("do").</summary>
-        public static LabelPayload PhanLoai(params string[] labelIds)
+        /// <summary>
+        /// Doc lai nhan DA KIEM tu database / event: chi kiem la object JSON va
+        /// loai du lieu / phien ban duoc ho tro, roi chuan hoa.
+        /// </summary>
+        public static LabelPayload TuLuuTru(string taskType, int schemaVersion, string dataJson)
         {
-            if (labelIds == null)
+            if (!Modalities.HopLe(taskType))
             {
-                throw new ArgumentNullException(nameof(labelIds));
+                throw new LabelFormatException("loai_nhan_chua_ho_tro", "Loai du lieu '" + taskType + "' khong hop le.");
             }
 
-            Dictionary<string, string[]> data = new Dictionary<string, string[]>();
-            data["labelIds"] = labelIds;
+            if (schemaVersion != PhienBanHienTai)
+            {
+                throw new LabelFormatException(
+                    "loai_nhan_chua_ho_tro",
+                    "Chua ho tro dinh dang nhan phien ban " + schemaVersion + ".");
+            }
 
-            string taskType = LabelTaskTypes.ImageClassification;
-            return Tao(taskType, LabelFormats.PhienBanMoiNhat(taskType), JsonSerializer.Serialize(data));
+            JsonObject? o;
+            try
+            {
+                o = JsonNode.Parse(dataJson ?? string.Empty) as JsonObject;
+            }
+            catch (JsonException ex)
+            {
+                throw new LabelFormatException("Du lieu nhan khong phai JSON hop le.", ex);
+            }
+
+            if (o == null)
+            {
+                throw new LabelFormatException("Du lieu nhan phai la mot object.");
+            }
+
+            return new LabelPayload(taskType, schemaVersion, JsonCanonical.Viet(o));
         }
 
         // =====================================================================
         // DOC
         // =====================================================================
 
-        /// <summary>Cac lop nhan xuat hien trong nhan (kiem voi tap nhan cua du an).</summary>
-        public IReadOnlyList<string> CacLop()
+        /// <summary>Ket qua cua mot cong cu; null neu nhan khong co cong cu nay.</summary>
+        public JsonNode? KetQua(string tenCongCu)
         {
-            using (JsonDocument doc = DocJson(DataJson))
-            {
-                return DinhDang().CacLop(doc.RootElement);
-            }
+            JsonObject o = (JsonObject)JsonNode.Parse(DataJson)!;
+            JsonNode? n = o[tenCongCu];
+            return n == null ? null : n.DeepClone();
         }
 
         /// <summary>
-        /// Nhan nay co khop dap an khong (cau hoi vang, bai test). Khac loai nhan
-        /// la khong khop — khong so duoc bounding box voi phan loai.
+        /// Nhan nay co khop dap an khong (cau vang, bai test). Moi cong cu co trong
+        /// dap an phai khop theo cach cua loai cong cu do (tap lop, IoU, F1, CER).
         /// </summary>
-        public bool KhopDapAn(LabelPayload dapAn)
+        public bool KhopDapAn(LabelSchema tapNhan, LabelPayload dapAn)
         {
+            if (tapNhan == null)
+            {
+                throw new ArgumentNullException(nameof(tapNhan));
+            }
+
             if (dapAn == null)
             {
                 throw new ArgumentNullException(nameof(dapAn));
@@ -108,17 +166,34 @@ namespace Crowd.Labeling
                 return false;
             }
 
-            using (JsonDocument nop = DocJson(DataJson))
-            using (JsonDocument dung = DocJson(dapAn.DataJson))
+            foreach (ToolDefinition t in tapNhan.Tools)
             {
-                return DinhDang().KhopDapAn(nop.RootElement, dung.RootElement);
+                JsonNode? nop = KetQua(t.Name);
+                JsonNode? dung = dapAn.KetQua(t.Name);
+
+                if (dung == null && nop == null)
+                {
+                    continue;
+                }
+
+                if (dung == null || nop == null)
+                {
+                    return false;
+                }
+
+                if (!ToolKindRegistry.Lay(t.Kind).Khop(nop, dung, t))
+                {
+                    return false;
+                }
             }
+
+            return true;
         }
 
         /// <summary>Du lieu duoi dang JsonElement doc lap (da Clone) — de tra ra API.</summary>
         public JsonElement DataElement()
         {
-            using (JsonDocument doc = DocJson(DataJson))
+            using (JsonDocument doc = JsonDocument.Parse(DataJson))
             {
                 return doc.RootElement.Clone();
             }
@@ -155,18 +230,11 @@ namespace Crowd.Labeling
             return TaskType + "/v" + SchemaVersion + " " + DataJson;
         }
 
-        // =====================================================================
-
-        private ILabelFormat DinhDang()
-        {
-            return LabelFormats.Lay(TaskType, SchemaVersion);
-        }
-
         private static JsonDocument DocJson(string json)
         {
             if (string.IsNullOrWhiteSpace(json))
             {
-                throw new LabelFormatException("Du lieu nhan rong.");
+                throw new LabelFormatException("nhan_sai_dinh_dang", "Du lieu nhan rong.");
             }
 
             try
@@ -177,6 +245,51 @@ namespace Crowd.Labeling
             {
                 throw new LabelFormatException("Du lieu nhan khong phai JSON hop le.", ex);
             }
+        }
+    }
+
+    /// <summary>
+    /// Gop nhan cua nhieu nguoi (da duyet) cho MOT mau, theo tung cong cu:
+    ///     {"loai_anh": {"method":"majority","final":{...},"votes":{...},"disputed":false},
+    ///      "vat_the":  {"method":"none"}}
+    /// "none" = cong cu chua co cach gop tu dong — ket qua cuoi la cac nhan da duyet.
+    /// </summary>
+    public static class LabelAggregator
+    {
+        public static JsonObject Gop(LabelSchema tapNhan, IReadOnlyList<LabelPayload> nhan)
+        {
+            if (tapNhan == null)
+            {
+                throw new ArgumentNullException(nameof(tapNhan));
+            }
+
+            if (nhan == null)
+            {
+                throw new ArgumentNullException(nameof(nhan));
+            }
+
+            JsonObject ra = new JsonObject();
+            foreach (ToolDefinition t in tapNhan.Tools)
+            {
+                List<JsonNode> ketQua = new List<JsonNode>();
+                foreach (LabelPayload p in nhan)
+                {
+                    JsonNode? k = p.KetQua(t.Name);
+                    if (k != null)
+                    {
+                        ketQua.Add(k);
+                    }
+                }
+
+                JsonObject gop = ketQua.Count == 0
+                    ? new JsonObject { ["method"] = "none" }
+                    : ToolKindRegistry.Lay(t.Kind).Gop(ketQua, t);
+
+                gop["kind"] = t.Kind;
+                ra[t.Name] = gop;
+            }
+
+            return ra;
         }
     }
 }

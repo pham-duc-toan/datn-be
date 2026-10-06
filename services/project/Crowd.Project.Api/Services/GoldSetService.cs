@@ -118,8 +118,12 @@ namespace Crowd.Project.Api.Services
                 throw new InvalidValueException("mau_trung", "Mot mau xuat hien hai lan trong yeu cau.");
             }
 
-            int soThuoc = await _db.Samples.CountAsync(s => s.ProjectId == projectId && mauYeuCau.Contains(s.Id), ct);
-            if (soThuoc != mauYeuCau.Count)
+            // Metadata mau (rong x cao, thoi luong...) de kiem dap an nam trong mau.
+            Dictionary<Guid, RawJson> metadataMau = await _db.Samples
+                .AsNoTracking()
+                .Where(s => s.ProjectId == projectId && mauYeuCau.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, s => s.Metadata, ct);
+            if (metadataMau.Count != mauYeuCau.Count)
             {
                 throw new InvalidValueException("mau_khong_thuoc_du_an", "Co mau khong thuoc du an nay.");
             }
@@ -128,9 +132,6 @@ namespace Crowd.Project.Api.Services
             DateTimeOffset bayGio = _clock.GetUtcNow();
             List<GoldItem> moi = new List<GoldItem>();
 
-            // Loai nhan do DU AN quyet dinh, client chi gui phan du lieu.
-            string loaiNhan = duAn.LabelTaskType;
-
             foreach (GoldItemInput i in body.Items)
             {
                 if (daLaVang.Contains(i.SampleId!.Value))
@@ -138,18 +139,18 @@ namespace Crowd.Project.Api.Services
                     throw new RuleViolationException("da_la_cau_vang", "Mau " + i.SampleId + " da la cau hoi vang.");
                 }
 
-                // Sai dinh dang → LabelFormatException → 400 (ApiExceptionHandler).
+                // Loai du lieu va cong cu do TAP NHAN cua du an quyet dinh, client chi
+                // gui phan du lieu. Sai dinh dang → LabelFormatException → 400.
                 LabelPayload dapAn = LabelPayload.Tao(
-                    loaiNhan,
-                    i.SchemaVersion ?? LabelFormats.PhienBanMoiNhat(loaiNhan),
-                    i.ExpectedPayload!.Value);
+                    schema,
+                    i.ExpectedPayload!.Value,
+                    SampleMetadata.Tu(metadataMau[i.SampleId.Value]));
 
                 GoldItem g = GoldItem.Tao(
                     projectId,
                     i.SampleId.Value,
                     dapAn,
                     i.Purpose!.Value,
-                    schema,
                     bayGio);
 
                 moi.Add(g);
