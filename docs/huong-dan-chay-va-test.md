@@ -1,6 +1,6 @@
 # Hướng dẫn khởi động dự án và test API
 
-**Tài liệu liên quan:** [Kiến trúc backend](kien-truc-backend.md) · [Danh mục event](../contracts/events/CATALOG.md) · [Sổ vấn đề](van-de-can-giai-quyet.md)
+**Tài liệu liên quan:** [Kiến trúc backend](kien-truc-backend.md) · [Tích hợp frontend](tich-hop-frontend.md) · [Danh mục event](../contracts/events/CATALOG.md) · [Sổ vấn đề](van-de-can-giai-quyet.md)
 
 Tài liệu này dành cho người lần đầu chạy hệ thống trên máy dev. Sau khi làm theo, bạn sẽ có hạ tầng và 6 service nghiệp vụ đang chạy, kèm **dữ liệu mẫu (seed) đủ cho mọi luồng chính**. Phần cuối là bộ lệnh `curl` để test từng luồng qua gateway.
 
@@ -621,7 +621,7 @@ Mỗi dự án chọn **một loại dữ liệu** (`modality`) lúc tạo: `ima
 | `span` | text | `[{"labelId":"TEN_NGUOI","start":4,"end":8}]` | `0 ≤ start < end ≤` độ dài văn bản | chưa gộp |
 | `transcription` | audio, video | `{"text":"..."}` | dài ≤ `maxLength` (mặc định 5000) | chưa gộp |
 | `temporalSegment` | audio, video | `[{"labelId":"nhac","start":0,"end":2.5}]` | nằm trong thời lượng **của đoạn**, tính từ đầu đoạn | chưa gộp |
-| `pairwise` | pair | `{"choice":"a"}` (`a` / `b` / `tie`) | `tie` chỉ khi `allowTie: true` | đa số tuyệt đối |
+| `pairwise` | pair | `{"choice":"a"}` (`a` / `b` / `tie`) | `tie` bị từ chối khi khai `allowTie: false` (mặc định cho hòa) | đa số tuyệt đối |
 
 Công cụ có `"required": false` thì được bỏ trống. Câu vàng chấm theo từng công cụ: phân loại so tập lớp, bbox theo IoU ≥ 0,5, polygon IoU, span F1, transcription CER ≤ 0,1, temporalSegment IoU thời gian; ngưỡng đổi được bằng `matchThreshold` của công cụ.
 
