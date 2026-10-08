@@ -1,5 +1,6 @@
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.Gateway.Api.Middlewares;
+using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Ocelot.DependencyInjection;
@@ -16,6 +17,10 @@ builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange
 // Route nao trong ocelot.json co AuthenticationOptions "Bearer" thi Ocelot goi
 // scheme nay truoc khi chuyen tiep; token sai → 401 ngay tai gateway.
 builder.Services.AddCrowdJwtAuthentication(builder.Configuration);
+
+// Setting dong (admin-svc quan ly). Gateway khong co database: giu setting trong
+// bo nho, nghe setting.changed qua mot queue tam (vd tran upload dataset.zip_max_bytes).
+builder.Services.AddCrowdSettingsInMemory(builder.Configuration, "gateway");
 
 builder.Services.AddOcelot(builder.Configuration);
 

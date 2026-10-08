@@ -7,12 +7,13 @@ using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Project;
-using Crowd.Tasking.Api.Consumers;
+using Crowd.Contracts.Quality;
 using Crowd.Seeding;
+using Crowd.Settings;
+using Crowd.Tasking.Api.Consumers;
 using Crowd.Tasking.Api.Exceptions;
 using Crowd.Tasking.Api.Seeding;
 using Crowd.Tasking.Api.Services;
-using Crowd.Tasking.Api.Settings;
 using Crowd.Tasking.Api.Workers;
 using Crowd.Tasking.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
@@ -31,6 +32,8 @@ builder.Services.AddDbContext<TaskDbContext>(options =>
 });
 
 // ---- Outbox (gui) ----
+// Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
+builder.Services.AddCrowdSettings<TaskDbContext>(builder.Configuration, "task-svc");
 builder.Services.AddOutbox<TaskDbContext>(builder.Configuration);
 
 // ---- Consumer (nhan): dung ban sao + sinh task. Ten queue giu nguyen mai mai. ----
@@ -49,13 +52,13 @@ builder.Services.AddEventConsumer<TaskDbContext, MemberRemoved, MemberRemovedPro
 builder.Services.AddEventConsumer<TaskDbContext, UserBlocked, UserBlockedProcessor>(cfg, "task-svc.user-blocked");
 builder.Services.AddEventConsumer<TaskDbContext, ReputationChanged, ReputationChangedProcessor>(cfg, "task-svc.reputation-changed");
 builder.Services.AddEventConsumer<TaskDbContext, LevelChanged, LevelChangedProcessor>(cfg, "task-svc.level-changed");
+builder.Services.AddEventConsumer<TaskDbContext, RedundancyIncreaseRequested, RedundancyIncreaseRequestedProcessor>(cfg, "task-svc.redundancy-increase-requested");
 
 // ---- Kho anh (chi sinh link xem) ----
 builder.Services.Configure<ObjectStorageOptions>(cfg.GetSection(ObjectStorageOptions.SectionName));
 builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
 
 // ---- Nghiep vu ----
-builder.Services.Configure<LeaseOptions>(cfg.GetSection(LeaseOptions.SectionName));
 builder.Services.AddScoped<TaskEventPublisher>();
 builder.Services.AddScoped<LeaseRevoker>();
 builder.Services.AddScoped<LeaseService>();

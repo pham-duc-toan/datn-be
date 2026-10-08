@@ -5,10 +5,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Persistence;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Ledger;
 using Crowd.Ledger.Api.Dtos;
 using Crowd.Ledger.Api.Exceptions;
-using Crowd.Ledger.Api.Settings;
+using Crowd.Ledger.Api.Helpers;
 using Crowd.Ledger.Domain.Accounts;
 using Crowd.Ledger.Domain.Common;
 using Crowd.Ledger.Domain.Escrows;
@@ -16,7 +17,6 @@ using Crowd.Ledger.Domain.Journal;
 using Crowd.Ledger.Domain.Withdrawals;
 using Crowd.Ledger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Crowd.Ledger.Api.Services
 {
@@ -29,14 +29,14 @@ namespace Crowd.Ledger.Api.Services
         private readonly LedgerDbContext _db;
         private readonly LedgerWriter _writer;
         private readonly LedgerEventPublisher _events;
-        private readonly LedgerOptions _options;
+        private readonly ISettings _settings;
         private readonly TimeProvider _clock;
 
         public WalletService(
             LedgerDbContext db,
             LedgerWriter writer,
             LedgerEventPublisher events,
-            IOptions<LedgerOptions> options,
+            ISettings settings,
             TimeProvider clock)
         {
             if (db == null)
@@ -54,9 +54,9 @@ namespace Crowd.Ledger.Api.Services
                 throw new ArgumentNullException(nameof(events));
             }
 
-            if (options == null)
+            if (settings == null)
             {
-                throw new ArgumentNullException(nameof(options));
+                throw new ArgumentNullException(nameof(settings));
             }
 
             if (clock == null)
@@ -67,7 +67,7 @@ namespace Crowd.Ledger.Api.Services
             _db = db;
             _writer = writer;
             _events = events;
-            _options = options.Value;
+            _settings = settings;
             _clock = clock;
         }
 
@@ -192,7 +192,7 @@ namespace Crowd.Ledger.Api.Services
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            Withdrawal w = Withdrawal.Tao(uid, body.AmountVnd, body.BankAccount ?? string.Empty, khoa, _options.RutToiThieuVnd, bayGio);
+            Withdrawal w = Withdrawal.Tao(uid, body.AmountVnd, body.BankAccount ?? string.Empty, khoa, QuyDinhTuSetting.Rut(_settings), bayGio);
 
             var tx = await _db.Database.BeginTransactionAsync(ct);
             try
@@ -220,15 +220,17 @@ namespace Crowd.Ledger.Api.Services
                 }
 
                 _db.Withdrawals.Add(w);
+
+                // Tien GIU ngay ca khi con cho duyet — labeler khong rut trung duoc.
                 await _writer.GhiAsync(Postings.YeuCauRut(w.Id, uid, w.AmountVnd, w.TaxVnd, bayGio), ct);
 
-                _events.Phat(caller, new PayoutRequested
+                // Setting ledger.withdraw_auto_approve (+ tran so tien): he thong duyet
+                // luon va gui payment-svc. Khong thi cho admin duyet.
+                if (QuyDinhTuSetting.DuocTuDuyetRut(_settings, w.AmountVnd))
                 {
-                    WithdrawalId = w.Id,
-                    LabelerId = uid,
-                    NetAmountVnd = w.NetVnd,
-                    BankAccount = w.BankAccount,
-                });
+                    w.Duyet(null, bayGio);
+                    _events.PhatYeuCauChi(w, caller);
+                }
 
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
@@ -262,7 +264,7 @@ namespace Crowd.Ledger.Api.Services
             return ds.Select(TaoResponse).ToList();
         }
 
-        private static WithdrawalResponse TaoResponse(Withdrawal w)
+        internal static WithdrawalResponse TaoResponse(Withdrawal w)
         {
             return new WithdrawalResponse
             {
@@ -273,6 +275,7 @@ namespace Crowd.Ledger.Api.Services
                 State = w.State,
                 CreatedAt = w.CreatedAt,
                 FailureReason = w.FailureReason,
+                ReviewedAt = w.ReviewedAt,
             };
         }
 

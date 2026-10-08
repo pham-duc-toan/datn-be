@@ -140,6 +140,99 @@ namespace Crowd.Tasking.Tests
         }
     }
 
+    public sealed class KiemSoatChatLuongTests
+    {
+        private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
+        private static readonly TimeSpan MuoiLamPhut = TimeSpan.FromMinutes(15);
+        private static readonly RawJson KhongMetadata = SampleMetadata.Rong.ToRawJson();
+
+        private static LabelPayload Nhan()
+        {
+            return LabelPayload.Tao(OutOfOrderEventTests.TapNhanAnh("a", "b"), "{\"label\":{\"labelIds\":[\"a\"]}}", null);
+        }
+
+        private static LabelingTask TaskVang()
+        {
+            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 2, Luc);
+            t.LoaiTruVi(true);
+            return t;
+        }
+
+        [Fact]
+        public void Cau_vang_khong_dung_bo_dem_cua_task()
+        {
+            LabelingTask t = TaskVang();
+            Assert.Equal(TaskState.Excluded, t.State);
+
+            Assignment a = Assignment.TaoCauVang(t, Guid.NewGuid(), Luc, MuoiLamPhut);
+            Assignment b = Assignment.TaoCauVang(t, Guid.NewGuid(), Luc, MuoiLamPhut);
+            Assert.True(a.IsGold);
+            Assert.Equal(0, t.ActiveLeaseCount);
+
+            Assert.False(a.Nop(t, Nhan(), Luc.AddMinutes(1)));
+            b.BoQua(t, Luc.AddMinutes(1));
+
+            Assert.Equal(0, t.SubmittedCount);
+            Assert.Equal(0, t.ActiveLeaseCount);
+            Assert.Equal(TaskState.Excluded, t.State);
+        }
+
+        [Fact]
+        public void Task_that_khong_cap_duoc_nhu_cau_vang()
+        {
+            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 2, Luc);
+
+            RuleViolationException ex = Assert.Throws<RuleViolationException>(() =>
+                Assignment.TaoCauVang(t, Guid.NewGuid(), Luc, MuoiLamPhut));
+            Assert.Equal("khong_phai_cau_vang", ex.Code);
+        }
+
+        [Fact]
+        public void Tang_redundancy_mo_lai_task_da_du_va_khong_vuot_tran()
+        {
+            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 2, Luc);
+            Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut).Nop(t, Nhan(), Luc);
+            Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut).Nop(t, Nhan(), Luc);
+            Assert.Equal(TaskState.Completed, t.State);
+
+            // Xin 5 nhung tran du an la 3.
+            Assert.Equal(2, t.TangRedundancy(5, 3));
+            Assert.Equal(3, t.RedundancyTarget);
+            Assert.Equal(TaskState.Open, t.State);
+            Assert.Null(t.CompletedAt);
+            Assert.True(t.CoTheCapThem());
+
+            // Yeu cau giao lai / cu hon: khong doi.
+            Assert.Null(t.TangRedundancy(3, 3));
+            Assert.Null(t.TangRedundancy(2, 3));
+        }
+
+        [Fact]
+        public void Khong_tang_redundancy_cho_task_da_huy_hoac_cau_vang()
+        {
+            LabelingTask huy = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 2, Luc);
+            huy.Huy(Luc);
+
+            Assert.Null(huy.TangRedundancy(3, 3));
+            Assert.Null(TaskVang().TangRedundancy(3, 3));
+        }
+
+        [Fact]
+        public void Ban_sao_du_an_giu_tran_va_ti_le_cau_vang()
+        {
+            ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), Luc);
+            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 1000, 2, 4, 15, Luc.AddDays(1), true, false, null, null, Luc);
+
+            Assert.Equal(4, s.MaxRedundancy);
+            Assert.Equal(15, s.GoldCheckPercent);
+
+            // Tran nho hon redundancy (du lieu hong) → lay redundancy.
+            ProjectSnapshot s2 = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), Luc);
+            s2.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 1000, 3, 1, 0, Luc.AddDays(1), true, false, null, null, Luc);
+            Assert.Equal(3, s2.MaxRedundancy);
+        }
+    }
+
     public sealed class EligibilityTests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
@@ -149,7 +242,7 @@ namespace Crowd.Tasking.Tests
         private static ProjectSnapshot DuAnChay(int? minLevel, int? minReputation)
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(DuAnId, Luc);
-            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 1000, 3, Luc.AddDays(10), true, false, minLevel, minReputation, Luc);
+            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 1000, 3, 3, 0, Luc.AddDays(10), true, false, minLevel, minReputation, Luc);
             return s;
         }
 
@@ -225,7 +318,7 @@ namespace Crowd.Tasking.Tests
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
 
             s.TamDung(T2);
-            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("a", "b"), 1000, 3, T2.AddDays(1), true, false, null, null, T1);
+            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("a", "b"), 1000, 3, 3, 0, T2.AddDays(1), true, false, null, null, T1);
 
             Assert.Equal(SnapshotStatus.Paused, s.Status);
             Assert.True(s.IsConfigured);
@@ -269,7 +362,7 @@ namespace Crowd.Tasking.Tests
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
             Assert.Null(s.LabelSchema);
 
-            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("cho", "meo"), 1000, 3, T2, true, false, null, null, T1);
+            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("cho", "meo"), 1000, 3, 3, 0, T2, true, false, null, null, T1);
 
             Assert.Equal(Modalities.Image, s.Modality);
             Assert.NotNull(s.LabelSchema);

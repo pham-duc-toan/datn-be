@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -128,6 +129,23 @@ namespace Crowd.Labeling.Tests
             Assert.True(gan.KhopDapAn(Anh, dapAn));      // IoU ~0.68
             Assert.False(lech.KhopDapAn(Anh, dapAn));    // IoU ~0.06
             Assert.False(saiLop.KhopDapAn(Anh, dapAn));
+        }
+
+        [Fact]
+        public void Nguong_mac_dinh_lay_tu_setting_khi_cong_cu_khong_khai()
+        {
+            LabelPayload dapAn = LabelPayload.Tao(Anh, "{\"loai\":{\"labelIds\":[\"ngay\"]},\"vat\":[{\"labelId\":\"xe\",\"x\":10,\"y\":10,\"w\":20,\"h\":20}]}", Anh100x50);
+            LabelPayload gan = LabelPayload.Tao(Anh, "{\"loai\":{\"labelIds\":[\"ngay\"]},\"vat\":[{\"labelId\":\"xe\",\"x\":12,\"y\":12,\"w\":20,\"h\":20}]}", Anh100x50);
+
+            // Admin nang labeling.threshold.bbox len 0.8: IoU ~0.68 khong con khop.
+            Dictionary<string, double> chat = new Dictionary<string, double>();
+            chat[ToolKinds.Bbox] = 0.8;
+            Assert.False(gan.KhopDapAn(Anh, dapAn, new NguongKhop(chat)));
+
+            // Ha xuong 0.6: van khop.
+            Dictionary<string, double> thoang = new Dictionary<string, double>();
+            thoang[ToolKinds.Bbox] = 0.6;
+            Assert.True(gan.KhopDapAn(Anh, dapAn, new NguongKhop(thoang)));
         }
 
         [Fact]

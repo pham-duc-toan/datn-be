@@ -52,7 +52,7 @@ namespace Crowd.Labeling.Tools
             }
         }
 
-        public override bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool)
+        public override bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh)
         {
             HashSet<string> a = new HashSet<string>(DocDanhSach(nop).Select(Khoa));
             HashSet<string> b = new HashSet<string>(DocDanhSach(dapAn).Select(Khoa));
@@ -64,7 +64,7 @@ namespace Crowd.Labeling.Tools
 
             int dung = a.Count(x => b.Contains(x));
             double f1 = (2.0 * dung) / (a.Count + b.Count);
-            double nguong = tool.MatchThreshold ?? NguongMacDinh;
+            double nguong = tool.MatchThreshold ?? nguongMacDinh ?? NguongMacDinh;
             return f1 >= nguong - 1e-9;
         }
 

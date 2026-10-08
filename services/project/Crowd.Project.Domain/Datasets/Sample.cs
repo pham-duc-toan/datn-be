@@ -20,7 +20,6 @@ namespace Crowd.Project.Domain.Datasets
     /// </summary>
     public sealed class Sample
     {
-        public const int DoDaiTenToiDa = 500;
 
         private Sample()
         {
@@ -78,9 +77,10 @@ namespace Crowd.Project.Domain.Datasets
             string extension,
             long sizeBytes,
             string sha256,
-            DateTimeOffset luc)
+            DateTimeOffset luc,
+            QuyDinhDuLieu quyDinh)
         {
-            return TaoAnhTrongZip(projectId, datasetId, originalName, contentType, extension, sizeBytes, sha256, SampleMetadata.Rong, luc);
+            return TaoAnhTrongZip(projectId, datasetId, originalName, contentType, extension, sizeBytes, sha256, SampleMetadata.Rong, luc, quyDinh);
         }
 
         public static Sample TaoAnhTrongZip(
@@ -92,9 +92,10 @@ namespace Crowd.Project.Domain.Datasets
             long sizeBytes,
             string sha256,
             SampleMetadata metadata,
-            DateTimeOffset luc)
+            DateTimeOffset luc,
+            QuyDinhDuLieu quyDinh)
         {
-            Sample s = TaoKhung(projectId, datasetId, Modalities.Image, originalName, sha256, metadata, luc);
+            Sample s = TaoKhung(projectId, datasetId, Modalities.Image, originalName, sha256, metadata, luc, quyDinh);
             s.StorageKey = projectId.ToString() + "/" + s.Id.ToString() + extension;
             s.ContentType = contentType;
             s.SizeBytes = sizeBytes;
@@ -112,7 +113,8 @@ namespace Crowd.Project.Domain.Datasets
             long sizeBytes,
             string sha256,
             SampleMetadata metadata,
-            DateTimeOffset luc)
+            DateTimeOffset luc,
+            QuyDinhDuLieu quyDinh)
         {
             if (!Modalities.LaFile(modality))
             {
@@ -125,7 +127,7 @@ namespace Crowd.Project.Domain.Datasets
                 throw new InvalidValueException("file_khong_thuoc_du_an", "File khong thuoc du an nay.");
             }
 
-            Sample s = TaoKhung(projectId, datasetId, modality, originalName, sha256, metadata, luc);
+            Sample s = TaoKhung(projectId, datasetId, modality, originalName, sha256, metadata, luc, quyDinh);
             s.StorageKey = storageKey;
             s.ContentType = contentType;
             s.SizeBytes = sizeBytes;
@@ -141,7 +143,8 @@ namespace Crowd.Project.Domain.Datasets
             string originalName,
             string sha256,
             SampleMetadata metadata,
-            DateTimeOffset luc)
+            DateTimeOffset luc,
+            QuyDinhDuLieu quyDinh)
         {
             if (Modalities.LaFile(modality))
             {
@@ -153,13 +156,13 @@ namespace Crowd.Project.Domain.Datasets
                 throw new ArgumentNullException(nameof(content));
             }
 
-            Sample s = TaoKhung(projectId, datasetId, modality, originalName, sha256, metadata, luc);
+            Sample s = TaoKhung(projectId, datasetId, modality, originalName, sha256, metadata, luc, quyDinh);
             s.Content = content;
             return s;
         }
 
         private static Sample TaoKhung(
-            Guid projectId, Guid datasetId, string modality, string originalName, string sha256, SampleMetadata metadata, DateTimeOffset luc)
+            Guid projectId, Guid datasetId, string modality, string originalName, string sha256, SampleMetadata metadata, DateTimeOffset luc, QuyDinhDuLieu quyDinh)
         {
             if (metadata == null)
             {
@@ -167,9 +170,9 @@ namespace Crowd.Project.Domain.Datasets
             }
 
             string ten = originalName == null ? string.Empty : originalName.Trim();
-            if (ten.Length > DoDaiTenToiDa)
+            if (ten.Length > quyDinh.DoDaiTenMauToiDa)
             {
-                ten = ten.Substring(0, DoDaiTenToiDa);
+                ten = ten.Substring(0, quyDinh.DoDaiTenMauToiDa);
             }
 
             Sample s = new Sample();

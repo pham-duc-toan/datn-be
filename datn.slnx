@@ -71,6 +71,7 @@
     <Project Path="shared/labeling/Crowd.Labeling.csproj" />
     <Project Path="shared/persistence/Crowd.BuildingBlocks.Persistence.csproj" />
     <Project Path="shared/seeding/Crowd.Seeding.csproj" />
+    <Project Path="shared/settings/Crowd.Settings.csproj" />
     <Project Path="shared/storage/Crowd.BuildingBlocks.Storage.csproj" />
   </Folder>
   <Folder Name="/shared/test/">

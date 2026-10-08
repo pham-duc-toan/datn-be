@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.EntranceTests;
 using Crowd.Project.Domain.Gold;
@@ -56,11 +57,11 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
-            builder.Property(x => x.Name).HasColumnName("name").HasMaxLength(Dataset.DoDaiTenToiDa).IsRequired();
+            builder.Property(x => x.Name).HasColumnName("name").HasMaxLength(CotDb.TenLo).IsRequired();
             builder.Property(x => x.SampleCount).HasColumnName("sample_count").IsRequired();
             builder.Property(x => x.SkippedCount).HasColumnName("skipped_count").IsRequired();
             builder.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
-            builder.Property(x => x.ErrorSummary).HasColumnName("error_summary").HasMaxLength(Dataset.DoDaiLoiToiDa);
+            builder.Property(x => x.ErrorSummary).HasColumnName("error_summary").HasMaxLength(CotDb.TomTatLoi);
             builder.Property(x => x.Manifest).HasColumnName("manifest").HasColumnType("jsonb").HasConversion(JsonColumns.RawJsonCotNull);
             builder.Property(x => x.ManifestKey).HasColumnName("manifest_key").HasMaxLength(300);
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
@@ -96,7 +97,7 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.StorageKey).HasColumnName("storage_key").HasMaxLength(300);
             builder.Property(x => x.Content).HasColumnName("content").HasColumnType("jsonb").HasConversion(JsonColumns.RawJsonCotNull);
             builder.Property(x => x.Metadata).HasColumnName("metadata").HasColumnType("jsonb").HasConversion(JsonColumns.RawJsonCot).IsRequired();
-            builder.Property(x => x.OriginalName).HasColumnName("original_name").HasMaxLength(Sample.DoDaiTenToiDa).IsRequired();
+            builder.Property(x => x.OriginalName).HasColumnName("original_name").HasMaxLength(CotDb.TenMau).IsRequired();
             builder.Property(x => x.ContentType).HasColumnName("content_type").HasMaxLength(100);
             builder.Property(x => x.SizeBytes).HasColumnName("size_bytes");
             builder.Property(x => x.Sha256).HasColumnName("sha256").HasMaxLength(64).IsRequired();

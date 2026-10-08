@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Identity.Api.Dtos;
 using Crowd.Identity.Api.Helpers;
 using Crowd.Identity.Api.Services;
@@ -28,22 +29,29 @@ namespace Crowd.Identity.Api.Controllers
         private const string SaiThongTin = "Email hoac mat khau khong dung.";
 
         private readonly AuthService _authService;
+        private readonly ISettings _settings;
 
-        public AuthController(AuthService authService)
+        public AuthController(AuthService authService, ISettings settings)
         {
             if (authService == null)
             {
                 throw new ArgumentNullException(nameof(authService));
             }
 
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
             _authService = authService;
+            _settings = settings;
         }
 
         /// <summary>POST /auth/register</summary>
         [HttpPost("register")]
         public async Task<IActionResult> DangKy([FromBody] RegisterRequest body, CancellationToken ct)
         {
-            Dictionary<string, string[]> loi = AuthRequestValidator.KiemDangKy(body);
+            Dictionary<string, string[]> loi = AuthRequestValidator.KiemDangKy(body, _settings);
             if (loi.Count > 0)
             {
                 return ValidationProblem(new ValidationProblemDetails(loi));
@@ -66,7 +74,7 @@ namespace Crowd.Identity.Api.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> DangNhap([FromBody] LoginRequest body, CancellationToken ct)
         {
-            if (!AuthRequestValidator.LaDangNhapHopLe(body))
+            if (!AuthRequestValidator.LaDangNhapHopLe(body, _settings))
             {
                 return Problem(detail: SaiThongTin, statusCode: StatusCodes.Status401Unauthorized);
             }

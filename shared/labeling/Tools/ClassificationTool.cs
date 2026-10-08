@@ -39,7 +39,7 @@ namespace Crowd.Labeling.Tools
             return TaoKetQua(lop);
         }
 
-        public bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool)
+        public bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh)
         {
             HashSet<string> a = new HashSet<string>(DocLop(nop), StringComparer.Ordinal);
             return a.SetEquals(DocLop(dapAn));

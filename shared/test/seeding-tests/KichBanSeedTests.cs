@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Globalization;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Crowd.Labeling;
@@ -49,7 +49,7 @@ namespace Crowd.Seeding.Tests
             foreach (SeedProject p in KichBanSeed.Projects)
             {
                 // Cung cong thuc LabelingProject.ChiPhiUocTinhVnd.
-                long toiThieu = p.Samples.Count * (long)p.Redundancy * (p.UnitPriceVnd + p.PlatformFeePerLabelVnd);
+                long toiThieu = p.Samples.Count * (long)p.TranRedundancy * (p.UnitPriceVnd + p.PlatformFeePerLabelVnd);
                 Assert.True(p.BudgetVnd >= toiThieu, p.Key + ": ngan sach " + p.BudgetVnd + " < " + toiThieu);
             }
         }

@@ -4,15 +4,14 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Ledger.Api.Services;
-using Crowd.Ledger.Api.Settings;
 using Crowd.Ledger.Domain.Holds;
 using Crowd.Ledger.Infrastructure.Persistence;
 using Crowd.Seeding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Crowd.Ledger.Api.Seeding
 {
@@ -38,7 +37,7 @@ namespace Crowd.Ledger.Api.Seeding
         private readonly LedgerDbContext _db;
         private readonly LedgerWriter _writer;
         private readonly LedgerEventPublisher _events;
-        private readonly IOptions<LedgerOptions> _options;
+        private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly ILoggerFactory _loggers;
         private readonly ILogger<LedgerSeeder> _logger;
@@ -47,7 +46,7 @@ namespace Crowd.Ledger.Api.Seeding
             LedgerDbContext db,
             LedgerWriter writer,
             LedgerEventPublisher events,
-            IOptions<LedgerOptions> options,
+            ISettings settings,
             TimeProvider clock,
             ILoggerFactory loggers)
         {
@@ -66,9 +65,9 @@ namespace Crowd.Ledger.Api.Seeding
                 throw new ArgumentNullException(nameof(events));
             }
 
-            if (options == null)
+            if (settings == null)
             {
-                throw new ArgumentNullException(nameof(options));
+                throw new ArgumentNullException(nameof(settings));
             }
 
             if (clock == null)
@@ -84,7 +83,7 @@ namespace Crowd.Ledger.Api.Seeding
             _db = db;
             _writer = writer;
             _events = events;
-            _options = options;
+            _settings = settings;
             _clock = clock;
             _loggers = loggers;
             _logger = loggers.CreateLogger<LedgerSeeder>();
@@ -193,7 +192,7 @@ namespace Crowd.Ledger.Api.Seeding
                 _db,
                 _writer,
                 _events,
-                _options,
+                _settings,
                 new DongHoCoDinh(luc),
                 _loggers.CreateLogger<MoneyFlowService>());
         }

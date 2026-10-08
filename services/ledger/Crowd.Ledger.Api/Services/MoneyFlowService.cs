@@ -4,11 +4,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Annotation;
 using Crowd.Contracts.Ledger;
 using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
-using Crowd.Ledger.Api.Settings;
 using Crowd.Ledger.Domain.Accounts;
 using Crowd.Ledger.Domain.Common;
 using Crowd.Ledger.Domain.Escrows;
@@ -18,7 +18,6 @@ using Crowd.Ledger.Domain.Withdrawals;
 using Crowd.Ledger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Crowd.Ledger.Api.Services
 {
@@ -34,7 +33,7 @@ namespace Crowd.Ledger.Api.Services
         private readonly LedgerDbContext _db;
         private readonly LedgerWriter _writer;
         private readonly LedgerEventPublisher _events;
-        private readonly LedgerOptions _options;
+        private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly ILogger<MoneyFlowService> _logger;
 
@@ -42,7 +41,7 @@ namespace Crowd.Ledger.Api.Services
             LedgerDbContext db,
             LedgerWriter writer,
             LedgerEventPublisher events,
-            IOptions<LedgerOptions> options,
+            ISettings settings,
             TimeProvider clock,
             ILogger<MoneyFlowService> logger)
         {
@@ -61,9 +60,9 @@ namespace Crowd.Ledger.Api.Services
                 throw new ArgumentNullException(nameof(events));
             }
 
-            if (options == null)
+            if (settings == null)
             {
-                throw new ArgumentNullException(nameof(options));
+                throw new ArgumentNullException(nameof(settings));
             }
 
             if (clock == null)
@@ -79,7 +78,7 @@ namespace Crowd.Ledger.Api.Services
             _db = db;
             _writer = writer;
             _events = events;
-            _options = options.Value;
+            _settings = settings;
             _clock = clock;
             _logger = logger;
         }
@@ -145,7 +144,10 @@ namespace Crowd.Ledger.Api.Services
             ProjectEscrow? e = await _db.Escrows.FirstOrDefaultAsync(x => x.ProjectId == p.ProjectId, ct);
             if (e != null)
             {
-                e.DatRedundancy(p.Redundancy);
+                // TRAN redundancy, khong phai redundancy ban dau: quality-svc co the
+                // xin them nguoi gan cho mau tranh chap (docs 3.7). Ky quy da tinh
+                // theo tran nen chi toi tran van du tien; qua tran moi la loi.
+                e.DatRedundancy(p.MaxRedundancy);
             }
         }
 
@@ -202,7 +204,7 @@ namespace Crowd.Ledger.Api.Services
 
             await _writer.GhiAsync(Postings.ChiTraNhan(a.AnnotationId, a.ProjectId, labelerId, a.AmountVnd, a.PlatformFeeVnd, bayGio), ct);
 
-            FundsHold hold = FundsHold.Tao(a.AnnotationId, a.ProjectId, a.TaskId, labelerId, a.AmountVnd, bayGio, _options.ThoiGianTreo);
+            FundsHold hold = FundsHold.Tao(a.AnnotationId, a.ProjectId, a.TaskId, labelerId, a.AmountVnd, bayGio, _settings.ThoiGian(SettingKeys.LedgerHoldDuration));
             _db.Holds.Add(hold);
 
             _events.Phat(caller, new FundsHeld
@@ -304,7 +306,7 @@ namespace Crowd.Ledger.Api.Services
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
             w.ThatBai(p.Reason, bayGio);
-            await _writer.GhiAsync(Postings.DaoRut(w.Id, w.LabelerId, w.NetVnd, w.TaxVnd, bayGio), ct);
+            await _writer.GhiAsync(Postings.DaoRut(w.Id, w.LabelerId, w.NetVnd, w.TaxVnd, bayGio, "Dao but toan rut that bai"), ct);
         }
     }
 }

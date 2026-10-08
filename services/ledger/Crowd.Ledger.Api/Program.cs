@@ -12,10 +12,10 @@ using Crowd.Ledger.Api.Consumers;
 using Crowd.Ledger.Api.Exceptions;
 using Crowd.Ledger.Api.Seeding;
 using Crowd.Ledger.Api.Services;
-using Crowd.Ledger.Api.Settings;
 using Crowd.Ledger.Api.Workers;
 using Crowd.Ledger.Infrastructure.Persistence;
 using Crowd.Seeding;
+using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -33,6 +33,8 @@ builder.Services.AddDbContext<LedgerDbContext>(options =>
 });
 
 // ---- Outbox + consumer. Ten queue giu nguyen mai mai. ----
+// Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
+builder.Services.AddCrowdSettings<LedgerDbContext>(cfg, "ledger-svc");
 builder.Services.AddOutbox<LedgerDbContext>(cfg);
 builder.Services.AddEventConsumer<LedgerDbContext, ProjectPublishRequested, ProjectPublishRequestedProcessor>(cfg, "ledger-svc.project-publish-requested");
 builder.Services.AddEventConsumer<LedgerDbContext, ProjectPublished, ProjectPublishedProcessor>(cfg, "ledger-svc.project-published");
@@ -45,11 +47,11 @@ builder.Services.AddEventConsumer<LedgerDbContext, PayoutFailed, PayoutFailedPro
 builder.Services.AddEventConsumer<LedgerDbContext, UserBlocked, UserBlockedProcessor>(cfg, "ledger-svc.user-blocked");
 
 // ---- Nghiep vu ----
-builder.Services.Configure<LedgerOptions>(cfg.GetSection(LedgerOptions.SectionName));
 builder.Services.AddScoped<LedgerWriter>();
 builder.Services.AddScoped<LedgerEventPublisher>();
 builder.Services.AddScoped<MoneyFlowService>();
 builder.Services.AddScoped<WalletService>();
+builder.Services.AddScoped<WithdrawalApprovalService>();
 builder.Services.AddScoped<ReconciliationService>();
 builder.Services.AddHostedService<HoldReleaseWorker>();
 builder.Services.AddScoped<LedgerSeeder>();

@@ -5,6 +5,7 @@ using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.Project.Api.Dtos;
+using Crowd.Project.Api.Helpers;
 using Crowd.Project.Api.Services;
 using Crowd.Project.Domain.Common;
 using Microsoft.AspNetCore.Authorization;
@@ -84,9 +85,6 @@ namespace Crowd.Project.Api.Controllers
     [Authorize]
     public sealed class DatasetsController : ControllerBase
     {
-        /// <summary>Tran kich thuoc file ZIP: 200 MB.</summary>
-        public const long KichThuocToiDa = 200L * 1024 * 1024;
-
         private readonly DatasetService _service;
         private readonly UploadService _uploads;
 
@@ -133,12 +131,11 @@ namespace Crowd.Project.Api.Controllers
         /// <summary>
         /// POST /projects/{id}/datasets — multipart/form-data: name + file (ZIP anh).
         ///
-        /// RequestSizeLimit NANG tran cho RIENG endpoint nay; moi endpoint khac van
-        /// giu tran mac dinh 30 MB cua Kestrel.
+        /// GioiHanZipFilter NANG tran cho RIENG endpoint nay theo setting
+        /// dataset.zip_max_bytes; moi endpoint khac van giu tran mac dinh 30 MB cua Kestrel.
         /// </summary>
         [HttpPost("datasets")]
-        [RequestSizeLimit(KichThuocToiDa)]
-        [RequestFormLimits(MultipartBodyLengthLimit = KichThuocToiDa)]
+        [ServiceFilter(typeof(GioiHanZipFilter))]
         public async Task<IActionResult> Nap(Guid projectId, [FromForm] string? name, IFormFile? file, CancellationToken ct)
         {
             if (file == null || file.Length == 0)

@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Payment.Domain.Deposits;
 using Crowd.Payment.Infrastructure.Persistence;
 using Crowd.Seeding;
@@ -22,9 +23,17 @@ namespace Crowd.Payment.Api.Seeding
         private readonly PaymentDbContext _db;
         private readonly TimeProvider _clock;
         private readonly ILogger<PaymentSeeder> _logger;
+        private readonly ISettings _settings;
 
-        public PaymentSeeder(PaymentDbContext db, TimeProvider clock, ILogger<PaymentSeeder> logger)
+        public PaymentSeeder(PaymentDbContext db, TimeProvider clock, ILogger<PaymentSeeder> logger, ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -55,12 +64,17 @@ namespace Crowd.Payment.Api.Seeding
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
+            QuyDinhNap quyDinh = new QuyDinhNap
+            {
+                ToiThieuVnd = _settings.SoLon(SettingKeys.PaymentDepositMinVnd),
+                ToiDaVnd = _settings.SoLon(SettingKeys.PaymentDepositMaxVnd),
+            };
 
             foreach (SeedDeposit d in KichBanSeed.Deposits)
             {
                 DateTimeOffset lucTao = bayGio - d.CreatedAgo;
 
-                PaymentIntent lenh = PaymentIntent.Tao(d.BusinessId, d.AmountVnd, KichBanSeed.CongThanhToan, d.IdempotencyKey, lucTao);
+                PaymentIntent lenh = PaymentIntent.Tao(d.BusinessId, d.AmountVnd, KichBanSeed.CongThanhToan, d.IdempotencyKey, quyDinh, lucTao);
                 SeedIds.GanId(lenh, d.IntentId);
 
                 if (d.ProviderTxnId != null)

@@ -118,7 +118,7 @@ namespace Crowd.Project.Tests
 
         private static EntranceAttempt LanMoi()
         {
-            return EntranceAttempt.BatDau(Guid.NewGuid(), Guid.NewGuid(), new List<Guid> { Cau1, Cau2 }, 0, false, Luc);
+            return EntranceAttempt.BatDau(Guid.NewGuid(), Guid.NewGuid(), new List<Guid> { Cau1, Cau2 }, 0, false, Luc, QuyDinhMau.BaiTest);
         }
 
         [Fact]
@@ -129,7 +129,7 @@ namespace Crowd.Project.Tests
             traLoi[Cau1] = Nhan("cho");
             traLoi[Cau2] = Nhan("ga", "meo");
 
-            bool dau = a.Nop(traLoi, DapAn(), TapNhan, 100, Luc.AddMinutes(5));
+            bool dau = a.Nop(traLoi, DapAn(), TapNhan, 100, NguongKhop.CuaThuVien, Luc.AddMinutes(5));
 
             Assert.True(dau);
             Assert.Equal(100, a.ScorePercent);
@@ -143,7 +143,7 @@ namespace Crowd.Project.Tests
             traLoi[Cau1] = Nhan("cho");
             traLoi[Cau2] = Nhan("meo");
 
-            bool dau = a.Nop(traLoi, DapAn(), TapNhan, 80, Luc.AddMinutes(5));
+            bool dau = a.Nop(traLoi, DapAn(), TapNhan, 80, NguongKhop.CuaThuVien, Luc.AddMinutes(5));
 
             Assert.False(dau);
             Assert.Equal(50, a.ScorePercent);
@@ -157,7 +157,7 @@ namespace Crowd.Project.Tests
             traLoi[Cau1] = Nhan("cho");
             traLoi[Cau2] = Nhan("meo", "ga");
 
-            bool dau = a.Nop(traLoi, DapAn(), TapNhan, 50, Luc + EntranceAttempt.ThoiGianLamBai);
+            bool dau = a.Nop(traLoi, DapAn(), TapNhan, 50, NguongKhop.CuaThuVien, Luc + QuyDinhMau.BaiTest.ThoiGianLamBai);
 
             Assert.False(dau);
             Assert.Equal(0, a.ScorePercent);
@@ -167,10 +167,10 @@ namespace Crowd.Project.Tests
         public void Khong_nop_duoc_hai_lan()
         {
             EntranceAttempt a = LanMoi();
-            a.Nop(new Dictionary<Guid, LabelPayload>(), DapAn(), TapNhan, 50, Luc);
+            a.Nop(new Dictionary<Guid, LabelPayload>(), DapAn(), TapNhan, 50, NguongKhop.CuaThuVien, Luc);
 
             Assert.Throws<RuleViolationException>(() =>
-                a.Nop(new Dictionary<Guid, LabelPayload>(), DapAn(), TapNhan, 50, Luc));
+                a.Nop(new Dictionary<Guid, LabelPayload>(), DapAn(), TapNhan, 50, NguongKhop.CuaThuVien, Luc));
         }
 
         [Fact]
@@ -179,10 +179,10 @@ namespace Crowd.Project.Tests
             List<Guid> cau = new List<Guid> { Cau1 };
 
             Assert.Throws<RuleViolationException>(() =>
-                EntranceAttempt.BatDau(Guid.NewGuid(), Guid.NewGuid(), cau, EntranceAttempt.SoLanToiDa, false, Luc));
+                EntranceAttempt.BatDau(Guid.NewGuid(), Guid.NewGuid(), cau, QuyDinhMau.BaiTest.SoLanToiDa, false, Luc, QuyDinhMau.BaiTest));
 
             Assert.Throws<RuleViolationException>(() =>
-                EntranceAttempt.BatDau(Guid.NewGuid(), Guid.NewGuid(), cau, 0, true, Luc));
+                EntranceAttempt.BatDau(Guid.NewGuid(), Guid.NewGuid(), cau, 0, true, Luc, QuyDinhMau.BaiTest));
         }
     }
 

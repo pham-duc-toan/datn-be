@@ -18,11 +18,5 @@ namespace Crowd.Project.Api.Settings
         /// Khi co ledger: dat false, va consumer escrow.* tu lam nua con lai.
         /// </summary>
         public bool BoQuaKyQuy { get; set; }
-
-        /// <summary>Khong ai duyet trong khoang nay thi tu huy + hoan ky quy.</summary>
-        public TimeSpan HanChoDuyet { get; set; } = TimeSpan.FromHours(72);
-
-        /// <summary>Worker quet du an qua han bao lau mot lan.</summary>
-        public TimeSpan ChuKyQuetQuaHan { get; set; } = TimeSpan.FromMinutes(10);
     }
 }

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.BuildingBlocks.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -41,8 +42,6 @@ namespace Crowd.BuildingBlocks.Persistence.Consumers
         where TPayload : class, IEventPayload
         where THandler : class, IEventProcessor<TPayload>
     {
-        private static readonly TimeSpan ChoNoiLai = TimeSpan.FromSeconds(5);
-
         private readonly string _tenQueue;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly RabbitMqOptions _rabbit;
@@ -109,17 +108,18 @@ namespace Crowd.BuildingBlocks.Persistence.Consumers
                 }
                 catch (Exception ex)
                 {
+                    TimeSpan choNoiLai = ChoNoiLai();
                     _logger.LogWarning(
                         ex,
                         "Consumer {Queue} chua noi duoc RabbitMQ, thu lai sau {Delay}",
                         _tenQueue,
-                        ChoNoiLai);
+                        choNoiLai);
 
                     await DongAsync().ConfigureAwait(false);
 
                     try
                     {
-                        await Task.Delay(ChoNoiLai, stoppingToken).ConfigureAwait(false);
+                        await Task.Delay(choNoiLai, stoppingToken).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {
@@ -139,6 +139,21 @@ namespace Crowd.BuildingBlocks.Persistence.Consumers
             }
         }
 
+        /// <summary>Setting consumers.reconnect_delay neu service co ISettings, khong thi EventConsumerOptions.</summary>
+        private TimeSpan ChoNoiLai()
+        {
+            using (IServiceScope scope = _scopeFactory.CreateScope())
+            {
+                ISettings? s = scope.ServiceProvider.GetService<ISettings>();
+                if (s != null)
+                {
+                    return s.ThoiGian(SettingKeys.ConsumersReconnectDelay);
+                }
+            }
+
+            return _options.ReconnectDelay;
+        }
+
         private async Task BatDauNgheAsync(CancellationToken ct)
         {
             ConnectionFactory factory = new ConnectionFactory();
@@ -153,7 +168,18 @@ namespace Crowd.BuildingBlocks.Persistence.Consumers
 
             await KhaiBaoTopologyAsync(_kenh, ct).ConfigureAwait(false);
 
-            await _kenh.BasicQosAsync(0, _options.PrefetchCount, false, ct).ConfigureAwait(false);
+            // Prefetch lay tu setting he thong neu co (co tac dung khi noi lai / khoi dong lai).
+            ushort prefetch = _options.PrefetchCount;
+            using (IServiceScope scope = _scopeFactory.CreateScope())
+            {
+                ISettings? s = scope.ServiceProvider.GetService<ISettings>();
+                if (s != null)
+                {
+                    prefetch = (ushort)s.SoNguyen(SettingKeys.ConsumersPrefetchCount);
+                }
+            }
+
+            await _kenh.BasicQosAsync(0, prefetch, false, ct).ConfigureAwait(false);
 
             AsyncEventingBasicConsumer consumer = new AsyncEventingBasicConsumer(_kenh);
             consumer.ReceivedAsync += KhiNhanMessageAsync;

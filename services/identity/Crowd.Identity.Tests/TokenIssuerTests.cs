@@ -8,6 +8,7 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.Identity.Api.Entities;
 using Crowd.Identity.Api.Services;
 using Crowd.Identity.Api.Settings;
+using Crowd.Settings;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -29,7 +30,8 @@ namespace Crowd.Identity.Tests
             _issuer = new TokenIssuer(
                 _khoa,
                 Options.Create(new JwtIssuerOptions()),
-                TimeProvider.System);
+                TimeProvider.System,
+                new SettingsStore());
 
             _user = User.Tao(
                 "an@example.com",

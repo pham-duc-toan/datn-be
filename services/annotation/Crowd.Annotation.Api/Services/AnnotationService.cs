@@ -7,12 +7,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Annotation.Api.Dtos;
 using Crowd.Annotation.Api.Exceptions;
+using Crowd.Annotation.Api.Helpers;
 using Crowd.Annotation.Domain.Annotations;
 using Crowd.Annotation.Domain.Common;
 using Crowd.Annotation.Domain.Members;
 using Crowd.Annotation.Domain.Projects;
 using Crowd.Annotation.Infrastructure.Persistence;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Annotation;
 using Crowd.Labeling;
@@ -40,13 +42,22 @@ namespace Crowd.Annotation.Api.Services
         private readonly AnnotationEventPublisher _events;
         private readonly IObjectStorage _storage;
         private readonly TimeProvider _clock;
+        private readonly ISettings _settings;
 
         public AnnotationService(
             AnnotationDbContext db,
             AnnotationEventPublisher events,
             IObjectStorage storage,
-            TimeProvider clock)
+            TimeProvider clock,
+            ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -109,7 +120,7 @@ namespace Crowd.Annotation.Api.Services
         // =====================================================================
 
         public async Task<PagedResponse<AnnotationResponse>> DanhSachDuAnAsync(
-            Guid projectId, AnnotationStatus? status, int page, int pageSize, Caller caller, CancellationToken ct)
+            Guid projectId, AnnotationStatus? status, bool? consensusAgrees, int page, int pageSize, Caller caller, CancellationToken ct)
         {
             await KiemQuyenDuyetAsync(projectId, caller, ct);
 
@@ -120,7 +131,52 @@ namespace Crowd.Annotation.Api.Services
                 q = q.Where(a => a.Status == s);
             }
 
+            if (consensusAgrees.HasValue)
+            {
+                bool khop = consensusAgrees.Value;
+                q = q.Where(a => a.ConsensusAgrees == khop);
+            }
+
             return await TaoTrangAsync(q.OrderBy(a => a.SubmittedAt), page, pageSize, DateTimeOffset.MinValue, ct);
+        }
+
+        /// <summary>
+        /// Duyet hang loat cac nhan CHO DUYET ma quality-svc danh dau khop dong thuan.
+        /// Nguoi duyet van la nguoi bam (tien chi khi co nguoi chiu trach nhiem); nhan
+        /// cua chinh nguoi bam bi bo qua (khong tu duyet).
+        /// </summary>
+        public async Task<BulkApproveResponse> DuyetKhopDongThuanAsync(Guid projectId, Caller caller, CancellationToken ct)
+        {
+            await KiemQuyenDuyetAsync(projectId, caller, ct);
+            ProjectTerms dieuKhoan = await LayDieuKhoanAsync(projectId, ct);
+            Guid nguoiDuyet = caller.LayUserId();
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+
+            List<LabelAnnotation> ds = await _db.Annotations
+                .Where(a => a.ProjectId == projectId
+                            && a.Status == AnnotationStatus.PendingReview
+                            && a.ConsensusAgrees == true)
+                .OrderBy(a => a.SubmittedAt)
+                .Take(_settings.SoNguyen(SettingKeys.AnnotationBulkApproveMax))
+                .ToListAsync(ct);
+
+            int duyet = 0;
+            int boQua = 0;
+            foreach (LabelAnnotation a in ds)
+            {
+                if (a.LabelerId.HasValue && a.LabelerId.Value == nguoiDuyet)
+                {
+                    boQua++;
+                    continue;
+                }
+
+                a.Duyet(nguoiDuyet, bayGio);
+                _events.PhatDaDuyet(a, dieuKhoan, caller);
+                duyet++;
+            }
+
+            await _db.SaveChangesAsync(ct);
+            return new BulkApproveResponse { ApprovedCount = duyet, SkippedOwnCount = boQua };
         }
 
         public async Task<AnnotationResponse> DuyetAsync(Guid annotationId, Caller caller, CancellationToken ct)
@@ -129,7 +185,7 @@ namespace Crowd.Annotation.Api.Services
             ProjectTerms dieuKhoan = await LayDieuKhoanAsync(a.ProjectId, ct);
 
             a.Duyet(caller.LayUserId(), _clock.GetUtcNow());
-            PhatDaDuyet(a, dieuKhoan, caller);
+            _events.PhatDaDuyet(a, dieuKhoan, caller);
 
             await _db.SaveChangesAsync(ct);
             return await TaoResponseAsync(a, _clock.GetUtcNow());
@@ -139,7 +195,7 @@ namespace Crowd.Annotation.Api.Services
         {
             LabelAnnotation a = await LayDeDuyetAsync(annotationId, caller, ct);
 
-            a.TuChoi(caller.LayUserId(), lyDo ?? string.Empty, _clock.GetUtcNow());
+            a.TuChoi(caller.LayUserId(), lyDo ?? string.Empty, _clock.GetUtcNow(), QuyDinhTuSetting.DuyetNhan(_settings));
 
             _events.Phat(caller, new AnnotationRejected
             {
@@ -236,7 +292,7 @@ namespace Crowd.Annotation.Api.Services
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            a.KhieuNai(uid, noiDung ?? string.Empty, bayGio);
+            a.KhieuNai(uid, noiDung ?? string.Empty, bayGio, QuyDinhTuSetting.DuyetNhan(_settings));
 
             _events.Phat(caller, new AppealOpened
             {
@@ -287,7 +343,7 @@ namespace Crowd.Annotation.Api.Services
             if (chapNhan)
             {
                 // Khieu nai thang: labeler duoc tra tien nhu duoc duyet tu dau.
-                PhatDaDuyet(a, await LayDieuKhoanAsync(a.ProjectId, ct), caller);
+                _events.PhatDaDuyet(a, await LayDieuKhoanAsync(a.ProjectId, ct), caller);
             }
             else
             {
@@ -322,10 +378,19 @@ namespace Crowd.Annotation.Api.Services
 
             IReadOnlyList<SampleResult> ketQua = ResultAggregator.Chot(tapNhan, daDuyet);
 
+            Dictionary<Guid, TaskConsensus> dongThuan = new Dictionary<Guid, TaskConsensus>();
+            foreach (TaskConsensus c in await _db.Consensus.AsNoTracking().Where(c => c.ProjectId == projectId).ToListAsync(ct))
+            {
+                dongThuan[c.SampleId] = c;
+            }
+
             List<SampleResultResponse> mau = new List<SampleResultResponse>();
             foreach (SampleResult r in ketQua)
             {
                 LabelAnnotation dau = r.Approved[0];
+                TaskConsensus? dt;
+                dongThuan.TryGetValue(r.SampleId, out dt);
+
                 mau.Add(new SampleResultResponse
                 {
                     SampleId = r.SampleId,
@@ -336,6 +401,8 @@ namespace Crowd.Annotation.Api.Services
                     Disputed = r.Disputed,
                     Tools = RawJson.Tu(r.Tools),
                     Labels = r.Approved.Select(a => RawJson.Tu(a.Payload.DataJson)).ToList(),
+                    ConsensusStatus = dt == null ? null : dt.Status,
+                    ConsensusFinal = dt == null ? null : dt.Final,
                 });
             }
 
@@ -410,20 +477,6 @@ namespace Crowd.Annotation.Api.Services
             return t;
         }
 
-        private void PhatDaDuyet(LabelAnnotation a, ProjectTerms t, Caller caller)
-        {
-            _events.Phat(caller, new AnnotationApproved
-            {
-                AnnotationId = a.Id,
-                TaskId = a.TaskId,
-                ProjectId = a.ProjectId,
-                LabelerId = a.LabelerId,
-                AmountVnd = t.UnitPriceVnd,
-                PlatformFeeVnd = t.PlatformFeeVnd,
-                Source = AnnotationSource.Professional,
-            });
-        }
-
         private async Task<PagedResponse<AnnotationResponse>> TaoTrangAsync(
             IQueryable<LabelAnnotation> q, int page, int pageSize, DateTimeOffset bayGio, CancellationToken ct)
         {
@@ -467,7 +520,8 @@ namespace Crowd.Annotation.Api.Services
                 ReviewedAt = a.ReviewedAt,
                 RejectReason = a.RejectReason,
                 AppealMessage = a.AppealMessage,
-                CanAppeal = a.ConKhieuNaiDuoc(bayGio),
+                CanAppeal = a.ConKhieuNaiDuoc(bayGio, _settings.ThoiGian(SettingKeys.AnnotationAppealWindow)),
+                ConsensusAgrees = a.ConsensusAgrees,
             };
         }
 

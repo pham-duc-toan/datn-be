@@ -22,7 +22,6 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
     public sealed class OutboxMessage
     {
         /// <summary>Trần giãn cách: RabbitMQ sập nửa ngày thì vẫn thử lại mỗi 5 phút.</summary>
-        private static readonly TimeSpan TranGianCach = TimeSpan.FromMinutes(5);
 
         /// <summary>Độ dài tối đa của cột last_error trong database.</summary>
         private const int DoDaiLoiToiDa = 2000;
@@ -112,11 +111,12 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
         }
 
         /// <summary>
-        /// Ghi nhận thất bại và lùi lịch thử lại: 2s, 4s, 8s... tới trần 5 phút.
+        /// Ghi nhận thất bại và lùi lịch thử lại: 2s, 4s, 8s... tới trần tranGianCach
+        /// (setting outbox.retry_max_delay, mặc định 5 phút).
         /// Không bỏ cuộc hẳn — message nằm lại cho tới khi gửi được hoặc có
         /// người can thiệp.
         /// </summary>
-        public void MarkFailed(string error, DateTimeOffset now)
+        public void MarkFailed(string error, DateTimeOffset now, TimeSpan tranGianCach)
         {
             if (error == null)
             {
@@ -135,8 +135,8 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
             }
 
             // Chặn số mũ ở 20 chỉ để Math.Pow không tràn thành vô cực; trần thật
-            // sự là TranGianCach và nó bắt đầu có hiệu lực từ lần thử thứ 9,
-            // vì 2 mũ 9 = 512 giây đã vượt 300 giây.
+            // sự là tranGianCach (mặc định 300 giây: có hiệu lực từ lần thử thứ 9,
+            // vì 2 mũ 9 = 512 giây).
             int soMu = AttemptCount;
             if (soMu > 20)
             {
@@ -144,9 +144,9 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
             }
 
             double giay = Math.Pow(2, soMu);
-            if (giay > TranGianCach.TotalSeconds)
+            if (giay > tranGianCach.TotalSeconds)
             {
-                giay = TranGianCach.TotalSeconds;
+                giay = tranGianCach.TotalSeconds;
             }
 
             NextAttemptAt = now + TimeSpan.FromSeconds(giay);

@@ -9,11 +9,11 @@ using Crowd.Payment.Api.Consumers;
 using Crowd.Payment.Api.Exceptions;
 using Crowd.Payment.Api.Seeding;
 using Crowd.Payment.Api.Services;
-using Crowd.Payment.Api.Settings;
 using Crowd.Payment.Api.Workers;
 using Crowd.Payment.Infrastructure.Persistence;
 using Crowd.Payment.Infrastructure.Providers;
 using Crowd.Seeding;
+using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -30,6 +30,8 @@ builder.Services.AddDbContext<PaymentDbContext>(options =>
     options.UseNpgsql(chuoiKetNoi);
 });
 
+// Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
+builder.Services.AddCrowdSettings<PaymentDbContext>(cfg, "payment-svc");
 builder.Services.AddOutbox<PaymentDbContext>(cfg);
 builder.Services.AddEventConsumer<PaymentDbContext, PayoutRequested, PayoutRequestedProcessor>(cfg, "payment-svc.payout-requested");
 
@@ -37,7 +39,6 @@ builder.Services.AddEventConsumer<PaymentDbContext, PayoutRequested, PayoutReque
 builder.Services.Configure<SandboxOptions>(cfg.GetSection(SandboxOptions.SectionName));
 builder.Services.AddSingleton<IPaymentProvider, SandboxPaymentProvider>();
 
-builder.Services.Configure<PayoutOptions>(cfg.GetSection(PayoutOptions.SectionName));
 builder.Services.AddScoped<PaymentEventPublisher>();
 builder.Services.AddScoped<DepositService>();
 builder.Services.AddHostedService<PayoutWorker>();

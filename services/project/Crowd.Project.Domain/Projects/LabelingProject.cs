@@ -23,10 +23,8 @@ namespace Crowd.Project.Domain.Projects
     /// </summary>
     public sealed class LabelingProject
     {
-        public const int DoDaiTenToiDa = 200;
-        public const int DoDaiMoTaToiDa = 5000;
-        public const int RedundancyToiDa = 10;
-        public const int SoCauTestToiDa = 50;
+
+
 
         /// <summary>EF Core dung constructor nay de dung lai doi tuong tu database.</summary>
         private LabelingProject()
@@ -72,6 +70,19 @@ namespace Crowd.Project.Domain.Projects
 
         /// <summary>So nguoi gan cung mot mau. 0 = chua cau hinh.</summary>
         public int Redundancy { get; private set; }
+
+        /// <summary>
+        /// Tran redundancy thich ung (>= Redundancy, docs 3.7). Mau tranh chap duoc
+        /// quality-svc xin them nguoi gan toi toi da so nay. Ky quy tinh theo TRAN —
+        /// phan khong dung tu hoan khi ket thuc du an.
+        /// </summary>
+        public int MaxRedundancy { get; private set; }
+
+        /// <summary>
+        /// Phan tram so lan cap task la cau vang kiem tra (qualityCheck) tron vao,
+        /// 0-50. 0 = khong tron. Cau vang khong tra tien.
+        /// </summary>
+        public int GoldCheckPercent { get; private set; }
 
         /// <summary>Ngan sach toi da — cung la so tien ky quy khi publish.</summary>
         public long BudgetVnd { get; private set; }
@@ -141,7 +152,8 @@ namespace Crowd.Project.Domain.Projects
             string? description,
             string modality,
             ProjectVisibility visibility,
-            DateTimeOffset luc)
+            DateTimeOffset luc,
+            QuyDinhDuAn quyDinh)
         {
             if (ownerId == Guid.Empty)
             {
@@ -162,20 +174,21 @@ namespace Crowd.Project.Domain.Projects
             duAn.Modality = modality;
             duAn.Status = ProjectStatus.Draft;
             duAn.CreatedAt = luc;
-            duAn.GanThongTin(name, description, visibility, luc);
+            duAn.GanThongTin(name, description, visibility, luc, quyDinh);
 
             // Mac dinh hop ly de doanh nghiep khong phai dien het moi thu.
             duAn.AllowProfessional = true;
-            duAn.EntranceQuestionCount = 10;
-            duAn.EntrancePassPercent = 80;
+            duAn.EntranceQuestionCount = quyDinh.SoCauTestMacDinh;
+            duAn.GoldCheckPercent = quyDinh.GoldCheckPercentMacDinh;
+            duAn.EntrancePassPercent = quyDinh.NguongDauMacDinh;
 
             return duAn;
         }
 
-        public void CapNhatThongTin(string name, string? description, ProjectVisibility visibility, DateTimeOffset luc)
+        public void CapNhatThongTin(string name, string? description, ProjectVisibility visibility, DateTimeOffset luc, QuyDinhDuAn quyDinh)
         {
             ChiKhiNhap("sua thong tin");
-            GanThongTin(name, description, visibility, luc);
+            GanThongTin(name, description, visibility, luc, quyDinh);
         }
 
         public void DatLabelSchema(LabelSchema schema, DateTimeOffset luc)
@@ -235,7 +248,21 @@ namespace Crowd.Project.Domain.Projects
             int redundancy,
             long budgetVnd,
             DateTimeOffset deadline,
-            DateTimeOffset luc)
+            DateTimeOffset luc,
+            QuyDinhDuAn quyDinh)
+        {
+            DatCauHinhGia(unitPriceVnd, redundancy, redundancy, budgetVnd, deadline, luc, quyDinh);
+        }
+
+        /// <param name="maxRedundancy">Tran redundancy thich ung; bang redundancy = tat thich ung.</param>
+        public void DatCauHinhGia(
+            long unitPriceVnd,
+            int redundancy,
+            int maxRedundancy,
+            long budgetVnd,
+            DateTimeOffset deadline,
+            DateTimeOffset luc,
+            QuyDinhDuAn quyDinh)
         {
             ChiKhiNhap("doi cau hinh gia");
 
@@ -244,11 +271,18 @@ namespace Crowd.Project.Domain.Projects
                 throw new InvalidValueException("don_gia_khong_hop_le", "Don gia phai lon hon 0.");
             }
 
-            if (redundancy < 1 || redundancy > RedundancyToiDa)
+            if (redundancy < 1 || redundancy > quyDinh.RedundancyToiDa)
             {
                 throw new InvalidValueException(
                     "redundancy_khong_hop_le",
-                    "So nguoi gan trung phai tu 1 den " + RedundancyToiDa + ".");
+                    "So nguoi gan trung phai tu 1 den " + quyDinh.RedundancyToiDa + ".");
+            }
+
+            if (maxRedundancy < redundancy || maxRedundancy > quyDinh.RedundancyToiDa)
+            {
+                throw new InvalidValueException(
+                    "tran_redundancy_khong_hop_le",
+                    "Tran redundancy phai tu " + redundancy + " (bang redundancy) den " + quyDinh.RedundancyToiDa + ".");
             }
 
             if (budgetVnd <= 0)
@@ -263,6 +297,7 @@ namespace Crowd.Project.Domain.Projects
 
             UnitPriceVnd = unitPriceVnd;
             Redundancy = redundancy;
+            MaxRedundancy = maxRedundancy;
             BudgetVnd = budgetVnd;
             Deadline = deadline;
             UpdatedAt = luc;
@@ -289,7 +324,8 @@ namespace Crowd.Project.Domain.Projects
             bool requireEntranceTest,
             int entranceQuestionCount,
             int entrancePassPercent,
-            DateTimeOffset luc)
+            DateTimeOffset luc,
+            QuyDinhDuAn quyDinh)
         {
             ChiKhiNhap("doi dieu kien tham gia");
 
@@ -303,11 +339,11 @@ namespace Crowd.Project.Domain.Projects
                 throw new InvalidValueException("uy_tin_khong_hop_le", "Diem uy tin toi thieu phai tu 0 den 100.");
             }
 
-            if (entranceQuestionCount < 1 || entranceQuestionCount > SoCauTestToiDa)
+            if (entranceQuestionCount < 1 || entranceQuestionCount > quyDinh.SoCauTestToiDa)
             {
                 throw new InvalidValueException(
                     "so_cau_test_khong_hop_le",
-                    "So cau test phai tu 1 den " + SoCauTestToiDa + ".");
+                    "So cau test phai tu 1 den " + quyDinh.SoCauTestToiDa + ".");
             }
 
             if (entrancePassPercent < 1 || entrancePassPercent > 100)
@@ -320,6 +356,22 @@ namespace Crowd.Project.Domain.Projects
             RequireEntranceTest = requireEntranceTest;
             EntranceQuestionCount = entranceQuestionCount;
             EntrancePassPercent = entrancePassPercent;
+            UpdatedAt = luc;
+        }
+
+        /// <summary>Ti le cau vang kiem tra tron vao luong task (FQ-04).</summary>
+        public void DatKiemSoatChatLuong(int goldCheckPercent, DateTimeOffset luc, QuyDinhDuAn quyDinh)
+        {
+            ChiKhiNhap("doi kiem soat chat luong");
+
+            if (goldCheckPercent < 0 || goldCheckPercent > quyDinh.GoldCheckPercentToiDa)
+            {
+                throw new InvalidValueException(
+                    "ti_le_cau_vang_khong_hop_le",
+                    "Ti le cau vang kiem tra phai tu 0 den " + quyDinh.GoldCheckPercentToiDa + "%.");
+            }
+
+            GoldCheckPercent = goldCheckPercent;
             UpdatedAt = luc;
         }
 
@@ -361,15 +413,23 @@ namespace Crowd.Project.Domain.Projects
         }
 
         /// <summary>
-        /// Tien ky quy toi thieu (dac ta 2.11):
-        ///     so mau x redundancy x (don gia + phi moi nhan)
+        /// Tien ky quy toi thieu (dac ta 2.11), tinh theo TRAN redundancy:
+        ///     so mau x tran redundancy x (don gia + phi moi nhan)
         /// Vd 100 mau x 3 nguoi x (1.000 + 300) = 390.000d.
+        /// Tinh theo tran nen moi lan quality-svc xin them nguoi gan deu da co tien;
+        /// phan khong dung toi duoc ledger tra lai khi du an ket thuc.
         /// Dung checked: tran so la NEM LOI, khong am tham quay vong thanh so am.
         /// </summary>
         public long ChiPhiUocTinhVnd(int soMau, int phanTramPhi)
         {
             long moiNhan = checked(UnitPriceVnd + PhiMoiNhanVnd(UnitPriceVnd, phanTramPhi));
-            return checked(soMau * (long)Redundancy * moiNhan);
+            return checked(soMau * (long)TranRedundancy() * moiNhan);
+        }
+
+        /// <summary>Tran redundancy co hieu luc: du lieu cu chua co cot nay thi bang redundancy.</summary>
+        public int TranRedundancy()
+        {
+            return MaxRedundancy > Redundancy ? MaxRedundancy : Redundancy;
         }
 
         /// <summary>
@@ -624,22 +684,22 @@ namespace Crowd.Project.Domain.Projects
         // Ham phu tro
         // =====================================================================
 
-        private void GanThongTin(string name, string? description, ProjectVisibility visibility, DateTimeOffset luc)
+        private void GanThongTin(string name, string? description, ProjectVisibility visibility, DateTimeOffset luc, QuyDinhDuAn quyDinh)
         {
             string ten = name == null ? string.Empty : name.Trim();
-            if (ten.Length == 0 || ten.Length > DoDaiTenToiDa)
+            if (ten.Length == 0 || ten.Length > quyDinh.DoDaiTenToiDa)
             {
                 throw new InvalidValueException(
                     "ten_khong_hop_le",
-                    "Ten du an phai tu 1 den " + DoDaiTenToiDa + " ky tu.");
+                    "Ten du an phai tu 1 den " + quyDinh.DoDaiTenToiDa + " ky tu.");
             }
 
             string moTa = description == null ? string.Empty : description.Trim();
-            if (moTa.Length > DoDaiMoTaToiDa)
+            if (moTa.Length > quyDinh.DoDaiMoTaToiDa)
             {
                 throw new InvalidValueException(
                     "mo_ta_qua_dai",
-                    "Mo ta toi da " + DoDaiMoTaToiDa + " ky tu.");
+                    "Mo ta toi da " + quyDinh.DoDaiMoTaToiDa + " ky tu.");
             }
 
             Name = ten;

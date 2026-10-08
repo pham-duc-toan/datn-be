@@ -3,15 +3,14 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Ledger.Api.Services;
-using Crowd.Ledger.Api.Settings;
 using Crowd.Ledger.Domain.Holds;
 using Crowd.Ledger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Crowd.Ledger.Api.Workers
 {
@@ -24,16 +23,14 @@ namespace Crowd.Ledger.Api.Workers
     /// </summary>
     public sealed class HoldReleaseWorker : BackgroundService
     {
-        private const int CoLo = 100;
-
         private readonly IServiceScopeFactory _scopeFactory;
-        private readonly LedgerOptions _options;
+        private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly ILogger<HoldReleaseWorker> _logger;
 
         public HoldReleaseWorker(
             IServiceScopeFactory scopeFactory,
-            IOptions<LedgerOptions> options,
+            ISettings settings,
             TimeProvider clock,
             ILogger<HoldReleaseWorker> logger)
         {
@@ -42,9 +39,9 @@ namespace Crowd.Ledger.Api.Workers
                 throw new ArgumentNullException(nameof(scopeFactory));
             }
 
-            if (options == null)
+            if (settings == null)
             {
-                throw new ArgumentNullException(nameof(options));
+                throw new ArgumentNullException(nameof(settings));
             }
 
             if (clock == null)
@@ -58,7 +55,7 @@ namespace Crowd.Ledger.Api.Workers
             }
 
             _scopeFactory = scopeFactory;
-            _options = options.Value;
+            _settings = settings;
             _clock = clock;
             _logger = logger;
         }
@@ -86,7 +83,7 @@ namespace Crowd.Ledger.Api.Workers
 
                 try
                 {
-                    await Task.Delay(_options.ChuKyGiaiPhong, stoppingToken);
+                    await Task.Delay(_settings.ThoiGian(SettingKeys.LedgerHoldReleaseInterval), stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -106,7 +103,7 @@ namespace Crowd.Ledger.Api.Workers
                     .Where(h => h.State == HoldState.Held && h.ReleaseAt <= bayGio)
                     .OrderBy(h => h.ReleaseAt)
                     .Select(h => h.Id)
-                    .Take(CoLo)
+                    .Take(_settings.SoNguyen(SettingKeys.LedgerHoldReleaseBatchSize))
                     .ToListAsync(ct);
             }
 

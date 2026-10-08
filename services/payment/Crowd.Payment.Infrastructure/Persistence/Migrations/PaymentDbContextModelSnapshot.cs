@@ -144,6 +144,15 @@ namespace Crowd.Payment.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("provider_txn_id");
 
+                    b.Property<string>("RejectReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reject_reason");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
                     b.Property<uint>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -156,7 +165,25 @@ namespace Crowd.Payment.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<string>("TransferCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("transfer_code");
+
+                    b.Property<DateTimeOffset?>("TransferredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("transferred_at");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_intents_cho_duyet")
+                        .HasFilter("status = 'AwaitingApproval'");
+
+                    b.HasIndex("TransferCode")
+                        .IsUnique()
+                        .HasDatabaseName("ux_intents_transfer_code")
+                        .HasFilter("transfer_code IS NOT NULL");
 
                     b.HasIndex("BusinessId", "IdempotencyKey")
                         .IsUnique()
@@ -229,6 +256,31 @@ namespace Crowd.Payment.Infrastructure.Persistence.Migrations
                         .HasFilter("status IN ('Requested','Sending')");
 
                     b.ToTable("payouts", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("ValueJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("value");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("settings_replica", (string)null);
                 });
 #pragma warning restore 612, 618
         }

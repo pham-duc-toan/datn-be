@@ -5,10 +5,12 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
 using Crowd.Project.Api.Exceptions;
+using Crowd.Project.Api.Helpers;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.EntranceTests;
@@ -16,6 +18,7 @@ using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
 using Crowd.Project.Domain.Projects;
 using Crowd.Project.Infrastructure.Persistence;
+using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace Crowd.Project.Api.Services
@@ -33,14 +36,23 @@ namespace Crowd.Project.Api.Services
         private readonly MemberService _members;
         private readonly IObjectStorage _storage;
         private readonly TimeProvider _clock;
+        private readonly ISettings _settings;
 
         public EntranceTestService(
             ProjectDbContext db,
             ProjectAccessService access,
             MemberService members,
             IObjectStorage storage,
-            TimeProvider clock)
+            TimeProvider clock,
+            ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -105,7 +117,7 @@ namespace Crowd.Project.Api.Services
 
             List<Guid> cauHoi = RutNgauNhien(kho, duAn.EntranceQuestionCount);
 
-            EntranceAttempt lanMoi = EntranceAttempt.BatDau(projectId, userId, cauHoi, cacLan.Count, dangMo, bayGio);
+            EntranceAttempt lanMoi = EntranceAttempt.BatDau(projectId, userId, cauHoi, cacLan.Count, dangMo, bayGio, QuyDinhTuSetting.BaiTest(_settings));
             _db.EntranceAttempts.Add(lanMoi);
             await _db.SaveChangesAsync(ct);
 
@@ -196,7 +208,7 @@ namespace Crowd.Project.Api.Services
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            bool dau = lan.Nop(traLoi, dapAn, tapNhan, duAn.EntrancePassPercent, bayGio);
+            bool dau = lan.Nop(traLoi, dapAn, tapNhan, duAn.EntrancePassPercent, NguongKhopTuSetting.Doc(_settings), bayGio);
 
             int soLanDaLam = await _db.EntranceAttempts.CountAsync(a => a.ProjectId == projectId && a.UserId == userId, ct);
             bool vuaThamGia = false;
@@ -221,7 +233,7 @@ namespace Crowd.Project.Api.Services
                 PassPercent = duAn.EntrancePassPercent,
                 Passed = dau,
                 JoinedProject = vuaThamGia,
-                AttemptsLeft = Math.Max(0, EntranceAttempt.SoLanToiDa - soLanDaLam),
+                AttemptsLeft = Math.Max(0, _settings.SoNguyen(SettingKeys.EntranceMaxAttempts) - soLanDaLam),
             };
         }
 

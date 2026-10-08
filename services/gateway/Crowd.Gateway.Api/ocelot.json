@@ -45,6 +45,24 @@
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {
+      // admin-svc: setting hệ thống (/admin/settings...). Chỉ admin — service tự kiểm vai trò.
+      "UpstreamPathTemplate": "/admin/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post", "Put"],
+      "DownstreamPathTemplate": "/admin/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8111 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
+      // quality-svc (Python): chỉ số đồng thuận, độ tin cậy labeler, uy tín.
+      "UpstreamPathTemplate": "/quality/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/quality/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8201 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
       // annotation-svc: duyệt nhãn, khiếu nại, kết quả, xuất file.
       "UpstreamPathTemplate": "/annotations/{everything}",
       "UpstreamHttpMethod": ["Get", "Post"],

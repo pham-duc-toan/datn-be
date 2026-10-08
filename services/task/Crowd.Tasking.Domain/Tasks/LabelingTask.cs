@@ -168,6 +168,36 @@ namespace Crowd.Tasking.Domain.Tasks
             }
         }
 
+        /// <summary>
+        /// Nang redundancy theo yeu cau cua quality-svc (mau tranh chap, docs 3.7).
+        /// Task da du nguoi thi MO LAI de cap them. Tra ve so cu, hoac null neu
+        /// khong doi (yeu cau cu, khong lon hon, hoac task da dong / la cau vang).
+        /// </summary>
+        public int? TangRedundancy(int moi, int tran)
+        {
+            if (State == TaskState.Cancelled || State == TaskState.Excluded)
+            {
+                return null;
+            }
+
+            int dich = moi < tran ? moi : tran;
+            if (dich <= RedundancyTarget)
+            {
+                return null;
+            }
+
+            int cu = RedundancyTarget;
+            RedundancyTarget = dich;
+
+            if (State == TaskState.Completed)
+            {
+                State = TaskState.Open;
+                CompletedAt = null;
+            }
+
+            return cu;
+        }
+
         /// <summary>Mau thanh cau hoi vang: bo khoi pool neu chua ai dung toi.</summary>
         public void LoaiTruVi(bool laCauVang)
         {

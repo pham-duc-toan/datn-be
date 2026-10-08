@@ -3,18 +3,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Project;
 using Crowd.Labeling;
 using Crowd.Seeding;
 using Crowd.Tasking.Api.Consumers;
-using Crowd.Tasking.Api.Settings;
 using Crowd.Tasking.Domain.Assignments;
 using Crowd.Tasking.Domain.Tasks;
 using Crowd.Tasking.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Crowd.Tasking.Api.Seeding
 {
@@ -33,14 +32,14 @@ namespace Crowd.Tasking.Api.Seeding
     public sealed class TaskSeeder
     {
         private readonly TaskDbContext _db;
-        private readonly LeaseOptions _lease;
+        private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly ILoggerFactory _loggers;
         private readonly ILogger<TaskSeeder> _logger;
 
         public TaskSeeder(
             TaskDbContext db,
-            IOptions<LeaseOptions> lease,
+            ISettings settings,
             TimeProvider clock,
             ILoggerFactory loggers)
         {
@@ -49,9 +48,9 @@ namespace Crowd.Tasking.Api.Seeding
                 throw new ArgumentNullException(nameof(db));
             }
 
-            if (lease == null)
+            if (settings == null)
             {
-                throw new ArgumentNullException(nameof(lease));
+                throw new ArgumentNullException(nameof(settings));
             }
 
             if (clock == null)
@@ -65,7 +64,7 @@ namespace Crowd.Tasking.Api.Seeding
             }
 
             _db = db;
-            _lease = lease.Value;
+            _settings = settings;
             _clock = clock;
             _loggers = loggers;
             _logger = loggers.CreateLogger<TaskSeeder>();
@@ -191,7 +190,7 @@ namespace Crowd.Tasking.Api.Seeding
                 DateTimeOffset lucNop = bayGio - s.SubmittedAgo;
                 DateTimeOffset lucNhan = lucNop - TimeSpan.FromMinutes(4);
 
-                Assignment luot = Assignment.Tao(task, s.LabelerId, lucNhan, _lease.ThoiHan);
+                Assignment luot = Assignment.Tao(task, s.LabelerId, lucNhan, _settings.ThoiGian(SettingKeys.TaskLeaseDuration));
                 SeedIds.GanId(luot, s.AssignmentId);
                 // Kiem nhu API that: tap nhan cua du an + metadata mau.
                 luot.Nop(task, SeedEvents.NhanCua(KichBanSeed.Projects.First(p => p.Id == s.ProjectId), s), lucNop);

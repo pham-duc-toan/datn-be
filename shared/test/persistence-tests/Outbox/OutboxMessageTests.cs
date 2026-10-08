@@ -96,7 +96,7 @@ public sealed class OutboxMessageTests
         var msg = OutboxMessage.From(Envelope());
         var luc = DateTimeOffset.UtcNow;
 
-        msg.MarkFailed("RabbitMQ không kết nối được", luc);
+        msg.MarkFailed("RabbitMQ không kết nối được", luc, TimeSpan.FromMinutes(5));
         msg.MarkPublished(luc);
 
         Assert.Equal(luc, msg.PublishedAt);
@@ -112,7 +112,7 @@ public sealed class OutboxMessageTests
         var khoangCach = new List<TimeSpan>();
         for (var i = 0; i < 5; i++)
         {
-            msg.MarkFailed("lỗi", luc);
+            msg.MarkFailed("lỗi", luc, TimeSpan.FromMinutes(5));
             khoangCach.Add(msg.NextAttemptAt - luc);
         }
 
@@ -130,7 +130,7 @@ public sealed class OutboxMessageTests
 
         for (var i = 0; i < 20; i++)
         {
-            msg.MarkFailed("lỗi", luc);
+            msg.MarkFailed("lỗi", luc, TimeSpan.FromMinutes(5));
         }
 
         // Có trần: RabbitMQ sập nửa ngày thì vẫn phải thử lại mỗi 5 phút,
@@ -144,7 +144,7 @@ public sealed class OutboxMessageTests
     {
         var msg = OutboxMessage.From(Envelope());
 
-        msg.MarkFailed(new string('x', 5000), DateTimeOffset.UtcNow);
+        msg.MarkFailed(new string('x', 5000), DateTimeOffset.UtcNow, TimeSpan.FromMinutes(5));
 
         // Cột giới hạn 2000 ký tự — cắt ở tầng domain để INSERT không bị từ chối.
         Assert.Equal(2000, msg.LastError!.Length);

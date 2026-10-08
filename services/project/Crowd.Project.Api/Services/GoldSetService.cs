@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Project;
 using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
@@ -25,19 +26,26 @@ namespace Crowd.Project.Api.Services
     /// </summary>
     public sealed class GoldSetService
     {
-        public const int SoCauToiDa = 2000;
-
         private readonly ProjectDbContext _db;
         private readonly ProjectAccessService _access;
         private readonly ProjectEventPublisher _events;
         private readonly TimeProvider _clock;
+        private readonly ISettings _settings;
 
         public GoldSetService(
             ProjectDbContext db,
             ProjectAccessService access,
             ProjectEventPublisher events,
-            TimeProvider clock)
+            TimeProvider clock,
+            ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -96,9 +104,9 @@ namespace Crowd.Project.Api.Services
             LabelSchema schema = duAn.LabelSchema!;
 
             List<GoldItem> hienCo = await _db.GoldItems.Where(g => g.ProjectId == projectId).ToListAsync(ct);
-            if (hienCo.Count + body.Items.Count > SoCauToiDa)
+            if (hienCo.Count + body.Items.Count > _settings.SoNguyen(SettingKeys.ProjectGoldItemsMax))
             {
-                throw new InvalidValueException("qua_nhieu_cau_vang", "Toi da " + SoCauToiDa + " cau hoi vang moi du an.");
+                throw new InvalidValueException("qua_nhieu_cau_vang", "Toi da " + _settings.SoNguyen(SettingKeys.ProjectGoldItemsMax) + " cau hoi vang moi du an.");
             }
 
             // Moi mau phai thuoc CHINH du an nay (chong BOLA) va chua lam cau vang.

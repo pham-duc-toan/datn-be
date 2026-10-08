@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -60,12 +61,55 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
             _logger = logger;
         }
 
+        /// <summary>
+        /// Setting he thong (admin sua luc chay) neu service co dang ky ISettings; khong
+        /// co thi dung OutboxOptions (test, cong cu). Doc moi vong — doi la co tac dung ngay.
+        /// </summary>
+        private ISettings? Settings()
+        {
+            if (_settings == null)
+            {
+                using (IServiceScope scope = _scopeFactory.CreateScope())
+                {
+                    _settings = scope.ServiceProvider.GetService<ISettings>() ?? (ISettings)KhongCoSetting.Instance;
+                }
+            }
+
+            return _settings == KhongCoSetting.Instance ? null : _settings;
+        }
+
+        private ISettings? _settings;
+
+        private TimeSpan ThoiGianNghi()
+        {
+            ISettings? s = Settings();
+            return s == null ? _options.PollInterval : s.ThoiGian(SettingKeys.OutboxPollInterval);
+        }
+
+        private int KichThuocLo()
+        {
+            ISettings? s = Settings();
+            return s == null ? _options.BatchSize : s.SoNguyen(SettingKeys.OutboxBatchSize);
+        }
+
+        private TimeSpan TranGianCachThuLai()
+        {
+            ISettings? s = Settings();
+            return s == null ? _options.RetryMaxDelay : s.ThoiGian(SettingKeys.OutboxRetryMaxDelay);
+        }
+
+        private TimeSpan ThoiGianChoGui()
+        {
+            ISettings? s = Settings();
+            return s == null ? _options.PublishTimeout : s.ThoiGian(SettingKeys.OutboxPublishTimeout);
+        }
+
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation(
                 "OutboxDispatcher khoi dong: lo {BatchSize} dong, nghi {PollInterval} khi rong",
-                _options.BatchSize,
-                _options.PollInterval);
+                KichThuocLo(),
+                ThoiGianNghi());
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -87,21 +131,21 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
                     _logger.LogError(
                         ex,
                         "Lo outbox that bai, se thu lai sau {PollInterval}",
-                        _options.PollInterval);
+                        ThoiGianNghi());
 
                     soDaXuLy = 0;
                 }
 
                 // Lay duoc day lo nghia la con viec — vao lo tiep NGAY, khong nghi.
                 // Nho vay luc tai cao PollInterval khong he lam cham.
-                if (soDaXuLy >= _options.BatchSize)
+                if (soDaXuLy >= KichThuocLo())
                 {
                     continue;
                 }
 
                 try
                 {
-                    await Task.Delay(_options.PollInterval, stoppingToken).ConfigureAwait(false);
+                    await Task.Delay(ThoiGianNghi(), stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -198,7 +242,7 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
                 "   FOR UPDATE SKIP LOCKED";
 
             return db.Set<OutboxMessage>()
-                .FromSqlRaw(Sql, bayGio, _options.BatchSize)
+                .FromSqlRaw(Sql, bayGio, KichThuocLo())
                 .ToListAsync(ct);
         }
 
@@ -212,7 +256,7 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
             DateTimeOffset bayGio,
             CancellationToken ct)
         {
-            using (var timeout = new CancellationTokenSource(_options.PublishTimeout))
+            using (var timeout = new CancellationTokenSource(ThoiGianChoGui()))
             using (var ketHop = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token))
             {
                 try
@@ -229,7 +273,7 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
                 }
                 catch (Exception ex) when (!ct.IsCancellationRequested)
                 {
-                    dong.MarkFailed(ex.Message, bayGio);
+                    dong.MarkFailed(ex.Message, bayGio, TranGianCachThuLai());
 
                     _logger.LogWarning(
                         ex,

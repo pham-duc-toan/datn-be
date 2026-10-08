@@ -15,11 +15,14 @@ namespace Crowd.Project.Api.Services
     /// </summary>
     public static class DatasetEvents
     {
-        /// <summary>So mau moi lo dataset.ingested.</summary>
-        public const int CoLo = 500;
-
-        public static void PhatCacLo(ProjectEventPublisher events, Guid projectId, Guid datasetId, IReadOnlyList<Sample> mau, Caller caller)
+        /// <param name="coLo">So mau moi event — setting dataset.event_batch_size.</param>
+        public static void PhatCacLo(ProjectEventPublisher events, Guid projectId, Guid datasetId, IReadOnlyList<Sample> mau, Caller caller, int coLo)
         {
+            if (coLo < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(coLo));
+            }
+
             if (events == null)
             {
                 throw new ArgumentNullException(nameof(events));
@@ -30,12 +33,12 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(mau));
             }
 
-            int soLo = (mau.Count + CoLo - 1) / CoLo;
+            int soLo = (mau.Count + coLo - 1) / coLo;
 
             for (int lo = 0; lo < soLo; lo++)
             {
                 List<IngestedSample> trongLo = new List<IngestedSample>();
-                foreach (Sample s in mau.Skip(lo * CoLo).Take(CoLo))
+                foreach (Sample s in mau.Skip(lo * coLo).Take(coLo))
                 {
                     trongLo.Add(new IngestedSample
                     {

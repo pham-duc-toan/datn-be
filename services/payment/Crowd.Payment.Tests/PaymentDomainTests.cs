@@ -11,9 +11,16 @@ namespace Crowd.Payment.Tests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
 
+        /// <summary>Gia tri mac dinh cua setting payment.deposit_min_vnd / deposit_max_vnd.</summary>
+        private static readonly QuyDinhNap QuyDinh = new QuyDinhNap
+        {
+            ToiThieuVnd = 10000,
+            ToiDaVnd = 500000000,
+        };
+
         private static PaymentIntent LenhNap()
         {
-            return PaymentIntent.Tao(Guid.NewGuid(), 1000000, "sandbox", "k1", Luc);
+            return PaymentIntent.Tao(Guid.NewGuid(), 1000000, "sandbox", "k1", QuyDinh, Luc);
         }
 
         [Fact]
@@ -36,8 +43,47 @@ namespace Crowd.Payment.Tests
         [Fact]
         public void So_tien_nap_ngoai_khoang_bi_tu_choi()
         {
-            Assert.Throws<InvalidValueException>(() => PaymentIntent.Tao(Guid.NewGuid(), -1, "sandbox", "k", Luc));
-            Assert.Throws<InvalidValueException>(() => PaymentIntent.Tao(Guid.NewGuid(), 5000, "sandbox", "k", Luc));
+            Assert.Throws<InvalidValueException>(() => PaymentIntent.Tao(Guid.NewGuid(), -1, "sandbox", "k", QuyDinh, Luc));
+            Assert.Throws<InvalidValueException>(() => PaymentIntent.Tao(Guid.NewGuid(), 5000, "sandbox", "k", QuyDinh, Luc));
+        }
+
+        [Fact]
+        public void Chuyen_khoan_thu_cong_bao_da_chuyen_roi_admin_duyet()
+        {
+            PaymentIntent p = PaymentIntent.TaoChuyenKhoan(Guid.NewGuid(), 2000000, "k", QuyDinh, Luc);
+            Assert.StartsWith("CROWD", p.TransferCode);
+            Assert.Equal(PaymentIntent.ChuyenKhoanThuCong, p.Provider);
+
+            p.BaoDaChuyen(Luc.AddMinutes(5));
+            p.BaoDaChuyen(Luc.AddMinutes(6));   // bam lai: khong loi
+            Assert.Equal(PaymentIntentStatus.AwaitingApproval, p.Status);
+
+            Guid admin = Guid.NewGuid();
+            p.DuyetChuyenKhoan(admin, "FT2610010001", Luc.AddHours(1));
+            Assert.Equal(PaymentIntentStatus.Succeeded, p.Status);
+            Assert.Equal("FT2610010001", p.ProviderTxnId);
+            Assert.Equal(admin, p.ReviewedBy);
+
+            Assert.Throws<RuleViolationException>(() => p.TuChoiChuyenKhoan(admin, "x", Luc.AddHours(2)));
+        }
+
+        [Fact]
+        public void Chuyen_khoan_thu_cong_tu_choi_phai_co_ly_do()
+        {
+            PaymentIntent p = PaymentIntent.TaoChuyenKhoan(Guid.NewGuid(), 2000000, "k", QuyDinh, Luc);
+            p.BaoDaChuyen(Luc);
+
+            Assert.Throws<InvalidValueException>(() => p.TuChoiChuyenKhoan(Guid.NewGuid(), " ", Luc));
+            p.TuChoiChuyenKhoan(Guid.NewGuid(), "Khong thay tien ve", Luc);
+            Assert.Equal(PaymentIntentStatus.Rejected, p.Status);
+            Assert.Throws<RuleViolationException>(() => p.DuyetChuyenKhoan(null, null, Luc));
+        }
+
+        [Fact]
+        public void Lenh_qua_cong_khong_duyet_tay_duoc()
+        {
+            RuleViolationException ex = Assert.Throws<RuleViolationException>(() => LenhNap().DuyetChuyenKhoan(Guid.NewGuid(), null, Luc));
+            Assert.Equal("khong_phai_chuyen_khoan", ex.Code);
         }
     }
 

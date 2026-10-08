@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Project.Api.Services;
 using Crowd.Project.Api.Settings;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,12 +23,21 @@ namespace Crowd.Project.Api.Workers
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ProjectSagaOptions _options;
         private readonly ILogger<PendingApprovalTimeoutWorker> _logger;
+        private readonly ISettings _settings;
 
         public PendingApprovalTimeoutWorker(
             IServiceScopeFactory scopeFactory,
             IOptions<ProjectSagaOptions> options,
-            ILogger<PendingApprovalTimeoutWorker> logger)
+            ILogger<PendingApprovalTimeoutWorker> logger,
+            ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (scopeFactory == null)
             {
                 throw new ArgumentNullException(nameof(scopeFactory));
@@ -78,7 +88,7 @@ namespace Crowd.Project.Api.Workers
 
                 try
                 {
-                    await Task.Delay(_options.ChuKyQuetQuaHan, stoppingToken);
+                    await Task.Delay(_settings.ThoiGian(SettingKeys.ProjectApprovalScanInterval), stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {

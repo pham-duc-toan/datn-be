@@ -4,6 +4,7 @@
        (project, task, media) moi phai keo theo AWSSDK. -->
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" />
+    <ProjectReference Include="../building-blocks/Crowd.BuildingBlocks.csproj" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 

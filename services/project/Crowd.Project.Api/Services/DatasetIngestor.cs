@@ -10,8 +10,10 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Labeling;
+using Crowd.Project.Api.Helpers;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Projects;
@@ -44,17 +46,13 @@ namespace Crowd.Project.Api.Services
     /// </summary>
     public sealed class DatasetIngestor
     {
-        public const int SoDongToiDa = 50000;
-        public const int DoDaiTextToiDa = 100000;
-        public const long AnhToiDa = 50L * 1024 * 1024;
-        private const int SoLoiGhiLai = 20;
-
         private readonly ProjectDbContext _db;
         private readonly IObjectStorage _storage;
         private readonly IMediaProbe _probe;
         private readonly ProjectEventPublisher _events;
         private readonly TimeProvider _clock;
         private readonly ILogger<DatasetIngestor> _logger;
+        private readonly ISettings _settings;
 
         public DatasetIngestor(
             ProjectDbContext db,
@@ -62,8 +60,16 @@ namespace Crowd.Project.Api.Services
             IMediaProbe probe,
             ProjectEventPublisher events,
             TimeProvider clock,
-            ILogger<DatasetIngestor> logger)
+            ILogger<DatasetIngestor> logger,
+            ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -126,7 +132,7 @@ namespace Crowd.Project.Api.Services
 
                 _db.ChangeTracker.Clear();
                 Dataset hong = await _db.Datasets.FirstAsync(d => d.Id == lo.Id, ct);
-                hong.ThatBai("Loi he thong khi xu ly: " + ex.Message, _clock.GetUtcNow());
+                hong.ThatBai("Loi he thong khi xu ly: " + ex.Message, _clock.GetUtcNow(), QuyDinhTuSetting.DuLieu(_settings));
                 await _db.SaveChangesAsync(ct);
             }
 
@@ -209,11 +215,11 @@ namespace Crowd.Project.Api.Services
             string? tomTat = loi.Count == 0 ? null : string.Join("\n", loi) + (boQua > loi.Count ? "\n..." : string.Empty);
 
             _db.Samples.AddRange(moi);
-            lo.HoanTat(moi.Count, boQua, tomTat, _clock.GetUtcNow());
+            lo.HoanTat(moi.Count, boQua, tomTat, _clock.GetUtcNow(), QuyDinhTuSetting.DuLieu(_settings));
 
             if (moi.Count > 0)
             {
-                DatasetEvents.PhatCacLo(_events, lo.ProjectId, lo.Id, moi, Caller.HeThong(Guid.NewGuid(), null));
+                DatasetEvents.PhatCacLo(_events, lo.ProjectId, lo.Id, moi, Caller.HeThong(Guid.NewGuid(), null), _settings.SoNguyen(SettingKeys.DatasetEventBatchSize));
             }
 
             await _db.SaveChangesAsync(ct);
@@ -282,7 +288,7 @@ namespace Crowd.Project.Api.Services
                             dong.Add(null);
                         }
 
-                        if (dong.Count > SoDongToiDa)
+                        if (dong.Count > _settings.SoNguyen(SettingKeys.DatasetManifestFileMaxRows))
                         {
                             break;
                         }
@@ -290,9 +296,9 @@ namespace Crowd.Project.Api.Services
                 }
             }
 
-            if (dong.Count > SoDongToiDa)
+            if (dong.Count > _settings.SoNguyen(SettingKeys.DatasetManifestFileMaxRows))
             {
-                throw new InvalidValueException("manifest_qua_dai", "Manifest toi da " + SoDongToiDa + " dong.");
+                throw new InvalidValueException("manifest_qua_dai", "Manifest toi da " + _settings.SoNguyen(SettingKeys.DatasetManifestFileMaxRows) + " dong.");
             }
 
             return dong;
@@ -323,21 +329,22 @@ namespace Crowd.Project.Api.Services
             }
         }
 
-        private static Sample TaoVanBan(JsonObject o, string ten, LabelingProject duAn, Dataset lo, DateTimeOffset bayGio)
+        private Sample TaoVanBan(JsonObject o, string ten, LabelingProject duAn, Dataset lo, DateTimeOffset bayGio)
         {
             string text = ChuoiBatBuoc(o, "text");
-            if (text.Length > DoDaiTextToiDa)
+            int doDaiToiDa = _settings.SoNguyen(SettingKeys.DatasetTextMaxChars);
+            if (text.Length > doDaiToiDa)
             {
-                throw new InvalidValueException("text_qua_dai", "van ban toi da " + DoDaiTextToiDa + " ky tu.");
+                throw new InvalidValueException("text_qua_dai", "van ban toi da " + doDaiToiDa + " ky tu.");
             }
 
             RawJson noiDung = RawJson.Tu(new JsonObject { ["text"] = text });
             SampleMetadata md = new SampleMetadata { Length = text.Length };
 
-            return Sample.TaoTuNoiDung(duAn.Id, lo.Id, Modalities.Text, noiDung, ten, Bam(noiDung.Json), md, bayGio);
+            return Sample.TaoTuNoiDung(duAn.Id, lo.Id, Modalities.Text, noiDung, ten, Bam(noiDung.Json), md, bayGio, QuyDinhTuSetting.DuLieu(_settings));
         }
 
-        private static Sample TaoCap(JsonObject o, string ten, LabelingProject duAn, Dataset lo, DateTimeOffset bayGio)
+        private Sample TaoCap(JsonObject o, string ten, LabelingProject duAn, Dataset lo, DateTimeOffset bayGio)
         {
             JsonObject noiDung = new JsonObject
             {
@@ -352,12 +359,13 @@ namespace Crowd.Project.Api.Services
             }
 
             RawJson nd = RawJson.Tu(noiDung);
-            if (nd.Json.Length > DoDaiTextToiDa)
+            int doDaiToiDa = _settings.SoNguyen(SettingKeys.DatasetTextMaxChars);
+            if (nd.Json.Length > doDaiToiDa)
             {
-                throw new InvalidValueException("text_qua_dai", "noi dung cap toi da " + DoDaiTextToiDa + " ky tu.");
+                throw new InvalidValueException("text_qua_dai", "noi dung cap toi da " + doDaiToiDa + " ky tu.");
             }
 
-            return Sample.TaoTuNoiDung(duAn.Id, lo.Id, Modalities.Pair, nd, ten, Bam(nd.Json), SampleMetadata.Rong, bayGio);
+            return Sample.TaoTuNoiDung(duAn.Id, lo.Id, Modalities.Pair, nd, ten, Bam(nd.Json), SampleMetadata.Rong, bayGio, QuyDinhTuSetting.DuLieu(_settings));
         }
 
         private async Task<Sample> TaoAnhAsync(
@@ -366,9 +374,9 @@ namespace Crowd.Project.Api.Services
             string khoa = await KhoaFileAsync(o, duAn, ct);
             ThongTinFile tt = (await _storage.ThongTinAsync(khoa, ct))!;
 
-            if (tt.SizeBytes > AnhToiDa)
+            if (tt.SizeBytes > _settings.SoLon(SettingKeys.DatasetImageMaxBytes))
             {
-                throw new InvalidValueException("anh_qua_lon", "anh toi da 50 MB.");
+                throw new InvalidValueException("anh_qua_lon", "anh toi da " + (_settings.SoLon(SettingKeys.DatasetImageMaxBytes) / (1024 * 1024)) + " MB.");
             }
 
             byte[] noiDung;
@@ -388,7 +396,7 @@ namespace Crowd.Project.Api.Services
             }
 
             SampleMetadata md = new SampleMetadata { Width = kichThuoc.Value.Width, Height = kichThuoc.Value.Height };
-            return Sample.TaoTuFile(duAn.Id, lo.Id, Modalities.Image, khoa, ten, loai, noiDung.Length, Convert.ToHexStringLower(SHA256.HashData(noiDung)), md, bayGio);
+            return Sample.TaoTuFile(duAn.Id, lo.Id, Modalities.Image, khoa, ten, loai, noiDung.Length, Convert.ToHexStringLower(SHA256.HashData(noiDung)), md, bayGio, QuyDinhTuSetting.DuLieu(_settings));
         }
 
         private async Task<List<Sample>> TaoMediaAsync(
@@ -407,7 +415,7 @@ namespace Crowd.Project.Api.Services
             bool laVideo = duAn.Modality == Modalities.Video;
 
             // ffprobe doc qua link ky san — chi tai phan can thiet cua file.
-            ThongTinMedia? media = await _probe.DocAsync(await _storage.TaoLinkXemAsync(khoa), ct);
+            ThongTinMedia? media = await _probe.DocAsync(await _storage.TaoLinkXemAsync(khoa), _settings.ThoiGian(SettingKeys.MediaFfprobeTimeout), ct);
             if (media != null)
             {
                 if (laVideo && !media.CoVideo)
@@ -442,7 +450,7 @@ namespace Crowd.Project.Api.Services
             if (doan.Count == 1)
             {
                 SampleMetadata md = new SampleMetadata { DurationSec = thoiLuong.Value, Width = rong, Height = cao };
-                ds.Add(Sample.TaoTuFile(duAn.Id, lo.Id, duAn.Modality, khoa, ten, loai, tt.SizeBytes, bamFile, md, bayGio));
+                ds.Add(Sample.TaoTuFile(duAn.Id, lo.Id, duAn.Modality, khoa, ten, loai, tt.SizeBytes, bamFile, md, bayGio, QuyDinhTuSetting.DuLieu(_settings)));
                 return ds;
             }
 
@@ -462,7 +470,7 @@ namespace Crowd.Project.Api.Services
                 string bamDoan = Bam(bamFile + "#" + bd.ToString("0.###", CultureInfo.InvariantCulture));
                 string tenDoan = ten + " [" + bd.ToString("0.#", CultureInfo.InvariantCulture) + "-" + kt.ToString("0.#", CultureInfo.InvariantCulture) + "s]";
 
-                ds.Add(Sample.TaoTuFile(duAn.Id, lo.Id, duAn.Modality, khoa, tenDoan, loai, tt.SizeBytes, bamDoan, md, bayGio));
+                ds.Add(Sample.TaoTuFile(duAn.Id, lo.Id, duAn.Modality, khoa, tenDoan, loai, tt.SizeBytes, bamDoan, md, bayGio, QuyDinhTuSetting.DuLieu(_settings)));
             }
 
             return ds;
@@ -571,9 +579,9 @@ namespace Crowd.Project.Api.Services
             return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(s)));
         }
 
-        private static void GhiLoi(List<string> loi, int viTri, string thongBao)
+        private void GhiLoi(List<string> loi, int viTri, string thongBao)
         {
-            if (loi.Count < SoLoiGhiLai)
+            if (loi.Count < _settings.SoNguyen(SettingKeys.DatasetErrorSampleCount))
             {
                 loi.Add("dong " + (viTri + 1).ToString(CultureInfo.InvariantCulture) + ": " + thongBao);
             }

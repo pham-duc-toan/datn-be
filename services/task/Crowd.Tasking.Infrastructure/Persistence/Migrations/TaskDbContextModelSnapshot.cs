@@ -105,6 +105,31 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                     b.ToTable("outbox", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("ValueJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("value");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("settings_replica", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Tasking.Domain.Assignments.Assignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -118,6 +143,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
+
+                    b.Property<bool>("IsGold")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_gold");
 
                     b.Property<Guid>("LabelerId")
                         .HasColumnType("uuid")
@@ -266,6 +295,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deadline");
 
+                    b.Property<int>("GoldCheckPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("gold_check_percent");
+
                     b.Property<DateTimeOffset>("GoldSetAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("gold_set_at");
@@ -277,6 +310,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsPrivate")
                         .HasColumnType("boolean")
                         .HasColumnName("is_private");
+
+                    b.Property<int>("MaxRedundancy")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_redundancy");
 
                     b.Property<int?>("MinLevel")
                         .HasColumnType("integer")

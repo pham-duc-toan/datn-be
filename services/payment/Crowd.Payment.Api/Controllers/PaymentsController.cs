@@ -10,6 +10,7 @@ using Crowd.BuildingBlocks.Correlation;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.Payment.Api.Dtos;
 using Crowd.Payment.Api.Services;
+using Crowd.Payment.Domain.Deposits;
 using Crowd.Payment.Infrastructure.Providers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -47,10 +48,75 @@ namespace Crowd.Payment.Api.Controllers
             return Ok(d);
         }
 
+        /// <summary>
+        /// POST /payments/deposits/manual — nap bang chuyen khoan ngan hang thu cong.
+        /// Tra ve bankInfo + transferCode (noi dung chuyen khoan). Header Idempotency-Key bat buoc.
+        /// </summary>
+        [HttpPost("manual")]
+        public async Task<IActionResult> TaoChuyenKhoan(
+            [FromBody] CreateDepositRequest body,
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+            CancellationToken ct)
+        {
+            DepositResponse d = await _service.TaoChuyenKhoanAsync(
+                body == null ? 0 : body.AmountVnd, idempotencyKey, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
+            return Ok(d);
+        }
+
+        /// <summary>POST /payments/deposits/{id}/transferred — "toi da chuyen khoan", cho admin doi chieu.</summary>
+        [HttpPost("{id:guid}/transferred")]
+        public async Task<IActionResult> DaChuyen(Guid id, CancellationToken ct)
+        {
+            return Ok(await _service.BaoDaChuyenAsync(id, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
+        }
+
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> Xem(Guid id, CancellationToken ct)
         {
             return Ok(await _service.XemAsync(id, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
+        }
+    }
+
+    /// <summary>Admin doi chieu sao ke va duyet / tu choi lenh nap chuyen khoan thu cong.</summary>
+    [ApiController]
+    [Route("payments/admin/deposits")]
+    [Authorize(Roles = CrowdRoles.Admin)]
+    public sealed class AdminDepositsController : ControllerBase
+    {
+        private readonly DepositService _service;
+
+        public AdminDepositsController(DepositService service)
+        {
+            if (service == null)
+            {
+                throw new ArgumentNullException(nameof(service));
+            }
+
+            _service = service;
+        }
+
+        /// <summary>GET /payments/admin/deposits?status=awaitingApproval&amp;page=&amp;pageSize=</summary>
+        [HttpGet]
+        public async Task<IActionResult> DanhSach(
+            [FromQuery] PaymentIntentStatus? status, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
+        {
+            return Ok(await _service.DanhSachChuyenKhoanAsync(status, page, pageSize, ct));
+        }
+
+        /// <summary>POST /payments/admin/deposits/{id}/approve {"bankTxnRef": "..."} — tien vao vi doanh nghiep.</summary>
+        [HttpPost("{id:guid}/approve")]
+        public async Task<IActionResult> Duyet(Guid id, [FromBody] ApproveDepositRequest? body, CancellationToken ct)
+        {
+            string? ma = body == null ? null : body.BankTxnRef;
+            return Ok(await _service.DuyetChuyenKhoanAsync(id, ma, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
+        }
+
+        /// <summary>POST /payments/admin/deposits/{id}/reject {"reason": "..."}</summary>
+        [HttpPost("{id:guid}/reject")]
+        public async Task<IActionResult> TuChoi(Guid id, [FromBody] RejectDepositRequest? body, CancellationToken ct)
+        {
+            string? lyDo = body == null ? null : body.Reason;
+            return Ok(await _service.TuChoiChuyenKhoanAsync(id, lyDo, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
         }
     }
 

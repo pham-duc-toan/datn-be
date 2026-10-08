@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Net.Mail;
 using Crowd.BuildingBlocks.Auth.Jwt;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Identity.Api.Dtos;
 using Crowd.Identity.Api.Services;
 
@@ -19,8 +20,13 @@ namespace Crowd.Identity.Api.Helpers
         /// Tra ve danh sach loi theo tung truong (rong = hop le). Dang
         /// Dictionary nay dung la dang ma ValidationProblemDetails can.
         /// </summary>
-        public static Dictionary<string, string[]> KiemDangKy(RegisterRequest? body)
+        public static Dictionary<string, string[]> KiemDangKy(RegisterRequest? body, ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
             Dictionary<string, string[]> loi = new Dictionary<string, string[]>();
 
             if (body == null)
@@ -37,14 +43,18 @@ namespace Crowd.Identity.Api.Helpers
                 loi["email"] = new string[] { "Email khong hop le." };
             }
 
+            // Gioi han TREN chan tan cong tu choi dich vu: gui mat khau 10 MB bat
+            // server chay 100.000 vong PBKDF2 tren 10 MB. Setting identity.password_*.
+            int toiThieu = settings.SoNguyen(SettingKeys.IdentityPasswordMinLength);
+            int toiDa = settings.SoNguyen(SettingKeys.IdentityPasswordMaxLength);
             if (body.Password == null
-                || body.Password.Length < MatKhauService.DoDaiToiThieu
-                || body.Password.Length > MatKhauService.DoDaiToiDa)
+                || body.Password.Length < toiThieu
+                || body.Password.Length > toiDa)
             {
                 loi["password"] = new string[]
                 {
-                    "Mat khau phai tu " + MatKhauService.DoDaiToiThieu + " den "
-                    + MatKhauService.DoDaiToiDa + " ky tu.",
+                    "Mat khau phai tu " + toiThieu + " den "
+                    + toiDa + " ky tu.",
                 };
             }
 
@@ -83,8 +93,13 @@ namespace Crowd.Identity.Api.Helpers
         /// Gioi han do dai mat khau o day de khong ai bat server bam PBKDF2 tren
         /// mot chuoi 10 MB.
         /// </summary>
-        public static bool LaDangNhapHopLe(LoginRequest? body)
+        public static bool LaDangNhapHopLe(LoginRequest? body, ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
             if (body == null)
             {
                 return false;
@@ -95,7 +110,7 @@ namespace Crowd.Identity.Api.Helpers
                 return false;
             }
 
-            if (string.IsNullOrEmpty(body.Password) || body.Password.Length > MatKhauService.DoDaiToiDa)
+            if (string.IsNullOrEmpty(body.Password) || body.Password.Length > settings.SoNguyen(SettingKeys.IdentityPasswordMaxLength))
             {
                 return false;
             }

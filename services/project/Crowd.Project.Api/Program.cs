@@ -8,6 +8,7 @@ using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Ledger;
 using Crowd.Project.Api.Consumers;
 using Crowd.Project.Api.Exceptions;
+using Crowd.Project.Api.Helpers;
 using Crowd.Project.Api.Seeding;
 using Crowd.Project.Api.Services;
 using Crowd.Project.Api.Settings;
@@ -15,6 +16,7 @@ using Crowd.Project.Api.Workers;
 using Crowd.Project.Infrastructure.Media;
 using Crowd.Project.Infrastructure.Persistence;
 using Crowd.Seeding;
+using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +30,9 @@ builder.Services.AddDbContext<ProjectDbContext>(options =>
 {
     options.UseNpgsql(chuoiKetNoi);
 });
+
+// ---- Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker ----
+builder.Services.AddCrowdSettings<ProjectDbContext>(builder.Configuration, "project-svc");
 
 // ---- Ha tang dung chung: outbox (GUI event) + consumer (NHAN event) ----
 builder.Services.AddOutbox<ProjectDbContext>(builder.Configuration);
@@ -45,12 +50,12 @@ builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
 
 // ---- Nghiep vu ----
 builder.Services.Configure<ProjectSagaOptions>(builder.Configuration.GetSection(ProjectSagaOptions.SectionName));
-builder.Services.Configure<FeeOptions>(builder.Configuration.GetSection(FeeOptions.SectionName));
 builder.Services.AddScoped<ProjectAccessService>();
 builder.Services.AddScoped<ProjectEventPublisher>();
 builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<MemberService>();
 builder.Services.AddScoped<DatasetService>();
+builder.Services.AddScoped<GioiHanZipFilter>();
 builder.Services.AddScoped<UploadService>();
 builder.Services.Configure<MediaOptions>(builder.Configuration.GetSection(MediaOptions.SectionName));
 builder.Services.AddSingleton<IMediaProbe, FfprobeMediaProbe>();

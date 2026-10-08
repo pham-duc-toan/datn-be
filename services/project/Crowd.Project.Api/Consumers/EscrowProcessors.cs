@@ -1,9 +1,11 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.Contracts.Ledger;
+using Crowd.Project.Api.Services;
 using Crowd.Project.Domain.Projects;
 using Crowd.Project.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -23,9 +25,18 @@ namespace Crowd.Project.Api.Consumers
         private readonly ProjectDbContext _db;
         private readonly TimeProvider _clock;
         private readonly ILogger<EscrowReservedProcessor> _logger;
+        private readonly ProjectService _projects;
 
-        public EscrowReservedProcessor(ProjectDbContext db, TimeProvider clock, ILogger<EscrowReservedProcessor> logger)
+        public EscrowReservedProcessor(
+            ProjectDbContext db, TimeProvider clock, ILogger<EscrowReservedProcessor> logger, ProjectService projects)
         {
+            if (projects == null)
+            {
+                throw new ArgumentNullException(nameof(projects));
+            }
+
+            _projects = projects;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -70,6 +81,9 @@ namespace Crowd.Project.Api.Consumers
             }
 
             duAn.XacNhanDaKyQuy(_clock.GetUtcNow());
+
+            // Setting project.auto_approve: duyet ngay, khong cho admin.
+            await _projects.TuDuyetNeuBatAsync(duAn, Caller.HeThong(envelope.CorrelationId, envelope.EventId), ct);
 
             _logger.LogInformation(
                 "Du an {ProjectId} da ky quy {AmountVnd}d, chuyen sang cho duyet",

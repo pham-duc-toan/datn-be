@@ -45,6 +45,14 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("assignment_id");
 
+                    b.Property<bool?>("ConsensusAgrees")
+                        .HasColumnType("boolean")
+                        .HasColumnName("consensus_agrees");
+
+                    b.Property<DateTimeOffset?>("ConsensusAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consensus_at");
+
                     b.Property<Guid?>("LabelerId")
                         .HasColumnType("uuid")
                         .HasColumnName("labeler_id");
@@ -151,6 +159,42 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_annotations_project_status");
 
                     b.ToTable("annotations", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Annotation.Domain.Annotations.TaskConsensus", b =>
+                {
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<DateTimeOffset>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("Final")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("final");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("SampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sample_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("TaskId");
+
+                    b.HasIndex("ProjectId", "SampleId")
+                        .HasDatabaseName("ix_task_consensus_project_sample");
+
+                    b.ToTable("task_consensus", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Annotation.Domain.Members.MemberCache", b =>
@@ -299,6 +343,31 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                         .HasFilter("published_at IS NOT NULL");
 
                     b.ToTable("outbox", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("ValueJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("value");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("settings_replica", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Annotation.Domain.Annotations.LabelAnnotation", b =>

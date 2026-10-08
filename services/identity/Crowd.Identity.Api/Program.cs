@@ -10,6 +10,7 @@ using Crowd.Identity.Api.Seeding;
 using Crowd.Identity.Api.Services;
 using Crowd.Identity.Api.Settings;
 using Crowd.Seeding;
+using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +34,9 @@ namespace Crowd.Identity.Api
             {
                 options.UseNpgsql(chuoiKetNoi);
             });
+
+            // Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
+            builder.Services.AddCrowdSettings<IdentityDbContext>(builder.Configuration, "identity-svc");
 
             // Ha tang dung chung: outbox + chong xu ly trung.
             builder.Services.AddOutbox<IdentityDbContext>(builder.Configuration);

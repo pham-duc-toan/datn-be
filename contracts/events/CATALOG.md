@@ -15,7 +15,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `user.registered` | notification | Gui email xac thuc |
 | `user.email_verified` | notification | Kich hoat tai khoan |
 | `user.blocked` | task, gate, link, ledger | Thu hoi lease, chan tao link, khoa rut tien |
-| `reputation.changed` | task | Cap nhat `task_svc.labeler_cache` phuc vu loc eligibility |
+| `reputation.changed` | task | Cap nhat `task_svc.labeler_cache` phuc vu loc eligibility. **Hien do quality-svc phat** (identity-svc chua luu diem uy tin) |
 | `level.changed` | task, notification | |
 | `business.kyb_submitted` | admin | Day vao hang doi duyet (FM-01) |
 | `business.verified` | project, ledger | Cho phep publish du an, cho phep nap tien |
@@ -25,7 +25,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | Event | Consumer | Muc dich |
 |---|---|---|
 | `project.publish_requested` | ledger | **Saga buoc 1** — yeu cau ky quy (2.11) |
-| `project.published` | task, notification, ml | Sinh task, thong bao labeler phu hop |
+| `project.published` | task, annotation, ledger, quality, notification, ml | Sinh task, chot dieu khoan, tran chi tra (`MaxRedundancy`), ban sao tap nhan cho quality |
 | `project.paused` / `project.resumed` | task | Ngung/mo cap phat task |
 | `project.cancelled` | task, ledger | Dung task + hoan tien phan chua dung |
 | `project.completed` | task, ledger, notification | Giai phong escrow con du |
@@ -41,13 +41,14 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `assignment.submitted` | annotation | Labeler nop nhan cho mot luot lease HOP LE — annotation-svc luu nhan roi phat `annotation.submitted`. Nop di qua task-svc vi kiem lease va danh dau da nop phai nguyen tu tren du lieu cua task-svc (VD-T-01) |
 | `task.lease_expired` | — | Metric |
 | `task.redundancy_reached` | quality | Du n ban nhan -> tinh dong thuan |
-| `task.redundancy_changed` | — | Audit cho redundancy thich ung (FQ-03) |
+| `task.redundancy_changed` | — | Audit cho redundancy thich ung (FQ-03): task vua doi redundancy theo yeu cau cua quality |
+| `gold.answered` | quality | Labeler tra loi mot cau vang kiem tra tron trong luong task; task-svc tu cham (Crowd.Labeling), mang `Correct` |
 
 ## annotation-svc
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `annotation.submitted` | quality, fraud, task | Cham diem vang, do dong thuan, phat hien gian lan |
+| `annotation.submitted` | quality, fraud | Dau vao dong thuan va Dawid-Skene; phat hien gian lan |
 | `annotation.approved` | ledger, identity | **Chi tra** + cong diem uy tin |
 | `annotation.rejected` | notification, identity | Thong bao + tru uy tin |
 | `appeal.opened` | admin | Hang doi khieu nai (FL-09) |
@@ -56,11 +57,14 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `consensus.reached` | annotation, task | Chot nhan cuoi, dong task |
-| `dispute.detected` | task, admin | Day len reviewer cap cao |
-| `redundancy.increase_requested` | task | **Vong lap thich ung**: 2 nguoi lech -> tang len 5 |
-| `worker_confidence.updated` | identity | Dawid–Skene -> diem uy tin |
-| `gold_failed` | task, fraud | Truot cau vang lien tuc -> nghi ngo |
+| `consensus.reached` | annotation | Ket qua dong thuan cua MOT task (agreed / disputed / notApplicable) + tung nhan khop hay lech. **Chi la goi y** cho nguoi duyet — khong tu duyet, khong tu chi tien |
+| `redundancy.increase_requested` | task | **Vong lap thich ung**: tranh chap ma chua cham tran → xin them MOT nguoi (`NewRedundancy` tuyet doi) |
+| `reputation.changed` | task | Uy tin 0-100 = cau vang + muc khop dong thuan / do tin cay Dawid-Skene |
+| `dispute.detected` | task, admin | *(chua lam)* Day len reviewer cap cao |
+| `gold_failed` | task, fraud | *(chua lam)* Truot cau vang lien tuc -> nghi ngo |
+
+quality-svc viet bang Python: hop dong o [services/quality/app/contracts.py](../../services/quality/app/contracts.py)
+phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload la → DLQ.
 
 ## ml-svc  *(Python)*
 
@@ -79,14 +83,14 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `escrow.released` | — | Audit |
 | `funds.held` | notification | Vao so du cho doi soat (3–7 ngay) |
 | `hold.expired` | notification | Da rut duoc |
-| `payout.requested` | payment | Chuyen sang tich hop ngoai |
+| `payout.requested` | payment | Lenh rut DA DUYET (tu duyet theo nguong hoac admin duyet) -> chuyen sang tich hop ngoai. Lenh cho duyet KHONG phat |
 | `refund.issued` | notification | Huy du an |
 
 ## payment-svc
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `deposit.confirmed` | ledger | Webhook VNPay/MoMo da xac thuc -> ghi so |
+| `deposit.confirmed` | ledger | Webhook cong da xac thuc, hoac admin duyet chuyen khoan thu cong (`provider = manual_transfer`) -> ghi so |
 | `payout.completed` | ledger, notification | Chot but toan |
 | `payout.failed` | ledger, admin | Hoan lai so du kha dung |
 | `reconciliation.mismatch` | admin | Doi soat cuoi ngay lech |
@@ -133,7 +137,9 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `business.kyb_approved` / `.rejected` | identity | FM-01 |
 | `link.banned` | link, gate, ledger | FM-08 |
 | `dispute.resolved` | ledger, annotation | FM-06 |
-| `platform_config.changed` | ledger, task, gate | Phi hoa hong, don gia toi thieu, nguong rut |
+| `setting.changed` | moi service (+ gateway, quality) | Admin doi mot setting: `{key, value, settingVersion, changedBy, changedAt}`. Ban sao chi ghi khi version MOI hon |
+| `settings.snapshot` | moi service | Toan bo setting (`items[]`). Phat luc khoi dong, dinh ky, va khi co service xin |
+| `settings.snapshot_requested` *(nguoc chieu: moi service -> admin)* | admin | Service vua khoi dong xin phat lai toan bo |
 
 ## fraud-svc  *(Python)*
 
@@ -169,6 +175,10 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
    `SampleMetadata`, `StorageKey` nullable; `LabelPayload.taskType` doi tu
    `imageClassification` sang loai du lieu (`image`...). Du lieu cu duoc chuyen bang
    migration `NhieuLoaiDuLieu` cua project / task / annotation.
+
+   *Ngoai le thu ba (2026-10-07, cung ly do):* `project.published` them `MaxRedundancy`
+   (tran redundancy thich ung) va `GoldCheckPercent` ngay tren v1. Du lieu cu: migration
+   `KiemSoatChatLuong` dat tran = redundancy, ti le cau vang = 10%.
 
 ## Dinh dang nhan: tap nhan (`LabelSchema`) + nhan (`LabelPayload`)
 

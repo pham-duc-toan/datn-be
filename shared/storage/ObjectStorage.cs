@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
+using Crowd.BuildingBlocks.Settings;
 using Microsoft.Extensions.Options;
 
 namespace Crowd.BuildingBlocks.Storage
@@ -83,8 +84,17 @@ namespace Crowd.BuildingBlocks.Storage
         private readonly ObjectStorageOptions _options;
         private readonly AmazonS3Client _client;
 
+        /// <summary>Setting he thong (thoi han link) — null khi service khong dang ky (test, cong cu).</summary>
+        private readonly ISettings? _settings;
+
         public S3ObjectStorage(IOptions<ObjectStorageOptions> options)
+            : this(options, null)
         {
+        }
+
+        public S3ObjectStorage(IOptions<ObjectStorageOptions> options, ISettings? settings)
+        {
+            _settings = settings;
             if (options == null)
             {
                 throw new ArgumentNullException(nameof(options));
@@ -138,7 +148,7 @@ namespace Crowd.BuildingBlocks.Storage
             yeuCau.BucketName = _options.Bucket;
             yeuCau.Key = key;
             yeuCau.Verb = HttpVerb.GET;
-            yeuCau.Expires = DateTime.UtcNow.Add(_options.LinkTtl);
+            yeuCau.Expires = DateTime.UtcNow.Add(_settings == null ? _options.LinkTtl : _settings.ThoiGian(SettingKeys.StorageViewLinkTtl));
 
             if (_options.ServiceUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
             {
@@ -154,7 +164,7 @@ namespace Crowd.BuildingBlocks.Storage
             yeuCau.BucketName = _options.Bucket;
             yeuCau.Key = key;
             yeuCau.Verb = HttpVerb.PUT;
-            yeuCau.Expires = DateTime.UtcNow.Add(_options.UploadLinkTtl);
+            yeuCau.Expires = DateTime.UtcNow.Add(_settings == null ? _options.UploadLinkTtl : _settings.ThoiGian(SettingKeys.UploadLinkTtl));
 
             // KHONG ky kem Content-Type: client (curl, trinh duyet) gui header nao
             // cung duoc. Loai file that duoc worker kiem lai bang noi dung.

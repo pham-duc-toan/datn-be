@@ -328,6 +328,14 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("net_vnd");
 
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
                     b.Property<uint>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -345,6 +353,10 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnName("tax_vnd");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_withdrawals_cho_duyet")
+                        .HasFilter("state = 'PendingApproval'");
 
                     b.HasIndex("LabelerId", "IdempotencyKey")
                         .IsUnique()
@@ -366,6 +378,31 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                     b.HasKey("UserId");
 
                     b.ToTable("blocked_users", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("ValueJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("value");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("settings_replica", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Ledger.Domain.Journal.JournalEntry", b =>

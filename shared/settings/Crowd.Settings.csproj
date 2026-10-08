@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../building-blocks/Crowd.BuildingBlocks.csproj" />
+    <ProjectReference Include="../persistence/Crowd.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="../contracts/Crowd.Contracts.csproj" />
+    <ProjectReference Include="../labeling/Crowd.Labeling.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="RabbitMQ.Client" />
+  </ItemGroup>
+
+</Project>

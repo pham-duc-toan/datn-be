@@ -77,6 +77,19 @@ namespace Crowd.Contracts.Project
         /// <summary>So nguoi gan cung mot mau.</summary>
         public required int Redundancy { get; init; }
 
+        /// <summary>
+        /// TRAN redundancy thich ung (>= Redundancy): mau tranh chap duoc quality-svc
+        /// xin them nguoi gan toi toi da so nay. Ky quy tinh theo tran nen tien luon
+        /// du; ledger chan chi qua tran moi task (VD-M-03).
+        /// </summary>
+        public required int MaxRedundancy { get; init; }
+
+        /// <summary>
+        /// Phan tram so lan cap task la CAU VANG KIEM TRA (qualityCheck) tron vao,
+        /// 0-50. Labeler khong phan biet duoc; cau vang khong tra tien.
+        /// </summary>
+        public required int GoldCheckPercent { get; init; }
+
         public required DateTimeOffset Deadline { get; init; }
 
         public required bool AllowProfessional { get; init; }

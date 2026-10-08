@@ -6,6 +6,7 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.Ledger.Api.Dtos;
 using Crowd.Ledger.Api.Services;
+using Crowd.Ledger.Domain.Withdrawals;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,9 +24,17 @@ namespace Crowd.Ledger.Api.Controllers
     {
         private readonly WalletService _wallet;
         private readonly ReconciliationService _recon;
+        private readonly WithdrawalApprovalService _duyetRut;
 
-        public LedgerController(WalletService wallet, ReconciliationService recon)
+        public LedgerController(WalletService wallet, ReconciliationService recon, WithdrawalApprovalService duyetRut)
         {
+            if (duyetRut == null)
+            {
+                throw new ArgumentNullException(nameof(duyetRut));
+            }
+
+            _duyetRut = duyetRut;
+
             if (wallet == null)
             {
                 throw new ArgumentNullException(nameof(wallet));
@@ -79,6 +88,32 @@ namespace Crowd.Ledger.Api.Controllers
         public async Task<IActionResult> DoiSoat(CancellationToken ct)
         {
             return Ok(await _recon.DoiSoatAsync(ct));
+        }
+
+        /// <summary>GET /ledger/admin/withdrawals?state=pendingApproval — hang doi duyet rut tien.</summary>
+        [HttpGet("admin/withdrawals")]
+        [Authorize(Roles = CrowdRoles.Admin)]
+        public async Task<IActionResult> HangDoiRut(
+            [FromQuery] WithdrawalState? state, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
+        {
+            return Ok(await _duyetRut.DanhSachAsync(state, page, pageSize, ct));
+        }
+
+        /// <summary>POST /ledger/admin/withdrawals/{id}/approve — duyet, gui payment-svc chuyen khoan.</summary>
+        [HttpPost("admin/withdrawals/{id:guid}/approve")]
+        [Authorize(Roles = CrowdRoles.Admin)]
+        public async Task<IActionResult> DuyetRut(Guid id, CancellationToken ct)
+        {
+            return Ok(await _duyetRut.DuyetAsync(id, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
+        }
+
+        /// <summary>POST /ledger/admin/withdrawals/{id}/reject {"reason": "..."} — tien ve lai vi labeler.</summary>
+        [HttpPost("admin/withdrawals/{id:guid}/reject")]
+        [Authorize(Roles = CrowdRoles.Admin)]
+        public async Task<IActionResult> TuChoiRut(Guid id, [FromBody] RejectWithdrawalRequest? body, CancellationToken ct)
+        {
+            string? lyDo = body == null ? null : body.Reason;
+            return Ok(await _duyetRut.TuChoiAsync(id, lyDo, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
         }
     }
 }

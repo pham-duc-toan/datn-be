@@ -11,8 +11,10 @@ using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Project;
+using Crowd.Contracts.Quality;
 using Crowd.Contracts.Tasking;
 using Crowd.Seeding;
+using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -30,6 +32,8 @@ builder.Services.AddDbContext<AnnotationDbContext>(options =>
 
 // ---- Outbox (gui) + consumer (nhan). Ten queue giu nguyen mai mai. ----
 ConfigurationManager cfg = builder.Configuration;
+// Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
+builder.Services.AddCrowdSettings<AnnotationDbContext>(cfg, "annotation-svc");
 builder.Services.AddOutbox<AnnotationDbContext>(cfg);
 builder.Services.AddEventConsumer<AnnotationDbContext, AssignmentSubmitted, AssignmentSubmittedProcessor>(cfg, "annotation-svc.assignment-submitted");
 builder.Services.AddEventConsumer<AnnotationDbContext, ProjectPublished, ProjectPublishedProcessor>(cfg, "annotation-svc.project-published");
@@ -37,6 +41,7 @@ builder.Services.AddEventConsumer<AnnotationDbContext, MemberAdded, MemberAddedP
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberBlocked, MemberBlockedProcessor>(cfg, "annotation-svc.member-blocked");
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberUnblocked, MemberUnblockedProcessor>(cfg, "annotation-svc.member-unblocked");
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberRemoved, MemberRemovedProcessor>(cfg, "annotation-svc.member-removed");
+builder.Services.AddEventConsumer<AnnotationDbContext, ConsensusReached, ConsensusReachedProcessor>(cfg, "annotation-svc.consensus-reached");
 
 // ---- Kho anh (chi sinh link xem) ----
 builder.Services.Configure<ObjectStorageOptions>(cfg.GetSection(ObjectStorageOptions.SectionName));

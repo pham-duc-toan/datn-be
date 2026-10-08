@@ -151,6 +151,17 @@ namespace Crowd.Labeling
         /// </summary>
         public bool KhopDapAn(LabelSchema tapNhan, LabelPayload dapAn)
         {
+            return KhopDapAn(tapNhan, dapAn, NguongKhop.CuaThuVien);
+        }
+
+        /// <param name="nguong">Nguong mac dinh theo loai cong cu (setting labeling.threshold.*).</param>
+        public bool KhopDapAn(LabelSchema tapNhan, LabelPayload dapAn, NguongKhop nguong)
+        {
+            if (nguong == null)
+            {
+                throw new ArgumentNullException(nameof(nguong));
+            }
+
             if (tapNhan == null)
             {
                 throw new ArgumentNullException(nameof(tapNhan));
@@ -181,7 +192,7 @@ namespace Crowd.Labeling
                     return false;
                 }
 
-                if (!ToolKindRegistry.Lay(t.Kind).Khop(nop, dung, t))
+                if (!ToolKindRegistry.Lay(t.Kind).Khop(nop, dung, t, nguong.Lay(t.Kind)))
                 {
                     return false;
                 }

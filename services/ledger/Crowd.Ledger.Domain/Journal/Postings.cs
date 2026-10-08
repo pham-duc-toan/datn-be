@@ -146,7 +146,7 @@ namespace Crowd.Ledger.Domain.Journal
         /// Cong that bai: BUT TOAN DAO cua YeuCauRut — tra labeler TOAN BO, ke ca
         /// thue da giu (khong chuyen thi khong phat sinh thu nhap chiu thue).
         /// </summary>
-        public static JournalEntry DaoRut(Guid withdrawalId, Guid labelerId, long net, long tax, DateTimeOffset luc)
+        public static JournalEntry DaoRut(Guid withdrawalId, Guid labelerId, long net, long tax, DateTimeOffset luc, string moTa)
         {
             BatBuocDuong(net);
 
@@ -161,7 +161,7 @@ namespace Crowd.Ledger.Domain.Journal
                 dong.Add(new JournalLine(AccountCodes.PlatformTaxWithheld, -tax));
             }
 
-            return JournalEntry.Tao(JournalEntryType.WithdrawalReversal, "withdrawal:" + withdrawalId, "Dao but toan rut that bai", luc, dong);
+            return JournalEntry.Tao(JournalEntryType.WithdrawalReversal, "withdrawal:" + withdrawalId, moTa, luc, dong);
         }
 
         /// <summary>

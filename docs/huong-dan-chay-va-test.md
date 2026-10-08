@@ -18,13 +18,14 @@ Khi dán, xóa luôn cặp dấu `< >`. Ví dụ `Bearer <token-biz1>` sẽ thà
 ## 0. Chạy nhanh (đã quen thì chỉ cần mục này)
 
 ```bash
-# 1. Hạ tầng: RabbitMQ, MinIO, Postgres của các service P0 + P1
-docker compose -f docker-compose.infra.yml --profile p0 --profile p1 up -d
+# 1. Hạ tầng: RabbitMQ, MinIO, Postgres của các service P0 (kể cả admin) + P1 + P3 (quality)
+docker compose -f docker-compose.infra.yml --profile p0 --profile p1 --profile p3 up -d
 
 # 2. Build một lần
 dotnet build datn.slnx
 
-# 3. Mỗi service một terminal (thứ tự không quan trọng)
+# 3. Mỗi service một terminal (thứ tự không quan trọng; admin-svc giữ setting hệ thống)
+dotnet run --project services/admin/Crowd.Admin.Api
 dotnet run --project services/identity/Crowd.Identity.Api
 dotnet run --project services/project/Crowd.Project.Api
 dotnet run --project services/task/Crowd.Tasking.Api
@@ -32,6 +33,7 @@ dotnet run --project services/annotation/Crowd.Annotation.Api
 dotnet run --project services/ledger/Crowd.Ledger.Api
 dotnet run --project services/payment/Crowd.Payment.Api
 dotnet run --project services/gateway/Crowd.Gateway.Api
+cd services/quality && .venv/Scripts/python -m app.main     # quality-svc (Python) — tạo .venv lần đầu: mục 3
 
 # 4. Đăng nhập thử bằng tài khoản seed (mật khẩu chung: Matkhau@123)
 curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/json" \
@@ -48,7 +50,7 @@ curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/j
 | .NET SDK | 10 (xem [global.json](../global.json)) | `dotnet --version` |
 | Git Bash | có sẵn khi cài Git | Các lệnh trong tài liệu viết cho bash |
 | curl | có sẵn trong Git Bash | Trong **PowerShell 5.1**, `curl` là alias của `Invoke-WebRequest` nên phải gõ `curl.exe` |
-| Python 3 | tùy chọn | Chỉ dùng cho mục 6.11 (tạo file ZIP ảnh) |
+| Python | **3.12** | Chạy `quality-svc` (mục 3). Cũng dùng cho mục 6.11 (tạo file ZIP ảnh) |
 | FFmpeg (ffprobe) | tùy chọn | Đo thời lượng / kích thước audio, video khi nạp (mục 6.14). Windows: `winget install Gyan.FFmpeg`, mở terminal mới để có trong PATH. Không có thì manifest audio/video phải khai `durationSec` |
 
 ---
@@ -56,11 +58,11 @@ curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/j
 ## 2. Khởi động hạ tầng
 
 ```bash
-docker compose -f docker-compose.infra.yml --profile p0 --profile p1 up -d
+docker compose -f docker-compose.infra.yml --profile p0 --profile p1 --profile p3 up -d
 docker ps --format "table {{.Names}}\t{{.Status}}"      # đợi mọi container (healthy)
 ```
 
-`--profile p0` bật Postgres của identity, project, task, annotation. `--profile p1` bật thêm Postgres của ledger và payment. RabbitMQ và MinIO thuộc nhóm core nên luôn được bật. Container `minio-init` chạy một lần để tạo bucket `datasets` rồi tự thoát, đó là bình thường.
+`--profile p0` bật Postgres của identity, project, task, annotation **và admin** (setting hệ thống, mục 6.16). `--profile p1` bật thêm Postgres của ledger và payment. `--profile p3` bật Postgres của quality. RabbitMQ và MinIO thuộc nhóm core nên luôn được bật. Container `minio-init` chạy một lần để tạo bucket `datasets` rồi tự thoát, đó là bình thường.
 
 | Thành phần | Cổng | Đăng nhập (dev) |
 |---|---|---|
@@ -68,6 +70,8 @@ docker ps --format "table {{.Names}}\t{{.Status}}"      # đợi mọi container
 | MinIO | 9000, UI **9001** | `datn` / `dev_minio_pw` |
 | Postgres identity / project / task / annotation | 5401 / 5402 / 5403 / 5404 | `<tên>_user` / `dev_<tên>_pw` |
 | Postgres ledger / payment | 5405 / 5406 | như trên |
+| Postgres quality | 5421 | `quality_user` / `dev_quality_pw` |
+| Postgres admin | 5411 | `admin_user` / `dev_admin_pw` |
 
 Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledger_db`
 
@@ -78,32 +82,49 @@ Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledge
 | Service | Cổng | Lệnh |
 |---|---|---|
 | gateway (Ocelot) | **8080** | `dotnet run --project services/gateway/Crowd.Gateway.Api` |
+| admin-svc | 8111 | `dotnet run --project services/admin/Crowd.Admin.Api` |
 | identity-svc | 8101 | `dotnet run --project services/identity/Crowd.Identity.Api` |
 | project-svc | 8102 | `dotnet run --project services/project/Crowd.Project.Api` |
 | task-svc | 8103 | `dotnet run --project services/task/Crowd.Tasking.Api` |
 | annotation-svc | 8104 | `dotnet run --project services/annotation/Crowd.Annotation.Api` |
 | ledger-svc | 8105 | `dotnet run --project services/ledger/Crowd.Ledger.Api` |
 | payment-svc | 8106 | `dotnet run --project services/payment/Crowd.Payment.Api` |
+| quality-svc (Python) | 8201 | `cd services/quality && .venv/Scripts/python -m app.main` |
+
+**quality-svc lần đầu** cần tạo môi trường Python (một lần):
+
+```bash
+cd services/quality
+python -m venv .venv
+.venv/Scripts/pip install -r requirements.txt      # Linux/macOS: .venv/bin/pip
+.venv/Scripts/python -m pytest -q                   # 22 test logic: đồng thuận, uy tín, Dawid-Skene, hợp đồng envelope, setting
+```
+
+Biến môi trường tiền tố `QUALITY_` chỉ còn giữ phần hạ tầng (chuỗi kết nối, RabbitMQ, JWKS, môi trường — xem [app/config.py](../services/quality/app/config.py)). Production phải đặt `QUALITY_ENVIRONMENT=Production` (tắt seed). Chu kỳ Dawid–Skene, trọng số uy tín… là **setting hệ thống**: muốn DS chạy mỗi phút thì `PUT /admin/settings/quality.ds_interval {"value":60}` (mục 6.16).
 
 - **Thứ tự không quan trọng.** Mỗi service tự migrate database của mình khi khởi động (VD-O-03), rồi tự seed (mục 4). Các service không gọi nhau lúc seed.
+- **Setting:** mỗi service nạp bản sao setting trong DB của mình rồi xin admin-svc phát lại toàn bộ. admin-svc chưa chạy thì service dùng giá trị mặc định của catalog, khi admin-svc lên sẽ tự đồng bộ (log `Setting: nap N gia tri tu ban sao, da xin admin-svc phat lai`).
 - **Mọi request đều đi qua gateway `http://localhost:8080`.** Gọi thẳng cổng 81xx chỉ dùng để debug.
 - Khi khởi động lần đầu trên database trống, log mỗi service sẽ có một dòng `Seed ...`:
 
 ```text
+Setting: khoi tao 83 khoa moi, 83 khoa trong danh muc     (admin-svc, lần đầu)
 Seed identity: tao 7 tai khoan, mat khau chung 'Matkhau@123'
 Seed project: tao 7 du an, 34 mau
 Seed task: 7 du an, 34 task, 14 luot da nop
 Seed annotation: tao 14 nhan
 Seed ledger: 6 ky quy, 7 lan chi tra, 6 khoan treo da giai phong
 Seed payment: tao 2 lenh nap
+Seed quality: them 5 / 5 du an          (log của quality-svc, định dạng Python)
 ```
 
 Từ lần chạy thứ hai, log sẽ là `Seed ...: da co du lieu seed — bo qua` (identity, payment) hoặc `da du du an seed — bo qua` (project, task, annotation, ledger). DB cũ chỉ có P1–P4 thì lần chạy đầu sau khi cập nhật code sẽ seed thêm P5–P7.
 
-Nếu muốn bật cả 7 service trong **một** terminal Git Bash (log ghi ra thư mục `logs/`):
+Nếu muốn bật cả 8 service C# trong **một** terminal Git Bash (log ghi ra thư mục `logs/`):
 
 ```bash
 mkdir -p logs
+dotnet run --project services/admin/Crowd.Admin.Api           > logs/admin.log 2>&1 &
 dotnet run --project services/identity/Crowd.Identity.Api     > logs/identity.log 2>&1 &
 dotnet run --project services/project/Crowd.Project.Api       > logs/project.log 2>&1 &
 dotnet run --project services/task/Crowd.Tasking.Api          > logs/task.log 2>&1 &
@@ -139,6 +160,7 @@ tài khoản   dự án, ảnh   task,      nhãn +          ký quỹ,     lệ
   - Service: `MoneyFlowService` của ledger.
   - Processor: task, annotation và ledger phát lại các event `member.added`, `project.published`, `gold_set.updated` vào chính processor của mình.
   - Nhờ vậy kịch bản sai luật (ví dụ ngân sách không đủ ký quỹ) sẽ ném lỗi ngay khi seed.
+- **quality-svc (Python) không đọc được kịch bản C#**, nên test [QualitySeedSnapshotTests](../shared/test/seeding-tests/QualitySeedSnapshotTests.cs) xuất bản sao 5 dự án seed đang chạy ra [shared/seeding/quality-seed.json](../shared/seeding/quality-seed.json), quality-svc nạp file này lúc khởi động. Sửa kịch bản thì chạy `UPDATE_SEED_SNAPSHOT=1 dotnet test shared/test/seeding-tests`.
 - **Seed không phát event nào ra RabbitMQ.** Code nghiệp vụ có xếp event vào outbox, nhưng seeder gỡ các event đó trước khi lưu (`SeedOutbox.BoEventChuaGui`), vì service nào cũng đã tự seed phần của mình.
 - **Ledger seed bằng "đồng hồ lùi về quá khứ"** (`DongHoCoDinh`). Nhãn được duyệt 4 ngày trước thì khoản treo đã hết hạn, nên labeler rút được tiền ngay.
 - **Chỉ chạy khi môi trường là `Development` và `Seed:Enabled = true`** ([`SeedSwitch`](../shared/seeding/SeedHelpers.cs)). Ở production, quên tắt cờ cũng không seed được.
@@ -215,7 +237,7 @@ Tiến độ P1 lúc vừa seed: 8 task, 2 hoàn thành (ảnh 1, 2), 1 bị lo�
 | lab2 | khả dụng 8.000 (P5 5.000 + P7 3.000), treo 20.000 (P1), sau ~2 phút worker chuyển sang khả dụng |
 | Đối soát | `healthy: true` |
 
-Ở dev, thời gian treo là **2 phút** (`Ledger:ThoiGianTreo` trong [appsettings.Development.json](../services/ledger/Crowd.Ledger.Api/appsettings.Development.json)) và worker quét mỗi 30 giây. Production giữ mặc định 3 ngày.
+Ở dev, thời gian treo là **2 phút**: admin-svc khởi tạo setting `ledger.hold_duration = 120` giây khi chạy ở Development (production giữ mặc định 3 ngày). Worker quét theo `ledger.hold_release_interval` (mặc định 60 giây). Cả hai đổi được lúc chạy (mục 6.16).
 
 ### 4.6 Tắt seed / seed lại từ đầu
 
@@ -485,7 +507,7 @@ curl -s http://localhost:8080/ledger/me/balance -H "Authorization: Bearer <token
 
 curl -s -X POST http://localhost:8080/ledger/withdrawals -H "Authorization: Bearer <token-lab1>" \
   -H "Content-Type: application/json" -H "Idempotency-Key: rut-001" \
-  -d '{"amountVnd":50000,"bankAccount":"VCB-0123456789"}'                                       # state: requested
+  -d '{"amountVnd":50000,"bankAccount":"VCB-0123456789"}'                                       # state: requested (≤ 2.000.000 nên tự duyệt)
 
 sleep 8
 curl -s http://localhost:8080/ledger/withdrawals/mine -H "Authorization: Bearer <token-lab1>"     # state: completed
@@ -494,7 +516,8 @@ curl -s "http://localhost:8080/ledger/me/transactions?page=1&pageSize=20" -H "Au
 
 Kiểm tra thêm:
 - Gửi lại với cùng `Idempotency-Key: rut-001`: trả về đúng lệnh cũ, không trừ tiền lần hai.
-- Rút 10.000: **400** `duoi_muc_toi_thieu` (tối thiểu 50.000).
+- Rút 10.000: **400** `duoi_muc_toi_thieu` (tối thiểu 50.000 — setting `ledger.withdraw_min_vnd`).
+- Lệnh vượt `ledger.withdraw_auto_approve_max_vnd` (mặc định 2.000.000) hoặc khi tắt `ledger.withdraw_auto_approve` thì nằm ở `pendingApproval` chờ admin (mục 6.16).
 - Rút nhiều hơn số dư: **409** `khong_du_so_du`.
 
 ```bash
@@ -708,7 +731,145 @@ Kiểm tra thêm:
 - File WAV đổi tên thành `.mp4` nạp vào dự án video: ffprobe thấy không có hình, dòng bị bỏ (`khong phai video`).
 - Đang có lô `pending` / `ingesting` thì chưa publish được.
 
+### 6.15 Kiểm soát chất lượng (P3): đồng thuận, redundancy thích ứng, câu vàng kiểm tra, uy tín
+
+`quality-svc` (Python) chạy nền, không chặn luồng gán nhãn:
+
+```
+task-svc ──gold.answered────────────► quality-svc ──reputation.changed──► task-svc (lọc minReputation)
+annotation-svc ──annotation.submitted─►     │
+task-svc ──task.redundancy_reached──►      ├─ khớp      → consensus.reached ──► annotation-svc (cờ khớp/lệch, chỉ gợi ý)
+                                            └─ tranh chấp → redundancy.increase_requested ──► task-svc (+1 người, ≤ trần)
+```
+
+- **Câu vàng kiểm tra:** câu vàng mục đích `qualityCheck` được trộn vào luồng task theo tỉ lệ `goldCheckPercent` (mặc định 10%). Response giống hệt task thật. Trả lời không tạo nhãn, không trả tiền; task-svc chấm ngay và báo `gold.answered`.
+- **Đồng thuận:** khi task đủ người, quality gộp các công cụ `classification` / `pairwise` theo đa số tuyệt đối. Các công cụ khác (khung, chép lời…) chưa gộp tự động, trạng thái là `notApplicable`.
+- **Redundancy thích ứng:** tranh chấp mà chưa chạm trần `maxRedundancy` thì quality xin thêm **một** người. task-svc mở lại task, quality tính lại khi đủ người. Ký quỹ tối thiểu tính theo **trần**, nên lượt thêm luôn có tiền; phần không dùng được trả lại khi kết thúc dự án.
+- **Duyệt vẫn là việc của người:** đồng thuận chỉ đánh dấu nhãn khớp / lệch (`consensusAgrees`). Doanh nghiệp có nút duyệt hàng loạt các nhãn khớp.
+- **Uy tín 0–100** = 60% độ chính xác câu vàng + 40% mức khớp đồng thuận (có Dawid–Skene thì dùng độ tin cậy DS thay cho mức khớp thô), làm mượt Bayes cho người mới. Công thức: [services/quality/app/reputation.py](../services/quality/app/reputation.py).
+
+Dự án seed **P7** (cặp câu trả lời, `12d52faa-09b4-5cd1-b21d-16984c952fec`) có sẵn trần 3. Nhãn seed sẵn không đi qua quality-svc (seed không phát event), nên hãy thử trên **cặp 3** — cặp chưa ai làm trên DB vừa seed: lab1 chọn `a`, lab2 chọn `b` → tranh chấp → task cặp 3 lên redundancy 3 → lab3 tham gia P7 (`POST /projects/12d52faa-09b4-5cd1-b21d-16984c952fec/join`) rồi nhận đúng task đó và phá thế hòa. lab1 nhận phải cặp 2 thì gọi `release` rồi nhận lại (task được chọn ngẫu nhiên). Tự tạo dự án thì làm như sau:
+
+```bash
+# Giá: redundancy 2, trần 3 → readiness.estimatedCostVnd tính theo 3 người
+curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/pricing -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"unitPriceVnd":1000,"redundancy":2,"maxRedundancy":3,"budgetVnd":50000,"deadline":"2027-12-31T00:00:00Z"}'
+
+# Tỉ lệ câu vàng kiểm tra trộn vào task (0–50%). Thêm câu vàng purpose "qualityCheck" như mục 6.11.
+curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/quality-control -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"goldCheckPercent":20}'
+```
+
+Sau khi publish và labeler nộp đủ:
+
+```bash
+# Nhãn có cờ consensusAgrees (true / false / null = chưa có kết quả hoặc không gộp được)
+curl -s "http://localhost:8080/annotations/projects/<id-du-an-moi>?status=pendingReview" -H "Authorization: Bearer <token-biz1>"
+curl -s "http://localhost:8080/annotations/projects/<id-du-an-moi>?consensusAgrees=false" -H "Authorization: Bearer <token-biz1>"
+
+# Duyệt hàng loạt mọi nhãn chờ duyệt khớp đồng thuận (tối đa 500 mỗi lần) → { approvedCount, skippedOwnCount }
+curl -s -X POST http://localhost:8080/annotations/projects/<id-du-an-moi>/approve-agreed -H "Authorization: Bearer <token-biz1>"
+
+# Kết quả có thêm consensusStatus / consensusFinal theo từng mẫu
+curl -s http://localhost:8080/annotations/projects/<id-du-an-moi>/results -H "Authorization: Bearer <token-biz1>"
+
+# Chỉ số chất lượng (chủ dự án / admin)
+curl -s http://localhost:8080/quality/projects/<id-du-an-moi>/summary  -H "Authorization: Bearer <token-biz1>"
+curl -s http://localhost:8080/quality/projects/<id-du-an-moi>/labelers -H "Authorization: Bearer <token-biz1>"
+
+# Chạy Dawid–Skene ngay (bình thường chạy định kỳ 15 phút) — admin
+curl -s -X POST http://localhost:8080/quality/admin/dawid-skene/run -H "Authorization: Bearer <token-admin>"
+
+# Labeler xem điểm của mình (không có số câu vàng — tránh đoán câu nào là câu vàng)
+curl -s http://localhost:8080/quality/me -H "Authorization: Bearer <token-lab1>"
+```
+
+Xem trong database:
+
+```bash
+docker exec datn-db-task psql -U task_user -d task_db -c "select sample_id, redundancy_target, state from tasks where project_id='<id-du-an-moi>'"
+docker exec datn-db-quality psql -U quality_user -d quality_db -c "select task_id, target, status, final from consensus_rounds order by decided_at desc limit 10"
+docker exec datn-db-task psql -U task_user -d task_db -c "select user_id, reputation, reputation_at from labeler_cache"
+```
+
+Kiểm tra thêm:
+- `maxRedundancy` nhỏ hơn `redundancy` hoặc lớn hơn 10: **400** `tran_redundancy_khong_hop_le`.
+- `goldCheckPercent` ngoài 0–50: **400** `ti_le_cau_vang_khong_hop_le`.
+- Labeler gọi `/quality/projects/{id}/summary`: **404**.
+- Câu vàng chỉ được trộn khi labeler **còn task thật** để làm, và mỗi câu vàng mỗi người chỉ gặp một lần.
+
 ---
+
+### 6.16 Setting hệ thống (admin): phí, tự duyệt, hạn mức
+
+Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (83 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
+
+```bash
+# Toàn bộ setting: key, group, type, value, defaultValue, min, max, unit, effect, description, version
+curl -s http://localhost:8080/admin/settings -H "Authorization: Bearer <token-admin>"
+curl -s http://localhost:8080/admin/settings/fee.platform_percent -H "Authorization: Bearer <token-admin>"
+
+# Đổi phí nền tảng 30% → 20% (dự án publish SAU lúc này chịu 20%)
+curl -s -X PUT http://localhost:8080/admin/settings/fee.platform_percent -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"value":20,"reason":"Khuyen mai thang 10"}'
+curl -s http://localhost:8080/admin/settings/fee.platform_percent/history -H "Authorization: Bearer <token-admin>"
+
+# Sai kiểu / ngoài giới hạn → 400; min > max (vd payment.deposit_min_vnd > deposit_max_vnd) → bị chặn
+curl -s -X PUT http://localhost:8080/admin/settings/fee.platform_percent -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"value":95}'                                              # 400
+```
+
+Kiểm tra service đã nhận: `docker exec datn-db-project psql -U project_user -d project_db -c "select key, value, version from settings_replica where key='fee.platform_percent'"`.
+
+**Tự duyệt dự án** — `project.auto_approve`:
+
+```bash
+curl -s -X PUT http://localhost:8080/admin/settings/project.auto_approve -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"value":true}'
+# Publish một dự án nháp (mục 6.4): ký quỹ xong là chuyển thẳng running, không vào hàng đợi admin.
+```
+
+**Tự duyệt nhãn khớp đồng thuận** — `annotation.auto_approve_agreed`: bật lên thì khi quality-svc báo task `agreed`, các nhãn chờ duyệt khớp đồng thuận được hệ thống duyệt luôn (`reviewerId` rỗng, lịch sử `auto_approved`) và labeler được trả tiền.
+
+**Hàng đợi duyệt rút tiền** — `ledger.withdraw_auto_approve` (bật), `ledger.withdraw_auto_approve_max_vnd` (2.000.000):
+
+```bash
+# Số dư seed nhỏ: hạ mức rút tối thiểu xuống 10.000 và ngưỡng tự duyệt xuống 20.000.
+# lab2 có 28.000 khả dụng sau khi khoản treo P1 giải phóng (mục 4.5).
+curl -s -X PUT http://localhost:8080/admin/settings/ledger.withdraw_min_vnd -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"value":10000}'
+curl -s -X PUT http://localhost:8080/admin/settings/ledger.withdraw_auto_approve_max_vnd -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"value":20000}'
+curl -s -X POST http://localhost:8080/ledger/withdrawals -H "Authorization: Bearer <token-lab2>" \
+  -H "Content-Type: application/json" -H "Idempotency-Key: rut-cho-duyet" \
+  -d '{"amountVnd":25000,"bankAccount":"VCB-0123456789"}'                                   # state: pendingApproval, tiền đã bị giữ
+
+curl -s "http://localhost:8080/ledger/admin/withdrawals?state=pendingApproval" -H "Authorization: Bearer <token-admin>"
+curl -s -X POST http://localhost:8080/ledger/admin/withdrawals/<id>/approve -H "Authorization: Bearer <token-admin>"   # → requested → completed
+# hoặc từ chối: tiền về lại availableVnd của labeler
+curl -s -X POST http://localhost:8080/ledger/admin/withdrawals/<id>/reject -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"reason":"Sai so tai khoan"}'
+```
+
+**Nạp tiền chuyển khoản thủ công** — `payment.manual_transfer_enabled` (bật), `payment.manual_transfer_auto_approve_max_vnd` (0 = luôn chờ admin), `payment.manual_transfer_bank_info` (thông tin tài khoản hiện cho doanh nghiệp):
+
+```bash
+curl -s -X POST http://localhost:8080/payments/deposits/manual -H "Authorization: Bearer <token-biz1>" \
+  -H "Content-Type: application/json" -H "Idempotency-Key: ck-001" -d '{"amountVnd":500000}'
+# → status pending, transferCode "CROWD…" (nội dung chuyển khoản), bankInfo, checkoutUrl null
+
+curl -s -X POST http://localhost:8080/payments/deposits/<intentId>/transferred -H "Authorization: Bearer <token-biz1>"   # awaitingApproval
+
+curl -s http://localhost:8080/payments/admin/deposits -H "Authorization: Bearer <token-admin>"                      # hàng đợi đối chiếu
+curl -s -X POST http://localhost:8080/payments/admin/deposits/<intentId>/approve -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"bankTxnRef":"FT26100812345"}'          # succeeded → ledger cộng ví biz1
+curl -s -X POST http://localhost:8080/payments/admin/deposits/<intentId>/reject -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"reason":"Khong thay tien ve"}'
+```
+
+Một mã sao kê (`bankTxnRef`) chỉ dùng cho một lệnh nạp — dùng lại → **409** `ma_giao_dich_trung`.
+
+**Còn ở appsettings / biến môi trường** (không phải setting): chuỗi kết nối, RabbitMQ / MinIO, khóa ký JWT, cổng, `Media:FfprobePath`, `Consumers:DeliveryLimit` (topology queue), `Saga:BoQuaKyQuy` (cờ chỉ dùng ở dev), `Seed:Enabled`.
 
 ## 7. Kiểm tra tổng sau khi test
 
@@ -735,7 +896,11 @@ Xem event chạy qua hệ thống: mở RabbitMQ UI tại http://localhost:15672
 | Seed ném lỗi khi khởi động (ví dụ `khong_du_so_du`, `chuyen_trang_thai_khong_hop_le`) | Kịch bản bị sửa sai luật. Chạy `dotnet test shared/test/seeding-tests` để biết sai ở đâu |
 | `fileUrl` trả 403 / hết hạn | Link MinIO chỉ sống 5 phút (S-07). Gọi lại API để lấy link mới |
 | Lô manifest `failed`, `errorSummary` ghi `khong doc duoc thoi luong` | project-svc không tìm thấy ffprobe. Cài FFmpeg, hoặc đặt `Media:FfprobePath` trong appsettings, hoặc khai `durationSec` trong dòng manifest |
+| Đổi setting mà service không thấy giá trị mới | Xem bản sao: `docker exec datn-db-<svc> psql -U <svc>_user -d <svc>_db -c "select * from settings_replica where key='...'"`. Chưa có version mới → service đó chưa nhận `setting.changed` (đang tắt, hoặc message nằm DLQ `<svc>.setting-changed.dlq`). Bật lại service là nó tự xin snapshot |
+| `/admin/...` trả 502 | admin-svc chưa chạy, hoặc chưa bật `--profile p0` (Postgres admin) |
+| `/quality/...` trả 502 | quality-svc chưa chạy (mục 3) hoặc chưa bật `--profile p3` |
+| Log quality `Bo qua dong thuan task ...: chua co ban sao du an` | Dự án publish **trước khi** quality-svc chạy lần đầu (không phải dự án seed): quality không có tập nhãn và trần redundancy nên bỏ qua. Dự án publish sau đó được tính bình thường |
 | Lô manifest đứng mãi ở `pending` | project-svc không chạy (worker nạp dữ liệu chạy bên trong nó). Bật lên là lô được xử lý; lô `ingesting` dở dang được làm lại từ đầu |
 | Lỗi bucket `datasets` không tồn tại | `minio-init` chưa chạy. Chạy lại `docker compose ... up -d` |
 | Nhãn đã duyệt nhưng labeler chưa thấy tiền | ledger-svc chưa chạy, hoặc event đang nằm trong outbox của annotation. Bật ledger lên thì event sẽ được giao (at-least-once) |
-| P2 tự chuyển sang `cancelled` | Đúng thiết kế: dự án chờ duyệt quá 72 giờ thì tự hủy và hoàn ký quỹ (compensation của saga) |
+| P2 tự chuyển sang `cancelled` | Đúng thiết kế: dự án chờ duyệt quá `project.approval_timeout` (mặc định 72 giờ) thì tự hủy và hoàn ký quỹ (compensation của saga) |

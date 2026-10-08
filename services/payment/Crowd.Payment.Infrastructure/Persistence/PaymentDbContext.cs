@@ -3,6 +3,7 @@ using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Payment.Domain.Deposits;
 using Crowd.Payment.Domain.Payouts;
+using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -46,9 +47,15 @@ namespace Crowd.Payment.Infrastructure.Persistence
                 b.Property(x => x.ProviderTxnId).HasColumnName("provider_txn_id").HasMaxLength(100);
                 b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
                 b.Property(x => x.CompletedAt).HasColumnName("completed_at");
+                b.Property(x => x.TransferCode).HasColumnName("transfer_code").HasMaxLength(20);
+                b.Property(x => x.TransferredAt).HasColumnName("transferred_at");
+                b.Property(x => x.ReviewedBy).HasColumnName("reviewed_by");
+                b.Property(x => x.RejectReason).HasColumnName("reject_reason").HasMaxLength(PaymentIntent.DoDaiLyDoToiDa);
                 b.Property<uint>("RowVersion").IsRowVersion();
 
                 b.HasIndex(x => new { x.BusinessId, x.IdempotencyKey }).IsUnique().HasDatabaseName("ux_intents_idempotency");
+                b.HasIndex(x => x.TransferCode).IsUnique().HasFilter("transfer_code IS NOT NULL").HasDatabaseName("ux_intents_transfer_code");
+                b.HasIndex(x => x.CreatedAt).HasFilter("status = 'AwaitingApproval'").HasDatabaseName("ix_intents_cho_duyet");
 
                 // Webhook den 3 lan chi ghi MOT lan (docs 3.3).
                 b.HasIndex(x => new { x.Provider, x.ProviderTxnId })
@@ -77,6 +84,7 @@ namespace Crowd.Payment.Infrastructure.Persistence
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
+            modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
         }
     }
 

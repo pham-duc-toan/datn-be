@@ -427,6 +427,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("entrance_question_count");
 
+                    b.Property<int>("GoldCheckPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("gold_check_percent");
+
                     b.Property<string>("Guideline")
                         .HasColumnType("jsonb")
                         .HasColumnName("guideline");
@@ -434,6 +438,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<string>("LabelSchema")
                         .HasColumnType("jsonb")
                         .HasColumnName("label_schema");
+
+                    b.Property<int>("MaxRedundancy")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_redundancy");
 
                     b.Property<int?>("MinLevel")
                         .HasColumnType("integer")
@@ -523,6 +531,31 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_projects_status_visibility");
 
                     b.ToTable("projects", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("ValueJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("value");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("settings_replica", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Project.Domain.Datasets.Dataset", b =>

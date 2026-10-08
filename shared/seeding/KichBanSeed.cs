@@ -30,6 +30,9 @@ namespace Crowd.Seeding
         public const string MatKhauChung = "Matkhau@123";
 
         /// <summary>Phi nen tang chot cho moi du an seed — khop FeeOptions.PlatformFeePercent cua dev.</summary>
+        /// <summary>Ti le cau vang kiem tra tron vao task — khop LabelingProject.GoldCheckPercentMacDinh.</summary>
+        public const int TiLeCauVangKiemTra = 10;
+
         public const int PhanTramPhi = 30;
 
         /// <summary>Ten cong thanh toan cua lenh nap seed — khop SandboxPaymentProvider.Name.</summary>
@@ -533,7 +536,8 @@ namespace Crowd.Seeding
         /// <summary>
         /// P7 — CAP CAU TRA LOI (RLHF), DANG CHAY: chon cau tra loi tot hon va
         /// danh gia an toan. Redundancy 2 — hai nguoi cung chon a → gop da so ra "a".
-        /// Ky quy 50.000d ≥ 3 x 2 x (3.000 + 900) = 23.400d.
+        /// Bat redundancy thich ung: tran 3 nguoi — cap tranh chap duoc xin them nguoi thu ba.
+        /// Ky quy tinh theo tran: 50.000d ≥ 3 x 3 x (3.000 + 900) = 35.100d.
         /// </summary>
         private static SeedProject TaoP7()
         {
@@ -574,6 +578,7 @@ namespace Crowd.Seeding
                 IsPrivate = false,
                 UnitPriceVnd = 3000,
                 Redundancy = 2,
+                MaxRedundancy = 3,
                 BudgetVnd = 50000,
                 DeadlineInDays = 30,
                 RequireEntranceTest = false,

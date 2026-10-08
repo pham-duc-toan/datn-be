@@ -15,15 +15,6 @@ namespace Crowd.Identity.Api.Services
     /// </summary>
     public sealed class MatKhauService
     {
-        /// <summary>
-        /// Gioi han tren. Khong co no, ke tan cong gui mat khau 10 MB va bat
-        /// server chay 100.000 vong PBKDF2 tren 10 MB — mot kieu tan cong tu
-        /// choi dich vu re tien.
-        /// </summary>
-        public const int DoDaiToiDa = 128;
-
-        public const int DoDaiToiThieu = 8;
-
         private readonly IPasswordHasher<User> _hasher;
         private readonly User _userGia;
         private readonly string _hashGia;

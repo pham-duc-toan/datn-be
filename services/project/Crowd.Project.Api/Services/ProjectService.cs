@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Project;
 using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
@@ -37,19 +38,26 @@ namespace Crowd.Project.Api.Services
         private readonly ProjectAccessService _access;
         private readonly ProjectEventPublisher _events;
         private readonly ProjectSagaOptions _saga;
-        private readonly FeeOptions _fees;
         private readonly TimeProvider _clock;
         private readonly ILogger<ProjectService> _logger;
+        private readonly ISettings _settings;
 
         public ProjectService(
             ProjectDbContext db,
             ProjectAccessService access,
             ProjectEventPublisher events,
             IOptions<ProjectSagaOptions> saga,
-            IOptions<FeeOptions> fees,
             TimeProvider clock,
-            ILogger<ProjectService> logger)
+            ILogger<ProjectService> logger,
+            ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -70,11 +78,6 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(saga));
             }
 
-            if (fees == null)
-            {
-                throw new ArgumentNullException(nameof(fees));
-            }
-
             if (clock == null)
             {
                 throw new ArgumentNullException(nameof(clock));
@@ -89,7 +92,6 @@ namespace Crowd.Project.Api.Services
             _access = access;
             _events = events;
             _saga = saga.Value;
-            _fees = fees.Value;
             _clock = clock;
             _logger = logger;
         }
@@ -114,7 +116,7 @@ namespace Crowd.Project.Api.Services
                 body.Description,
                 body.Modality ?? string.Empty,
                 body.Visibility ?? ProjectVisibility.Public,
-                bayGio);
+                bayGio, QuyDinhTuSetting.DuAn(_settings));
 
             // Chu du an cung la mot dong trong project_members — nho vay MOT
             // predicate (ProjectAccessService) tra loi duoc moi cau hoi quyen.
@@ -148,7 +150,7 @@ namespace Crowd.Project.Api.Services
                 body.Name ?? string.Empty,
                 body.Description,
                 body.Visibility ?? duAn.Visibility,
-                _clock.GetUtcNow());
+                _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -222,7 +224,7 @@ namespace Crowd.Project.Api.Services
             // A nhet id anh cua du an B vao huong dan de xem trom (BOLA).
             await KiemMauThuocDuAnAsync(id, mauCanKiem, ct);
 
-            duAn.DatHuongDan(Guideline.Tao(body.Markdown ?? string.Empty, viDu), _clock.GetUtcNow());
+            duAn.DatHuongDan(Guideline.Tao(body.Markdown ?? string.Empty, viDu, QuyDinhTuSetting.DuAn(_settings)), _clock.GetUtcNow());
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -242,7 +244,28 @@ namespace Crowd.Project.Api.Services
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.DatCauHinhGia(body.UnitPriceVnd, body.Redundancy, body.BudgetVnd, body.Deadline.Value, _clock.GetUtcNow());
+            duAn.DatCauHinhGia(
+                body.UnitPriceVnd,
+                body.Redundancy,
+                body.MaxRedundancy ?? body.Redundancy,
+                body.BudgetVnd,
+                body.Deadline.Value,
+                _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
+
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        public async Task<ProjectResponse> DatKiemSoatChatLuongAsync(
+            Guid id, QualityControlRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.DatKiemSoatChatLuong(body.GoldCheckPercent, _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -278,7 +301,7 @@ namespace Crowd.Project.Api.Services
                 body.RequireEntranceTest,
                 body.EntranceQuestionCount,
                 body.EntrancePassPercent,
-                _clock.GetUtcNow());
+                _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -372,7 +395,7 @@ namespace Crowd.Project.Api.Services
 
             bool dangXuLy = await CoDuLieuDangXuLyAsync(id, ct);
 
-            int phi = _fees.PlatformFeePercent;
+            int phi = _settings.SoNguyen(SettingKeys.FeePlatformPercent);
             IReadOnlyList<string> thieu = duAn.NhungGiConThieu(soMau, soVangTest, phi, dangXuLy, _clock.GetUtcNow());
 
             return new ReadinessResponse
@@ -405,7 +428,7 @@ namespace Crowd.Project.Api.Services
 
             bool dangXuLy = await CoDuLieuDangXuLyAsync(id, ct);
 
-            duAn.YeuCauPublish(soMau, soVangTest, _fees.PlatformFeePercent, dangXuLy, bayGio);
+            duAn.YeuCauPublish(soMau, soVangTest, _settings.SoNguyen(SettingKeys.FeePlatformPercent), dangXuLy, bayGio);
 
             if (_saga.BoQuaKyQuy)
             {
@@ -414,6 +437,7 @@ namespace Crowd.Project.Api.Services
                     duAn.Id);
 
                 duAn.XacNhanDaKyQuy(bayGio);
+                await TuDuyetNeuBatAsync(duAn, caller, ct);
             }
             else
             {
@@ -449,6 +473,30 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>Admin duyet: Cho duyet → Dang chay, phat project.published.</summary>
+        /// <summary>
+        /// Setting project.auto_approve bat: du an vua ky quy xong (PendingApproval) duoc
+        /// duyet ngay, nguoi duyet la HE THONG. Goi tu consumer escrow.reserved (va duong
+        /// dev BoQuaKyQuy). KHONG SaveChanges — noi goi lo.
+        /// </summary>
+        public async Task<bool> TuDuyetNeuBatAsync(LabelingProject duAn, Caller caller, CancellationToken ct)
+        {
+            if (duAn == null)
+            {
+                throw new ArgumentNullException(nameof(duAn));
+            }
+
+            if (!_settings.DungSai(SettingKeys.ProjectAutoApprove) || duAn.Status != ProjectStatus.PendingApproval)
+            {
+                return false;
+            }
+
+            duAn.Duyet(_clock.GetUtcNow());
+            int soMau = await DemMauAsync(duAn.Id, ct);
+            _events.Phat(caller, TaoProjectPublished(duAn, soMau));
+            _logger.LogInformation("Du an {ProjectId} tu duyet (project.auto_approve)", duAn.Id);
+            return true;
+        }
+
         public async Task<ProjectResponse> DuyetAsync(Guid id, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await LayTheoIdAsync(id, ct);
@@ -525,7 +573,7 @@ namespace Crowd.Project.Api.Services
         public async Task<int> HuyCacDuAnQuaHanAsync(CancellationToken ct)
         {
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            DateTimeOffset moc = bayGio - _saga.HanChoDuyet;
+            DateTimeOffset moc = bayGio - _settings.ThoiGian(SettingKeys.ProjectApprovalTimeout);
 
             List<Guid> ids = await _db.Projects
                 .Where(p => p.Status == ProjectStatus.PendingApproval && p.SubmittedForApprovalAt <= moc)
@@ -534,18 +582,19 @@ namespace Crowd.Project.Api.Services
                 .ToListAsync(ct);
 
             int soDaHuy = 0;
+            TimeSpan hanChoDuyet = _settings.ThoiGian(SettingKeys.ProjectApprovalTimeout);
 
             foreach (Guid id in ids)
             {
                 _db.ChangeTracker.Clear();
 
                 LabelingProject? duAn = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
-                if (duAn == null || !duAn.DaQuaHanChoDuyet(_saga.HanChoDuyet, bayGio))
+                if (duAn == null || !duAn.DaQuaHanChoDuyet(hanChoDuyet, bayGio))
                 {
                     continue;
                 }
 
-                duAn.HuyDoQuaHanChoDuyet(_saga.HanChoDuyet, bayGio);
+                duAn.HuyDoQuaHanChoDuyet(hanChoDuyet, bayGio);
                 PhatDaHuy(duAn, Caller.HeThong(Guid.CreateVersion7(), null));
 
                 try
@@ -588,6 +637,8 @@ namespace Crowd.Project.Api.Services
                 UnitPriceVnd = duAn.UnitPriceVnd,
                 PlatformFeeVnd = LabelingProject.PhiMoiNhanVnd(duAn.UnitPriceVnd, duAn.PlatformFeePercent),
                 Redundancy = duAn.Redundancy,
+                MaxRedundancy = duAn.TranRedundancy(),
+                GoldCheckPercent = duAn.GoldCheckPercent,
                 Deadline = duAn.Deadline.Value,
                 AllowProfessional = duAn.AllowProfessional,
                 AllowLinkGateway = duAn.AllowLinkGateway,
@@ -710,6 +761,8 @@ namespace Crowd.Project.Api.Services
                 Guideline = huongDan,
                 UnitPriceVnd = p.UnitPriceVnd,
                 Redundancy = p.Redundancy,
+                MaxRedundancy = p.TranRedundancy(),
+                GoldCheckPercent = p.GoldCheckPercent,
                 Deadline = p.Deadline,
                 AllowProfessional = p.AllowProfessional,
                 AllowLinkGateway = p.AllowLinkGateway,

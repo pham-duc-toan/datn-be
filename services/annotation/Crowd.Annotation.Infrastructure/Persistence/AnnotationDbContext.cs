@@ -6,6 +6,7 @@ using Crowd.Annotation.Domain.Projects;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Labeling;
+using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
@@ -39,6 +40,8 @@ namespace Crowd.Annotation.Infrastructure.Persistence
         public DbSet<LabelAnnotation> Annotations => Set<LabelAnnotation>();
 
         public DbSet<ProjectTerms> ProjectTerms => Set<ProjectTerms>();
+
+        public DbSet<TaskConsensus> Consensus => Set<TaskConsensus>();
 
         public DbSet<MemberCache> Members => Set<MemberCache>();
 
@@ -80,10 +83,12 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.Property(x => x.SubmittedAt).HasColumnName("submitted_at").IsRequired();
                 b.Property(x => x.ReviewerId).HasColumnName("reviewer_id");
                 b.Property(x => x.ReviewedAt).HasColumnName("reviewed_at");
-                b.Property(x => x.RejectReason).HasColumnName("reject_reason").HasMaxLength(LabelAnnotation.DoDaiLyDoToiDa);
-                b.Property(x => x.AppealMessage).HasColumnName("appeal_message").HasMaxLength(LabelAnnotation.DoDaiLyDoToiDa);
+                b.Property(x => x.RejectReason).HasColumnName("reject_reason").HasMaxLength(LabelAnnotation.CotDbLyDo);
+                b.Property(x => x.AppealMessage).HasColumnName("appeal_message").HasMaxLength(LabelAnnotation.CotDbLyDo);
                 b.Property(x => x.AppealedAt).HasColumnName("appealed_at");
                 b.Property(x => x.AppealResolvedAt).HasColumnName("appeal_resolved_at");
+                b.Property(x => x.ConsensusAgrees).HasColumnName("consensus_agrees");
+                b.Property(x => x.ConsensusAt).HasColumnName("consensus_at");
 
                 // Duyet va tu choi cung luc (hai reviewer): chi MOT UPDATE khop xmin,
                 // ben kia nhan 409 (VD-D-11). Khong the vua Approved vua Rejected.
@@ -98,7 +103,7 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                     h.HasKey("id");
                     h.Property(x => x.Action).HasColumnName("action").HasMaxLength(30).IsRequired();
                     h.Property(x => x.ActorId).HasColumnName("actor_id");
-                    h.Property(x => x.Note).HasColumnName("note").HasMaxLength(LabelAnnotation.DoDaiLyDoToiDa);
+                    h.Property(x => x.Note).HasColumnName("note").HasMaxLength(LabelAnnotation.CotDbLyDo);
                     h.Property(x => x.At).HasColumnName("at").IsRequired();
                 });
 
@@ -119,6 +124,19 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                     .HasMethod("gin")
                     .HasOperators("jsonb_path_ops")
                     .HasDatabaseName("ix_annotations_payload");
+            });
+
+            modelBuilder.Entity<TaskConsensus>(b =>
+            {
+                b.ToTable("task_consensus");
+                b.Property(x => x.TaskId).HasColumnName("task_id").ValueGeneratedNever();
+                b.HasKey(x => x.TaskId);
+                b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
+                b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
+                b.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+                b.Property(x => x.Final).HasColumnName("final").HasColumnType("jsonb").HasConversion(RawJsonCotNull);
+                b.Property(x => x.DecidedAt).HasColumnName("decided_at").IsRequired();
+                b.HasIndex(x => new { x.ProjectId, x.SampleId }).HasDatabaseName("ix_task_consensus_project_sample");
             });
 
             modelBuilder.Entity<ProjectTerms>(b =>
@@ -149,6 +167,7 @@ namespace Crowd.Annotation.Infrastructure.Persistence
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
+            modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
         }
     }
 }

@@ -1,17 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Persistence;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.Contracts.Quality;
 using Crowd.Contracts.Tasking;
 using Crowd.Labeling;
+using Crowd.Settings;
 using Crowd.Tasking.Api.Dtos;
 using Crowd.Tasking.Api.Exceptions;
-using Crowd.Tasking.Api.Settings;
 using Crowd.Tasking.Domain.Assignments;
 using Crowd.Tasking.Domain.Common;
 using Crowd.Tasking.Domain.Eligibility;
@@ -21,7 +24,6 @@ using Crowd.Tasking.Domain.Projects;
 using Crowd.Tasking.Domain.Tasks;
 using Crowd.Tasking.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Crowd.Tasking.Api.Services
 {
@@ -37,7 +39,7 @@ namespace Crowd.Tasking.Api.Services
         private readonly TaskEventPublisher _events;
         private readonly LeaseRevoker _revoker;
         private readonly IObjectStorage _storage;
-        private readonly LeaseOptions _options;
+        private readonly ISettings _settings;
         private readonly TimeProvider _clock;
 
         public LeaseService(
@@ -45,7 +47,7 @@ namespace Crowd.Tasking.Api.Services
             TaskEventPublisher events,
             LeaseRevoker revoker,
             IObjectStorage storage,
-            IOptions<LeaseOptions> options,
+            ISettings settings,
             TimeProvider clock)
         {
             if (db == null)
@@ -68,9 +70,9 @@ namespace Crowd.Tasking.Api.Services
                 throw new ArgumentNullException(nameof(storage));
             }
 
-            if (options == null)
+            if (settings == null)
             {
-                throw new ArgumentNullException(nameof(options));
+                throw new ArgumentNullException(nameof(settings));
             }
 
             if (clock == null)
@@ -82,7 +84,7 @@ namespace Crowd.Tasking.Api.Services
             _events = events;
             _revoker = revoker;
             _storage = storage;
-            _options = options.Value;
+            _settings = settings;
             _clock = clock;
         }
 
@@ -137,7 +139,30 @@ namespace Crowd.Tasking.Api.Services
                     }
                 }
 
-                // 3. KHOA mot task ngau nhien con cho (SKIP LOCKED, VD-T-06).
+                // 3. Tron CAU VANG KIEM TRA (FQ-04): voi xac suat GoldCheckPercent, cap
+                //    mot cau vang labeler chua lam thay vi task that. Response y het task
+                //    that — labeler khong phan biet duoc (VD-Q-03).
+                Assignment? cauVang = await ThuCapCauVangAsync(duAn!, labelerId, bayGio, ct);
+                if (cauVang != null)
+                {
+                    _db.Assignments.Add(cauVang);
+                    _events.Phat(caller, new TaskLeased
+                    {
+                        AssignmentId = cauVang.Id,
+                        TaskId = cauVang.TaskId,
+                        ProjectId = projectId,
+                        LabelerId = labelerId,
+                        ExpiresAt = cauVang.ExpiresAt,
+                    });
+
+                    await _db.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
+
+                    LabelingTask taskVang = await _db.Tasks.AsNoTracking().FirstAsync(t => t.Id == cauVang.TaskId, ct);
+                    return await TaoResponseAsync(cauVang, taskVang, duAn!);
+                }
+
+                // 4. KHOA mot task ngau nhien con cho (SKIP LOCKED, VD-T-06).
                 LabelingTask? task = await KhoaMotTaskAsync(projectId, labelerId, ct);
                 if (task == null)
                 {
@@ -146,7 +171,7 @@ namespace Crowd.Tasking.Api.Services
                 }
 
                 // 4. Tao luot lease + tang bo dem — domain kiem lai "con cho khong".
-                Assignment moi = Assignment.Tao(task, labelerId, bayGio, _options.ThoiHan);
+                Assignment moi = Assignment.Tao(task, labelerId, bayGio, _settings.ThoiGian(SettingKeys.TaskLeaseDuration));
                 _db.Assignments.Add(moi);
 
                 _events.Phat(caller, new TaskLeased
@@ -233,6 +258,32 @@ namespace Crowd.Tasking.Api.Services
 
                 DateTimeOffset bayGio = _clock.GetUtcNow();
                 bool vuaDu = a.Nop(task, nhan, bayGio);
+
+                if (a.IsGold)
+                {
+                    // Cau vang: cham ngay bang CUNG luat voi bai test dau vao, bao cho
+                    // quality-svc. Khong tao nhan, khong tra tien. Response giong het
+                    // task that de labeler khong nhan ra.
+                    GoldSample? vang = await _db.GoldSamples.AsNoTracking()
+                        .FirstOrDefaultAsync(g => g.ProjectId == a.ProjectId && g.SampleId == a.SampleId, ct);
+
+                    if (vang != null)
+                    {
+                        _events.Phat(caller, new GoldAnswered
+                        {
+                            AssignmentId = a.Id,
+                            ProjectId = a.ProjectId,
+                            SampleId = a.SampleId,
+                            LabelerId = a.LabelerId,
+                            Correct = nhan.KhopDapAn(duAn.LabelSchema, vang.ExpectedPayload, NguongKhopTuSetting.Doc(_settings)),
+                            AnsweredAt = bayGio,
+                        });
+                    }
+
+                    await _db.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
+                    return new SubmitResponse { AssignmentId = a.Id, TaskCompleted = false };
+                }
 
                 _events.Phat(caller, new AssignmentSubmitted
                 {
@@ -371,7 +422,8 @@ namespace Crowd.Tasking.Api.Services
         /// </summary>
         private async Task<LabelingTask?> KhoaMotTaskAsync(Guid projectId, Guid labelerId, CancellationToken ct)
         {
-            for (int lan = 0; lan <= _options.SoLanThuLai; lan++)
+            int soLanThuLai = _settings.SoNguyen(SettingKeys.TaskLeaseRetryCount);
+            for (int lan = 0; lan <= soLanThuLai; lan++)
             {
                 LabelingTask? task = await TaskQueries.KhoaMotUngVienAsync(_db, projectId, labelerId, ct);
                 if (task != null)
@@ -385,10 +437,53 @@ namespace Crowd.Tasking.Api.Services
                     return null;
                 }
 
-                await Task.Delay(_options.ChoGiuaHaiLanThu, ct);
+                await Task.Delay(_settings.ThoiGian(SettingKeys.TaskLeaseRetryDelay), ct);
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Quyet dinh co cap cau vang khong va chon cau nao. null = cap task that.
+        ///
+        /// Chi cap khi CON task that de lam: het task that ma van phat cau vang thi
+        /// labeler lam khong cong mai, va de nhan ra "task nay la cau kiem tra".
+        /// Moi cau vang moi labeler lam toi da mot lan.
+        /// </summary>
+        private async Task<Assignment?> ThuCapCauVangAsync(
+            ProjectSnapshot duAn, Guid labelerId, DateTimeOffset bayGio, CancellationToken ct)
+        {
+            if (duAn.GoldCheckPercent <= 0 || RandomNumberGenerator.GetInt32(100) >= duAn.GoldCheckPercent)
+            {
+                return null;
+            }
+
+            Guid projectId = duAn.ProjectId;
+            if (!await TaskQueries.ConUngVienAsync(_db, projectId, labelerId, ct))
+            {
+                return null;
+            }
+
+            IQueryable<Guid> daLam = _db.Assignments
+                .Where(a => a.ProjectId == projectId && a.LabelerId == labelerId && a.IsGold)
+                .Select(a => a.TaskId);
+
+            List<Guid> ungVien = await _db.Tasks
+                .Where(t => t.ProjectId == projectId
+                            && t.State == TaskState.Excluded
+                            && _db.GoldSamples.Any(g => g.ProjectId == projectId && g.SampleId == t.SampleId && g.Purpose == "qualityCheck")
+                            && !daLam.Contains(t.Id))
+                .Select(t => t.Id)
+                .ToListAsync(ct);
+
+            if (ungVien.Count == 0)
+            {
+                return null;
+            }
+
+            Guid chon = ungVien[RandomNumberGenerator.GetInt32(ungVien.Count)];
+            LabelingTask task = await _db.Tasks.FirstAsync(t => t.Id == chon, ct);
+            return Assignment.TaoCauVang(task, labelerId, bayGio, _settings.ThoiGian(SettingKeys.TaskLeaseDuration));
         }
 
         /// <summary>Khoa luot lease CUA CHINH nguoi goi. Cua nguoi khac → 404 (BOLA).</summary>

@@ -38,7 +38,8 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("processed_at");
 
-                    b.HasKey("EventId", "Handler");
+                    b.HasKey("EventId", "Handler")
+                        .HasName("PK_processed_events");
 
                     b.HasIndex("ProcessedAt")
                         .HasDatabaseName("ix_processed_events_thoi_diem");
@@ -199,6 +200,31 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                         .HasDatabaseName("ux_users_email");
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("ValueJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("value");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("settings_replica", (string)null);
                 });
 #pragma warning restore 612, 618
         }

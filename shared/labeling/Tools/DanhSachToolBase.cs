@@ -70,7 +70,7 @@ namespace Crowd.Labeling.Tools
         {
         }
 
-        public virtual bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool)
+        public virtual bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh)
         {
             List<JsonObject> a = DocDanhSach(nop);
             List<JsonObject> b = DocDanhSach(dapAn);
@@ -80,7 +80,7 @@ namespace Crowd.Labeling.Tools
                 return false;
             }
 
-            double nguong = tool.MatchThreshold ?? NguongMacDinh;
+            double nguong = tool.MatchThreshold ?? nguongMacDinh ?? NguongMacDinh;
             bool[] daGhep = new bool[a.Count];
 
             foreach (JsonObject dung in b)

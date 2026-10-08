@@ -26,7 +26,7 @@ namespace Crowd.Labeling.Tools
             return new JsonObject { ["choice"] = chon };
         }
 
-        public bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool)
+        public bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh)
         {
             return DocChon(nop) == DocChon(dapAn);
         }

@@ -42,9 +42,24 @@ namespace Crowd.Annotation.Api.Controllers
         /// <summary>GET /annotations/projects/{projectId}?status=pendingReview</summary>
         [HttpGet("projects/{projectId:guid}")]
         public async Task<IActionResult> DanhSachDuAn(
-            Guid projectId, [FromQuery] AnnotationStatus? status, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
+            Guid projectId,
+            [FromQuery] AnnotationStatus? status,
+            [FromQuery] bool? consensusAgrees,
+            [FromQuery] int page,
+            [FromQuery] int pageSize,
+            CancellationToken ct)
         {
-            return Ok(await _service.DanhSachDuAnAsync(projectId, status, page, pageSize, NguoiDuyet(), ct));
+            return Ok(await _service.DanhSachDuAnAsync(projectId, status, consensusAgrees, page, pageSize, NguoiDuyet(), ct));
+        }
+
+        /// <summary>
+        /// POST /annotations/projects/{projectId}/approve-agreed — duyet hang loat cac
+        /// nhan cho duyet khop dong thuan cua quality-svc (toi da 500 moi lan).
+        /// </summary>
+        [HttpPost("projects/{projectId:guid}/approve-agreed")]
+        public async Task<IActionResult> DuyetKhopDongThuan(Guid projectId, CancellationToken ct)
+        {
+            return Ok(await _service.DuyetKhopDongThuanAsync(projectId, NguoiDuyet(), ct));
         }
 
         /// <summary>POST /annotations/{id}/approve (FB-21) — sinh ra tien cho labeler.</summary>

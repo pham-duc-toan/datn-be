@@ -57,6 +57,13 @@ namespace Crowd.Tasking.Domain.Assignments
 
         public Guid LabelerId { get; private set; }
 
+        /// <summary>
+        /// true = luot tra loi CAU VANG KIEM TRA (qualityCheck) tron trong luong task.
+        /// Khong dung bo dem cua task, khong tao nhan, khong tra tien — chi de cham
+        /// do chinh xac cua labeler (FQ-04). Labeler khong biet co ton tai co nay.
+        /// </summary>
+        public bool IsGold { get; private set; }
+
         public AssignmentState State { get; private set; }
 
         public DateTimeOffset LeasedAt { get; private set; }
@@ -102,6 +109,36 @@ namespace Crowd.Tasking.Domain.Assignments
             return a;
         }
 
+        /// <summary>
+        /// Luot giu mot cau vang kiem tra. Task cua mau vang o trang thai Excluded va
+        /// KHONG doi bo dem — nhieu labeler cung lam duoc, moi nguoi mot lan
+        /// (UNIQUE task + labeler cua bang assignments van ap dung).
+        /// </summary>
+        public static Assignment TaoCauVang(LabelingTask task, Guid labelerId, DateTimeOffset luc, TimeSpan thoiHan)
+        {
+            if (task == null)
+            {
+                throw new ArgumentNullException(nameof(task));
+            }
+
+            if (task.State != TaskState.Excluded)
+            {
+                throw new RuleViolationException("khong_phai_cau_vang", "Task " + task.Id + " khong phai cau vang.");
+            }
+
+            Assignment a = new Assignment();
+            a.Id = Guid.CreateVersion7();
+            a.TaskId = task.Id;
+            a.ProjectId = task.ProjectId;
+            a.SampleId = task.SampleId;
+            a.LabelerId = labelerId;
+            a.IsGold = true;
+            a.State = AssignmentState.Leased;
+            a.LeasedAt = luc;
+            a.ExpiresAt = luc + thoiHan;
+            return a;
+        }
+
         public bool DangGiu(DateTimeOffset luc)
         {
             return State == AssignmentState.Leased && luc < ExpiresAt;
@@ -140,7 +177,8 @@ namespace Crowd.Tasking.Domain.Assignments
             _payloadSchemaVersion = nhan.SchemaVersion;
             _payloadJson = nhan.DataJson;
 
-            return task.GhiNhanNop(luc);
+            // Cau vang khong tinh vao redundancy cua task.
+            return IsGold ? false : task.GhiNhanNop(luc);
         }
 
         /// <summary>Labeler bo qua task (FL-05).</summary>
@@ -182,7 +220,11 @@ namespace Crowd.Tasking.Domain.Assignments
 
             State = trangThaiMoi;
             EndedAt = luc;
-            task.TraLease();
+
+            if (!IsGold)
+            {
+                task.TraLease();
+            }
         }
     }
 }

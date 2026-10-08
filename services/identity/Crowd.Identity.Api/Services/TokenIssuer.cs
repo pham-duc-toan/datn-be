@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using Crowd.BuildingBlocks.Auth.Jwt;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Identity.Api.Entities;
 using Crowd.Identity.Api.Settings;
 using Microsoft.Extensions.Options;
@@ -19,11 +20,21 @@ namespace Crowd.Identity.Api.Services
         private readonly TimeProvider _clock;
         private readonly JsonWebTokenHandler _handler;
 
+        private readonly ISettings _settings;
+
         public TokenIssuer(
             SigningKeyProvider khoa,
             IOptions<JwtIssuerOptions> options,
-            TimeProvider clock)
+            TimeProvider clock,
+            ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (khoa == null)
             {
                 throw new ArgumentNullException(nameof(khoa));
@@ -45,14 +56,20 @@ namespace Crowd.Identity.Api.Services
             _handler = new JsonWebTokenHandler();
         }
 
+        /// <summary>
+        /// Ngan co chu dich. Access token KHONG thu hoi duoc — no tu chua moi
+        /// thu, service kiem no khong hoi lai ai. Tai khoan bi khoa van dung
+        /// duoc token cu toi khi het han (VD-S-11). Setting identity.access_token_lifetime.
+        /// </summary>
         public TimeSpan AccessTokenLifetime
         {
-            get { return _options.AccessTokenLifetime; }
+            get { return _settings.ThoiGian(SettingKeys.IdentityAccessTokenLifetime); }
         }
 
+        /// <summary>Dai hon nhieu vi refresh token THU HOI DUOC. Setting identity.refresh_token_lifetime.</summary>
         public TimeSpan RefreshTokenLifetime
         {
-            get { return _options.RefreshTokenLifetime; }
+            get { return _settings.ThoiGian(SettingKeys.IdentityRefreshTokenLifetime); }
         }
 
         /// <summary>
@@ -90,7 +107,7 @@ namespace Crowd.Identity.Api.Services
             moTa.Audience = _options.Audience;
             moTa.IssuedAt = bayGio.UtcDateTime;
             moTa.NotBefore = bayGio.UtcDateTime;
-            moTa.Expires = (bayGio + _options.AccessTokenLifetime).UtcDateTime;
+            moTa.Expires = (bayGio + AccessTokenLifetime).UtcDateTime;
             moTa.Subject = new ClaimsIdentity(claims);
             moTa.SigningCredentials = new SigningCredentials(_khoa.KhoaKy, SecurityAlgorithms.RsaSha256);
 

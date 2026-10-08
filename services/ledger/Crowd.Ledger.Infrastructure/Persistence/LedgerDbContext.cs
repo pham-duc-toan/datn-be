@@ -6,6 +6,7 @@ using Crowd.Ledger.Domain.Escrows;
 using Crowd.Ledger.Domain.Holds;
 using Crowd.Ledger.Domain.Journal;
 using Crowd.Ledger.Domain.Withdrawals;
+using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace Crowd.Ledger.Infrastructure.Persistence
@@ -117,9 +118,12 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
                 b.Property(x => x.CompletedAt).HasColumnName("completed_at");
-                b.Property(x => x.FailureReason).HasColumnName("failure_reason").HasMaxLength(500);
+                b.Property(x => x.FailureReason).HasColumnName("failure_reason").HasMaxLength(Withdrawal.DoDaiLyDoToiDa);
+                b.Property(x => x.ReviewedBy).HasColumnName("reviewed_by");
+                b.Property(x => x.ReviewedAt).HasColumnName("reviewed_at");
                 b.Property<uint>("RowVersion").IsRowVersion();
                 b.HasIndex(x => new { x.LabelerId, x.IdempotencyKey }).IsUnique().HasDatabaseName("ux_withdrawals_idempotency");
+                b.HasIndex(x => x.CreatedAt).HasFilter("state = 'PendingApproval'").HasDatabaseName("ix_withdrawals_cho_duyet");
             });
 
             modelBuilder.Entity<ProjectEscrow>(b =>
@@ -146,6 +150,7 @@ namespace Crowd.Ledger.Infrastructure.Persistence
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
+            modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
         }
     }
 

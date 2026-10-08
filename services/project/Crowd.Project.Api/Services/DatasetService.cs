@@ -6,9 +6,11 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
+using Crowd.Project.Api.Helpers;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Projects;
@@ -32,15 +34,13 @@ namespace Crowd.Project.Api.Services
     /// </summary>
     public sealed class DatasetService
     {
-        /// <summary>So dong toi da gui kem request — nhieu hon thi dung file manifest trong MinIO.</summary>
-        public const int SoDongGuiKemToiDa = 1000;
-
         private readonly ProjectDbContext _db;
         private readonly ProjectAccessService _access;
         private readonly ProjectEventPublisher _events;
         private readonly IObjectStorage _storage;
         private readonly TimeProvider _clock;
         private readonly ILogger<DatasetService> _logger;
+        private readonly ISettings _settings;
 
         public DatasetService(
             ProjectDbContext db,
@@ -48,8 +48,16 @@ namespace Crowd.Project.Api.Services
             ProjectEventPublisher events,
             IObjectStorage storage,
             TimeProvider clock,
-            ILogger<DatasetService> logger)
+            ILogger<DatasetService> logger,
+            ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -106,7 +114,7 @@ namespace Crowd.Project.Api.Services
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            Dataset dataset = Dataset.Tao(projectId, name, bayGio);
+            Dataset dataset = Dataset.Tao(projectId, name, bayGio, QuyDinhTuSetting.DuLieu(_settings));
 
             // Dau van tay cac anh DA CO trong du an — bo qua anh trung ngay khi doc,
             // khong day len MinIO lan nua.
@@ -124,7 +132,7 @@ namespace Crowd.Project.Api.Services
             {
                 int soBoQua = await ZipImageReader.DuyetAsync(
                     zip,
-                    new ZipLimits(),
+                    QuyDinhTuSetting.Zip(_settings),
                     async anh =>
                     {
                         if (!daCo.Add(anh.Sha256))
@@ -148,7 +156,7 @@ namespace Crowd.Project.Api.Services
                             anh.Content.Length,
                             anh.Sha256,
                             md,
-                            bayGio);
+                            bayGio, QuyDinhTuSetting.DuLieu(_settings));
 
                         string khoa = mau.StorageKey!;
                         await _storage.LuuAsync(khoa, anh.Content, anh.ContentType, ct);
@@ -161,7 +169,7 @@ namespace Crowd.Project.Api.Services
 
                 _db.Datasets.Add(dataset);
                 _db.Samples.AddRange(mauMoi);
-                DatasetEvents.PhatCacLo(_events, projectId, dataset.Id, mauMoi, caller);
+                DatasetEvents.PhatCacLo(_events, projectId, dataset.Id, mauMoi, caller, _settings.SoNguyen(SettingKeys.DatasetEventBatchSize));
 
                 await _db.SaveChangesAsync(ct);
             }
@@ -219,17 +227,18 @@ namespace Crowd.Project.Api.Services
             if (body.Rows.HasValue && body.Rows.Value.ValueKind != JsonValueKind.Null)
             {
                 JsonElement r = body.Rows.Value;
-                if (r.ValueKind != JsonValueKind.Array || r.GetArrayLength() == 0 || r.GetArrayLength() > SoDongGuiKemToiDa)
+                int soDongToiDa = _settings.SoNguyen(SettingKeys.DatasetManifestInlineMaxRows);
+                if (r.ValueKind != JsonValueKind.Array || r.GetArrayLength() == 0 || r.GetArrayLength() > soDongToiDa)
                 {
                     throw new InvalidValueException(
                         "manifest_khong_hop_le",
-                        "Truong rows phai la mang 1-" + SoDongGuiKemToiDa + " dong. Nhieu hon thi upload file .jsonl va dung manifestKey.");
+                        "Truong rows phai la mang 1-" + soDongToiDa + " dong. Nhieu hon thi upload file .jsonl va dung manifestKey.");
                 }
 
                 dong = RawJson.Tu(r);
             }
 
-            Dataset lo = Dataset.TaoTuManifest(projectId, body.Name ?? string.Empty, dong, body.ManifestKey, _clock.GetUtcNow());
+            Dataset lo = Dataset.TaoTuManifest(projectId, body.Name ?? string.Empty, dong, body.ManifestKey, _clock.GetUtcNow(), QuyDinhTuSetting.DuLieu(_settings));
             _db.Datasets.Add(lo);
             await _db.SaveChangesAsync(ct);
 

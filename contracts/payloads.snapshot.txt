@@ -47,6 +47,14 @@ assignment.submitted v1  (AssignmentSubmitted)
     SubmittedAt              DateTimeOffset       required
     TaskId                   Guid                 required
 
+consensus.reached v1  (ConsensusReached)
+    Final                    RawJson?             nullable
+    ProjectId                Guid                 required
+    SampleId                 Guid                 required
+    Status                   ConsensusStatus      required
+    TaskId                   Guid                 required
+    Votes                    IReadOnlyList<ConsensusVote> required
+
 dataset.ingested v1  (DatasetIngested)
     BatchCount               Int32                required
     BatchIndex               Int32                required
@@ -80,6 +88,14 @@ funds.held v1  (FundsHeld)
     HoldId                   Guid                 required
     LabelerId                Guid                 required
     ReleaseAt                DateTimeOffset       required
+
+gold.answered v1  (GoldAnswered)
+    AnsweredAt               DateTimeOffset       required
+    AssignmentId             Guid                 required
+    Correct                  Boolean              required
+    LabelerId                Guid                 required
+    ProjectId                Guid                 required
+    SampleId                 Guid                 required
 
 gold_set.updated v1  (GoldSetUpdated)
     Items                    IReadOnlyList<GoldSetItem> required
@@ -149,8 +165,10 @@ project.published v1  (ProjectPublished)
     AllowLinkGateway         Boolean              required
     AllowProfessional        Boolean              required
     Deadline                 DateTimeOffset       required
+    GoldCheckPercent         Int32                required
     IsPrivate                Boolean              required
     LabelSchema              RawJson              required
+    MaxRedundancy            Int32                required
     MinLevel                 Int32?               nullable
     MinReputation            Int32?               nullable
     Modality                 String               required
@@ -165,6 +183,13 @@ project.published v1  (ProjectPublished)
 project.resumed v1  (ProjectResumed)
     ProjectId                Guid                 required
 
+redundancy.increase_requested v1  (RedundancyIncreaseRequested)
+    NewRedundancy            Int32                required
+    ProjectId                Guid                 required
+    Reason                   String               required
+    SampleId                 Guid                 required
+    TaskId                   Guid                 required
+
 refund.issued v1  (RefundIssued)
     AmountVnd                Int64                required
     OwnerId                  Guid                 required
@@ -174,11 +199,31 @@ reputation.changed v1  (ReputationChanged)
     Reputation               Int32                required
     UserId                   Guid                 required
 
+setting.changed v1  (SettingChanged)
+    ChangedAt                DateTimeOffset       required
+    ChangedBy                Guid?                nullable
+    Key                      String               required
+    SettingVersion           Int64                required
+    Value                    RawJson              required
+
+settings.snapshot v1  (SettingsSnapshot)
+    Items                    IReadOnlyList<SettingSnapshotItem> required
+
+settings.snapshot_requested v1  (SettingsSnapshotRequested)
+    Service                  String               required
+
 task.leased v1  (TaskLeased)
     AssignmentId             Guid                 required
     ExpiresAt                DateTimeOffset       required
     LabelerId                Guid                 required
     ProjectId                Guid                 required
+    TaskId                   Guid                 required
+
+task.redundancy_changed v1  (TaskRedundancyChanged)
+    NewRedundancy            Int32                required
+    OldRedundancy            Int32                required
+    ProjectId                Guid                 required
+    SampleId                 Guid                 required
     TaskId                   Guid                 required
 
 task.redundancy_reached v1  (TaskRedundancyReached)

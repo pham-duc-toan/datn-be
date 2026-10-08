@@ -1,5 +1,6 @@
 using System;
 using Crowd.Labeling;
+using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Projects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -22,8 +23,8 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.OwnerId).HasColumnName("owner_id").IsRequired();
-            builder.Property(x => x.Name).HasColumnName("name").HasMaxLength(LabelingProject.DoDaiTenToiDa).IsRequired();
-            builder.Property(x => x.Description).HasColumnName("description").HasMaxLength(LabelingProject.DoDaiMoTaToiDa).IsRequired();
+            builder.Property(x => x.Name).HasColumnName("name").HasMaxLength(CotDb.TenDuAn).IsRequired();
+            builder.Property(x => x.Description).HasColumnName("description").HasMaxLength(CotDb.MoTaDuAn).IsRequired();
 
             // Enum luu thanh chuoi: doc psql thay "Running" thay vi so 3, va chen
             // gia tri moi vao giua enum khong lam lech du lieu cu.
@@ -52,6 +53,8 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
             builder.Property(x => x.Redundancy).HasColumnName("redundancy").IsRequired();
+            builder.Property(x => x.MaxRedundancy).HasColumnName("max_redundancy").IsRequired();
+            builder.Property(x => x.GoldCheckPercent).HasColumnName("gold_check_percent").IsRequired();
             builder.Property(x => x.BudgetVnd).HasColumnName("budget_vnd").IsRequired();
             builder.Property(x => x.Deadline).HasColumnName("deadline");
 

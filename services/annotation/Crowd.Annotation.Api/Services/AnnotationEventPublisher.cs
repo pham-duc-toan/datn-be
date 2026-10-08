@@ -1,7 +1,10 @@
 using System;
+using Crowd.Annotation.Domain.Annotations;
+using Crowd.Annotation.Domain.Projects;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.Contracts.Annotation;
 
 namespace Crowd.Annotation.Api.Services
 {
@@ -36,6 +39,31 @@ namespace Crowd.Annotation.Api.Services
                 payload: payload,
                 causationId: caller.CausationId,
                 actor: caller.TaoActor()));
+        }
+
+        /// <summary>annotation.approved — ledger chi tien theo don gia da chot cua du an.</summary>
+        public void PhatDaDuyet(LabelAnnotation a, ProjectTerms t, Caller caller)
+        {
+            if (a == null)
+            {
+                throw new ArgumentNullException(nameof(a));
+            }
+
+            if (t == null)
+            {
+                throw new ArgumentNullException(nameof(t));
+            }
+
+            Phat(caller, new AnnotationApproved
+            {
+                AnnotationId = a.Id,
+                TaskId = a.TaskId,
+                ProjectId = a.ProjectId,
+                LabelerId = a.LabelerId,
+                AmountVnd = t.UnitPriceVnd,
+                PlatformFeeVnd = t.PlatformFeeVnd,
+                Source = AnnotationSource.Professional,
+            });
         }
     }
 }

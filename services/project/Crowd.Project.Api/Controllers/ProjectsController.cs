@@ -111,6 +111,13 @@ namespace Crowd.Project.Api.Controllers
         }
 
         /// <summary>PUT /projects/{id}/channels (FB-17)</summary>
+        /// <summary>PUT /projects/{id}/quality-control — ti le cau vang kiem tra tron vao task (FQ-04).</summary>
+        [HttpPut("{id:guid}/quality-control")]
+        public async Task<IActionResult> DatKiemSoatChatLuong(Guid id, [FromBody] QualityControlRequest body, CancellationToken ct)
+        {
+            return Ok(await _service.DatKiemSoatChatLuongAsync(id, body, ChuDuAn(), ct));
+        }
+
         [HttpPut("{id:guid}/channels")]
         public async Task<IActionResult> DatKenh(Guid id, [FromBody] ChannelsRequest body, CancellationToken ct)
         {

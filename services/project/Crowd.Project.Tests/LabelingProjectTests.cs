@@ -20,7 +20,7 @@ namespace Crowd.Project.Tests
 
         private static LabelingProject DuAnMoi()
         {
-            return LabelingProject.Tao(Owner, "Phan loai cho meo", "mo ta", Modalities.Image, ProjectVisibility.Public, Luc);
+            return LabelingProject.Tao(Owner, "Phan loai cho meo", "mo ta", Modalities.Image, ProjectVisibility.Public, Luc, QuyDinhMau.DuAn);
         }
 
         /// <summary>Du an cau hinh day du, san sang publish voi 100 mau.</summary>
@@ -28,8 +28,8 @@ namespace Crowd.Project.Tests
         {
             LabelingProject p = DuAnMoi();
             p.DatLabelSchema(PhanLoaiAnh("cho", "meo"), Luc);
-            p.DatHuongDan(Guideline.Tao("# Huong dan", null), Luc);
-            p.DatCauHinhGia(1000, 3, 390000, Luc.AddDays(30), Luc);
+            p.DatHuongDan(Guideline.Tao("# Huong dan", null, QuyDinhMau.DuAn), Luc);
+            p.DatCauHinhGia(1000, 3, 390000, Luc.AddDays(30), Luc, QuyDinhMau.DuAn);
             return p;
         }
 
@@ -55,7 +55,7 @@ namespace Crowd.Project.Tests
         public void Loai_du_lieu_phai_hop_le()
         {
             InvalidValueException ex = Assert.Throws<InvalidValueException>(() =>
-                LabelingProject.Tao(Owner, "x", null, "hologram", ProjectVisibility.Public, Luc));
+                LabelingProject.Tao(Owner, "x", null, "hologram", ProjectVisibility.Public, Luc, QuyDinhMau.DuAn));
 
             Assert.Equal("loai_du_lieu_khong_hop_le", ex.Code);
         }
@@ -63,7 +63,7 @@ namespace Crowd.Project.Tests
         [Fact]
         public void Tap_nhan_phai_cung_loai_du_lieu_voi_du_an()
         {
-            LabelingProject p = LabelingProject.Tao(Owner, "van ban", null, Modalities.Text, ProjectVisibility.Public, Luc);
+            LabelingProject p = LabelingProject.Tao(Owner, "van ban", null, Modalities.Text, ProjectVisibility.Public, Luc, QuyDinhMau.DuAn);
 
             InvalidValueException ex = Assert.Throws<InvalidValueException>(() => p.DatLabelSchema(PhanLoaiAnh("a", "b"), Luc));
             Assert.Equal("loai_du_lieu_khong_khop", ex.Code);
@@ -105,7 +105,7 @@ namespace Crowd.Project.Tests
         public void Yeu_cau_test_thi_phai_du_cau_hoi_vang_cho_test()
         {
             LabelingProject p = DuAnSanSang();
-            p.DatDieuKienThamGia(null, null, true, 10, 80, Luc);
+            p.DatDieuKienThamGia(null, null, true, 10, 80, Luc, QuyDinhMau.DuAn);
 
             Assert.Contains("thieu_cau_hoi_vang_cho_test", p.NhungGiConThieu(100, 9, Phi, Luc));
             Assert.Empty(p.NhungGiConThieu(100, 10, Phi, Luc));
@@ -157,7 +157,7 @@ namespace Crowd.Project.Tests
             LabelingProject p = DuAnSanSang();
             p.YeuCauPublish(100, 0, Phi, Luc);
 
-            Assert.Throws<RuleViolationException>(() => p.DatCauHinhGia(1, 1, 1, Luc.AddDays(1), Luc));
+            Assert.Throws<RuleViolationException>(() => p.DatCauHinhGia(1, 1, 1, Luc.AddDays(1), Luc, QuyDinhMau.DuAn));
             Assert.Throws<RuleViolationException>(() => p.KiemTraCoTheNapDuLieu());
         }
 
@@ -210,16 +210,55 @@ namespace Crowd.Project.Tests
         [Fact]
         public void Khong_tu_tham_gia_duoc_du_an_rieng_tu()
         {
-            LabelingProject p = LabelingProject.Tao(Owner, "rieng", null, Modalities.Image, ProjectVisibility.Private, Luc);
+            LabelingProject p = LabelingProject.Tao(Owner, "rieng", null, Modalities.Image, ProjectVisibility.Private, Luc, QuyDinhMau.DuAn);
             p.DatLabelSchema(PhanLoaiAnh("a", "b"), Luc);
-            p.DatHuongDan(Guideline.Tao("x", null), Luc);
-            p.DatCauHinhGia(1000, 1, 1300, Luc.AddDays(1), Luc);
+            p.DatHuongDan(Guideline.Tao("x", null, QuyDinhMau.DuAn), Luc);
+            p.DatCauHinhGia(1000, 1, 1300, Luc.AddDays(1), Luc, QuyDinhMau.DuAn);
             p.YeuCauPublish(1, 0, Phi, Luc);
             p.XacNhanDaKyQuy(Luc);
             p.Duyet(Luc);
 
             RuleViolationException ex = Assert.Throws<RuleViolationException>(() => p.KiemTraChoTuThamGia());
             Assert.Equal("du_an_rieng_tu", ex.Code);
+        }
+
+        [Fact]
+        public void Ky_quy_toi_thieu_tinh_theo_tran_redundancy()
+        {
+            LabelingProject p = DuAnSanSang();
+
+            // 100 mau x 3 nguoi x (1.000 + 300).
+            Assert.Equal(390000, p.ChiPhiUocTinhVnd(100, Phi));
+
+            p.DatCauHinhGia(1000, 3, 5, 650000, Luc.AddDays(30), Luc, QuyDinhMau.DuAn);
+            Assert.Equal(5, p.TranRedundancy());
+            Assert.Equal(650000, p.ChiPhiUocTinhVnd(100, Phi));
+        }
+
+        [Fact]
+        public void Tran_redundancy_khong_nho_hon_redundancy_va_khong_qua_10()
+        {
+            LabelingProject p = DuAnSanSang();
+
+            InvalidValueException nho = Assert.Throws<InvalidValueException>(() =>
+                p.DatCauHinhGia(1000, 3, 2, 500000, Luc.AddDays(30), Luc, QuyDinhMau.DuAn));
+            Assert.Equal("tran_redundancy_khong_hop_le", nho.Code);
+
+            Assert.Throws<InvalidValueException>(() =>
+                p.DatCauHinhGia(1000, 3, 11, 500000, Luc.AddDays(30), Luc, QuyDinhMau.DuAn));
+        }
+
+        [Fact]
+        public void Ti_le_cau_vang_kiem_tra_mac_dinh_10_va_toi_da_50()
+        {
+            LabelingProject p = DuAnSanSang();
+            Assert.Equal(10, p.GoldCheckPercent);
+
+            p.DatKiemSoatChatLuong(0, Luc, QuyDinhMau.DuAn);
+            Assert.Equal(0, p.GoldCheckPercent);
+
+            InvalidValueException ex = Assert.Throws<InvalidValueException>(() => p.DatKiemSoatChatLuong(51, Luc, QuyDinhMau.DuAn));
+            Assert.Equal("ti_le_cau_vang_khong_hop_le", ex.Code);
         }
 
         [Fact]
@@ -237,7 +276,7 @@ namespace Crowd.Project.Tests
         public void Chi_phi_tran_so_thi_nem_loi_thay_vi_thanh_so_am()
         {
             LabelingProject p = DuAnMoi();
-            p.DatCauHinhGia(long.MaxValue / 2, 3, 1, Luc.AddDays(1), Luc);
+            p.DatCauHinhGia(long.MaxValue / 2, 3, 1, Luc.AddDays(1), Luc, QuyDinhMau.DuAn);
 
             Assert.Throws<OverflowException>(() => p.ChiPhiUocTinhVnd(10, Phi));
         }
@@ -246,7 +285,7 @@ namespace Crowd.Project.Tests
         public void Vi_du_trong_huong_dan_phai_dung_lop_co_trong_tap_nhan()
         {
             LabelingProject p = DuAnSanSang();
-            Guideline sai = Guideline.Tao("x", new List<GuidelineExample> { new GuidelineExample(null, "voi", true, "giai thich") });
+            Guideline sai = Guideline.Tao("x", new List<GuidelineExample> { new GuidelineExample(null, "voi", true, "giai thich") }, QuyDinhMau.DuAn);
 
             Assert.Throws<InvalidValueException>(() => p.DatHuongDan(sai, Luc));
         }

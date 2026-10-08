@@ -4,9 +4,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Payment;
 using Crowd.Payment.Api.Services;
-using Crowd.Payment.Api.Settings;
 using Crowd.Payment.Domain.Payouts;
 using Crowd.Payment.Infrastructure.Persistence;
 using Crowd.Payment.Infrastructure.Providers;
@@ -14,7 +14,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Crowd.Payment.Api.Workers
 {
@@ -36,14 +35,14 @@ namespace Crowd.Payment.Api.Workers
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IPaymentProvider _provider;
-        private readonly PayoutOptions _options;
+        private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly ILogger<PayoutWorker> _logger;
 
         public PayoutWorker(
             IServiceScopeFactory scopeFactory,
             IPaymentProvider provider,
-            IOptions<PayoutOptions> options,
+            ISettings settings,
             TimeProvider clock,
             ILogger<PayoutWorker> logger)
         {
@@ -57,9 +56,9 @@ namespace Crowd.Payment.Api.Workers
                 throw new ArgumentNullException(nameof(provider));
             }
 
-            if (options == null)
+            if (settings == null)
             {
-                throw new ArgumentNullException(nameof(options));
+                throw new ArgumentNullException(nameof(settings));
             }
 
             if (clock == null)
@@ -74,7 +73,7 @@ namespace Crowd.Payment.Api.Workers
 
             _scopeFactory = scopeFactory;
             _provider = provider;
-            _options = options.Value;
+            _settings = settings;
             _clock = clock;
             _logger = logger;
         }
@@ -99,7 +98,7 @@ namespace Crowd.Payment.Api.Workers
 
                 try
                 {
-                    await Task.Delay(_options.ChuKy, stoppingToken);
+                    await Task.Delay(_settings.ThoiGian(SettingKeys.PaymentPayoutInterval), stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -161,7 +160,7 @@ namespace Crowd.Payment.Api.Workers
             using (IServiceScope scope = _scopeFactory.CreateScope())
             {
                 PaymentDbContext db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-                DateTimeOffset moc = _clock.GetUtcNow() - _options.NguongTraCuu;
+                DateTimeOffset moc = _clock.GetUtcNow() - _settings.ThoiGian(SettingKeys.PaymentPayoutLookupAfter);
                 ket = await db.Payouts.AsNoTracking()
                     .Where(p => p.Status == PayoutStatus.Sending && p.SentAt <= moc)
                     .Take(20)

@@ -6,8 +6,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Labeling;
+using Crowd.Project.Api.Helpers;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
@@ -39,9 +41,17 @@ namespace Crowd.Project.Api.Seeding
         private readonly IObjectStorage _storage;
         private readonly TimeProvider _clock;
         private readonly ILogger<ProjectSeeder> _logger;
+        private readonly ISettings _settings;
 
-        public ProjectSeeder(ProjectDbContext db, IObjectStorage storage, TimeProvider clock, ILogger<ProjectSeeder> logger)
+        public ProjectSeeder(ProjectDbContext db, IObjectStorage storage, TimeProvider clock, ILogger<ProjectSeeder> logger, ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -117,13 +127,13 @@ namespace Crowd.Project.Api.Seeding
                 sp.Description,
                 sp.Modality,
                 sp.IsPrivate ? ProjectVisibility.Private : ProjectVisibility.Public,
-                lucTao);
+                lucTao, QuyDinhTuSetting.DuAn(_settings));
             SeedIds.GanId(duAn, sp.Id);
 
             LabelSchema tapNhan = sp.TapNhan();
             duAn.DatLabelSchema(tapNhan, lucTao);
-            duAn.DatHuongDan(Guideline.Tao(sp.GuidelineMarkdown, null), lucTao);
-            duAn.DatCauHinhGia(sp.UnitPriceVnd, sp.Redundancy, sp.BudgetVnd, sp.Deadline(bayGio), lucTao);
+            duAn.DatHuongDan(Guideline.Tao(sp.GuidelineMarkdown, null, QuyDinhTuSetting.DuAn(_settings)), lucTao);
+            duAn.DatCauHinhGia(sp.UnitPriceVnd, sp.Redundancy, sp.TranRedundancy, sp.BudgetVnd, sp.Deadline(bayGio), lucTao, QuyDinhTuSetting.DuAn(_settings));
             duAn.DatKenhPhanPhoi(true, false, false, lucTao);
             duAn.DatDieuKienThamGia(
                 null,
@@ -131,12 +141,12 @@ namespace Crowd.Project.Api.Seeding
                 sp.RequireEntranceTest,
                 sp.EntranceQuestionCount,
                 sp.EntrancePassPercent,
-                lucTao);
+                lucTao, QuyDinhTuSetting.DuAn(_settings));
 
             _db.Projects.Add(duAn);
 
             // ---- 2. Dataset + mau ----
-            Dataset lo = Dataset.Tao(sp.Id, "Lo du lieu mau (seed)", lucTao);
+            Dataset lo = Dataset.Tao(sp.Id, "Lo du lieu mau (seed)", lucTao, QuyDinhTuSetting.DuLieu(_settings));
             SeedIds.GanId(lo, sp.DatasetId);
 
             foreach (SeedSample s in sp.Samples)
@@ -214,7 +224,7 @@ namespace Crowd.Project.Api.Seeding
                     await _storage.LuuAsync(s.StorageKey!, png, AnhMauPng.ContentType, ct);
 
                     return Sample.TaoAnhTrongZip(
-                        sp.Id, sp.DatasetId, s.FileName, AnhMauPng.ContentType, ".png", png.Length, Bam(png), s.Metadata, luc);
+                        sp.Id, sp.DatasetId, s.FileName, AnhMauPng.ContentType, ".png", png.Length, Bam(png), s.Metadata, luc, QuyDinhTuSetting.DuLieu(_settings));
                 }
 
                 case Modalities.Audio:
@@ -234,14 +244,14 @@ namespace Crowd.Project.Api.Seeding
                     }
 
                     return Sample.TaoTuFile(
-                        sp.Id, sp.DatasetId, Modalities.Audio, s.StorageKey!, s.FileName, AmThanhMau.ContentType, wav.Length, sha, s.Metadata, luc);
+                        sp.Id, sp.DatasetId, Modalities.Audio, s.StorageKey!, s.FileName, AmThanhMau.ContentType, wav.Length, sha, s.Metadata, luc, QuyDinhTuSetting.DuLieu(_settings));
                 }
 
                 default:
                 {
                     string noiDung = s.ContentJson!;
                     return Sample.TaoTuNoiDung(
-                        sp.Id, sp.DatasetId, s.Modality, RawJson.Tu(noiDung), s.FileName, Bam(Encoding.UTF8.GetBytes(noiDung)), s.Metadata, luc);
+                        sp.Id, sp.DatasetId, s.Modality, RawJson.Tu(noiDung), s.FileName, Bam(Encoding.UTF8.GetBytes(noiDung)), s.Metadata, luc, QuyDinhTuSetting.DuLieu(_settings));
                 }
             }
         }

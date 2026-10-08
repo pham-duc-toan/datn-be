@@ -127,6 +127,8 @@ namespace Crowd.Tasking.Api.Consumers
                 LabelSchema.Doc(p.LabelSchema),
                 p.UnitPriceVnd,
                 p.Redundancy,
+                p.MaxRedundancy,
+                p.GoldCheckPercent,
                 p.Deadline,
                 p.AllowProfessional,
                 p.IsPrivate,

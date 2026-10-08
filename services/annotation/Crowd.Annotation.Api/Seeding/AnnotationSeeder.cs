@@ -4,8 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Annotation.Api.Consumers;
+using Crowd.Annotation.Api.Helpers;
 using Crowd.Annotation.Domain.Annotations;
 using Crowd.Annotation.Infrastructure.Persistence;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Project;
 using Crowd.Labeling;
 using Crowd.Seeding;
@@ -30,8 +32,17 @@ namespace Crowd.Annotation.Api.Seeding
         private readonly TimeProvider _clock;
         private readonly ILogger<AnnotationSeeder> _logger;
 
-        public AnnotationSeeder(AnnotationDbContext db, TimeProvider clock, ILogger<AnnotationSeeder> logger)
+        private readonly ISettings _settings;
+
+        public AnnotationSeeder(AnnotationDbContext db, TimeProvider clock, ILogger<AnnotationSeeder> logger, ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -147,7 +158,7 @@ namespace Crowd.Annotation.Api.Seeding
             _db.Annotations.Add(a);
         }
 
-        private static void ApKetQuaDuyet(LabelAnnotation a, SeedSubmission s, DateTimeOffset bayGio)
+        private void ApKetQuaDuyet(LabelAnnotation a, SeedSubmission s, DateTimeOffset bayGio)
         {
             if (s.Review == SeedReview.PendingReview)
             {
@@ -168,7 +179,7 @@ namespace Crowd.Annotation.Api.Seeding
                 return;
             }
 
-            a.TuChoi(nguoiDuyet, s.RejectReason ?? "Sai nhan.", lucDuyet);
+            a.TuChoi(nguoiDuyet, s.RejectReason ?? "Sai nhan.", lucDuyet, QuyDinhTuSetting.DuyetNhan(_settings));
 
             if (s.Review == SeedReview.Appealed)
             {
@@ -177,7 +188,7 @@ namespace Crowd.Annotation.Api.Seeding
                     throw new InvalidOperationException("Luot nop " + s.AnnotationId + " thieu noi dung / luc khieu nai.");
                 }
 
-                a.KhieuNai(s.LabelerId, s.AppealMessage, bayGio - s.AppealedAgo.Value);
+                a.KhieuNai(s.LabelerId, s.AppealMessage, bayGio - s.AppealedAgo.Value, QuyDinhTuSetting.DuyetNhan(_settings));
             }
         }
     }

@@ -28,7 +28,10 @@ namespace Crowd.Ledger.Domain.Escrows
 
         public long ReservedVnd { get; private set; }
 
-        /// <summary>0 = chua biet (chua nhan project.published). Khi da biet thi chan chi tra vuot.</summary>
+        /// <summary>
+        /// Tran so lan chi cho MOT task = tran redundancy thich ung cua du an (project.published
+        /// MaxRedundancy). 0 = chua biet (chua nhan project.published). Khi da biet thi chan chi tra vuot.
+        /// </summary>
         public int Redundancy { get; private set; }
 
         public EscrowState State { get; private set; }

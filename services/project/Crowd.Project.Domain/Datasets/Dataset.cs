@@ -31,8 +31,6 @@ namespace Crowd.Project.Domain.Datasets
     /// </summary>
     public sealed class Dataset
     {
-        public const int DoDaiTenToiDa = 200;
-        public const int DoDaiLoiToiDa = 4000;
 
         private Dataset()
         {
@@ -66,15 +64,15 @@ namespace Crowd.Project.Domain.Datasets
         public DateTimeOffset? FinishedAt { get; private set; }
 
         /// <summary>Lo ZIP anh — xu ly ngay, GhiNhanKetQuaNap chot ket qua.</summary>
-        public static Dataset Tao(Guid projectId, string name, DateTimeOffset luc)
+        public static Dataset Tao(Guid projectId, string name, DateTimeOffset luc, QuyDinhDuLieu quyDinh)
         {
-            Dataset d = TaoKhung(projectId, name, luc);
+            Dataset d = TaoKhung(projectId, name, luc, quyDinh);
             d.Status = DatasetStatus.Ready;
             return d;
         }
 
         /// <summary>Lo manifest — cho worker. Dung MOT trong hai: dong gui kem hoac khoa file manifest.</summary>
-        public static Dataset TaoTuManifest(Guid projectId, string name, RawJson? manifest, string? manifestKey, DateTimeOffset luc)
+        public static Dataset TaoTuManifest(Guid projectId, string name, RawJson? manifest, string? manifestKey, DateTimeOffset luc, QuyDinhDuLieu quyDinh)
         {
             bool coDong = manifest != null;
             bool coFile = !string.IsNullOrWhiteSpace(manifestKey);
@@ -89,7 +87,7 @@ namespace Crowd.Project.Domain.Datasets
                 throw new InvalidValueException("file_khong_thuoc_du_an", "File manifest khong thuoc du an nay.");
             }
 
-            Dataset d = TaoKhung(projectId, name, luc);
+            Dataset d = TaoKhung(projectId, name, luc, quyDinh);
             d.Status = DatasetStatus.Pending;
             d.Manifest = manifest;
             d.ManifestKey = coFile ? manifestKey : null;
@@ -125,7 +123,7 @@ namespace Crowd.Project.Domain.Datasets
         }
 
         /// <summary>Worker xu ly xong. Khong co mau hop le nao thi Failed.</summary>
-        public void HoanTat(int soMau, int soBoQua, string? tomTatLoi, DateTimeOffset luc)
+        public void HoanTat(int soMau, int soBoQua, string? tomTatLoi, DateTimeOffset luc, QuyDinhDuLieu quyDinh)
         {
             if (Status != DatasetStatus.Ingesting)
             {
@@ -134,26 +132,26 @@ namespace Crowd.Project.Domain.Datasets
 
             SampleCount = soMau;
             SkippedCount = soBoQua;
-            ErrorSummary = CatNgan(tomTatLoi);
+            ErrorSummary = CatNgan(tomTatLoi, quyDinh);
             Status = soMau > 0 ? DatasetStatus.Ready : DatasetStatus.Failed;
             FinishedAt = luc;
         }
 
-        public void ThatBai(string lyDo, DateTimeOffset luc)
+        public void ThatBai(string lyDo, DateTimeOffset luc, QuyDinhDuLieu quyDinh)
         {
-            ErrorSummary = CatNgan(lyDo);
+            ErrorSummary = CatNgan(lyDo, quyDinh);
             Status = DatasetStatus.Failed;
             FinishedAt = luc;
         }
 
-        private static Dataset TaoKhung(Guid projectId, string name, DateTimeOffset luc)
+        private static Dataset TaoKhung(Guid projectId, string name, DateTimeOffset luc, QuyDinhDuLieu quyDinh)
         {
             string ten = name == null ? string.Empty : name.Trim();
-            if (ten.Length == 0 || ten.Length > DoDaiTenToiDa)
+            if (ten.Length == 0 || ten.Length > quyDinh.DoDaiTenLoToiDa)
             {
                 throw new InvalidValueException(
                     "ten_dataset_khong_hop_le",
-                    "Ten dataset phai tu 1 den " + DoDaiTenToiDa + " ky tu.");
+                    "Ten dataset phai tu 1 den " + quyDinh.DoDaiTenLoToiDa + " ky tu.");
             }
 
             Dataset d = new Dataset();
@@ -164,14 +162,14 @@ namespace Crowd.Project.Domain.Datasets
             return d;
         }
 
-        private static string? CatNgan(string? s)
+        private static string? CatNgan(string? s, QuyDinhDuLieu quyDinh)
         {
             if (s == null)
             {
                 return null;
             }
 
-            return s.Length <= DoDaiLoiToiDa ? s : s.Substring(0, DoDaiLoiToiDa);
+            return s.Length <= quyDinh.DoDaiLoiToiDa ? s : s.Substring(0, quyDinh.DoDaiLoiToiDa);
         }
     }
 }

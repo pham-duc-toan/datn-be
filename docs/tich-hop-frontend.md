@@ -34,7 +34,7 @@ Mục lục:
 | Tiền | **Số nguyên đồng (VND)**, tên trường kết thúc bằng `Vnd`. Không có số lẻ |
 | Phân trang | Query `page` (từ 1) và `pageSize` (1–100, mặc định 20). Response: `{ "items": [...], "page", "pageSize", "total" }` |
 | Xác thực | Header `Authorization: Bearer <accessToken>` cho mọi API trừ `/auth/*` |
-| Idempotency | Hai API tiền bắt buộc header `Idempotency-Key` (mục 4.1, 5.6) |
+| Idempotency | Hai API tiền bắt buộc header `Idempotency-Key` (mục 4.1, 5.7) |
 
 **Lỗi** trả dạng ProblemDetails, luôn có trường `code` ổn định để frontend dịch sang câu thông báo:
 
@@ -127,19 +127,24 @@ Cách làm khuyến nghị:
 | | Nạp dữ liệu | `POST /projects/{id}/datasets` (ZIP), `POST /projects/{id}/uploads` + `POST /projects/{id}/datasets/manifest`, `GET /projects/{id}/datasets`, `GET /projects/{id}/samples` |
 | | Câu hỏi vàng | `GET/POST /projects/{id}/gold-items`, `DELETE /projects/{id}/gold-items/{goldItemId}` |
 | | Checklist + publish | `GET /projects/{id}/readiness`, `POST /projects/{id}/publish` |
+| | Kiểm soát chất lượng | `PUT /projects/{id}/quality-control`, `GET /quality/projects/{id}/summary`, `GET /quality/projects/{id}/labelers` |
 | | Theo dõi dự án | `GET /projects/{id}`, `GET /tasks/projects/{id}/progress`, `POST /projects/{id}/pause` / `resume` / `complete` / `cancel` |
 | | Thành viên | `GET/POST /projects/{id}/members`, `.../block`, `.../unblock`, `DELETE .../members/{userId}` |
-| | Duyệt nhãn | `GET /annotations/projects/{id}?status=pendingReview`, `POST /annotations/{id}/approve` / `reject`, `GET /annotations/{id}/history` |
+| | Duyệt nhãn | `GET /annotations/projects/{id}?status=pendingReview`, `POST /annotations/{id}/approve` / `reject`, `POST /annotations/projects/{id}/approve-agreed`, `GET /annotations/{id}/history` |
 | | Kết quả, tải về | `GET /annotations/projects/{id}/results`, `GET /annotations/projects/{id}/export?format=json\|csv\|coco` |
 | Labeler | Chợ dự án | `GET /projects`, `GET /projects/{id}` |
 | | Tham gia, bài test | `POST /projects/{id}/join`, `POST /projects/{id}/entrance-test/attempts`, `.../attempts/{attemptId}/submit`, `GET .../attempts` |
 | | Workspace gán nhãn | `POST /tasks/projects/{id}/next`, `POST /tasks/assignments/{id}/submit`, `POST /tasks/assignments/{id}/release`, `GET /tasks/assignments/mine` |
-| | Lịch sử, khiếu nại | `GET /annotations/mine`, `POST /annotations/{id}/appeal` |
+| | Lịch sử, khiếu nại, uy tín | `GET /annotations/mine`, `POST /annotations/{id}/appeal`, `GET /quality/me` |
 | | Ví, rút tiền | `GET /ledger/me/balance`, `GET /ledger/me/transactions`, `POST /ledger/withdrawals`, `GET /ledger/withdrawals/mine` |
 | Reviewer (trong dự án) | Duyệt nhãn của dự án được giao | Giống phần duyệt nhãn của doanh nghiệp |
 | Admin | Duyệt dự án | `GET /projects/pending-approval`, `POST /projects/{id}/approve` / `reject` |
 | | Khiếu nại | `GET /annotations/appeals`, `POST /annotations/{id}/appeal/resolve` |
 | | Đối soát sổ cái | `GET /ledger/admin/reconciliation` |
+| | Chạy Dawid–Skene ngay | `POST /quality/admin/dawid-skene/run` |
+| | Setting hệ thống (phí, tự duyệt, hạn mức…) | `GET /admin/settings`, `PUT /admin/settings/{key}`, `GET /admin/settings/{key}/history` |
+| | Duyệt rút tiền | `GET /ledger/admin/withdrawals`, `POST /ledger/admin/withdrawals/{id}/approve` / `reject` |
+| | Đối chiếu nạp chuyển khoản | `GET /payments/admin/deposits`, `POST /payments/admin/deposits/{id}/approve` / `reject` |
 
 ---
 
@@ -153,7 +158,9 @@ Dự án cần **ký quỹ** trước khi chạy: tiền được khóa từ s�
 POST /payments/deposits
 Idempotency-Key: <uuid sinh ở client, giữ nguyên khi bấm lại>
 { "amountVnd": 1000000 }
-→ 200 { "intentId": "...", "amountVnd": 1000000, "status": "pending", "checkoutUrl": "http://...", "createdAt": "..." }
+→ 200 { "intentId": "...", "businessId": "...", "amountVnd": 1000000, "provider": "sandbox", "status": "pending",
+        "checkoutUrl": "http://...", "transferCode": null, "bankInfo": null, "transferredAt": null,
+        "rejectReason": null, "createdAt": "...", "completedAt": null }
 ```
 
 1. Sinh `Idempotency-Key` **một lần cho mỗi lần người dùng định nạp**. Bấm lại, mạng chập chờn gửi lại thì vẫn dùng key cũ: backend trả lại đúng lệnh cũ chứ không tạo lệnh thứ hai.
@@ -167,6 +174,34 @@ GET /ledger/me/balance
 
 `businessAvailableVnd` / `escrowVnd` là phần doanh nghiệp; `pendingVnd` / `availableVnd` là phần labeler (một tài khoản có thể có cả hai).
 
+Số tiền nạp phải nằm trong hạn mức admin đặt (mặc định 10.000 – 500.000.000đ); ngoài hạn mức → **400** `so_tien_nap_khong_hop_le`, thông báo có sẵn hạn mức hiện tại.
+
+**Nạp bằng chuyển khoản ngân hàng thủ công** (khi admin bật — mặc định bật):
+
+```http
+POST /payments/deposits/manual
+Idempotency-Key: <uuid>
+{ "amountVnd": 500000 }
+→ 200 { "intentId": "...", "provider": "manual_transfer", "status": "pending", "checkoutUrl": null,
+        "transferCode": "CROWD3F9A1B2C4D5E", "bankInfo": "Ngan hang ... STK ... Chu TK ...", ... }
+
+POST /payments/deposits/{intentId}/transferred        ← người dùng bấm "Tôi đã chuyển khoản"
+→ 200 { ..., "status": "awaitingApproval", "transferredAt": "..." }     (hoặc "succeeded" nếu dưới ngưỡng tự duyệt)
+```
+
+1. Hiện `bankInfo` và **`transferCode` (nội dung chuyển khoản bắt buộc)** kèm nút sao chép; nhắc người dùng ghi đúng nội dung để admin tìm được giao dịch.
+2. Sau khi chuyển, gọi `/transferred`. Bấm lại không sao (trả về trạng thái hiện tại).
+3. `awaitingApproval`: admin đang đối chiếu sao kê, có thể mất vài giờ. Hỏi lại `GET /payments/deposits/{intentId}` khi người dùng mở lại trang (không cần polling dày). Kết cục: `succeeded` (tiền vào `businessAvailableVnd` sau vài giây) hoặc `rejected` (hiện `rejectReason`).
+4. Admin tắt kênh này → `POST /manual` trả **409** `chuyen_khoan_tat`: ẩn lựa chọn chuyển khoản.
+
+| `status` | Ý nghĩa |
+|---|---|
+| `pending` | Cổng: chờ thanh toán. Chuyển khoản: chờ người dùng chuyển và bấm "đã chuyển" |
+| `awaitingApproval` | Chuyển khoản: đã báo chuyển, chờ admin đối chiếu |
+| `succeeded` | Tiền đã vào ví |
+| `failed` | Cổng báo thất bại |
+| `rejected` | Chuyển khoản: admin không thấy tiền về / sai nội dung (`rejectReason`) |
+
 ### 4.2 Vòng đời dự án
 
 ```
@@ -177,6 +212,7 @@ draft ──publish──► pendingEscrow ──ledger giữ tiền──► pe
 ```
 
 - Chỉ `draft` mới sửa được cấu hình (tập nhãn, giá, dữ liệu…). Câu vàng sửa được khi `draft` hoặc `paused`.
+- Admin bật `project.auto_approve` (mục 7.1) thì dự án đi thẳng `pendingEscrow → running`, không dừng ở `pendingApproval`. Frontend cứ hỏi lại `GET /projects/{id}` đến khi khác `pendingEscrow`, rồi hiện đúng trạng thái nhận được. "Quá 72 giờ" cũng là setting (`project.approval_timeout`).
 - `pendingEscrow` thường chỉ kéo dài vài giây. Thiếu tiền thì dự án **quay về `draft`** và `statusReason` ghi rõ, ví dụ `"So du kha dung 0d, can ky quy 100000d. Hay nap them tien."`.
 - Kết thúc (`completed` / `cancelled`): phần ký quỹ chưa dùng tự trả về ví doanh nghiệp.
 
@@ -198,7 +234,7 @@ POST /projects
   "id": "...", "name": "...", "description": "...", "modality": "image",
   "status": "draft", "visibility": "public",
   "labelSchema": null, "guideline": null,
-  "unitPriceVnd": 0, "redundancy": 0, "deadline": null,
+  "unitPriceVnd": 0, "redundancy": 0, "maxRedundancy": 0, "goldCheckPercent": 10, "deadline": null,
   "allowProfessional": true, "allowLinkGateway": false, "allowCollaborative": false,
   "minLevel": null, "minReputation": null,
   "requireEntranceTest": false, "entranceQuestionCount": 10, "entrancePassPercent": 80,
@@ -270,7 +306,10 @@ PUT /projects/{id}/guideline
 { "markdown": "# Huong dan\n...", "examples": [ { "sampleId": "...", "label": "xe", "isCorrect": true, "explanation": "..." } ] }
 
 PUT /projects/{id}/pricing
-{ "unitPriceVnd": 2000, "redundancy": 2, "budgetVnd": 500000, "deadline": "2027-01-31T00:00:00Z" }
+{ "unitPriceVnd": 2000, "redundancy": 2, "maxRedundancy": 3, "budgetVnd": 500000, "deadline": "2027-01-31T00:00:00Z" }
+
+PUT /projects/{id}/quality-control
+{ "goldCheckPercent": 10 }
 
 PUT /projects/{id}/channels
 { "allowProfessional": true, "allowLinkGateway": false, "allowCollaborative": false }
@@ -280,6 +319,8 @@ PUT /projects/{id}/eligibility
 ```
 
 - `unitPriceVnd`: thù lao **mỗi nhãn được duyệt**. `redundancy`: mỗi mẫu cần mấy người gán độc lập (mỗi người được trả riêng).
+- `maxRedundancy` (tùy chọn, mặc định = `redundancy`, tối đa 10): **trần redundancy thích ứng**. Mẫu mà các labeler chọn khác nhau (không lựa chọn nào quá bán) sẽ được hệ thống tự xin thêm người gán, tối đa tới trần này. Bằng `redundancy` là tắt tính năng. Ký quỹ tính theo trần; phần không dùng tới được trả lại khi kết thúc dự án.
+- `goldCheckPercent` (0–50, mặc định 10): phần trăm số lần cấp task là **câu vàng kiểm tra** (câu vàng `purpose: "qualityCheck"`, mục 4.7). Labeler không phân biệt được với task thật; câu kiểm tra **không trả tiền**. Trang dự án phía labeler nên công khai con số này.
 - `budgetVnd`: số tiền sẽ ký quỹ. Phải ≥ `estimatedCostVnd` của readiness (mục 4.8).
 - Markdown của hướng dẫn: frontend tự render, **phải sanitize** (không render HTML thô).
 
@@ -388,7 +429,7 @@ GET /projects/{id}/readiness
 ```
 
 - `missing` là danh sách mã; frontend dịch thành checklist: `chua_co_tap_nhan`, `chua_co_huong_dan`, `chua_cau_hinh_gia`, `chua_co_du_lieu`, `du_lieu_dang_xu_ly`, `deadline_da_qua`, `ngan_sach_khong_du`, `thieu_cau_hoi_vang_cho_test`.
-- `estimatedCostVnd` = số mẫu × redundancy × (đơn giá + phí) = ký quỹ tối thiểu. Phí nền tảng cộng thêm, không trừ vào thù lao labeler.
+- `estimatedCostVnd` = số mẫu × **trần redundancy** × (đơn giá + phí) = ký quỹ tối thiểu. Phí nền tảng cộng thêm, không trừ vào thù lao labeler.
 
 ```http
 POST /projects/{id}/publish
@@ -439,7 +480,8 @@ GET /annotations/projects/{id}?status=pendingReview&page=1&pageSize=20
   "payload": { "taskType": "image", "schemaVersion": 1,
                "data": { "loai": { "labelIds": ["ngoai_troi"] }, "vat": [ { "labelId": "xe", "x": 20, "y": 30, "w": 100, "h": 50 } ] } },
   "status": "pendingReview", "submittedAt": "...", "reviewedAt": null,
-  "rejectReason": null, "appealMessage": null, "canAppeal": false
+  "rejectReason": null, "appealMessage": null, "canAppeal": false,
+  "consensusAgrees": true
 }
 ```
 
@@ -452,6 +494,16 @@ GET  /annotations/{id}/history  → [ { "action": "submitted|approved|rejected|a
 ```
 
 Duyệt lại nhãn đã duyệt → 409 `da_duyet`.
+
+**Gợi ý từ đồng thuận.** Khi một mẫu đủ người gán, quality-svc so các nhãn và đặt `consensusAgrees` trên từng nhãn: `true` (khớp kết quả số đông), `false` (lệch), `null` (chưa đủ người, hoặc tập nhãn không có công cụ phân loại / so sánh cặp để so). Cờ chỉ là gợi ý, **không** tự duyệt và không tự trả tiền. Màn hình duyệt nên tô nổi các nhãn `false` để người duyệt xem kỹ.
+
+```http
+GET  /annotations/projects/{id}?status=pendingReview&consensusAgrees=false     lọc nhãn lệch
+POST /annotations/projects/{id}/approve-agreed
+→ 200 { "approvedCount": 14, "skippedOwnCount": 0 }
+```
+
+`approve-agreed` duyệt **mọi** nhãn đang chờ duyệt có `consensusAgrees: true` (tối đa 500 mỗi lần; còn nữa thì gọi lại), người duyệt là người bấm. Nhãn của chính người bấm bị bỏ qua (`skippedOwnCount`).
 
 ### 4.11 Kết quả và tải về
 
@@ -483,6 +535,7 @@ GET /annotations/projects/{id}/results
   - `classification`, `pairwise`: `method: "majority"`. Một lựa chọn thắng khi được **hơn một nửa** số người chọn. Không lựa chọn nào quá bán thì `final: null`, `disputed: true` (tranh chấp, nên làm nổi bật cho doanh nghiệp xem lại).
   - Các công cụ còn lại (khung, đa giác, đoạn văn bản, chép lời, đoạn thời gian): `method: "none"`, **chưa gộp tự động**. Kết quả là `labels` (mỗi người một phần tử).
 - `labelDistribution`: số lần mỗi lớp xuất hiện, theo từng công cụ. Dùng cho biểu đồ cảnh báo lệch lớp.
+- `samples[].consensusStatus` (`agreed` | `disputed` | `notApplicable` | `null`) và `consensusFinal`: kết quả đồng thuận của quality-svc tính trên **mọi** nhãn đã nộp (kể cả chưa duyệt), khác với `tools` chỉ tính trên nhãn đã duyệt.
 
 ```http
 GET /annotations/projects/{id}/export?format=json|csv|coco     → file tải về (Content-Disposition)
@@ -493,6 +546,37 @@ GET /annotations/projects/{id}/export?format=json|csv|coco     → file tải v�
 - `coco`: chỉ dự án ảnh có công cụ `bbox` / `polygon`; dự án khác → 400 `coco_chi_cho_khung_anh`.
 
 Gọi bằng `fetch` có header Authorization rồi tạo blob để tải (thẻ `<a href>` không gửi được token).
+
+### 4.12 Chỉ số chất lượng (quality-svc)
+
+Chủ dự án và admin xem được; người khác nhận 404.
+
+```http
+GET /quality/projects/{id}/summary
+→ { "projectId", "labelCount": 15, "tasksEvaluated": 7,
+    "agreed": 7, "disputed": 0, "notApplicable": 0, "waitingMoreLabels": 0,
+    "redundancyIncreases": 1,
+    "goldAnswers": 2, "goldAccuracyPercent": 50,
+    "tools": [ { "tool": "cam_xuc", "krippendorffAlpha": 0.81, "itemCount": 7, "labelCount": 14, "computedAt": "..." } ] }
+```
+
+| Trường | Ý nghĩa |
+|---|---|
+| `tasksEvaluated` | Số task đã đủ người và được tính đồng thuận (trạng thái cuối của mỗi task) |
+| `agreed` / `disputed` / `notApplicable` | Đồng thuận / vẫn tranh chấp khi đã hết trần / tập nhãn không có công cụ gộp được |
+| `waitingMoreLabels` | Task đang tranh chấp, đã xin thêm người, chờ người gán tiếp |
+| `redundancyIncreases` | Tổng số lần đã xin thêm người |
+| `goldAccuracyPercent` | Tỉ lệ trả lời đúng câu vàng kiểm tra của cả dự án; `null` khi chưa có câu nào |
+| `tools[].krippendorffAlpha` | Mức đồng thuận đã trừ phần trùng hợp ngẫu nhiên (1 = hoàn toàn nhất trí, ≤ 0 = như đoán bừa). Chỉ có cho công cụ phân loại một lớp và so sánh cặp; cập nhật theo lô (mặc định 15 phút) |
+
+```http
+GET /quality/projects/{id}/labelers
+→ [ { "labelerId", "labelCount": 7, "agreementPercent": 100, "agreementSampleCount": 7,
+      "goldAnswers": 1, "goldAccuracyPercent": 100,
+      "dawidSkeneSkill": { "cam_xuc": 0.97 }, "reputation": 90 } ]
+```
+
+`dawidSkeneSkill` theo từng công cụ (0–1); rỗng khi labeler có dưới 5 nhãn trong dự án. Admin chạy lô Dawid–Skene ngay bằng `POST /quality/admin/dawid-skene/run`.
 
 ---
 
@@ -543,6 +627,8 @@ POST /tasks/projects/{id}/next
 - 204: hiển thị "hết việc", có thể cho thử lại sau.
 - 403 thường gặp: `khong_phai_thanh_vien`, `du_an_khong_chay`, `bi_chan_khoi_du_an`, `da_qua_deadline`, `chua_du_cap_do`, `chua_du_uy_tin`. Ngay sau khi `join` hoặc ngay sau khi dự án được duyệt có thể nhận 403 trong vài giây (mục 8): thử lại sau 1–2 giây.
 
+- Một số task có thể là **câu vàng kiểm tra** (theo `goldCheckPercent` của dự án). Response giống hệt task thường và FE **không được** tìm cách phân biệt. Nộp như bình thường; `taskCompleted` luôn `false` với câu kiểm tra.
+
 Chi tiết `LeaseResponse` và cách dựng màn hình: **mục 6**.
 
 ### 5.4 Nộp, bỏ qua, xem task đang giữ
@@ -571,7 +657,15 @@ POST /annotations/{id}/appeal   { "message": "Anh nay co sac vang, de nghi xem l
 
 Chỉ hiện nút khiếu nại khi `canAppeal: true` (bị từ chối, chưa khiếu nại lần nào, còn trong hạn 7 ngày).
 
-### 5.6 Ví và rút tiền
+### 5.6 Điểm uy tín
+
+```http
+GET /quality/me     → { "reputation": 78, "agreementPercent": 92, "updatedAt": "..." }
+```
+
+`reputation` 0–100 (`null` khi chưa có bằng chứng) tính từ câu vàng kiểm tra + mức khớp đồng thuận. Dự án có thể đặt `minReputation` (mục 4.5): dưới mức đó thì `next` trả 403 `chua_du_uy_tin`. API **không** trả số câu vàng đúng/sai — đếm thay đổi sau từng lần nộp là đoán được task nào là câu kiểm tra.
+
+### 5.7 Ví và rút tiền
 
 ```http
 GET /ledger/me/balance        → { "pendingVnd": 20000, "availableVnd": 63000, ... }
@@ -586,9 +680,19 @@ Idempotency-Key: <uuid, giữ nguyên khi bấm lại>
 GET /ledger/withdrawals/mine
 ```
 
-- `pendingVnd`: nhãn đã duyệt nhưng tiền còn **treo** (3 ngày ở production, 2 phút ở dev) để xử lý khiếu nại / gian lận. Hết hạn treo thì chuyển sang `availableVnd`.
-- Rút ≥ 2.000.000đ bị khấu trừ thuế 10% (`taxVnd`).
-- `state`: `requested` → `completed` | `failed` (tiền tự hoàn lại ví, lý do ở `failureReason`). Hỏi lại `GET /ledger/withdrawals/mine` để cập nhật.
+- `pendingVnd`: nhãn đã duyệt nhưng tiền còn **treo** (mặc định 3 ngày; dev 2 phút) để xử lý khiếu nại / gian lận. Hết hạn treo thì chuyển sang `availableVnd`.
+- Thuế: mặc định rút ≥ 2.000.000đ bị khấu trừ 10% (`taxVnd`); mức rút tối thiểu mặc định 50.000đ. Các con số này admin đổi được, nên **đừng hard-code**: hiện `taxVnd` / `netVnd` backend trả về, và hiện nguyên thông báo của lỗi `duoi_muc_toi_thieu`.
+- `state`:
+
+| `state` | Ý nghĩa | Hiển thị |
+|---|---|---|
+| `pendingApproval` | Lệnh vượt ngưỡng tự duyệt (mặc định > 2.000.000đ) hoặc admin đang tắt tự duyệt: **tiền đã bị giữ** (khả dụng giảm), chờ admin | "Đang chờ duyệt" |
+| `requested` | Đã duyệt, đang chuyển khoản | "Đang chuyển" |
+| `completed` | Đã chuyển | |
+| `failed` | Cổng chuyển khoản lỗi — tiền tự hoàn lại ví, lý do ở `failureReason` | |
+| `rejected` | Admin từ chối — tiền hoàn lại ví, lý do ở `failureReason` | |
+
+Response có thêm `reviewedAt` (lúc duyệt / từ chối). Hỏi lại `GET /ledger/withdrawals/mine` để cập nhật.
 
 ---
 
@@ -1045,6 +1149,70 @@ GET  /ledger/admin/reconciliation
 
 `healthy: false` là sự cố nghiêm trọng về tiền: hiện cảnh báo đỏ trên dashboard admin.
 
+### 7.1 Setting hệ thống
+
+Mọi con số nghiệp vụ (phí nền tảng, tự duyệt, hạn mức nạp / rút, thời hạn, giới hạn file…) là **setting** admin sửa được lúc đang chạy. Đổi có hiệu lực cho **thao tác mới** (dự án đã publish giữ phí cũ…).
+
+```http
+GET /admin/settings
+→ [ { "key": "fee.platform_percent", "group": "Phi va tien", "type": "int", "unit": "%",
+      "min": 0, "max": 90, "effect": "newOperations", "description": "...",
+      "defaultValue": 30, "value": 30, "version": 1, "updatedAt": "...", "updatedBy": null }, ... ]   (83 mục)
+
+GET /admin/settings/{key}
+PUT /admin/settings/{key}   { "value": 20, "reason": "Khuyen mai thang 10" }   → SettingResponse (version + 1)
+GET /admin/settings/{key}/history
+→ [ { "version": 2, "oldValue": 30, "newValue": 20, "changedBy": "...", "changedAt": "...", "reason": "..." } ]
+```
+
+Gợi ý màn hình: nhóm theo `group`, mỗi dòng một ô nhập theo `type`:
+
+| `type` | Ô nhập | Gửi `value` |
+|---|---|---|
+| `bool` | công tắc | `true` / `false` |
+| `int`, `long` | số nguyên, giới hạn `min`–`max`, hiện `unit` | số |
+| `double` | số thực | số |
+| `durationSeconds` | số giây (nên hiển thị đổi sang phút / giờ / ngày) | số giây |
+| `text` | ô văn bản nhiều dòng | chuỗi |
+
+- `effect: "restart"`: hiện ghi chú "có tác dụng khi service khởi động lại".
+- Hiện `defaultValue` cạnh giá trị đang dùng, có nút "về mặc định" (PUT lại `defaultValue`).
+- Lỗi: **400** `gia_tri_khong_hop_le` (sai kiểu / ngoài `min`–`max`, thông báo nói rõ), **400** `thieu_gia_tri`, **409** `xung_dot_setting` (vd hạn mức nạp tối thiểu lớn hơn tối đa), **404** `khong_tim_thay`.
+
+Các setting tự duyệt đáng làm nổi bật trên màn hình:
+
+| Key | Mặc định | Ý nghĩa |
+|---|---|---|
+| `project.auto_approve` | `false` | Dự án ký quỹ xong là chạy luôn, không vào hàng đợi duyệt |
+| `annotation.auto_approve_agreed` | `false` | Nhãn khớp đồng thuận được hệ thống duyệt và trả tiền |
+| `ledger.withdraw_auto_approve` / `ledger.withdraw_auto_approve_max_vnd` | `true` / 2.000.000 | Lệnh rút ≤ ngưỡng tự gửi đi; lớn hơn thì vào hàng đợi 7.2 |
+| `payment.manual_transfer_enabled` / `payment.manual_transfer_auto_approve_max_vnd` | `true` / 0 | Bật kênh chuyển khoản; ngưỡng tự xác nhận (0 = luôn chờ admin) |
+| `fee.platform_percent` | 30 | Phí nền tảng cộng trên đơn giá |
+
+### 7.2 Hàng đợi duyệt rút tiền
+
+```http
+GET  /ledger/admin/withdrawals?state=pendingApproval&page=1&pageSize=20     (mặc định state = pendingApproval, cũ nhất trước)
+→ { "items": [ { "id", "labelerId", "amountVnd", "taxVnd", "netVnd", "bankAccount", "state",
+                 "createdAt", "reviewedBy", "reviewedAt", "failureReason" } ], "page", "pageSize", "total" }
+POST /ledger/admin/withdrawals/{id}/approve                         → state requested (gửi chuyển khoản)
+POST /ledger/admin/withdrawals/{id}/reject  { "reason": "..." }     → state rejected, tiền về ví labeler
+```
+
+Duyệt / từ chối lệnh không còn chờ → **409** `lenh_rut_khong_cho_duyet` (admin khác vừa xử lý — tải lại danh sách). Từ chối thiếu lý do → **400** `thieu_ly_do`.
+
+### 7.3 Hàng đợi đối chiếu nạp tiền chuyển khoản
+
+```http
+GET  /payments/admin/deposits?status=awaitingApproval&page=1&pageSize=20     (mặc định awaitingApproval)
+→ { "items": [ DepositResponse ], "page", "pageSize", "total" }
+POST /payments/admin/deposits/{intentId}/approve  { "bankTxnRef": "FT26100812345" }   → succeeded, ledger cộng ví
+POST /payments/admin/deposits/{intentId}/reject   { "reason": "..." }                 → rejected
+```
+
+- Admin tìm giao dịch trong sao kê theo `transferCode` và `amountVnd`, nhập **mã giao dịch ngân hàng** vào `bankTxnRef` (tùy chọn nhưng nên có). Một mã chỉ dùng cho một lệnh: dùng lại → **409** `ma_giao_dich_trung`.
+- Duyệt được cả lệnh `pending` (tiền đã về nhưng doanh nghiệp chưa bấm "đã chuyển").
+
 ---
 
 ## 8. Dữ liệu cập nhật trễ: khi nào phải hỏi lại
@@ -1057,9 +1225,13 @@ Các service trao đổi với nhau qua hàng đợi sự kiện, nên một s�
 | `POST /datasets/manifest` | `GET /datasets` có `status` `ready` / `failed` | Mỗi 2 giây; lô lớn có thể vài phút, cho người dùng rời trang |
 | Admin duyệt dự án, labeler `join` | `POST /tasks/.../next` hết trả 403 | Gặp 403 `khong_phai_thanh_vien` / `du_an_chua_san_sang` / `du_an_khong_chay` ngay sau hành động đó thì thử lại 2–3 lần, cách 1 giây |
 | Nộp nhãn | Nhãn xuất hiện trong `GET /annotations/...` | Thường < 1 giây |
+| Mẫu đủ người gán | `consensusAgrees` trên nhãn; mẫu tranh chấp được mở lại cho thêm người | Vài giây (đi qua quality-svc) |
+| Chạy Dawid–Skene | `krippendorffAlpha`, `dawidSkeneSkill`, uy tín cập nhật | Theo lô 15 phút, hoặc ngay khi admin chạy tay |
 | Duyệt nhãn | `GET /ledger/me/balance` của labeler tăng `pendingVnd` | Vài giây |
 | Thanh toán nạp tiền | `deposits/{id}` → `succeeded`, rồi số dư tăng | Mỗi 2–3 giây |
-| Rút tiền | `withdrawals/mine` → `completed` / `failed` | Mỗi vài giây |
+| Rút tiền | `withdrawals/mine` → `completed` / `failed` | Mỗi vài giây. Lệnh `pendingApproval` chờ người duyệt: không polling, hỏi lại khi mở trang |
+| Admin duyệt rút / nạp chuyển khoản | Số dư người dùng đổi | Vài giây |
+| Admin đổi setting | Mọi service áp dụng | Thường < 1 giây; service đang tắt sẽ nhận khi bật lại |
 
 ---
 
@@ -1076,7 +1248,8 @@ Danh sách các `code` thường gặp để frontend dịch. Mã không có tro
 | `loai_du_lieu_khong_hop_le` | 400 | `modality` không thuộc 5 loại |
 | `tap_nhan_sai_dinh_dang` / `tap_nhan_khong_hop_le` | 400 | Tập nhãn sai hình dạng / sai luật |
 | `loai_du_lieu_khong_khop` | 400 | `modality` của tập nhãn khác của dự án |
-| `ngan_sach_khong_hop_le`, `don_gia_khong_hop_le`, `thieu_deadline`, `deadline_da_qua` | 400 | Cấu hình giá sai |
+| `ngan_sach_khong_hop_le`, `don_gia_khong_hop_le`, `thieu_deadline`, `deadline_da_qua`, `tran_redundancy_khong_hop_le` | 400 | Cấu hình giá sai |
+| `ti_le_cau_vang_khong_hop_le` | 400 | `goldCheckPercent` ngoài 0–50 |
 | `zip_chi_cho_anh`, `khong_phai_zip`, `zip_qua_lon` | 409 / 400 | Upload ZIP sai |
 | `duoi_file_khong_hop_le`, `qua_nhieu_file`, `dung_luong_khong_hop_le` | 400 | Xin link upload sai |
 | `manifest_khong_hop_le`, `manifest_qua_dai` | 400 | Manifest sai |
@@ -1090,27 +1263,43 @@ Danh sách các `code` thường gặp để frontend dịch. Mã không có tro
 | `da_duyet`, `tu_duyet` | 409 | Duyệt nhãn đã duyệt / tự duyệt nhãn của mình |
 | `khong_the_khieu_nai`, `da_khieu_nai`, `qua_han_khieu_nai` | 409 | Không khiếu nại được |
 | `khong_du_so_du` | 409 | Rút quá số dư khả dụng |
+| `duoi_muc_toi_thieu` | 400 | Rút dưới mức tối thiểu (thông báo có mức hiện tại) |
+| `so_tien_nap_khong_hop_le` | 400 | Nạp ngoài hạn mức |
+| `chuyen_khoan_tat` | 409 | Admin đang tắt nạp chuyển khoản thủ công |
+| `lenh_nap_da_chot`, `khong_phai_chuyen_khoan` | 409 | Lệnh nạp đã xong / không phải lệnh chuyển khoản |
+| `ma_giao_dich_trung` | 409 | (admin) Mã sao kê đã dùng cho lệnh nạp khác |
+| `lenh_rut_khong_cho_duyet` | 409 | (admin) Lệnh rút đã được xử lý |
+| `thieu_ly_do` | 400 | Từ chối (nhãn / lệnh rút / lệnh nạp) phải có lý do |
+| `gia_tri_khong_hop_le`, `thieu_gia_tri` | 400 | (admin) Giá trị setting sai kiểu / ngoài giới hạn |
+| `xung_dot_setting` | 409 | (admin) Setting mâu thuẫn với setting khác (min > max) |
 | `dinh_dang_chua_ho_tro`, `coco_chi_cho_khung_anh` | 400 | Định dạng xuất không hợp lệ |
 
 ---
 
 ## 10. Giới hạn
 
-| Mục | Giới hạn |
+Các con số dưới đây là **giá trị mặc định** — admin đổi được lúc đang chạy (mục 7.1, key ghi trong ngoặc). Frontend chỉ nên dùng chúng để gợi ý trước; luật cuối cùng là lỗi 400 / 413 backend trả về (thông báo luôn kèm giới hạn hiện tại).
+
+| Mục | Giới hạn mặc định |
 |---|---|
-| Access token / refresh token | 15 phút / 14 ngày |
-| Link xem file (`fileUrl`) | 5 phút |
-| Link upload (`uploadUrl`) | 1 giờ |
-| Lượt giữ task | 15 phút, một task mỗi dự án mỗi người |
-| Bài test đầu vào | 30 phút mỗi lần, tối đa 3 lần |
-| Khiếu nại | 1 lần mỗi nhãn, trong 7 ngày sau khi bị từ chối |
-| File ZIP | 200 MB |
-| Xin link upload | 100 file mỗi lần, mỗi file ≤ 5 GB |
-| Manifest | `rows` ≤ 1.000 dòng; file `.jsonl` ≤ 50.000 dòng; ảnh qua manifest ≤ 50 MB |
-| Văn bản một mẫu | 100.000 ký tự |
+| Access token / refresh token | 15 phút / 14 ngày (`identity.access_token_lifetime`, `identity.refresh_token_lifetime`) — dùng `expiresIn` trong response đăng nhập, đừng hard-code |
+| Mật khẩu | 8–128 ký tự (`identity.password_min_length`, `identity.password_max_length`) |
+| Link xem file (`fileUrl`) | 5 phút (`storage.view_link_ttl`) |
+| Link upload (`uploadUrl`) | 1 giờ (`upload.link_ttl`) — dùng `expiresAt` trong response |
+| Lượt giữ task | 15 phút (`task.lease_duration`) — dùng `expiresAt`; một task mỗi dự án mỗi người |
+| Bài test đầu vào | 30 phút mỗi lần, tối đa 3 lần (`entrance.duration`, `entrance.max_attempts`) |
+| Khiếu nại | 1 lần mỗi nhãn, trong 7 ngày sau khi bị từ chối (`annotation.appeal_window`) — dùng cờ `canAppeal` |
+| Tên dự án / mô tả | 200 / 5.000 ký tự (`project.name_max_length`, `project.description_max_length`) |
+| File ZIP | 200 MB (`dataset.zip_max_bytes`) |
+| Xin link upload | 100 file mỗi lần, mỗi file ≤ 5 GB (`upload.max_files`, `upload.max_file_bytes`) |
+| Manifest | `rows` ≤ 1.000 dòng; file `.jsonl` ≤ 50.000 dòng; ảnh qua manifest ≤ 50 MB (`dataset.manifest_inline_max_rows`, `dataset.manifest_file_max_rows`, `dataset.image_max_bytes`) |
+| Văn bản một mẫu | 100.000 ký tự (`dataset.text_max_chars`) |
+| Nạp tiền | 10.000 – 500.000.000đ mỗi lần (`payment.deposit_min_vnd`, `payment.deposit_max_vnd`) |
+| Rút tiền | tối thiểu 50.000đ; thuế 10% từ 2.000.000đ (`ledger.withdraw_*`) |
+| Duyệt hàng loạt nhãn khớp | 500 nhãn mỗi lần bấm (`annotation.bulk_approve_max`) |
 | Tập nhãn | ≤ 20 công cụ; ≤ 100 lớp mỗi công cụ; tên lớp ≤ 50 ký tự |
 | Mỗi công cụ dạng danh sách | ≤ 1.000 mục (mặc định); polygon 3–500 đỉnh |
-| Câu vàng | ≤ 2.000 mỗi dự án |
+| Câu vàng | ≤ 2.000 mỗi dự án (`project.gold_items_max`) |
 | Phân trang | `pageSize` ≤ 100 |
 
 ---

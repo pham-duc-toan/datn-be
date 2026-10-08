@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Crowd.Annotation.Domain.Common;
 using Crowd.Labeling;
 
@@ -73,8 +74,8 @@ namespace Crowd.Annotation.Domain.Annotations
     /// </summary>
     public sealed class LabelAnnotation
     {
-        public const int DoDaiLyDoToiDa = 1000;
-        public static readonly TimeSpan HanKhieuNai = TimeSpan.FromDays(7);
+        /// <summary>Do rong cot ly do / khieu nai / ghi chu trong DB — setting khong vuot qua.</summary>
+        public const int CotDbLyDo = 1000;
 
         // Noi dung nhan o dinh dang chung (Crowd.Labeling) — ba cot task_type,
         // schema_version, payload jsonb. Moi loai nhan mot hinh dang JSON, bang
@@ -139,6 +140,15 @@ namespace Crowd.Annotation.Domain.Annotations
 
         public DateTimeOffset? AppealResolvedAt { get; private set; }
 
+        /// <summary>
+        /// Nhan nay co khop ket qua dong thuan cua quality-svc khong. null = chua co
+        /// ket qua, hoac tap nhan khong co cong cu gop duoc. Chi la goi y cho nguoi duyet.
+        /// </summary>
+        public bool? ConsensusAgrees { get; private set; }
+
+        /// <summary>occurredAt cua consensus.reached da ap dung — ban cu den tre bi bo qua.</summary>
+        public DateTimeOffset? ConsensusAt { get; private set; }
+
         public IReadOnlyList<AnnotationHistoryEntry> History
         {
             get { return _history; }
@@ -189,8 +199,46 @@ namespace Crowd.Annotation.Domain.Annotations
         }
 
         // =====================================================================
+        // DONG THUAN (quality-svc)
+        // =====================================================================
+
+        /// <summary>Ghi ket qua dong thuan. false = event cu hon ket qua dang co (bo qua).</summary>
+        public bool GhiDongThuan(bool? agrees, DateTimeOffset occurredAt)
+        {
+            if (ConsensusAt.HasValue && occurredAt < ConsensusAt.Value)
+            {
+                return false;
+            }
+
+            ConsensusAgrees = agrees;
+            ConsensusAt = occurredAt;
+            return true;
+        }
+
+        // =====================================================================
         // DUYET (FB-21)
         // =====================================================================
+
+        /// <summary>
+        /// Setting annotation.auto_approve_agreed: HE THONG duyet nhan khop dong thuan
+        /// (khong co reviewer — ReviewerId de trong, lich su ghi "auto_approved").
+        /// </summary>
+        public void TuDuyetTheoDongThuan(DateTimeOffset luc)
+        {
+            if (Status != AnnotationStatus.PendingReview)
+            {
+                throw new RuleViolationException("da_duyet", "Khong the tu duyet: nhan dang o trang thai " + Status + ".");
+            }
+
+            if (ConsensusAgrees != true)
+            {
+                throw new RuleViolationException("chua_khop_dong_thuan", "Chi tu duyet nhan khop dong thuan.");
+            }
+
+            Status = AnnotationStatus.Approved;
+            ReviewedAt = luc;
+            _history.Add(new AnnotationHistoryEntry("auto_approved", null, "Khop dong thuan", luc));
+        }
 
         public void Duyet(Guid reviewerId, DateTimeOffset luc)
         {
@@ -202,10 +250,15 @@ namespace Crowd.Annotation.Domain.Annotations
             _history.Add(new AnnotationHistoryEntry("approved", reviewerId, null, luc));
         }
 
-        public void TuChoi(Guid reviewerId, string lyDo, DateTimeOffset luc)
+        public void TuChoi(Guid reviewerId, string lyDo, DateTimeOffset luc, QuyDinhDuyetNhan quyDinh)
         {
+            if (quyDinh == null)
+            {
+                throw new ArgumentNullException(nameof(quyDinh));
+            }
+
             KiemTruocKhiDuyet(reviewerId, "tu choi");
-            string ly = BatBuocNoiDung(lyDo, "thieu_ly_do", "Tu choi phai ghi ly do (FB-21).");
+            string ly = BatBuocNoiDung(lyDo, "thieu_ly_do", "Tu choi phai ghi ly do (FB-21).", quyDinh.DoDaiLyDoToiDa);
 
             Status = AnnotationStatus.Rejected;
             ReviewerId = reviewerId;
@@ -218,16 +271,21 @@ namespace Crowd.Annotation.Domain.Annotations
         // KHIEU NAI (FL-09)
         // =====================================================================
 
-        public bool ConKhieuNaiDuoc(DateTimeOffset luc)
+        public bool ConKhieuNaiDuoc(DateTimeOffset luc, TimeSpan hanKhieuNai)
         {
             return Status == AnnotationStatus.Rejected
                    && AppealMessage == null
                    && ReviewedAt.HasValue
-                   && luc - ReviewedAt.Value <= HanKhieuNai;
+                   && luc - ReviewedAt.Value <= hanKhieuNai;
         }
 
-        public void KhieuNai(Guid labelerId, string noiDung, DateTimeOffset luc)
+        public void KhieuNai(Guid labelerId, string noiDung, DateTimeOffset luc, QuyDinhDuyetNhan quyDinh)
         {
+            if (quyDinh == null)
+            {
+                throw new ArgumentNullException(nameof(quyDinh));
+            }
+
             if (LabelerId == null || LabelerId.Value != labelerId)
             {
                 throw new RuleViolationException("khong_phai_nhan_cua_ban", "Chi nguoi gan nhan moi khieu nai duoc.");
@@ -243,12 +301,14 @@ namespace Crowd.Annotation.Domain.Annotations
                 throw new RuleViolationException("da_khieu_nai", "Moi nhan chi khieu nai mot lan.");
             }
 
-            if (!ConKhieuNaiDuoc(luc))
+            if (!ConKhieuNaiDuoc(luc, quyDinh.HanKhieuNai))
             {
-                throw new RuleViolationException("qua_han_khieu_nai", "Da qua 7 ngay ke tu luc bi tu choi.");
+                throw new RuleViolationException(
+                    "qua_han_khieu_nai",
+                    "Da qua han khieu nai (" + quyDinh.HanKhieuNai.TotalHours.ToString("0.##", CultureInfo.InvariantCulture) + " gio) ke tu luc bi tu choi.");
             }
 
-            AppealMessage = BatBuocNoiDung(noiDung, "thieu_noi_dung", "Khieu nai phai co noi dung.");
+            AppealMessage = BatBuocNoiDung(noiDung, "thieu_noi_dung", "Khieu nai phai co noi dung.", quyDinh.DoDaiLyDoToiDa);
             AppealedAt = luc;
             Status = AnnotationStatus.Appealed;
             _history.Add(new AnnotationHistoryEntry("appealed", labelerId, AppealMessage, luc));
@@ -304,12 +364,13 @@ namespace Crowd.Annotation.Domain.Annotations
             }
         }
 
-        private static string BatBuocNoiDung(string noiDung, string code, string thongBao)
+        private static string BatBuocNoiDung(string noiDung, string code, string thongBao, int doDaiToiDa)
         {
+            int toiDa = Math.Min(doDaiToiDa, CotDbLyDo);
             string s = noiDung == null ? string.Empty : noiDung.Trim();
-            if (s.Length == 0 || s.Length > DoDaiLyDoToiDa)
+            if (s.Length == 0 || s.Length > toiDa)
             {
-                throw new InvalidValueException(code, thongBao + " (1-" + DoDaiLyDoToiDa + " ky tu)");
+                throw new InvalidValueException(code, thongBao + " (1-" + toiDa + " ky tu)");
             }
 
             return s;

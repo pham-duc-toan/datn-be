@@ -16,9 +16,6 @@ namespace Crowd.Project.Infrastructure.Media
 
         /// <summary>Duong dan ffprobe. Mac dinh "ffprobe" (tim trong PATH).</summary>
         public string FfprobePath { get; set; } = "ffprobe";
-
-        /// <summary>Thoi gian toi da cho mot lan ffprobe.</summary>
-        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(60);
     }
 
     /// <summary>Thong tin doc duoc tu mot file audio / video.</summary>
@@ -44,7 +41,8 @@ namespace Crowd.Project.Infrastructure.Media
         /// Doc thoi luong / kich thuoc cua file tai mot URL. null neu khong doc duoc
         /// (khong co ffprobe, file hong, khong phai media).
         /// </summary>
-        Task<ThongTinMedia?> DocAsync(string url, CancellationToken ct);
+        /// <param name="thoiGianToiDa">Tu setting media.ffprobe_timeout.</param>
+        Task<ThongTinMedia?> DocAsync(string url, TimeSpan thoiGianToiDa, CancellationToken ct);
     }
 
     /// <summary>
@@ -77,7 +75,7 @@ namespace Crowd.Project.Infrastructure.Media
             _logger = logger;
         }
 
-        public async Task<ThongTinMedia?> DocAsync(string url, CancellationToken ct)
+        public async Task<ThongTinMedia?> DocAsync(string url, TimeSpan thoiGianToiDa, CancellationToken ct)
         {
             ProcessStartInfo psi = new ProcessStartInfo
             {
@@ -117,7 +115,7 @@ namespace Crowd.Project.Infrastructure.Media
             using (p)
             using (CancellationTokenSource het = CancellationTokenSource.CreateLinkedTokenSource(ct))
             {
-                het.CancelAfter(_options.Timeout);
+                het.CancelAfter(thoiGianToiDa);
                 Task<string> docRa = p.StandardOutput.ReadToEndAsync(het.Token);
                 Task<string> docLoi = p.StandardError.ReadToEndAsync(het.Token);
 
@@ -136,7 +134,7 @@ namespace Crowd.Project.Infrastructure.Media
                         // Da tu thoat.
                     }
 
-                    _logger.LogWarning("ffprobe qua {Timeout} — bo qua", _options.Timeout);
+                    _logger.LogWarning("ffprobe qua {Timeout} — bo qua", thoiGianToiDa);
                     return null;
                 }
 

@@ -38,5 +38,8 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
         /// transaction database mở vô thời hạn.
         /// </summary>
         public TimeSpan PublishTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
+        /// <summary>Trần lùi lịch thử lại khi gửi thất bại (service không có setting hệ thống).</summary>
+        public TimeSpan RetryMaxDelay { get; set; } = TimeSpan.FromMinutes(5);
     }
 }

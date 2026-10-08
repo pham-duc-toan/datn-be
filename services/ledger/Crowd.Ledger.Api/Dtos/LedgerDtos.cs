@@ -79,7 +79,42 @@ namespace Crowd.Ledger.Api.Dtos
 
         public required DateTimeOffset CreatedAt { get; init; }
 
+        /// <summary>Ly do that bai (cong) hoac ly do admin tu choi.</summary>
         public string? FailureReason { get; init; }
+
+        /// <summary>Luc duyet / tu choi (null = con cho duyet).</summary>
+        public DateTimeOffset? ReviewedAt { get; init; }
+    }
+
+    /// <summary>Lenh rut trong hang doi duyet cua admin.</summary>
+    public sealed class AdminWithdrawalResponse
+    {
+        public required Guid Id { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        public required long AmountVnd { get; init; }
+
+        public required long TaxVnd { get; init; }
+
+        public required long NetVnd { get; init; }
+
+        public required string BankAccount { get; init; }
+
+        public required WithdrawalState State { get; init; }
+
+        public required DateTimeOffset CreatedAt { get; init; }
+
+        public Guid? ReviewedBy { get; init; }
+
+        public DateTimeOffset? ReviewedAt { get; init; }
+
+        public string? FailureReason { get; init; }
+    }
+
+    public sealed class RejectWithdrawalRequest
+    {
+        public string? Reason { get; init; }
     }
 
     /// <summary>Ket qua doi soat (FM-05). Rong o moi danh sach = so cai lanh.</summary>

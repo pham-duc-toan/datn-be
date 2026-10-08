@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
@@ -31,10 +32,6 @@ namespace Crowd.Project.Api.Services
     /// </summary>
     public sealed class UploadService
     {
-        public const int SoFileToiDa = 100;
-
-        /// <summary>5 GB — gioi han cua mot lenh PUT don le tren S3/MinIO.</summary>
-        public const long DungLuongToiDa = 5L * 1024 * 1024 * 1024;
 
         private static readonly Dictionary<string, string[]> DuoiChoPhep = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
@@ -50,15 +47,22 @@ namespace Crowd.Project.Api.Services
 
         private readonly ProjectAccessService _access;
         private readonly IObjectStorage _storage;
-        private readonly ObjectStorageOptions _options;
         private readonly TimeProvider _clock;
+        private readonly ISettings _settings;
 
         public UploadService(
             ProjectAccessService access,
             IObjectStorage storage,
-            IOptions<ObjectStorageOptions> options,
-            TimeProvider clock)
+            TimeProvider clock,
+            ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (access == null)
             {
                 throw new ArgumentNullException(nameof(access));
@@ -69,11 +73,6 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(storage));
             }
 
-            if (options == null)
-            {
-                throw new ArgumentNullException(nameof(options));
-            }
-
             if (clock == null)
             {
                 throw new ArgumentNullException(nameof(clock));
@@ -81,7 +80,6 @@ namespace Crowd.Project.Api.Services
 
             _access = access;
             _storage = storage;
-            _options = options.Value;
             _clock = clock;
         }
 
@@ -93,15 +91,15 @@ namespace Crowd.Project.Api.Services
                 throw new InvalidValueException("khong_co_file", "Can it nhat mot file trong \"files\".");
             }
 
-            if (body.Files.Count > SoFileToiDa)
+            if (body.Files.Count > _settings.SoNguyen(SettingKeys.UploadMaxFiles))
             {
-                throw new InvalidValueException("qua_nhieu_file", "Toi da " + SoFileToiDa + " file moi lan xin link.");
+                throw new InvalidValueException("qua_nhieu_file", "Toi da " + _settings.SoNguyen(SettingKeys.UploadMaxFiles) + " file moi lan xin link.");
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
             duAn.KiemTraCoTheNapDuLieu();
 
-            DateTimeOffset hetHan = _clock.GetUtcNow().Add(_options.UploadLinkTtl);
+            DateTimeOffset hetHan = _clock.GetUtcNow().Add(_settings.ThoiGian(SettingKeys.UploadLinkTtl));
             List<UploadSlotResponse> ketQua = new List<UploadSlotResponse>();
 
             foreach (UploadFileInput f in body.Files)
@@ -123,7 +121,7 @@ namespace Crowd.Project.Api.Services
                         + string.Join(", ", DuoiManifest) + ".");
                 }
 
-                if (f.SizeBytes <= 0 || f.SizeBytes > DungLuongToiDa)
+                if (f.SizeBytes <= 0 || f.SizeBytes > _settings.SoLon(SettingKeys.UploadMaxFileBytes))
                 {
                     throw new InvalidValueException("dung_luong_khong_hop_le", "File '" + ten + "': dung luong phai tu 1 byte den 5 GB.");
                 }

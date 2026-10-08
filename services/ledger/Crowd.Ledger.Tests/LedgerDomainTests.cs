@@ -55,7 +55,7 @@ namespace Crowd.Ledger.Tests
                 Postings.TraKyQuy(DuAn, DoanhNghiep, 260000, true, Luc),
                 Postings.YeuCauRut(Guid.NewGuid(), Labeler, 2000000, 200000, Luc),
                 Postings.HoanTatRut(Guid.NewGuid(), 1800000, "sandbox", Luc),
-                Postings.DaoRut(Guid.NewGuid(), Labeler, 1800000, 200000, Luc),
+                Postings.DaoRut(Guid.NewGuid(), Labeler, 1800000, 200000, Luc, "Dao"),
             };
 
             foreach (JournalEntry e in tatCa)
@@ -84,7 +84,7 @@ namespace Crowd.Ledger.Tests
         [Fact]
         public void Dao_rut_tra_labeler_ca_thue_da_giu()
         {
-            JournalEntry e = Postings.DaoRut(Guid.NewGuid(), Labeler, 1800000, 200000, Luc);
+            JournalEntry e = Postings.DaoRut(Guid.NewGuid(), Labeler, 1800000, 200000, Luc, "Dao");
 
             Assert.Equal(2000000, Dong(e, AccountCodes.LabelerAvailable(Labeler)));
             Assert.Equal(-200000, Dong(e, AccountCodes.PlatformTaxWithheld));
@@ -145,19 +145,27 @@ namespace Crowd.Ledger.Tests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
 
+        /// <summary>Gia tri mac dinh cua setting ledger.withdraw_*.</summary>
+        private static readonly QuyDinhRut QuyDinh = new QuyDinhRut
+        {
+            ToiThieuVnd = 50000,
+            NguongThueVnd = 2000000,
+            ThueSuatPhanTram = 10,
+        };
+
         [Fact]
         public void Thue_TNCN_10_phan_tram_tu_2_trieu_theo_tung_lan_VD_M_11()
         {
-            Assert.Equal(0, Withdrawal.TinhThue(1999999));
-            Assert.Equal(200000, Withdrawal.TinhThue(2000000));
-            Assert.Equal(250000, Withdrawal.TinhThue(2500009 - 9));
-            Assert.Equal(200000, Withdrawal.TinhThue(2000009)); // lam tron XUONG den dong
+            Assert.Equal(0, Withdrawal.TinhThue(1999999, QuyDinh.NguongThueVnd, QuyDinh.ThueSuatPhanTram));
+            Assert.Equal(200000, Withdrawal.TinhThue(2000000, QuyDinh.NguongThueVnd, QuyDinh.ThueSuatPhanTram));
+            Assert.Equal(250000, Withdrawal.TinhThue(2500009 - 9, QuyDinh.NguongThueVnd, QuyDinh.ThueSuatPhanTram));
+            Assert.Equal(200000, Withdrawal.TinhThue(2000009, QuyDinh.NguongThueVnd, QuyDinh.ThueSuatPhanTram)); // lam tron XUONG den dong
         }
 
         [Fact]
         public void Lenh_rut_tinh_so_thuc_nhan()
         {
-            Withdrawal w = Withdrawal.Tao(Guid.NewGuid(), 3000000, "VCB 0123", "k1", 50000, Luc);
+            Withdrawal w = Withdrawal.Tao(Guid.NewGuid(), 3000000, "VCB 0123", "k1", QuyDinh, Luc);
 
             Assert.Equal(300000, w.TaxVnd);
             Assert.Equal(2700000, w.NetVnd);
@@ -166,17 +174,55 @@ namespace Crowd.Ledger.Tests
         [Fact]
         public void Tu_choi_duoi_toi_thieu_va_thieu_khoa_idempotency()
         {
-            Assert.Throws<InvalidValueException>(() => Withdrawal.Tao(Guid.NewGuid(), 10000, "VCB", "k", 50000, Luc));
-            Assert.Throws<InvalidValueException>(() => Withdrawal.Tao(Guid.NewGuid(), 100000, "VCB", "", 50000, Luc));
+            Assert.Throws<InvalidValueException>(() => Withdrawal.Tao(Guid.NewGuid(), 10000, "VCB", "k", QuyDinh, Luc));
+            Assert.Throws<InvalidValueException>(() => Withdrawal.Tao(Guid.NewGuid(), 100000, "VCB", "", QuyDinh, Luc));
         }
 
         [Fact]
         public void Lenh_da_chot_khong_chot_lai()
         {
-            Withdrawal w = Withdrawal.Tao(Guid.NewGuid(), 100000, "VCB", "k", 50000, Luc);
+            Withdrawal w = Withdrawal.Tao(Guid.NewGuid(), 100000, "VCB", "k", QuyDinh, Luc);
+            w.Duyet(null, Luc);
             w.HoanTat(Luc);
 
             Assert.Throws<RuleViolationException>(() => w.ThatBai("x", Luc));
+        }
+
+        [Fact]
+        public void Lenh_moi_cho_duyet_chua_chot_duoc_qua_cong()
+        {
+            Withdrawal w = Withdrawal.Tao(Guid.NewGuid(), 100000, "VCB", "k", QuyDinh, Luc);
+
+            Assert.Equal(WithdrawalState.PendingApproval, w.State);
+            Assert.Throws<RuleViolationException>(() => w.HoanTat(Luc));
+            Assert.Throws<RuleViolationException>(() => w.ThatBai("x", Luc));
+        }
+
+        [Fact]
+        public void Admin_duyet_hoac_tu_choi_mot_lan()
+        {
+            Guid admin = Guid.NewGuid();
+
+            Withdrawal duyet = Withdrawal.Tao(Guid.NewGuid(), 100000, "VCB", "k", QuyDinh, Luc);
+            duyet.Duyet(admin, Luc.AddHours(1));
+            Assert.Equal(WithdrawalState.Requested, duyet.State);
+            Assert.Equal(admin, duyet.ReviewedBy);
+            Assert.Throws<RuleViolationException>(() => duyet.TuChoi(admin, "muon", Luc.AddHours(2)));
+
+            Withdrawal tuChoi = Withdrawal.Tao(Guid.NewGuid(), 100000, "VCB", "k2", QuyDinh, Luc);
+            Assert.Throws<InvalidValueException>(() => tuChoi.TuChoi(admin, "  ", Luc));
+            tuChoi.TuChoi(admin, "Sai so tai khoan", Luc.AddHours(1));
+            Assert.Equal(WithdrawalState.Rejected, tuChoi.State);
+            Assert.Equal("Sai so tai khoan", tuChoi.FailureReason);
+            Assert.Throws<RuleViolationException>(() => tuChoi.Duyet(admin, Luc.AddHours(2)));
+        }
+
+        [Fact]
+        public void Thue_theo_quy_dinh_dang_hieu_luc()
+        {
+            // Admin doi nguong 1 trieu, thue suat 5%.
+            Assert.Equal(50000, Withdrawal.TinhThue(1000000, 1000000, 5));
+            Assert.Equal(0, Withdrawal.TinhThue(999999, 1000000, 5));
         }
     }
 

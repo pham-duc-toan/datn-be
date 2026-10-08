@@ -8,6 +8,7 @@
     <ProjectReference Include="..\..\..\shared\auth\Crowd.BuildingBlocks.Auth.csproj" />
     <ProjectReference Include="..\..\..\shared\contracts\Crowd.Contracts.csproj" />
     <ProjectReference Include="..\..\..\shared\seeding\Crowd.Seeding.csproj" />
+    <ProjectReference Include="..\..\..\shared\settings\Crowd.Settings.csproj" />
   </ItemGroup>
 
 </Project>

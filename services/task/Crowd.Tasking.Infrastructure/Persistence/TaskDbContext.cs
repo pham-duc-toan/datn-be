@@ -1,12 +1,13 @@
 using System;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.Labeling;
+using Crowd.Settings;
 using Crowd.Tasking.Domain.Assignments;
 using Crowd.Tasking.Domain.Labelers;
 using Crowd.Tasking.Domain.Members;
 using Crowd.Tasking.Domain.Projects;
 using Crowd.Tasking.Domain.Tasks;
-using Crowd.Labeling;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
@@ -67,6 +68,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
+            modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
         }
 
         private static void CauHinhTasks(ModelBuilder mb)
@@ -118,6 +120,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
                 b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
                 b.Property(x => x.LabelerId).HasColumnName("labeler_id").IsRequired();
+                b.Property(x => x.IsGold).HasColumnName("is_gold").IsRequired();
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.LeasedAt).HasColumnName("leased_at").IsRequired();
                 b.Property(x => x.ExpiresAt).HasColumnName("expires_at").IsRequired();
@@ -173,6 +176,8 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property<string?>("_labelSchemaJson").HasColumnName("label_schema").HasColumnType("jsonb");
                 b.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
                 b.Property(x => x.Redundancy).HasColumnName("redundancy").IsRequired();
+                b.Property(x => x.MaxRedundancy).HasColumnName("max_redundancy").IsRequired();
+                b.Property(x => x.GoldCheckPercent).HasColumnName("gold_check_percent").IsRequired();
                 b.Property(x => x.Deadline).HasColumnName("deadline");
                 b.Property(x => x.AllowProfessional).HasColumnName("allow_professional").IsRequired();
                 b.Property(x => x.IsPrivate).HasColumnName("is_private").IsRequired();

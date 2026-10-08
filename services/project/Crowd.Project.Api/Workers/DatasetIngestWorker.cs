@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Project.Api.Services;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Infrastructure.Persistence;
@@ -21,13 +22,19 @@ namespace Crowd.Project.Api.Workers
     /// </summary>
     public sealed class DatasetIngestWorker : BackgroundService
     {
-        private static readonly TimeSpan NghiKhiRanh = TimeSpan.FromSeconds(2);
-
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<DatasetIngestWorker> _logger;
+        private readonly ISettings _settings;
 
-        public DatasetIngestWorker(IServiceScopeFactory scopeFactory, ILogger<DatasetIngestWorker> logger)
+        public DatasetIngestWorker(IServiceScopeFactory scopeFactory, ILogger<DatasetIngestWorker> logger, ISettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _settings = settings;
+
             if (scopeFactory == null)
             {
                 throw new ArgumentNullException(nameof(scopeFactory));
@@ -71,7 +78,7 @@ namespace Crowd.Project.Api.Workers
                 {
                     try
                     {
-                        await Task.Delay(NghiKhiRanh, stoppingToken);
+                        await Task.Delay(_settings.ThoiGian(SettingKeys.DatasetWorkerIdle), stoppingToken);
                     }
                     catch (OperationCanceledException)
                     {

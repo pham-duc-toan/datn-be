@@ -116,6 +116,8 @@ namespace Crowd.Seeding
                 UnitPriceVnd = p.UnitPriceVnd,
                 PlatformFeeVnd = p.PlatformFeePerLabelVnd,
                 Redundancy = p.Redundancy,
+                MaxRedundancy = p.TranRedundancy,
+                GoldCheckPercent = KichBanSeed.TiLeCauVangKiemTra,
                 Deadline = p.Deadline(bayGio),
                 AllowProfessional = true,
                 AllowLinkGateway = false,

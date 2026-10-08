@@ -4,6 +4,7 @@
     <ProjectReference Include="..\Crowd.Payment.Domain\Crowd.Payment.Domain.csproj" />
     <ProjectReference Include="..\..\..\shared\building-blocks\Crowd.BuildingBlocks.csproj" />
     <ProjectReference Include="..\..\..\shared\persistence\Crowd.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\shared\settings\Crowd.Settings.csproj" />
   </ItemGroup>
 
   <ItemGroup>

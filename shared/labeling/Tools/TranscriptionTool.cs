@@ -37,9 +37,9 @@ namespace Crowd.Labeling.Tools
             return new JsonObject { ["text"] = text };
         }
 
-        public bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool)
+        public bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh)
         {
-            double nguong = tool.MatchThreshold ?? NguongMacDinh;
+            double nguong = tool.MatchThreshold ?? nguongMacDinh ?? NguongMacDinh;
             return HinhHoc.Cer(DocText(nop), DocText(dapAn)) <= nguong;
         }
 

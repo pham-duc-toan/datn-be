@@ -57,6 +57,12 @@ namespace Crowd.Project.Api.Dtos
         public long BudgetVnd { get; init; }
 
         public DateTimeOffset? Deadline { get; init; }
+
+        /// <summary>
+        /// Tran redundancy thich ung (>= redundancy). Bo trong = bang redundancy (tat
+        /// thich ung). Ky quy toi thieu tinh theo tran nay.
+        /// </summary>
+        public int? MaxRedundancy { get; init; }
     }
 
     public sealed class ChannelsRequest
@@ -79,6 +85,12 @@ namespace Crowd.Project.Api.Dtos
         public int EntranceQuestionCount { get; init; }
 
         public int EntrancePassPercent { get; init; }
+    }
+
+    public sealed class QualityControlRequest
+    {
+        /// <summary>Phan tram so lan cap task la cau vang kiem tra, 0-50.</summary>
+        public int GoldCheckPercent { get; init; }
     }
 
     public sealed class ReasonRequest
@@ -122,6 +134,12 @@ namespace Crowd.Project.Api.Dtos
         public required long UnitPriceVnd { get; init; }
 
         public required int Redundancy { get; init; }
+
+        /// <summary>Tran redundancy thich ung (= redundancy khi khong bat).</summary>
+        public required int MaxRedundancy { get; init; }
+
+        /// <summary>Phan tram cau vang kiem tra tron vao luong task.</summary>
+        public required int GoldCheckPercent { get; init; }
 
         public DateTimeOffset? Deadline { get; init; }
 

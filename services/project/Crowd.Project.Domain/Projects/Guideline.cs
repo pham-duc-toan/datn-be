@@ -9,8 +9,6 @@ namespace Crowd.Project.Domain.Projects
     /// </summary>
     public sealed class Guideline
     {
-        public const int DoDaiNoiDungToiDa = 20000;
-        public const int SoViDuToiDa = 50;
 
         private readonly List<GuidelineExample> _examples;
 
@@ -28,13 +26,18 @@ namespace Crowd.Project.Domain.Projects
             get { return _examples; }
         }
 
-        public static Guideline Tao(string markdown, IEnumerable<GuidelineExample>? examples)
+        public static Guideline Tao(string markdown, IEnumerable<GuidelineExample>? examples, QuyDinhDuAn quyDinh)
         {
-            if (string.IsNullOrWhiteSpace(markdown) || markdown.Length > DoDaiNoiDungToiDa)
+            if (quyDinh == null)
+            {
+                throw new ArgumentNullException(nameof(quyDinh));
+            }
+
+            if (string.IsNullOrWhiteSpace(markdown) || markdown.Length > quyDinh.DoDaiHuongDanToiDa)
             {
                 throw new InvalidValueException(
                     "huong_dan_khong_hop_le",
-                    "Huong dan phai tu 1 den " + DoDaiNoiDungToiDa + " ky tu.");
+                    "Huong dan phai tu 1 den " + quyDinh.DoDaiHuongDanToiDa + " ky tu.");
             }
 
             List<GuidelineExample> danhSach = new List<GuidelineExample>();
@@ -43,11 +46,33 @@ namespace Crowd.Project.Domain.Projects
                 danhSach.AddRange(examples);
             }
 
-            if (danhSach.Count > SoViDuToiDa)
+            if (danhSach.Count > quyDinh.SoViDuToiDa)
             {
                 throw new InvalidValueException(
                     "qua_nhieu_vi_du",
-                    "Toi da " + SoViDuToiDa + " vi du.");
+                    "Toi da " + quyDinh.SoViDuToiDa + " vi du.");
+            }
+
+            foreach (GuidelineExample vd in danhSach)
+            {
+                if (vd.Explanation.Length > quyDinh.DoDaiGiaiThichToiDa)
+                {
+                    throw new InvalidValueException(
+                        "giai_thich_khong_hop_le",
+                        "Moi vi du can giai thich tu 1 den " + quyDinh.DoDaiGiaiThichToiDa + " ky tu.");
+                }
+            }
+
+            return new Guideline(markdown, danhSach);
+        }
+
+        /// <summary>Doc lai tu DB — KHONG kiem gioi han hien tai (gioi han chi ap cho thao tac moi).</summary>
+        public static Guideline TuLuuTru(string markdown, IEnumerable<GuidelineExample>? examples)
+        {
+            List<GuidelineExample> danhSach = new List<GuidelineExample>();
+            if (examples != null)
+            {
+                danhSach.AddRange(examples);
             }
 
             return new Guideline(markdown, danhSach);
@@ -57,15 +82,12 @@ namespace Crowd.Project.Domain.Projects
     /// <summary>Mot vi du trong huong dan: "mau nay gan nhan X la DUNG/SAI vi ...".</summary>
     public sealed class GuidelineExample
     {
-        public const int DoDaiGiaiThichToiDa = 1000;
-
         public GuidelineExample(Guid? sampleId, string? label, bool isCorrect, string explanation)
         {
-            if (string.IsNullOrWhiteSpace(explanation) || explanation.Length > DoDaiGiaiThichToiDa)
+            // Do dai toi da kiem o Guideline.Tao theo quy dinh hien tai.
+            if (string.IsNullOrWhiteSpace(explanation))
             {
-                throw new InvalidValueException(
-                    "giai_thich_khong_hop_le",
-                    "Moi vi du can giai thich tu 1 den " + DoDaiGiaiThichToiDa + " ky tu.");
+                throw new InvalidValueException("giai_thich_khong_hop_le", "Moi vi du can giai thich.");
             }
 
             SampleId = sampleId;

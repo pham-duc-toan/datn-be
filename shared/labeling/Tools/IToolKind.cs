@@ -18,8 +18,12 @@ namespace Crowd.Labeling.Tools
         /// </summary>
         JsonNode KiemVaChuanHoa(JsonNode ketQua, ToolDefinition tool, SampleMetadata mau);
 
-        /// <summary>Ket qua nop co khop dap an khong — cham cau vang, bai test dau vao.</summary>
-        bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool);
+        /// <summary>
+        /// Ket qua nop co khop dap an khong — cham cau vang, bai test dau vao.
+        /// Nguong: matchThreshold cua cong cu, khong co thi nguongMacDinh (setting
+        /// labeling.threshold.*), khong co nua thi mac dinh cua thu vien.
+        /// </summary>
+        bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh);
 
         /// <summary>
         /// Gop ket qua cua nhieu nguoi (da duyet) cho mot mau. Cong cu chua co cach

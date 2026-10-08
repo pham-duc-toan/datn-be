@@ -82,8 +82,8 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `gate-svc` | 8108 | **ClickHouse** gate_db + redis-gate | C# | gate_sessions, click_events, cpm_entries | **Traffic ~100× phần còn lại**, sập độc lập |
 | `media-svc` | 8109 | media_db | C# | signed_grants, access_audit, watermark_log, project_members_cache | CPU watermark + streaming |
 | `notification-svc` | 8110 | notification_db | C# | notifications, templates, prefs | Fan-out chậm không được chặn ai |
-| `admin-svc` | 8111 | admin_db | C# | review_queues, disputes, audit_log, platform_config, requests_readmodel | Quyền cao nhất — giới hạn blast radius |
-| `quality-svc` | 8201 | quality_db | Python | consensus_state, confusion_matrix, gold_results | Ngôn ngữ khác + tính batch nặng |
+| `admin-svc` | 8111 | admin_db | C# | **settings, setting_history** (đã có); review_queues, disputes, audit_log, requests_readmodel (P6) | Chủ của setting hệ thống (mục 3.10). Quyền cao nhất — giới hạn blast radius |
+| `quality-svc` | 8201 | quality_db | Python | consensus_rounds, label_agreements, gold_answers, ds_skills, project_metrics, reputations | Ngôn ngữ khác + tính batch nặng |
 | `ml-svc` | 8202 | ml_db (pgvector) | Python | models, predictions, uncertainty_scores | GPU, scale độc lập, sập vẫn chạy được hệ thống |
 | `fraud-svc` | 8203 | fraud_db | Python | signals, fingerprints, farm_clusters | Batch + ML |
 | `collab-svc` | 8301 | collab_db + redis-collab | Node | rooms, yjs_snapshots, op_log, contributions | **Stateful WebSocket**, sticky session, CRDT |
@@ -110,7 +110,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 
 ---
 
-## 3. Chín quyết định kỹ thuật cốt lõi
+## 3. Mười quyết định kỹ thuật cốt lõi
 
 ### 3.1. Cô lập datastore ở mức tiến trình — *database server per service*
 
@@ -180,7 +180,7 @@ Không mặc định Postgres cho tất cả. Mỗi service chọn store hợp v
 | collab | PostgreSQL (`bytea`) + **Redis riêng** | 5431 / 6382 | Yjs update là blob append-only; Redis giữ presence |
 | media | PostgreSQL (partition theo tháng) | 5409 | Audit append-only, truy vấn theo `sample_id` |
 | notification | PostgreSQL | 5410 | CRUD |
-| admin | PostgreSQL | 5411 | Audit log + config |
+| admin | PostgreSQL | 5411 | Setting hệ thống + audit log. Chạy từ P0 (profile `p0`) vì mọi service đọc setting |
 | api-gateway | **Redis riêng** | 6379 | Rate limit, Turnstile nonce |
 
 **Nguyên tắc:** thêm một loại database là thêm một bộ kỹ năng, một cách backup, một cách giám sát, một nguồn lỗi. Chỉ đổi khi access pattern thực sự không hợp Postgres — vốn đã cover JSONB + GIN, mảng, partition, full-text, pgvector.
@@ -322,16 +322,28 @@ Doanh thu CPM cộng bởi consumer, không nằm trong request path. Đúng nh�
 
 ```
 annotation-svc ──annotation.submitted───► quality-svc
-task-svc      ──task.redundancy_reached─►    │
-                                             │ đủ n bản?
-                                             ├─ khớp       → consensus.reached ───┐
-                                             └─ tranh chấp → redundancy.increase_requested
-                                                              (n → 5, hoặc reviewer cấp cao)
-task-svc ◄────────────────────────────────────────────────────────────────────────┘
-annotation-svc ◄──consensus.reached── chốt nhãn → annotation.approved → ledger-svc chi trả
+task-svc      ──task.redundancy_reached─►    │ đủ n bản? (hai event khác queue, cái nào tới trước cũng được)
+                                             ├─ khớp / hết trần → consensus.reached ──► annotation-svc (cờ khớp/lệch — GỢI Ý)
+                                             └─ tranh chấp, còn trần → redundancy.increase_requested
+task-svc ◄───────────────────────────────────────┘   (+1 người, ≤ MaxRedundancy, mở lại task)
+task-svc ──gold.answered─► quality-svc ──reputation.changed─► task-svc (lọc minReputation)
 ```
 
-Dawid–Skene / MACE chạy **batch** (cron 15 phút + lúc kết dự án) để cập nhật ma trận tin cậy từng labeler, không chạy trong request.
+Các quyết định đã chốt khi làm P3:
+
+| # | Câu hỏi | Chọn | Lý do |
+|---|---|---|---|
+| P3-1 | Ngôn ngữ | **Python + crowd-kit** (FastAPI, aio-pika, SQLAlchemy) | Dawid–Skene, Krippendorff alpha, (sau này) GLAD/MACE/ROVER/Bradley–Terry có sẵn. Envelope, outbox, consumer quorum + DLQ, `processed_events` viết lại cho khớp từng chi tiết với bản C# |
+| P3-2 | Câu vàng kiểm tra | **task-svc trộn vào luồng task và tự chấm** (Crowd.Labeling), không trả tiền | Không nhân đôi luật chấm (IoU, CER…) sang Python. Response giống hệt task thật; chỉ trộn khi labeler còn task thật; mỗi câu một lần mỗi người (VD-Q-03) |
+| P3-3 | Đồng thuận dùng làm gì | **Gợi ý, vẫn duyệt tay** + nút duyệt hàng loạt nhãn khớp | Tiền chỉ chi khi có người chịu trách nhiệm bấm — tránh nhiều tài khoản cùng nhãn sai tự rút tiền (VD-Q-02) |
+| P3-4 | Redundancy thích ứng | **Có, ký quỹ tính theo trần** `maxRedundancy` | Lượt thêm luôn có tiền; ledger chặn chi theo trần mỗi task (VD-M-03); phần không dùng tự hoàn khi kết thúc. Trần chặn vòng lặp vô hạn (VD-Q-08) |
+| P3-5 | Ai giữ điểm uy tín | **quality-svc** phát `reputation.changed` | identity-svc chưa lưu điểm này; quality có đủ bằng chứng (câu vàng + đồng thuận + DS) |
+
+Gộp tự động hiện chỉ cho `classification` và `pairwise` (đa số tuyệt đối). Công cụ khác (khung, chép lời…) cho trạng thái `notApplicable` — gộp chúng (WBF, ROVER) là việc tiếp theo.
+
+Dawid–Skene / Krippendorff alpha chạy **batch** (mặc định 15 phút, admin chạy tay được) trên các công cụ một giá trị (phân loại một lớp, so sánh cặp); labeler cần ≥ 5 nhãn trong dự án mới được chấm DS (VD-Q-07). Không chạy trong request.
+
+Giới hạn hiện tại: quality-svc chỉ biết các dự án publish **sau khi** nó chạy (cộng 5 dự án seed). Dự án cũ hơn được bỏ qua kèm cảnh báo, không vào DLQ.
 
 ### 3.8. Phân quyền hai chiều — chống BOLA
 
@@ -414,6 +426,43 @@ assignments / annotations / gold_items:  task_type = modality,
 
 Đánh đổi: nhãn có hình dạng do dữ liệu quyết định nên database không ràng buộc được bên trong `payload`. Bù lại, **mọi đường ghi nhãn** (nộp, câu vàng, bài test, seed) đều đi qua một cửa `LabelPayload.Tao(tậpNhãn, dữLiệu, metadataMẫu)`, và đọc lại từ DB dùng `TuLuuTru` không kiểm lại (tập nhãn không đổi sau publish).
 
+### 3.10. Setting động: admin-svc là chủ, mọi service giữ bản sao
+
+**Bài toán.** Phí nền tảng 30 %, có tự duyệt dự án / rút tiền / nạp tiền / nhãn khớp đồng thuận hay không, hạn mức nạp – rút, thời hạn lease, hạn khiếu nại, kích thước file, chu kỳ worker… trước đây nằm rải rác trong hằng số C# và appsettings của 8 service. Đổi một con số là sửa code hoặc sửa file rồi khởi động lại. Yêu cầu: **tất cả lưu trong bảng setting, admin quản lý, đổi lúc đang chạy**.
+
+| # | Câu hỏi | Chọn | Lý do |
+|---|---|---|---|
+| S1 | Lưu ở đâu | **Một bảng chung `settings` trong `admin_db`**, mỗi dòng một khóa (`key`, `value jsonb`, `version`, `updated_at`, `updated_by`) + `setting_history` (cũ → mới, ai, lý do) | Một chỗ cho admin xem và sửa; lịch sử để truy "ai hạ phí lúc nào" |
+| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 83 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
+| S3 | Service đọc thế nào | **Bản sao `settings_replica` trong DB của chính mỗi service** + bộ nhớ (`SettingsStore`). Nhận `setting.changed`; lúc khởi động nạp bản sao rồi xin `settings.snapshot_requested`, admin-svc phát `settings.snapshot` (cả lúc khởi động và định kỳ) | Đúng luật 1–2 mục 4: không gọi HTTP sang admin-svc trong đường nóng; admin-svc chết thì mọi service vẫn chạy với giá trị đã có. Mỗi khóa có `version` riêng — event đến sai thứ tự không ghi đè giá trị mới |
+| S4 | Đổi có hiệu lực khi nào | **Chỉ cho thao tác mới.** Giá trị đọc lại mỗi lần dùng; thứ đã chốt thì giữ: dự án đã publish giữ phí lúc publish, lease đang chạy giữ hạn cũ, lệnh rút đã tạo giữ thuế đã tính | Không ai bị đổi luật giữa chừng. `consumers.prefetch_count` là ngoại lệ (`restart`) vì chỉ đặt được lúc mở kênh |
+| S5 | Domain có đọc setting không | **Không.** Tầng Api đọc setting, dựng **đối tượng quy định** (`QuyDinhDuAn`, `QuyDinhDuLieu`, `QuyDinhBaiTest`, `QuyDinhDuyetNhan`, `QuyDinhRut`, `QuyDinhNap`, `NguongKhop`) truyền vào domain | Domain vẫn thuần, test không cần hạ tầng. Độ rộng cột DB (`CotDb.*`) vẫn là hằng số của schema — setting độ dài bị chặn trần ở đó |
+| S6 | Tiến trình không có DB | Gateway giữ setting **trong bộ nhớ**, nghe qua một queue tạm (tự xóa khi tắt) | Gateway chỉ cần trần upload; không đáng một database |
+
+```
+admin  PUT /admin/settings/{key} {value, reason}
+   │      kiểm theo catalog + ràng buộc cặp (min ≤ max) → settings (version+1) + setting_history
+   │      outbox ──► setting.changed {key, value, settingVersion}
+   ▼
+ project / task / annotation / ledger / payment / identity / quality
+   settings_replica (ghi nếu version mới hơn) → SettingsStore (bộ nhớ) → đọc mỗi thao tác
+ gateway: SettingsStore trong bộ nhớ (queue tạm)
+
+khởi động service: nạp settings_replica → phát settings.snapshot_requested
+admin-svc: nhận → phát settings.snapshot (toàn bộ); cũng phát lúc khởi động và mỗi settings.snapshot_interval
+```
+
+**Bốn luồng tự duyệt** đều đi qua **đúng cửa** của luồng duyệt tay, chỉ khác người bấm là hệ thống:
+
+| Setting | Mặc định | Bật thì |
+|---|---|---|
+| `project.auto_approve` | tắt | Consumer `escrow.reserved` duyệt luôn dự án (Chờ duyệt → Đang chạy), phát `project.published` |
+| `ledger.withdraw_auto_approve` + `ledger.withdraw_auto_approve_max_vnd` | bật, ≤ 2.000.000đ | Lệnh rút đi thẳng `payout.requested`. Vượt ngưỡng hoặc tắt → **`PendingApproval`**: tiền đã giữ (trừ khả dụng), admin duyệt (`payout.requested`) hoặc từ chối (bút toán đảo, tiền về ví) |
+| `payment.manual_transfer_auto_approve_max_vnd` | 0 (luôn chờ admin) | Nạp bằng **chuyển khoản thủ công**: doanh nghiệp bấm "đã chuyển" → số tiền ≤ ngưỡng thì xác nhận luôn, không thì admin đối chiếu sao kê rồi duyệt (`deposit.confirmed`). Mặc định 0 vì tự duyệt tiền chưa thấy về là rủi ro |
+| `annotation.auto_approve_agreed` | tắt | Consumer `consensus.reached` duyệt luôn các nhãn **chờ duyệt khớp đồng thuận** (task `agreed`), `reviewer_id` để trống, lịch sử `auto_approved`, phát `annotation.approved` |
+
+**Cố ý KHÔNG đưa vào setting:** chuỗi kết nối, host/tài khoản RabbitMQ – MinIO, khóa bí mật, cổng, đường dẫn ffprobe (hạ tầng); `x-delivery-limit` (đổi phải xóa queue); `Saga:BoQuaKyQuy` (cờ dev — để trong bảng thì ai có quyền admin bật được "publish không cần tiền"); `ClockSkew` của JWT (bảo mật); độ rộng cột DB; giới hạn trong JSON Schema hợp đồng nhãn; dữ liệu kịch bản seed.
+
 ---
 
 ## 4. Dữ liệu chéo — ba luật cứng
@@ -460,7 +509,7 @@ Ranh giới đọc/ghi: quyết định **tiền bạc** luôn hỏi lại chủ
 | Chuyển trạng thái | Máy trạng thái khai báo (định nghĩa trong code, validate lúc khởi động). **Bắt buộc optimistic concurrency**: `UPDATE ... WHERE id=:id AND state=:expected`, kiểm `rowcount`. Hook chạy trong cùng transaction hoặc qua outbox — xem `VD-D-11` |
 | Đơn phê duyệt | 7 luồng duyệt (KYB, nạp, rút, publish, khiếu nại, tranh chấp, báo link) dùng chung khung `IRequestProcessor` trong `shared/`. **Mỗi service một bảng `requests` riêng** cho loại đơn nó sở hữu; `admin-svc` nghe event dựng read model để có MỘT màn hình duyệt thống nhất |
 | Nhật ký nghiệp vụ | `state_histories(entity_type, entity_id, from, to, action, actor, at)` cho mọi vòng đời — phục vụ FL-09, FM-06. `diagnostic_logs` ghi đầu vào của mỗi lần tính CPM để trả lời "sao doanh thu thấp thế" (FS-07). Lỗi hệ thống đi Serilog/OTel, **không ghi vào DB** |
-| Config | Biến môi trường + `admin-svc` phát `platform_config.changed` cho tham số nghiệp vụ (phí, đơn giá tối thiểu, ngưỡng rút) |
+| Config | **Hai tầng** (mục 3.10): biến môi trường / appsettings chỉ giữ thứ gắn với hạ tầng (chuỗi kết nối, host, khóa bí mật, cổng, topology queue); **mọi tham số nghiệp vụ và vận hành** (phí, tự duyệt, hạn mức, thời hạn, chu kỳ worker, kích thước lô…) là setting do `admin-svc` quản, phát `setting.changed` |
 | Migration | EF Core (C#) · Alembic (Python) · Prisma (Node) — mỗi service tự quản, chạy lúc khởi động |
 | Kiểm thử | Unit + Testcontainers cho integration; contract test dựa trên `contracts/` |
 | Định nghĩa event | `eventType` và `version` khai bằng `static abstract` ngay trong payload record (`IEventPayload`), không truyền chuỗi ma thuật. Gắn nhầm eventType cho payload là **lỗi biên dịch** |
@@ -502,7 +551,7 @@ datn/
 ├─ services/
 │  ├─ gateway/  web-bff/  identity/  project/  task/  annotation/
 │  ├─ ledger/   payment/  link/      gate/     media/ notification/  admin/
-│  ├─ quality/  ml/       fraud/     ← Python (FastAPI + Arq worker)
+│  ├─ quality/  ml/       fraud/     ← Python (FastAPI; quality: app/, migrations/*.sql, tests/)
 │  └─ collab/                        ← Node/TS (Fastify + ws + Yjs)
 ├─ docker-compose.infra.yml         ← core + 15 container Postgres (theo profile)
 └─ docker-compose.yml               ← 17 service nghiệp vụ
@@ -583,7 +632,7 @@ Service 2 project: `Api → BuildingBlocks`, `Tests → Api`.
 | **P0** | gateway, identity, project, task, annotation | Chạy end-to-end **mọi loại dữ liệu** (ảnh, văn bản, âm thanh, video, cặp) với 7 loại công cụ nhãn (mục 3.9). Tạo dự án → upload → gán nhãn → xem kết quả, xuất JSON / CSV / COCO |
 | **P1** | ledger, payment | Vòng tiền khép kín: nạp → ký quỹ → duyệt nhãn → hold → rút |
 | **P2** | link, gate | Kênh thu thập thứ hai + chống lạm dụng |
-| **P3** | quality | Chất lượng đo được bằng số: kappa, Dawid–Skene, redundancy thích ứng |
+| **P3** | quality | Chất lượng đo được bằng số: đồng thuận, Krippendorff alpha, Dawid–Skene, redundancy thích ứng, câu vàng kiểm tra, uy tín (**đã có**, mục 3.7) |
 | **P4** | ml, fraud | Pre-labeling + active learning (SAM để sau cùng) |
 | **P5** | collab | Kênh thu thập thứ ba |
 | **P6** | media, notification, admin | Watermark, audit, export thêm định dạng (YOLO, Pascal VOC, CoNLL), bảng quản trị; workspace frontend cho từng công cụ |

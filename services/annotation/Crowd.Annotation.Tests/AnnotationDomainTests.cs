@@ -8,6 +8,78 @@ using Crowd.Labeling;
 
 namespace Crowd.Annotation.Tests
 {
+    public sealed class ConsensusTests
+    {
+        private static readonly DateTimeOffset T1 = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
+        private static readonly DateTimeOffset T2 = T1.AddMinutes(5);
+
+        [Fact]
+        public void Ket_qua_dong_thuan_cu_den_tre_khong_ghi_de_ban_moi()
+        {
+            TaskConsensus c = TaskConsensus.Tao(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+
+            Assert.True(c.ApDung("agreed", RawJson.Tu("{\"loai\":{\"labelIds\":[\"cho\"]}}"), T2));
+            Assert.False(c.ApDung("disputed", null, T1));
+
+            Assert.Equal("agreed", c.Status);
+            Assert.NotNull(c.Final);
+        }
+
+        [Fact]
+        public void Danh_dau_khop_dong_thuan_theo_thu_tu_thoi_gian()
+        {
+            LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "k.png",
+                null,
+                SampleMetadata.Rong.ToRawJson(),
+                Guid.NewGuid(),
+                LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null),
+                T1);
+
+            Assert.Null(a.ConsensusAgrees);
+            Assert.True(a.GhiDongThuan(false, T1));
+            Assert.True(a.GhiDongThuan(true, T2));
+            Assert.False(a.GhiDongThuan(false, T1));
+            Assert.True(a.ConsensusAgrees);
+
+            // Goi y dong thuan KHONG doi trang thai duyet.
+            Assert.Equal(AnnotationStatus.PendingReview, a.Status);
+        }
+
+        [Fact]
+        public void Tu_duyet_chi_cho_nhan_khop_dong_thuan_va_khong_co_reviewer()
+        {
+            LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "k.png",
+                null,
+                SampleMetadata.Rong.ToRawJson(),
+                Guid.NewGuid(),
+                LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null),
+                T1);
+
+            RuleViolationException chuaKhop = Assert.Throws<RuleViolationException>(() => a.TuDuyetTheoDongThuan(T2));
+            Assert.Equal("chua_khop_dong_thuan", chuaKhop.Code);
+
+            a.GhiDongThuan(true, T1);
+            a.TuDuyetTheoDongThuan(T2);
+
+            Assert.Equal(AnnotationStatus.Approved, a.Status);
+            Assert.Null(a.ReviewerId);
+            Assert.Equal(T2, a.ReviewedAt);
+
+            // Mot nhan chi Approved mot lan (chi tien mot lan).
+            Assert.Throws<RuleViolationException>(() => a.TuDuyetTheoDongThuan(T2));
+        }
+    }
+
     public sealed class ReviewTests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
@@ -15,6 +87,13 @@ namespace Crowd.Annotation.Tests
         private static readonly Guid Reviewer = Guid.NewGuid();
         private static readonly Guid Admin = Guid.NewGuid();
         private static readonly string[] NopRoiDuyet = new string[] { "submitted", "approved" };
+
+        /// <summary>Gia tri mac dinh cua setting annotation.reason_max_length / appeal_window.</summary>
+        private static readonly QuyDinhDuyetNhan QuyDinh = new QuyDinhDuyetNhan
+        {
+            DoDaiLyDoToiDa = 1000,
+            HanKhieuNai = TimeSpan.FromDays(7),
+        };
 
         private static LabelAnnotation NhanMoi()
         {
@@ -34,7 +113,7 @@ namespace Crowd.Annotation.Tests
         private static LabelAnnotation NhanBiTuChoi()
         {
             LabelAnnotation a = NhanMoi();
-            a.TuChoi(Reviewer, "Sai lop", Luc.AddHours(1));
+            a.TuChoi(Reviewer, "Sai lop", Luc.AddHours(1), QuyDinh);
             return a;
         }
 
@@ -55,13 +134,13 @@ namespace Crowd.Annotation.Tests
             a.Duyet(Reviewer, Luc);
 
             Assert.Throws<RuleViolationException>(() => a.Duyet(Reviewer, Luc));
-            Assert.Throws<RuleViolationException>(() => a.TuChoi(Reviewer, "x", Luc));
+            Assert.Throws<RuleViolationException>(() => a.TuChoi(Reviewer, "x", Luc, QuyDinh));
         }
 
         [Fact]
         public void Tu_choi_bat_buoc_co_ly_do_FB_21()
         {
-            InvalidValueException ex = Assert.Throws<InvalidValueException>(() => NhanMoi().TuChoi(Reviewer, "  ", Luc));
+            InvalidValueException ex = Assert.Throws<InvalidValueException>(() => NhanMoi().TuChoi(Reviewer, "  ", Luc, QuyDinh));
             Assert.Equal("thieu_ly_do", ex.Code);
         }
 
@@ -75,16 +154,16 @@ namespace Crowd.Annotation.Tests
         [Fact]
         public void Khieu_nai_mot_lan_trong_7_ngay_boi_chinh_labeler()
         {
-            Assert.Throws<RuleViolationException>(() => NhanBiTuChoi().KhieuNai(Guid.NewGuid(), "Toi dung", Luc.AddDays(1)));
+            Assert.Throws<RuleViolationException>(() => NhanBiTuChoi().KhieuNai(Guid.NewGuid(), "Toi dung", Luc.AddDays(1), QuyDinh));
 
             RuleViolationException tre = Assert.Throws<RuleViolationException>(() =>
-                NhanBiTuChoi().KhieuNai(Labeler, "Toi dung", Luc.AddHours(1) + LabelAnnotation.HanKhieuNai + TimeSpan.FromSeconds(1)));
+                NhanBiTuChoi().KhieuNai(Labeler, "Toi dung", Luc.AddHours(1) + QuyDinh.HanKhieuNai + TimeSpan.FromSeconds(1), QuyDinh));
             Assert.Equal("qua_han_khieu_nai", tre.Code);
 
-            Assert.Throws<RuleViolationException>(() => NhanMoi().KhieuNai(Labeler, "x", Luc));
+            Assert.Throws<RuleViolationException>(() => NhanMoi().KhieuNai(Labeler, "x", Luc, QuyDinh));
 
             LabelAnnotation a = NhanBiTuChoi();
-            a.KhieuNai(Labeler, "Anh ro rang la cho", Luc.AddDays(1));
+            a.KhieuNai(Labeler, "Anh ro rang la cho", Luc.AddDays(1), QuyDinh);
             Assert.Equal(AnnotationStatus.Appealed, a.Status);
         }
 
@@ -92,7 +171,7 @@ namespace Crowd.Annotation.Tests
         public void Admin_chap_nhan_khieu_nai_thi_thanh_Approved()
         {
             LabelAnnotation a = NhanBiTuChoi();
-            a.KhieuNai(Labeler, "Anh ro rang la cho", Luc.AddDays(1));
+            a.KhieuNai(Labeler, "Anh ro rang la cho", Luc.AddDays(1), QuyDinh);
 
             Assert.True(a.XuLyKhieuNai(Admin, true, "Dong y", Luc.AddDays(2)));
             Assert.Equal(AnnotationStatus.Approved, a.Status);
@@ -102,13 +181,13 @@ namespace Crowd.Annotation.Tests
         public void Admin_bac_thi_tu_choi_cuoi_cung_khong_khieu_nai_lai_duoc()
         {
             LabelAnnotation a = NhanBiTuChoi();
-            a.KhieuNai(Labeler, "Anh ro rang la cho", Luc.AddDays(1));
+            a.KhieuNai(Labeler, "Anh ro rang la cho", Luc.AddDays(1), QuyDinh);
 
             Assert.False(a.XuLyKhieuNai(Admin, false, "Giu nguyen", Luc.AddDays(2)));
             Assert.True(a.LaTuChoiCuoiCung());
-            Assert.False(a.ConKhieuNaiDuoc(Luc.AddDays(2)));
+            Assert.False(a.ConKhieuNaiDuoc(Luc.AddDays(2), QuyDinh.HanKhieuNai));
 
-            RuleViolationException ex = Assert.Throws<RuleViolationException>(() => a.KhieuNai(Labeler, "lan nua", Luc.AddDays(2)));
+            RuleViolationException ex = Assert.Throws<RuleViolationException>(() => a.KhieuNai(Labeler, "lan nua", Luc.AddDays(2), QuyDinh));
             Assert.Equal("da_khieu_nai", ex.Code);
         }
     }

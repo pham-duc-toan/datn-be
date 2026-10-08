@@ -2,14 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Tasking.Api.Services;
-using Crowd.Tasking.Api.Settings;
 using Crowd.Tasking.Domain.Assignments;
 using Crowd.Tasking.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Crowd.Tasking.Api.Workers
 {
@@ -22,16 +21,14 @@ namespace Crowd.Tasking.Api.Workers
     /// </summary>
     public sealed class LeaseReaper : BackgroundService
     {
-        private const int CoLo = 200;
-
         private readonly IServiceScopeFactory _scopeFactory;
-        private readonly LeaseOptions _options;
+        private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly ILogger<LeaseReaper> _logger;
 
         public LeaseReaper(
             IServiceScopeFactory scopeFactory,
-            IOptions<LeaseOptions> options,
+            ISettings settings,
             TimeProvider clock,
             ILogger<LeaseReaper> logger)
         {
@@ -40,9 +37,9 @@ namespace Crowd.Tasking.Api.Workers
                 throw new ArgumentNullException(nameof(scopeFactory));
             }
 
-            if (options == null)
+            if (settings == null)
             {
-                throw new ArgumentNullException(nameof(options));
+                throw new ArgumentNullException(nameof(settings));
             }
 
             if (clock == null)
@@ -56,7 +53,7 @@ namespace Crowd.Tasking.Api.Workers
             }
 
             _scopeFactory = scopeFactory;
-            _options = options.Value;
+            _settings = settings;
             _clock = clock;
             _logger = logger;
         }
@@ -68,15 +65,16 @@ namespace Crowd.Tasking.Api.Workers
                 try
                 {
                     int soDaThu;
+                    int coLo = _settings.SoNguyen(SettingKeys.TaskReaperBatchSize);
                     do
                     {
-                        soDaThu = await QuetMotLoAsync(stoppingToken);
+                        soDaThu = await QuetMotLoAsync(coLo, stoppingToken);
                         if (soDaThu > 0)
                         {
                             _logger.LogInformation("Reaper tra {So} lease qua han ve pool", soDaThu);
                         }
                     }
-                    while (soDaThu == CoLo);
+                    while (soDaThu == coLo);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -89,7 +87,7 @@ namespace Crowd.Tasking.Api.Workers
 
                 try
                 {
-                    await Task.Delay(_options.ChuKyReaper, stoppingToken);
+                    await Task.Delay(_settings.ThoiGian(SettingKeys.TaskReaperInterval), stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -98,7 +96,7 @@ namespace Crowd.Tasking.Api.Workers
             }
         }
 
-        private async Task<int> QuetMotLoAsync(CancellationToken ct)
+        private async Task<int> QuetMotLoAsync(int coLo, CancellationToken ct)
         {
             using (IServiceScope scope = _scopeFactory.CreateScope())
             {
@@ -109,7 +107,7 @@ namespace Crowd.Tasking.Api.Workers
                 try
                 {
                     DateTimeOffset bayGio = _clock.GetUtcNow();
-                    List<Assignment> quaHan = await TaskQueries.KhoaLeaseQuaHanAsync(db, bayGio, CoLo, ct);
+                    List<Assignment> quaHan = await TaskQueries.KhoaLeaseQuaHanAsync(db, bayGio, coLo, ct);
 
                     await revoker.HetHanAsync(quaHan, bayGio, ct);
 

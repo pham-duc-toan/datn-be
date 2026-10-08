@@ -74,6 +74,12 @@ namespace Crowd.Tasking.Domain.Projects
 
         public int Redundancy { get; private set; }
 
+        /// <summary>Tran redundancy thich ung — quality-svc xin them nguoi khong vuot so nay.</summary>
+        public int MaxRedundancy { get; private set; }
+
+        /// <summary>Phan tram so lan cap task la cau vang kiem tra (0 = khong tron).</summary>
+        public int GoldCheckPercent { get; private set; }
+
         public DateTimeOffset? Deadline { get; private set; }
 
         public bool AllowProfessional { get; private set; }
@@ -105,6 +111,8 @@ namespace Crowd.Tasking.Domain.Projects
             LabelSchema labelSchema,
             long unitPriceVnd,
             int redundancy,
+            int maxRedundancy,
+            int goldCheckPercent,
             DateTimeOffset deadline,
             bool allowProfessional,
             bool isPrivate,
@@ -123,6 +131,8 @@ namespace Crowd.Tasking.Domain.Projects
             _labelSchema = labelSchema;
             UnitPriceVnd = unitPriceVnd;
             Redundancy = redundancy;
+            MaxRedundancy = maxRedundancy > redundancy ? maxRedundancy : redundancy;
+            GoldCheckPercent = goldCheckPercent;
             Deadline = deadline;
             AllowProfessional = allowProfessional;
             IsPrivate = isPrivate;

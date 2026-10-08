@@ -1,0 +1,147 @@
+{
+  "_comment": "SINH TU DONG boi shared/test/seeding-tests/QualitySeedSnapshotTests.cs \u2014 khong sua tay.",
+  "projects": [
+    {
+      "projectId": "3d904a1a-3920-530b-b055-793baae64f1b",
+      "ownerId": "37665dec-c58e-5c8f-a244-476f27222311",
+      "modality": "image",
+      "labelSchema": {
+        "modality": "image",
+        "tools": [
+          {
+            "allowMultiple": false,
+            "classes": [
+              "do",
+              "xanh_la",
+              "xanh_duong",
+              "vang"
+            ],
+            "kind": "classification",
+            "name": "label",
+            "required": true
+          }
+        ]
+      },
+      "redundancy": 2,
+      "maxRedundancy": 2
+    },
+    {
+      "projectId": "2fde6d4c-ee31-57ae-8632-b2e6e0721217",
+      "ownerId": "37665dec-c58e-5c8f-a244-476f27222311",
+      "modality": "image",
+      "labelSchema": {
+        "modality": "image",
+        "tools": [
+          {
+            "allowMultiple": false,
+            "classes": [
+              "do",
+              "xanh_la",
+              "xanh_duong",
+              "vang"
+            ],
+            "kind": "classification",
+            "name": "label",
+            "required": true
+          }
+        ]
+      },
+      "redundancy": 1,
+      "maxRedundancy": 1
+    },
+    {
+      "projectId": "8dc63fe1-e23e-5097-b891-51fe72b61245",
+      "ownerId": "37665dec-c58e-5c8f-a244-476f27222311",
+      "modality": "text",
+      "labelSchema": {
+        "modality": "text",
+        "tools": [
+          {
+            "allowMultiple": false,
+            "classes": [
+              "tich_cuc",
+              "tieu_cuc",
+              "trung_tinh"
+            ],
+            "kind": "classification",
+            "name": "cam_xuc",
+            "required": true
+          },
+          {
+            "classes": [
+              "TEN_NGUOI",
+              "DIA_DIEM",
+              "TO_CHUC"
+            ],
+            "kind": "span",
+            "maxItems": 1000,
+            "minItems": 0,
+            "name": "thuc_the",
+            "required": true
+          }
+        ]
+      },
+      "redundancy": 1,
+      "maxRedundancy": 1
+    },
+    {
+      "projectId": "8309618e-25b2-5b99-a301-0632197c96e1",
+      "ownerId": "37665dec-c58e-5c8f-a244-476f27222311",
+      "modality": "audio",
+      "labelSchema": {
+        "modality": "audio",
+        "segmentSeconds": 10,
+        "tools": [
+          {
+            "kind": "transcription",
+            "maxLength": 5000,
+            "name": "loi_noi",
+            "required": true
+          },
+          {
+            "classes": [
+              "giong_noi",
+              "nhac",
+              "im_lang"
+            ],
+            "kind": "temporalSegment",
+            "maxItems": 1000,
+            "minItems": 0,
+            "name": "doan",
+            "required": true
+          }
+        ]
+      },
+      "redundancy": 1,
+      "maxRedundancy": 1
+    },
+    {
+      "projectId": "12d52faa-09b4-5cd1-b21d-16984c952fec",
+      "ownerId": "37665dec-c58e-5c8f-a244-476f27222311",
+      "modality": "pair",
+      "labelSchema": {
+        "modality": "pair",
+        "tools": [
+          {
+            "allowTie": true,
+            "kind": "pairwise",
+            "name": "tot_hon",
+            "required": true
+          },
+          {
+            "allowMultiple": false,
+            "classes": [
+              "an_toan",
+              "khong_an_toan"
+            ],
+            "kind": "classification",
+            "name": "an_toan",
+            "required": true
+          }
+        ]
+      },
+      "redundancy": 2,
+      "maxRedundancy": 3
+    }
+  ]
+}

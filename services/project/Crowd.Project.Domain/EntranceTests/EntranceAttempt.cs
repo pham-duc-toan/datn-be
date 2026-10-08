@@ -9,8 +9,8 @@ namespace Crowd.Project.Domain.EntranceTests
     /// Mot lan lam bai test dau vao cua mot labeler (FL-03).
     ///
     /// Luat:
-    ///   - Toi da SoLanToiDa lan moi du an — khong cho thu mai de do dap an.
-    ///   - Moi lan co han ThoiGianLamBai; nop tre tinh la truot.
+    ///   - Toi da quyDinh.SoLanToiDa lan moi du an (setting entrance.max_attempts) — khong cho thu mai de do dap an.
+    ///   - Moi lan co han quyDinh.ThoiGianLamBai (setting entrance.duration); nop tre tinh la truot.
     ///   - Chi cham cac cau DA GIAO trong lan nay; tra loi cau khac bi bo qua.
     ///   - Mot cau dung khi nhan tra loi KHOP dap an theo dinh dang nhan
     ///     (LabelPayload.KhopDapAn). Phan loai: trung tap lop, khong tinh thu tu;
@@ -18,8 +18,6 @@ namespace Crowd.Project.Domain.EntranceTests
     /// </summary>
     public sealed class EntranceAttempt
     {
-        public const int SoLanToiDa = 3;
-        public static readonly TimeSpan ThoiGianLamBai = TimeSpan.FromMinutes(30);
 
         private List<Guid> _questionSampleIds;
 
@@ -57,8 +55,14 @@ namespace Crowd.Project.Domain.EntranceTests
             IReadOnlyList<Guid> cauHoi,
             int soLanDaLam,
             bool dangCoLanChuaNop,
-            DateTimeOffset luc)
+            DateTimeOffset luc,
+            QuyDinhBaiTest quyDinh)
         {
+            if (quyDinh == null)
+            {
+                throw new ArgumentNullException(nameof(quyDinh));
+            }
+
             if (cauHoi == null || cauHoi.Count == 0)
             {
                 throw new RuleViolationException("khong_co_cau_hoi", "Du an chua co cau hoi cho bai test.");
@@ -71,11 +75,11 @@ namespace Crowd.Project.Domain.EntranceTests
                     "Ban dang co mot bai test chua nop. Hay nop hoac doi het gio.");
             }
 
-            if (soLanDaLam >= SoLanToiDa)
+            if (soLanDaLam >= quyDinh.SoLanToiDa)
             {
                 throw new RuleViolationException(
                     "het_luot_test",
-                    "Da het " + SoLanToiDa + " luot lam bai test cua du an nay.");
+                    "Da het " + quyDinh.SoLanToiDa + " luot lam bai test cua du an nay.");
             }
 
             EntranceAttempt a = new EntranceAttempt();
@@ -84,7 +88,7 @@ namespace Crowd.Project.Domain.EntranceTests
             a.UserId = userId;
             a._questionSampleIds = new List<Guid>(cauHoi);
             a.StartedAt = luc;
-            a.ExpiresAt = luc + ThoiGianLamBai;
+            a.ExpiresAt = luc + quyDinh.ThoiGianLamBai;
             return a;
         }
 
@@ -103,8 +107,14 @@ namespace Crowd.Project.Domain.EntranceTests
             IReadOnlyDictionary<Guid, LabelPayload> dapAn,
             LabelSchema tapNhan,
             int nguongPhanTram,
+            NguongKhop nguongKhop,
             DateTimeOffset luc)
         {
+            if (nguongKhop == null)
+            {
+                throw new ArgumentNullException(nameof(nguongKhop));
+            }
+
             if (traLoi == null)
             {
                 throw new ArgumentNullException(nameof(traLoi));
@@ -148,7 +158,7 @@ namespace Crowd.Project.Domain.EntranceTests
 
                 // "Khop" do tung CONG CU quyet dinh: phan loai so tap lop, bbox so
                 // IoU, transcription so ti le loi ky tu... (Crowd.Labeling).
-                if (cuaLabeler.KhopDapAn(tapNhan, dung))
+                if (cuaLabeler.KhopDapAn(tapNhan, dung, nguongKhop))
                 {
                     soCauDung = soCauDung + 1;
                 }

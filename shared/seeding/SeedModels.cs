@@ -187,6 +187,15 @@ namespace Crowd.Seeding
 
         public required int Redundancy { get; init; }
 
+        /// <summary>Tran redundancy thich ung. null = bang Redundancy (khong thich ung).</summary>
+        public int? MaxRedundancy { get; init; }
+
+        /// <summary>Tran co hieu luc — cung cong thuc LabelingProject.TranRedundancy.</summary>
+        public int TranRedundancy
+        {
+            get { return MaxRedundancy.HasValue && MaxRedundancy.Value > Redundancy ? MaxRedundancy.Value : Redundancy; }
+        }
+
         /// <summary>Ngan sach = so tien ky quy khi publish.</summary>
         public required long BudgetVnd { get; init; }
 

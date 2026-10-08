@@ -101,7 +101,7 @@ namespace Crowd.Project.Infrastructure.Persistence
                 }
             }
 
-            return Guideline.Tao(dto.Markdown, viDu);
+            return Guideline.TuLuuTru(dto.Markdown, viDu);
         }
 
         // ---- Hinh dang luu tru. Setter public vi System.Text.Json can. ----

@@ -7,6 +7,7 @@ using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
 using Crowd.Project.Domain.Projects;
 using Crowd.Project.Infrastructure.Persistence.Configurations;
+using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace Crowd.Project.Infrastructure.Persistence
@@ -50,6 +51,7 @@ namespace Crowd.Project.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new SampleConfiguration());
             modelBuilder.ApplyConfiguration(new GoldItemConfiguration());
             modelBuilder.ApplyConfiguration(new EntranceAttemptConfiguration());
+            modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
 
             // Ha tang dung chung: outbox (gui event) + processed_events (nhan event).
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());

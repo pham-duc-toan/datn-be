@@ -36,12 +36,14 @@ namespace Crowd.Project.Infrastructure.Datasets
     /// <summary>Gioi han khi doc ZIP — chong zip bomb va file rac.</summary>
     public sealed class ZipLimits
     {
-        public int MaxEntries { get; set; } = 10000;
+        /// <summary>Setting dataset.zip_max_entries.</summary>
+        public required int MaxEntries { get; init; }
 
-        public long MaxImageBytes { get; set; } = 20L * 1024 * 1024;
+        /// <summary>Setting dataset.zip_image_max_bytes.</summary>
+        public required long MaxImageBytes { get; init; }
 
-        /// <summary>Tong dung luong SAU giai nen.</summary>
-        public long MaxTotalBytes { get; set; } = 2L * 1024 * 1024 * 1024;
+        /// <summary>Tong dung luong SAU giai nen — setting dataset.zip_total_max_bytes.</summary>
+        public required long MaxTotalBytes { get; init; }
     }
 
     /// <summary>

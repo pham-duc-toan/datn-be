@@ -1,3 +1,4 @@
+using System;
 namespace Crowd.BuildingBlocks.Persistence.Consumers
 {
     /// <summary>Tham so van hanh phia NHAN event. Doc tu muc "Consumers".</summary>
@@ -21,6 +22,9 @@ namespace Crowd.BuildingBlocks.Persistence.Consumers
         /// va chan ca hang doi.
         /// </summary>
         public int DeliveryLimit { get; set; } = 5;
+
+        /// <summary>Cho bao lau roi noi lai RabbitMQ (service khong co setting he thong).</summary>
+        public TimeSpan ReconnectDelay { get; set; } = TimeSpan.FromSeconds(5);
 
         /// <summary>Exchange nhan message chet. Moi queue co mot queue ".dlq" rieng.</summary>
         public string DeadLetterExchange { get; set; } = "datn.dlx";

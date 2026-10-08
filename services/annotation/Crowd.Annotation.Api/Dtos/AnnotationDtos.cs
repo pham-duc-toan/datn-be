@@ -41,6 +41,21 @@ namespace Crowd.Annotation.Api.Dtos
 
         /// <summary>true = labeler con khieu nai duoc (bi tu choi, chua khieu nai, con han).</summary>
         public required bool CanAppeal { get; init; }
+
+        /// <summary>
+        /// Goi y tu quality-svc: nhan co khop ket qua dong thuan khong. null = chua co
+        /// ket qua (task chua du nguoi) hoac tap nhan khong co cong cu gop duoc.
+        /// </summary>
+        public bool? ConsensusAgrees { get; init; }
+    }
+
+    /// <summary>Ket qua duyet hang loat cac nhan khop dong thuan.</summary>
+    public sealed class BulkApproveResponse
+    {
+        public required int ApprovedCount { get; init; }
+
+        /// <summary>Nhan cua chinh nguoi duyet — khong tu duyet duoc, bo qua.</summary>
+        public required int SkippedOwnCount { get; init; }
     }
 
     public sealed class HistoryEntryResponse
@@ -114,6 +129,15 @@ namespace Crowd.Annotation.Api.Dtos
 
         /// <summary>Co cong cu gop theo da so ma khong lua chon nao qua ban (FB-22).</summary>
         public required bool Disputed { get; init; }
+
+        /// <summary>
+        /// Ket qua dong thuan cua quality-svc tren MOI nhan da nop (ca nhan chua duyet):
+        /// "agreed" | "disputed" | "notApplicable". null = chua co.
+        /// </summary>
+        public string? ConsensusStatus { get; init; }
+
+        /// <summary>Ket qua chot cua quality-svc theo tung cong cu gop duoc.</summary>
+        public RawJson? ConsensusFinal { get; init; }
 
         /// <summary>
         /// Ket qua gop theo TUNG CONG CU: {"ten":{"kind","method","final","votes","disputed"}}.
