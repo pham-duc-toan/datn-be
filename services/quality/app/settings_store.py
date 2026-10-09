@@ -33,6 +33,7 @@ OUTBOX_POLL_INTERVAL = "outbox.poll_interval"
 OUTBOX_BATCH_SIZE = "outbox.batch_size"
 OUTBOX_PUBLISH_TIMEOUT = "outbox.publish_timeout"
 OUTBOX_RETRY_MAX_DELAY = "outbox.retry_max_delay"
+CONSUMERS_RECONNECT_DELAY = "consumers.reconnect_delay"
 CONSUMERS_PREFETCH_COUNT = "consumers.prefetch_count"
 SETTINGS_RELOAD_INTERVAL = "settings.reload_interval"
 

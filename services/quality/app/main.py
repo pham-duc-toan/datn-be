@@ -11,7 +11,7 @@ import aio_pika
 import uvicorn
 from fastapi import FastAPI
 
-from app import db, ds_batch, processors, seeding, settings_sync
+from app import db, ds_batch, processors, seeding, settings_store, settings_sync
 from app.api import router
 from app.config import settings
 from app.contracts import (
@@ -39,6 +39,20 @@ CONSUMERS_SETTING = [
 ]
 
 
+async def noi_rabbitmq(cfg) -> aio_pika.abc.AbstractRobustConnection:
+    """Lan noi DAU TIEN: connect_robust chi tu noi lai SAU khi da noi duoc, nen broker chua
+    san sang luc khoi dong (vua tao lai container) thi phai tu thu lai — giong EventConsumer C#."""
+    while True:
+        try:
+            return await aio_pika.connect_robust(
+                host=cfg.rabbit_host, port=cfg.rabbit_port, login=cfg.rabbit_user, password=cfg.rabbit_password,
+                virtualhost=cfg.rabbit_vhost, client_properties={"connection_name": cfg.service_name})
+        except (aio_pika.exceptions.AMQPConnectionError, OSError) as ex:
+            cho = settings_store.giay(settings_store.CONSUMERS_RECONNECT_DELAY)
+            log.warning("Chua noi duoc RabbitMQ (%s), thu lai sau %ss", ex, cho)
+            await asyncio.sleep(cho)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     cfg = settings()
@@ -52,9 +66,7 @@ async def lifespan(app: FastAPI):
 
     await seeding.chay()
 
-    ket_noi = await aio_pika.connect_robust(
-        host=cfg.rabbit_host, port=cfg.rabbit_port, login=cfg.rabbit_user, password=cfg.rabbit_password,
-        virtualhost=cfg.rabbit_vhost, client_properties={"connection_name": cfg.service_name})
+    ket_noi = await noi_rabbitmq(cfg)
     for c in CONSUMERS_SETTING + CONSUMERS:
         await c.bat_dau(ket_noi)
 
