@@ -5,7 +5,9 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Contracts.Annotation;
+using Crowd.Contracts.Gate;
 using Crowd.Contracts.Identity;
+using Crowd.Contracts.Link;
 using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
 using Crowd.Ledger.Api.Consumers;
@@ -45,6 +47,11 @@ builder.Services.AddEventConsumer<LedgerDbContext, DepositConfirmed, DepositConf
 builder.Services.AddEventConsumer<LedgerDbContext, PayoutCompleted, PayoutCompletedProcessor>(cfg, "ledger-svc.payout-completed");
 builder.Services.AddEventConsumer<LedgerDbContext, PayoutFailed, PayoutFailedProcessor>(cfg, "ledger-svc.payout-failed");
 builder.Services.AddEventConsumer<LedgerDbContext, UserBlocked, UserBlockedProcessor>(cfg, "ledger-svc.user-blocked");
+
+// Cong link (P2): tra nguoi chia se, hoa hong gioi thieu, giu doanh thu link vi pham.
+builder.Services.AddEventConsumer<LedgerDbContext, ClickValidated, ClickValidatedProcessor>(cfg, "ledger-svc.click-validated");
+builder.Services.AddEventConsumer<LedgerDbContext, ReferralRegistered, ReferralRegisteredProcessor>(cfg, "ledger-svc.referral-registered");
+builder.Services.AddEventConsumer<LedgerDbContext, LinkDisabled, LinkDisabledProcessor>(cfg, "ledger-svc.link-disabled");
 
 // ---- Nghiep vu ----
 builder.Services.AddScoped<LedgerWriter>();

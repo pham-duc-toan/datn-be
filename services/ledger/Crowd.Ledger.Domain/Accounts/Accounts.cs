@@ -17,6 +17,9 @@ namespace Crowd.Ledger.Domain.Accounts
     {
         public const string PlatformFee = "platform:fee";
 
+        /// <summary>Doanh thu cong link bi giu lai vi link vi pham (VD-L-01), cho xu ly.</summary>
+        public const string PlatformWithheld = "platform:withheld";
+
         /// <summary>Thue TNCN da khau tru, cho nop ngan sach (VD-M-11).</summary>
         public const string PlatformTaxWithheld = "platform:tax_withheld";
 

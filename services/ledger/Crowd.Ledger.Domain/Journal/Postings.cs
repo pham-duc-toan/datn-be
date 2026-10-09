@@ -71,6 +71,64 @@ namespace Crowd.Ledger.Domain.Journal
             return JournalEntry.Tao(JournalEntryType.AnnotationPayout, "annotation:" + annotationId, "Chi tra nhan duoc duyet", luc, dong);
         }
 
+        /// <summary>
+        /// Luot vuot link hop le (dac ta 2.4): ky quy −(sharer + nen tang) → sharer TREO +sharer,
+        /// nen tang +phan con lai. Sharer dung chung vi voi labeler (mot tai khoan, mot vi).
+        /// </summary>
+        public static JournalEntry ChiTraCongLink(Guid clickId, Guid projectId, Guid sharerId, long sharerAmount, long platformAmount, DateTimeOffset luc)
+        {
+            BatBuocDuong(sharerAmount);
+            if (platformAmount < 0)
+            {
+                throw new InvalidValueException("phi_am", "Phan nen tang khong duoc am.");
+            }
+
+            List<JournalLine> dong = new List<JournalLine>
+            {
+                new JournalLine(AccountCodes.ProjectEscrow(projectId), -checked(sharerAmount + platformAmount)),
+                new JournalLine(AccountCodes.LabelerPending(sharerId), sharerAmount),
+            };
+
+            if (platformAmount > 0)
+            {
+                dong.Add(new JournalLine(AccountCodes.PlatformFee, platformAmount));
+            }
+
+            return JournalEntry.Tao(JournalEntryType.GateClickPayout, "click:" + clickId, "Chi tra luot vuot link", luc, dong);
+        }
+
+        /// <summary>Hoa hong gioi thieu (FS-08): lay tu phi nen tang, khong tru vao thu nhap nguoi duoc moi.</summary>
+        public static JournalEntry HoaHongGioiThieu(Guid clickId, Guid referrerId, long amount, DateTimeOffset luc)
+        {
+            BatBuocDuong(amount);
+            return JournalEntry.Tao(
+                JournalEntryType.ReferralCommission,
+                "referral:" + clickId,
+                "Hoa hong gioi thieu",
+                luc,
+                new List<JournalLine>
+                {
+                    new JournalLine(AccountCodes.PlatformFee, -amount),
+                    new JournalLine(AccountCodes.LabelerPending(referrerId), amount),
+                });
+        }
+
+        /// <summary>Link vi pham: khoan dang treo cua sharer → platform:withheld (cho xu ly).</summary>
+        public static JournalEntry GiuDoanhThu(Guid holdId, Guid userId, long amount, DateTimeOffset luc)
+        {
+            BatBuocDuong(amount);
+            return JournalEntry.Tao(
+                JournalEntryType.RevenueWithheld,
+                "withhold:" + holdId,
+                "Giu doanh thu cua link vi pham",
+                luc,
+                new List<JournalLine>
+                {
+                    new JournalLine(AccountCodes.LabelerPending(userId), -amount),
+                    new JournalLine(AccountCodes.PlatformWithheld, amount),
+                });
+        }
+
         /// <summary>Het thoi gian treo: labeler treo → labeler kha dung.</summary>
         public static JournalEntry GiaiPhongTreo(Guid holdId, Guid labelerId, long amount, DateTimeOffset luc)
         {

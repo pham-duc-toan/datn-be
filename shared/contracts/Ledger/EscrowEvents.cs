@@ -44,4 +44,30 @@ namespace Crowd.Contracts.Ledger
         /// <summary>Hien cho doanh nghiep, vd "So du kha dung 2.000.000d, can 5.000.000d".</summary>
         public required string Reason { get; init; }
     }
+
+    /// <summary>
+    /// Ngan sach CONG LINK cua du an doi (sau khi biet so mau, va sau moi luot tra sharer).
+    /// Cong link chi duoc tieu phan ky quy VUOT muc toi thieu cho labeler chuyen nghiep
+    /// (so mau x tran redundancy x (don gia + phi)) — khong bao gio an vao tien da danh
+    /// cho labeler (VD-L-03). gate-svc ngung phuc vu du an khi con lai khong du mot luot.
+    /// </summary>
+    public sealed record GateBudgetChanged : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "gate.budget_changed"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid ProjectId { get; init; }
+
+        public required long RemainingVnd { get; init; }
+
+        /// <summary>Tang dan — ban sao o gate chi ghi de khi moi hon (event den sai thu tu).</summary>
+        public required long Sequence { get; init; }
+    }
 }

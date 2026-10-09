@@ -141,7 +141,7 @@ namespace Crowd.Ledger.Api.Seeding
                 // ---- 3. Du an dang chay: ghi redundancy ----
                 foreach (SeedProject sp in daKyQuy.Where(p => p.Stage == SeedStage.Running))
                 {
-                    await DongTienLuc(sp.LucDuyet(bayGio)).GhiNhanRedundancyAsync(SeedEvents.DaPublish(sp, bayGio), ct);
+                    await DongTienLuc(sp.LucDuyet(bayGio)).GhiNhanRedundancyAsync(SeedEvents.DaPublish(sp, bayGio), Caller.HeThong(Guid.CreateVersion7(), null), ct);
                     await LuuAsync(ct);
                 }
 

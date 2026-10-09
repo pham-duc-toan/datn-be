@@ -45,6 +45,51 @@
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {
+      // link-svc: link rút gọn của người chia sẻ. KHÔNG chặn token ở gateway: API key (FS-05),
+      // Quick Link (FS-02) và nút báo cáo của khách vãng lai không có token — service tự kiểm.
+      "UpstreamPathTemplate": "/links/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post", "Put", "Delete"],
+      "DownstreamPathTemplate": "/links/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8107 }],
+      "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
+    },
+    {
+      "UpstreamPathTemplate": "/links",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/links",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8107 }],
+      "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
+    },
+    {
+      // gate-svc: trang vượt link (công khai) + mở link đích. IP thật của khách qua X-Forwarded-For
+      // (chống trùng IP 24h, chống tự vượt).
+      "UpstreamPathTemplate": "/g/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/g/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8108 }],
+      "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
+    },
+    {
+      "UpstreamPathTemplate": "/go/{everything}",
+      "UpstreamHttpMethod": ["Get"],
+      "DownstreamPathTemplate": "/go/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8108 }],
+      "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
+    },
+    {
+      // gate-svc: thống kê cho người chia sẻ (FS-07).
+      "UpstreamPathTemplate": "/gate/{everything}",
+      "UpstreamHttpMethod": ["Get"],
+      "DownstreamPathTemplate": "/gate/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8108 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
       // admin-svc: setting hệ thống (/admin/settings...). Chỉ admin — service tự kiểm vai trò.
       "UpstreamPathTemplate": "/admin/{everything}",
       "UpstreamHttpMethod": ["Get", "Post", "Put"],

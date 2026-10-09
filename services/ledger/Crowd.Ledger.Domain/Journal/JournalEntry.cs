@@ -36,6 +36,15 @@ namespace Crowd.Ledger.Domain.Journal
 
         /// <summary>Cong bao that bai: BUT TOAN DAO — tra lai labeler toan bo.</summary>
         WithdrawalReversal,
+
+        /// <summary>Luot vuot link hop le: ky quy → sharer (treo) + nen tang.</summary>
+        GateClickPayout,
+
+        /// <summary>Hoa hong gioi thieu: phi nen tang → nguoi gioi thieu (treo).</summary>
+        ReferralCommission,
+
+        /// <summary>Link vi pham: doanh thu dang treo → platform:withheld.</summary>
+        RevenueWithheld,
     }
 
     /// <summary>Mot dong cua but toan: tai khoan va so tien CO DAU (am = ra, duong = vao).</summary>

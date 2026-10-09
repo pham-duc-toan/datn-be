@@ -1,3 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\shared\labeling\Crowd.Labeling.csproj" />
+  </ItemGroup>
+
 </Project>

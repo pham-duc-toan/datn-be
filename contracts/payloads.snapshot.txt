@@ -47,6 +47,16 @@ assignment.submitted v1  (AssignmentSubmitted)
     SubmittedAt              DateTimeOffset       required
     TaskId                   Guid                 required
 
+click.validated v1  (ClickValidated)
+    ClickId                  Guid                 required
+    LabelCount               Int32                required
+    LinkId                   Guid                 required
+    PlatformAmountVnd        Int64                required
+    ProjectId                Guid                 required
+    SharerAmountVnd          Int64                required
+    SharerId                 Guid                 required
+    ValidatedAt              DateTimeOffset       required
+
 consensus.reached v1  (ConsensusReached)
     Final                    RawJson?             nullable
     ProjectId                Guid                 required
@@ -89,6 +99,18 @@ funds.held v1  (FundsHeld)
     LabelerId                Guid                 required
     ReleaseAt                DateTimeOffset       required
 
+gate.budget_changed v1  (GateBudgetChanged)
+    ProjectId                Guid                 required
+    RemainingVnd             Int64                required
+    Sequence                 Int64                required
+
+gate.solved v1  (GateSolved)
+    Labels                   IReadOnlyList<GateLabel> required
+    LinkId                   Guid                 required
+    ProjectId                Guid                 required
+    SessionId                Guid                 required
+    SolvedAt                 DateTimeOffset       required
+
 gold.answered v1  (GoldAnswered)
     AnsweredAt               DateTimeOffset       required
     AssignmentId             Guid                 required
@@ -109,6 +131,22 @@ hold.expired v1  (HoldExpired)
 level.changed v1  (LevelChanged)
     Level                    Int32                required
     UserId                   Guid                 required
+
+link.activated v1  (LinkActivated)
+    CampaignId               Guid?                nullable
+    Code                     String               required
+    CreatorIpHash            String?              nullable
+    DestinationUrl           String               required
+    ExpiresAt                DateTimeOffset?      nullable
+    LinkId                   Guid                 required
+    OwnerId                  Guid                 required
+    PasswordHash             String?              nullable
+
+link.disabled v1  (LinkDisabled)
+    LinkId                   Guid                 required
+    OwnerId                  Guid                 required
+    Reason                   String               required
+    WithholdRevenue          Boolean              required
 
 member.added v1  (MemberAdded)
     ProjectId                Guid                 required
@@ -189,6 +227,11 @@ redundancy.increase_requested v1  (RedundancyIncreaseRequested)
     Reason                   String               required
     SampleId                 Guid                 required
     TaskId                   Guid                 required
+
+referral.registered v1  (ReferralRegistered)
+    ReferredId               Guid                 required
+    ReferrerId               Guid                 required
+    RegisteredAt             DateTimeOffset       required
 
 refund.issued v1  (RefundIssued)
     AmountVnd                Int64                required

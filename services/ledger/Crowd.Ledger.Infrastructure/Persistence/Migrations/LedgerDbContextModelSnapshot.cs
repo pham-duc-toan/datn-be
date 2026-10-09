@@ -131,13 +131,29 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
+                    b.Property<bool>("AllowLinkGateway")
+                        .HasColumnType("boolean")
+                        .HasColumnName("allow_link_gateway");
+
                     b.Property<DateTimeOffset?>("ClosedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("closed_at");
 
+                    b.Property<long>("GateBudgetSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("gate_budget_sequence");
+
+                    b.Property<long>("GateSpentVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("gate_spent_vnd");
+
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
+
+                    b.Property<long>("PlatformFeeVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("platform_fee_vnd");
 
                     b.Property<int>("Redundancy")
                         .HasColumnType("integer")
@@ -151,11 +167,19 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("reserved_vnd");
 
+                    b.Property<int>("SampleCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("sample_count");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("state");
+
+                    b.Property<long>("UnitPriceVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("unit_price_vnd");
 
                     b.HasKey("ProjectId");
 
@@ -183,9 +207,21 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("held_at");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Annotation")
+                        .HasColumnName("kind");
+
                     b.Property<Guid>("LabelerId")
                         .HasColumnType("uuid")
                         .HasColumnName("labeler_id");
+
+                    b.Property<Guid?>("LinkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("link_id");
 
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid")
@@ -211,9 +247,9 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AnnotationId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_holds_annotation");
+                    b.HasIndex("LinkId")
+                        .HasDatabaseName("ix_holds_link_dang_treo")
+                        .HasFilter("link_id IS NOT NULL AND state = 'Held'");
 
                     b.HasIndex("ReleaseAt")
                         .HasDatabaseName("ix_holds_den_han")
@@ -222,7 +258,30 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                     b.HasIndex("TaskId")
                         .HasDatabaseName("ix_holds_task");
 
+                    b.HasIndex("AnnotationId", "Kind")
+                        .IsUnique()
+                        .HasDatabaseName("ux_holds_source");
+
                     b.ToTable("holds", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Ledger.Domain.Holds.ReferralLink", b =>
+                {
+                    b.Property<Guid>("ReferredId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("referred_id");
+
+                    b.Property<Guid>("ReferrerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("referrer_id");
+
+                    b.Property<DateTimeOffset>("RegisteredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("registered_at");
+
+                    b.HasKey("ReferredId");
+
+                    b.ToTable("referrals", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Ledger.Domain.Journal.JournalEntry", b =>

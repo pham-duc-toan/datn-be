@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Annotation;
+using Crowd.Contracts.Gate;
 using Crowd.Contracts.Ledger;
+using Crowd.Contracts.Link;
 using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
 using Crowd.Ledger.Domain.Accounts;
@@ -138,8 +140,11 @@ namespace Crowd.Ledger.Api.Services
             _events.Phat(caller, new EscrowReserved { ProjectId = p.ProjectId, AmountVnd = p.EscrowAmountVnd });
         }
 
-        /// <summary>project.published mang redundancy — de chan chi vuot (VD-M-03).</summary>
-        public async Task GhiNhanRedundancyAsync(ProjectPublished p, CancellationToken ct)
+        /// <summary>
+        /// project.published: chot redundancy (chan chi vuot, VD-M-03) va dieu khoan de tinh
+        /// ngan sach cong link. Du an bat cong link thi bao gate-svc ngan sach ban dau.
+        /// </summary>
+        public async Task GhiNhanRedundancyAsync(ProjectPublished p, Caller caller, CancellationToken ct)
         {
             ProjectEscrow? e = await _db.Escrows.FirstOrDefaultAsync(x => x.ProjectId == p.ProjectId, ct);
             if (e != null)
@@ -148,7 +153,166 @@ namespace Crowd.Ledger.Api.Services
                 // xin them nguoi gan cho mau tranh chap (docs 3.7). Ky quy da tinh
                 // theo tran nen chi toi tran van du tien; qua tran moi la loi.
                 e.DatRedundancy(p.MaxRedundancy);
+                e.GhiDieuKhoan(p.SampleCount, p.UnitPriceVnd, p.PlatformFeeVnd, p.AllowLinkGateway);
+
+                if (p.AllowLinkGateway)
+                {
+                    PhatNganSachCong(e, caller);
+                }
             }
+        }
+
+        // =====================================================================
+        // CONG LINK (P2)
+        // =====================================================================
+
+        /// <summary>
+        /// click.validated: ky quy → sharer TREO + nen tang, chi trong phan ngan sach cong link
+        /// (khong an vao tien danh cho labeler). Het ngan sach thi KHONG chi — la ket qua nghiep
+        /// vu binh thuong (gate phuc vu theo ban sao co do tre), khong nem loi: chi bao lai
+        /// ngan sach de gate ngung phuc vu.
+        /// </summary>
+        public async Task ChiTraCongLinkAsync(ClickValidated c, Caller caller, CancellationToken ct)
+        {
+            await _writer.KhoaAsync(ct);
+
+            if (await _db.Holds.AnyAsync(h => h.AnnotationId == c.ClickId && h.Kind == HoldKind.GateClick, ct))
+            {
+                _logger.LogInformation("Luot {ClickId} da chi tu truoc — bo qua", c.ClickId);
+                return;
+            }
+
+            ProjectEscrow? escrow = await _db.Escrows.FirstOrDefaultAsync(x => x.ProjectId == c.ProjectId, ct);
+            if (escrow == null)
+            {
+                throw new RuleViolationException("chua_ky_quy", "Du an " + c.ProjectId + " chua co ky quy — khong chi duoc.");
+            }
+
+            long tong = checked(c.SharerAmountVnd + c.PlatformAmountVnd);
+            if (escrow.NganSachCongConLai() < tong)
+            {
+                _logger.LogWarning(
+                    "Du an {ProjectId} het ngan sach cong link (con {ConLai}d, can {Can}d) — khong chi luot {ClickId}",
+                    c.ProjectId, escrow.NganSachCongConLai(), tong, c.ClickId);
+                PhatNganSachCong(escrow, caller);
+                return;
+            }
+
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            TimeSpan treo = _settings.ThoiGian(SettingKeys.LedgerHoldDuration);
+
+            await _writer.GhiAsync(Postings.ChiTraCongLink(c.ClickId, c.ProjectId, c.SharerId, c.SharerAmountVnd, c.PlatformAmountVnd, bayGio), ct);
+            escrow.TieuChoCongLink(tong);
+
+            FundsHold hold = FundsHold.TaoChoCongLink(HoldKind.GateClick, c.ClickId, c.ProjectId, c.LinkId, c.SharerId, c.SharerAmountVnd, bayGio, treo);
+            _db.Holds.Add(hold);
+            _events.Phat(caller, new FundsHeld
+            {
+                HoldId = hold.Id,
+                AnnotationId = c.ClickId,
+                LabelerId = c.SharerId,
+                AmountVnd = c.SharerAmountVnd,
+                ReleaseAt = hold.ReleaseAt,
+            });
+
+            await ChiHoaHongAsync(c, treo, bayGio, caller, ct);
+            PhatNganSachCong(escrow, caller);
+        }
+
+        /// <summary>
+        /// FS-08: nguoi gioi thieu huong link.referral_percent doanh thu cong link cua nguoi duoc
+        /// moi — LAY TU PHAN NEN TANG, khong tru vao nguoi duoc moi. Chi tra khi nguoi duoc moi
+        /// da tu kiem >= link.referral_min_earnings_vnd (VD-L-05: clone tu moi nhau khong co gi).
+        /// </summary>
+        private async Task ChiHoaHongAsync(ClickValidated c, TimeSpan treo, DateTimeOffset bayGio, Caller caller, CancellationToken ct)
+        {
+            ReferralLink? r = await _db.Referrals.AsNoTracking().FirstOrDefaultAsync(x => x.ReferredId == c.SharerId, ct);
+            int phanTram = _settings.SoNguyen(SettingKeys.LinkReferralPercent);
+            if (r == null || phanTram <= 0)
+            {
+                return;
+            }
+
+            // Tong da kiem qua cong link (khoan dang treo + da giai phong, KHONG tinh khoan bi giu
+            // lai vi vi pham), CHUA gom luot nay (chua SaveChanges).
+            long daKiem = await _db.Holds
+                .Where(h => h.LabelerId == c.SharerId && h.Kind == HoldKind.GateClick && h.State != HoldState.Withheld)
+                .SumAsync(h => h.AmountVnd, ct);
+            if (daKiem + c.SharerAmountVnd < _settings.SoLon(SettingKeys.LinkReferralMinEarningsVnd))
+            {
+                return;
+            }
+
+            long hoaHong = Math.Min(c.SharerAmountVnd * phanTram / 100, c.PlatformAmountVnd);
+            if (hoaHong <= 0)
+            {
+                return;
+            }
+
+            await _writer.GhiAsync(Postings.HoaHongGioiThieu(c.ClickId, r.ReferrerId, hoaHong, bayGio), ct);
+            FundsHold h = FundsHold.TaoChoCongLink(HoldKind.Referral, c.ClickId, c.ProjectId, c.LinkId, r.ReferrerId, hoaHong, bayGio, treo);
+            _db.Holds.Add(h);
+            _events.Phat(caller, new FundsHeld
+            {
+                HoldId = h.Id,
+                AnnotationId = c.ClickId,
+                LabelerId = r.ReferrerId,
+                AmountVnd = hoaHong,
+                ReleaseAt = h.ReleaseAt,
+            });
+        }
+
+        public async Task GhiGioiThieuAsync(ReferralRegistered p, CancellationToken ct)
+        {
+            if (await _db.Referrals.AnyAsync(x => x.ReferredId == p.ReferredId, ct))
+            {
+                return;
+            }
+
+            _db.Referrals.Add(ReferralLink.Tao(p.ReferrerId, p.ReferredId, p.RegisteredAt));
+        }
+
+        /// <summary>
+        /// link.disabled vi vi pham (WithholdRevenue): moi khoan DANG TREO cua link (doanh thu
+        /// sharer va hoa hong gioi thieu) chuyen sang platform:withheld. Khoan da giai phong thi
+        /// khong thu hoi — chinh vi vay moi co thoi gian treo.
+        /// </summary>
+        public async Task GiuDoanhThuLinkAsync(LinkDisabled p, Caller caller, CancellationToken ct)
+        {
+            if (!p.WithholdRevenue)
+            {
+                return;
+            }
+
+            await _writer.KhoaAsync(ct);
+
+            List<FundsHold> ds = await _db.Holds
+                .Where(h => h.LinkId == p.LinkId && h.State == HoldState.Held)
+                .ToListAsync(ct);
+
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            long tong = 0;
+            foreach (FundsHold h in ds)
+            {
+                h.GiuLai(bayGio);
+                await _writer.GhiAsync(Postings.GiuDoanhThu(h.Id, h.LabelerId, h.AmountVnd, bayGio), ct);
+                tong = tong + h.AmountVnd;
+            }
+
+            if (ds.Count > 0)
+            {
+                _logger.LogWarning("Link {LinkId} vi pham: giu lai {So} khoan treo, {Tong}d", p.LinkId, ds.Count, tong);
+            }
+        }
+
+        private void PhatNganSachCong(ProjectEscrow e, Caller caller)
+        {
+            _events.Phat(caller, new GateBudgetChanged
+            {
+                ProjectId = e.ProjectId,
+                RemainingVnd = e.NganSachCongConLai(),
+                Sequence = e.SoThuTuNganSachMoi(),
+            });
         }
 
         // =====================================================================
@@ -167,9 +331,16 @@ namespace Crowd.Ledger.Api.Services
         /// </summary>
         public async Task ChiTraNhanAsync(AnnotationApproved a, Caller caller, CancellationToken ct)
         {
+            if (a.Source == AnnotationSource.LinkGateway)
+            {
+                // Nhan tu cong link: nguoi chia se link DA duoc tra theo luot vuot (click.validated);
+                // khach vang lai khong co vi. Duyet nhan nay chi la chon loc du lieu, khong chi tien.
+                return;
+            }
+
             if (a.LabelerId == null)
             {
-                throw new InvalidValueException("thieu_labeler", "Chi tra kenh cong link (khong co labeler) chua ho tro — P2.");
+                throw new InvalidValueException("thieu_labeler", "Nhan chuyen nghiep thieu labeler — khong chi duoc.");
             }
 
             await _writer.KhoaAsync(ct);

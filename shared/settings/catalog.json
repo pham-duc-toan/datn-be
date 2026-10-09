@@ -911,5 +911,203 @@
     "unit": "giay",
     "effect": "newOperations",
     "description": "admin-svc phat lai toan bo setting dinh ky (de service lo mat event van dong bo)."
+  },
+  {
+    "key": "gate.enabled",
+    "group": "Cong link",
+    "type": "bool",
+    "default": true,
+    "min": null,
+    "max": null,
+    "unit": "",
+    "effect": "newOperations",
+    "description": "Tat = trang vuot link chi chuyen thang toi dich, khong phat cau hoi, khong tra tien sharer."
+  },
+  {
+    "key": "gate.countdown",
+    "group": "Cong link",
+    "type": "durationSeconds",
+    "default": 8,
+    "min": 0,
+    "max": 120,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Dem nguoc toi thieu truoc khi khach nop bai (server kiem, khong chi la giao dien)."
+  },
+  {
+    "key": "gate.gold_per_session",
+    "group": "Cong link",
+    "type": "int",
+    "default": 1,
+    "min": 1,
+    "max": 5,
+    "unit": "cau",
+    "effect": "newOperations",
+    "description": "So cau vang (da biet dap an) moi luot vuot link."
+  },
+  {
+    "key": "gate.real_per_session",
+    "group": "Cong link",
+    "type": "int",
+    "default": 2,
+    "min": 1,
+    "max": 10,
+    "unit": "cau",
+    "effect": "newOperations",
+    "description": "So cau that (can thu thap nhan) moi luot vuot link."
+  },
+  {
+    "key": "gate.session_ttl",
+    "group": "Cong link",
+    "type": "durationSeconds",
+    "default": 600,
+    "min": 60,
+    "max": 3600,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Bo cau hoi da phat song bao lau."
+  },
+  {
+    "key": "gate.token_ttl",
+    "group": "Cong link",
+    "type": "durationSeconds",
+    "default": 180,
+    "min": 30,
+    "max": 900,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Token mo link dich dung mot lan, song bao lau (VD-L-02)."
+  },
+  {
+    "key": "gate.ip_dedupe_window",
+    "group": "Cong link",
+    "type": "durationSeconds",
+    "default": 86400,
+    "min": 0,
+    "max": 2592000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Moi IP chi tinh mot luot co tien cho moi link trong khoang nay (dac ta: 24 gio)."
+  },
+  {
+    "key": "gate.max_labels_per_sample",
+    "group": "Cong link",
+    "type": "int",
+    "default": 5,
+    "min": 1,
+    "max": 1000,
+    "unit": "nhan",
+    "effect": "newOperations",
+    "description": "Moi mau nhan toi da bay nhieu nhan tu cong link."
+  },
+  {
+    "key": "gate.cache_refresh_interval",
+    "group": "Cong link",
+    "type": "durationSeconds",
+    "default": 60,
+    "min": 5,
+    "max": 3600,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Gate nap lai bo nho dem du an / mau / link tu ban sao sau moi khoang nay."
+  },
+  {
+    "key": "gate.event_flush_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 1,
+    "min": 0.2,
+    "max": 60,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Gate chuyen luot vuot tu Redis Stream sang outbox + ClickHouse sau moi khoang nay."
+  },
+  {
+    "key": "gate.event_batch_size",
+    "group": "Ky thuat",
+    "type": "int",
+    "default": 200,
+    "min": 1,
+    "max": 5000,
+    "unit": "luot",
+    "effect": "newOperations",
+    "description": "So luot vuot gate chuyen moi lo."
+  },
+  {
+    "key": "link.code_length",
+    "group": "Cong link",
+    "type": "int",
+    "default": 7,
+    "min": 5,
+    "max": 12,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Do dai ma link ngau nhien."
+  },
+  {
+    "key": "link.bulk_max",
+    "group": "Cong link",
+    "type": "int",
+    "default": 100,
+    "min": 1,
+    "max": 1000,
+    "unit": "link",
+    "effect": "newOperations",
+    "description": "Rut gon hang loat toi da bay nhieu link moi lan (FS-03)."
+  },
+  {
+    "key": "link.report_review_threshold",
+    "group": "Cong link",
+    "type": "int",
+    "default": 3,
+    "min": 1,
+    "max": 1000,
+    "unit": "bao cao",
+    "effect": "newOperations",
+    "description": "Link bi bao cao tu bay nhieu IP khac nhau thi vao hang doi kiem duyet."
+  },
+  {
+    "key": "link.scan_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 2,
+    "min": 1,
+    "max": 3600,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Worker quet link cho kiem duyet (Safe Browsing) sau moi khoang nay."
+  },
+  {
+    "key": "link.referral_percent",
+    "group": "Cong link",
+    "type": "int",
+    "default": 10,
+    "min": 0,
+    "max": 50,
+    "unit": "%",
+    "effect": "newOperations",
+    "description": "Nguoi gioi thieu huong phan tram nay tren doanh thu cong link cua nguoi duoc moi (FS-08). Lay tu phan cua nen tang."
+  },
+  {
+    "key": "link.referral_min_earnings_vnd",
+    "group": "Cong link",
+    "type": "long",
+    "default": 50000,
+    "min": 0,
+    "max": 1000000000000,
+    "unit": "dong",
+    "effect": "newOperations",
+    "description": "Chi tra hoa hong sau khi nguoi duoc moi da tu kiem duoc tong bay nhieu (chong tai khoan clone tu moi nhau — VD-L-05)."
+  },
+  {
+    "key": "link.referral_claim_window",
+    "group": "Cong link",
+    "type": "durationSeconds",
+    "default": 604800,
+    "min": 0,
+    "max": 31536000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Tai khoan moi tao trong khoang nay moi nhap duoc ma gioi thieu."
   }
 ]

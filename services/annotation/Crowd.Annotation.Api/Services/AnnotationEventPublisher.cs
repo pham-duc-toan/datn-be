@@ -62,7 +62,8 @@ namespace Crowd.Annotation.Api.Services
                 LabelerId = a.LabelerId,
                 AmountVnd = t.UnitPriceVnd,
                 PlatformFeeVnd = t.PlatformFeeVnd,
-                Source = AnnotationSource.Professional,
+                // Nhan cong link: ledger KHONG chi theo nhan (sharer da duoc tra theo luot vuot).
+                Source = a.Source == LabelSource.LinkGateway ? AnnotationSource.LinkGateway : AnnotationSource.Professional,
             });
         }
     }

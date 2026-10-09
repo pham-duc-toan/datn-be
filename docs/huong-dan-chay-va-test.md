@@ -18,8 +18,8 @@ Khi dán, xóa luôn cặp dấu `< >`. Ví dụ `Bearer <token-biz1>` sẽ thà
 ## 0. Chạy nhanh (đã quen thì chỉ cần mục này)
 
 ```bash
-# 1. Hạ tầng: RabbitMQ, MinIO, Postgres của các service P0 (kể cả admin) + P1 + P3 (quality)
-docker compose -f docker-compose.infra.yml --profile p0 --profile p1 --profile p3 up -d
+# 1. Hạ tầng: RabbitMQ, MinIO, Postgres của các service P0 (kể cả admin) + P1 + P2 (cổng link) + P3 (quality)
+docker compose -f docker-compose.infra.yml --profile p0 --profile p1 --profile p2 --profile p3 up -d
 
 # 2. Build một lần
 dotnet build datn.slnx
@@ -32,6 +32,8 @@ dotnet run --project services/task/Crowd.Tasking.Api
 dotnet run --project services/annotation/Crowd.Annotation.Api
 dotnet run --project services/ledger/Crowd.Ledger.Api
 dotnet run --project services/payment/Crowd.Payment.Api
+dotnet run --project services/link/Crowd.Link.Api            # cổng link: link rút gọn của người chia sẻ
+dotnet run --project services/gate/Crowd.Gate.Api            # cổng link: trang vượt link
 dotnet run --project services/gateway/Crowd.Gateway.Api
 cd services/quality && .venv/Scripts/python -m app.main     # quality-svc (Python) — tạo .venv lần đầu: mục 3
 
@@ -58,11 +60,11 @@ curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/j
 ## 2. Khởi động hạ tầng
 
 ```bash
-docker compose -f docker-compose.infra.yml --profile p0 --profile p1 --profile p3 up -d
+docker compose -f docker-compose.infra.yml --profile p0 --profile p1 --profile p2 --profile p3 up -d
 docker ps --format "table {{.Names}}\t{{.Status}}"      # đợi mọi container (healthy)
 ```
 
-`--profile p0` bật Postgres của identity, project, task, annotation **và admin** (setting hệ thống, mục 6.16). `--profile p1` bật thêm Postgres của ledger và payment. `--profile p3` bật Postgres của quality. RabbitMQ và MinIO thuộc nhóm core nên luôn được bật. Container `minio-init` chạy một lần để tạo bucket `datasets` rồi tự thoát, đó là bình thường.
+`--profile p0` bật Postgres của identity, project, task, annotation **và admin** (setting hệ thống, mục 6.16). `--profile p1` bật thêm Postgres của ledger và payment. `--profile p2` bật hạ tầng cổng link: Postgres của link và gate, Redis riêng của gate, ClickHouse. `--profile p3` bật Postgres của quality. RabbitMQ và MinIO thuộc nhóm core nên luôn được bật. Container `minio-init` chạy một lần để tạo bucket `datasets` rồi tự thoát, đó là bình thường.
 
 | Thành phần | Cổng | Đăng nhập (dev) |
 |---|---|---|
@@ -72,6 +74,9 @@ docker ps --format "table {{.Names}}\t{{.Status}}"      # đợi mọi container
 | Postgres ledger / payment | 5405 / 5406 | như trên |
 | Postgres quality | 5421 | `quality_user` / `dev_quality_pw` |
 | Postgres admin | 5411 | `admin_user` / `dev_admin_pw` |
+| Postgres link / gate | 5407 / 5408 | `link_user` / `dev_link_pw`, `gate_user` / `dev_gate_pw` |
+| Redis gate | 6381 | không mật khẩu (dev). `docker exec -it datn-redis-gate redis-cli` |
+| ClickHouse gate | HTTP **8123** | `gate_user` / `dev_gate_pw`, database `gate_db` |
 
 Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledger_db`
 
@@ -89,6 +94,8 @@ Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledge
 | annotation-svc | 8104 | `dotnet run --project services/annotation/Crowd.Annotation.Api` |
 | ledger-svc | 8105 | `dotnet run --project services/ledger/Crowd.Ledger.Api` |
 | payment-svc | 8106 | `dotnet run --project services/payment/Crowd.Payment.Api` |
+| link-svc | 8107 | `dotnet run --project services/link/Crowd.Link.Api` |
+| gate-svc | 8108 | `dotnet run --project services/gate/Crowd.Gate.Api` |
 | quality-svc (Python) | 8201 | `cd services/quality && .venv/Scripts/python -m app.main` |
 
 **quality-svc lần đầu** cần tạo môi trường Python (một lần):
@@ -120,7 +127,7 @@ Seed quality: them 5 / 5 du an          (log của quality-svc, định dạng P
 
 Từ lần chạy thứ hai, log sẽ là `Seed ...: da co du lieu seed — bo qua` (identity, payment) hoặc `da du du an seed — bo qua` (project, task, annotation, ledger). DB cũ chỉ có P1–P4 thì lần chạy đầu sau khi cập nhật code sẽ seed thêm P5–P7.
 
-Nếu muốn bật cả 8 service C# trong **một** terminal Git Bash (log ghi ra thư mục `logs/`):
+Nếu muốn bật cả 10 service C# trong **một** terminal Git Bash (log ghi ra thư mục `logs/`):
 
 ```bash
 mkdir -p logs
@@ -131,6 +138,8 @@ dotnet run --project services/task/Crowd.Tasking.Api          > logs/task.log 2>
 dotnet run --project services/annotation/Crowd.Annotation.Api > logs/annotation.log 2>&1 &
 dotnet run --project services/ledger/Crowd.Ledger.Api         > logs/ledger.log 2>&1 &
 dotnet run --project services/payment/Crowd.Payment.Api       > logs/payment.log 2>&1 &
+dotnet run --project services/link/Crowd.Link.Api             > logs/link.log 2>&1 &
+dotnet run --project services/gate/Crowd.Gate.Api             > logs/gate.log 2>&1 &
 dotnet run --project services/gateway/Crowd.Gateway.Api       > logs/gateway.log 2>&1 &
 grep -h "Seed " logs/*.log        # đợi ~20 giây rồi xem kết quả seed
 ```
@@ -871,6 +880,79 @@ Một mã sao kê (`bankTxnRef`) chỉ dùng cho một lệnh nạp — dùng l�
 
 **Còn ở appsettings / biến môi trường** (không phải setting): chuỗi kết nối, RabbitMQ / MinIO, khóa ký JWT, cổng, `Media:FfprobePath`, `Consumers:DeliveryLimit` (topology queue), `Saga:BoQuaKyQuy` (cờ chỉ dùng ở dev), `Seed:Enabled`.
 
+### 6.17 Cổng link (P2): người chia sẻ rút gọn link, khách vượt link, tiền về ví
+
+Không có tài khoản seed nào là sharer, nên đăng ký một tài khoản mới (một tài khoản có thể vừa là labeler vừa là sharer):
+
+```bash
+curl -s -X POST http://localhost:8080/auth/register -H "Content-Type: application/json" \
+  -d '{"email":"sharer1@crowd.local","password":"Matkhau@123","displayName":"Sharer 1","roles":["sharer"]}'
+# đăng nhập lấy <token-sharer> như mục 5
+```
+
+**Doanh nghiệp bật cổng link cho dự án.** Chỉ dự án dữ liệu ảnh / văn bản / cặp, công cụ là phân loại chọn một hoặc so sánh cặp, có câu vàng mục đích `qualityCheck`. Ngân sách phải **lớn hơn** mức ký quỹ tối thiểu: cổng link chỉ tiêu phần vượt.
+
+```bash
+# Trên một dự án nháp (mục 6.11): bật kênh cổng link, thêm câu vàng qualityCheck, rồi publish và duyệt như mục 6.4–6.5
+curl -s -X PUT http://localhost:8080/projects/<id>/channels -H "Authorization: Bearer <token-biz1>" \
+  -H "Content-Type: application/json" -d '{"allowProfessional":true,"allowLinkGateway":true,"allowCollaborative":false}'
+# Sau publish: ngân sách cổng = ngân sách − số mẫu × trần redundancy × (đơn giá + phí)
+docker exec datn-db-gate psql -U gate_user -d gate_db -c "select * from gate_budgets"
+```
+
+**Người chia sẻ tạo link** (bằng token, API key, Quick Link hoặc hàng loạt):
+
+```bash
+curl -s -X POST http://localhost:8080/links -H "Authorization: Bearer <token-sharer>" \
+  -H "Content-Type: application/json" -d '{"url":"https://example.com/bai-viet","alias":"bai-viet-1"}'
+# → status pendingScan; ~2 giây sau worker quét xong → active. shortUrl = http://localhost:8080/g/bai-viet-1
+
+curl -s -X POST http://localhost:8080/links/api-key -H "Authorization: Bearer <token-sharer>"      # apiKey "lk_..." (hiện MỘT lần)
+curl -s "http://localhost:8080/links/quick?api=<apiKey>&url=https://example.com/x"                # trả về chuỗi link rút gọn
+curl -s -X POST http://localhost:8080/links/bulk -H "X-Api-Key: <apiKey>" -H "Content-Type: application/json" \
+  -d '{"urls":["https://example.org/a","khong-phai-url"]}'                                          # mỗi URL một dòng kết quả
+
+# Link đích độc hại (dev giả lập: tên miền malware.example.test) → bị chặn sau khi quét
+curl -s -X POST http://localhost:8080/links -H "Authorization: Bearer <token-sharer>" \
+  -H "Content-Type: application/json" -d '{"url":"https://malware.example.test/x"}'                 # vài giây sau: status blocked
+```
+
+**Khách vượt link** (không cần đăng nhập). Dev dùng khoá test của Cloudflare Turnstile, token dummy `XXXX.DUMMY.TOKEN.XXXX` luôn đạt:
+
+```bash
+curl -s http://localhost:8080/g/bai-viet-1                    # requiresPassword, countdownSeconds, turnstileSiteKey
+curl -s -X POST http://localhost:8080/g/bai-viet-1/sessions -H "Content-Type: application/json" \
+  -d '{"turnstileToken":"XXXX.DUMMY.TOKEN.XXXX"}'
+# → sessionId, answerableAt, labelSchema, questions [{sampleId, modality, content|fileUrl, metadata}]
+#   (1 câu vàng + 2 câu thật TRỘN LẪN — response không cho biết câu nào là vàng)
+
+# Đợi hết đếm ngược (setting gate.countdown, mặc định 8 giây), trả lời TẤT CẢ câu:
+curl -s -X POST http://localhost:8080/g/sessions/<sessionId>/submit -H "Content-Type: application/json" \
+  -d '{"answers":{"<sampleId-1>":{"loai":{"labelIds":["cho"]}},"<sampleId-2>":{"loai":{"labelIds":["meo"]}},"<sampleId-3>":{"loai":{"labelIds":["cho"]}}}}'
+# đạt  → {"passed":true,"redirectUrl":"/go/bai-viet-1?t=...","redirectExpiresAt":...}
+# trượt → {"passed":false,"newSession":{...}}  (bộ câu mới)
+
+curl -s -i "http://localhost:8080/go/bai-viet-1?t=<token>"     # 302 Location: https://example.com/bai-viet
+curl -s -i "http://localhost:8080/go/bai-viet-1?t=<token>"     # lần 2: 410 token_da_dung
+```
+
+**Tiền và thống kê:**
+
+```bash
+curl -s http://localhost:8080/ledger/me/balance -H "Authorization: Bearer <token-sharer>"   # pendingVnd += 2 × (đơn giá − phí/nhãn)
+curl -s http://localhost:8080/gate/stats/me/daily -H "Authorization: Bearer <token-sharer>"
+curl -s http://localhost:8080/gate/stats/me/outcomes -H "Authorization: Bearer <token-sharer>"   # tinhTien / trungIp / tuVuot / truotCauVang / hetNganSach
+curl -s "http://localhost:8123/?user=gate_user&password=dev_gate_pw&database=gate_db" --data "SELECT kind, outcome, count() FROM click_events GROUP BY kind, outcome"
+```
+
+Kiểm tra thêm:
+- Vượt lại **từ cùng máy** đã tạo link: vẫn mở được link nhưng **không** tính tiền (`tuVuot` — cùng IP với lúc tạo link). Vượt hai lần cùng IP trong 24 giờ: lần hai `trungIp`.
+- Nhãn khách vượt link nằm ở annotation-svc với `source: "linkGateway"`, `taskId: null`. Duyệt nhãn này **không** chi tiền (sharer đã được trả theo lượt).
+- Hết ngân sách cổng: bộ câu trả về rỗng (chỉ đếm ngược), ledger không chi vượt — ký quỹ dành cho labeler giữ nguyên.
+- **Giới thiệu:** `GET /links/referrals/me` lấy mã; tài khoản **mới đăng ký** gọi `POST /links/referrals/claim {"code":"..."}`. Khi người được mời kiếm tiền qua cổng (và đã vượt `link.referral_min_earnings_vnd`), người giới thiệu nhận 10% vào `pendingVnd`.
+- **Kiểm duyệt:** khách bấm báo cáo `POST /links/r/<code>/report {"reason":"..."}`. Đủ `link.report_review_threshold` IP khác nhau thì link vào `GET /links/admin/review-queue`. Admin `POST /links/admin/<id>/disable {"reason":"...","withholdRevenue":true}` → trang vượt link 404, doanh thu đang treo của link chuyển sang `platform:withheld`.
+- Chặn tên miền: `POST /links/admin/blocked-domains {"domain":"casino.com","reason":"..."}` — chặn cả tên miền con, link đang chạy tới đó bị vô hiệu hoá ngay.
+
 ## 7. Kiểm tra tổng sau khi test
 
 ```bash
@@ -898,6 +980,11 @@ Xem event chạy qua hệ thống: mở RabbitMQ UI tại http://localhost:15672
 | Lô manifest `failed`, `errorSummary` ghi `khong doc duoc thoi luong` | project-svc không tìm thấy ffprobe. Cài FFmpeg, hoặc đặt `Media:FfprobePath` trong appsettings, hoặc khai `durationSec` trong dòng manifest |
 | Đổi setting mà service không thấy giá trị mới | Xem bản sao: `docker exec datn-db-<svc> psql -U <svc>_user -d <svc>_db -c "select * from settings_replica where key='...'"`. Chưa có version mới → service đó chưa nhận `setting.changed` (đang tắt, hoặc message nằm DLQ `<svc>.setting-changed.dlq`). Bật lại service là nó tự xin snapshot |
 | `/admin/...` trả 502 | admin-svc chưa chạy, hoặc chưa bật `--profile p0` (Postgres admin) |
+| `/links/...`, `/g/...`, `/go/...` trả 502 | link-svc / gate-svc chưa chạy, hoặc chưa bật `--profile p2` |
+| Link đứng mãi ở `pendingScan` | link-svc không chạy (worker quét nằm trong nó), hoặc Safe Browsing lỗi mạng (khi có `UrlSafety:GoogleApiKey`) — xem log `Quet link loi` |
+| `GET /g/<code>` trả 404 dù link `active` | gate chưa nhận `link.activated` (gate tắt lúc link được kích hoạt sẽ nhận khi bật lại), hoặc link hết hạn |
+| Bộ câu hỏi luôn rỗng | Không có dự án nào phục vụ được: chưa bật kênh cổng link, công cụ không phải phân loại chọn một / so sánh cặp, thiếu câu vàng `qualityCheck`, hoặc ngân sách không vượt mức tối thiểu (`select * from gate_budgets` trong gate_db) |
+| `turnstile_that_bai` | Thiếu `turnstileToken`, hoặc gate không gọi được `challenges.cloudflare.com` (cần mạng). Offline thì đặt `Gate:Turnstile:Enabled = false` trong appsettings.Development.json của gate |
 | `/quality/...` trả 502 | quality-svc chưa chạy (mục 3) hoặc chưa bật `--profile p3` |
 | Log quality `Bo qua dong thuan task ...: chua co ban sao du an` | Dự án publish **trước khi** quality-svc chạy lần đầu (không phải dự án seed): quality không có tập nhãn và trần redundancy nên bỏ qua. Dự án publish sau đó được tính bình thường |
 | Lô manifest đứng mãi ở `pending` | project-svc không chạy (worker nạp dữ liệu chạy bên trong nó). Bật lên là lô được xử lý; lô `ingesting` dở dang được làm lại từ đầu |

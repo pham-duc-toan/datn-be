@@ -11,9 +11,13 @@ namespace Crowd.Annotation.Api.Dtos
 
         public required Guid ProjectId { get; init; }
 
-        public required Guid TaskId { get; init; }
+        /// <summary>null voi nhan tu cong link (khong thuoc task nao).</summary>
+        public Guid? TaskId { get; init; }
 
         public required Guid SampleId { get; init; }
+
+        /// <summary>professional (labeler) | linkGateway (khach vang lai qua trang vuot link).</summary>
+        public required LabelSource Source { get; init; }
 
         /// <summary>Link xem / nghe file cua mau, co han vai phut (S-07). null voi text / pair.</summary>
         public string? FileUrl { get; init; }

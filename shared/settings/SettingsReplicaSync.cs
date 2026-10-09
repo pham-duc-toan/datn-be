@@ -23,6 +23,8 @@ namespace Crowd.Settings
     public sealed class SettingsReplicaSync<TDbContext> : BackgroundService
         where TDbContext : DbContext
     {
+        private static readonly TimeSpan KhoangXinLai = TimeSpan.FromSeconds(30);
+
         private readonly IServiceScopeFactory _scopes;
         private readonly SettingsStore _store;
         private readonly string _tenService;
@@ -62,7 +64,7 @@ namespace Crowd.Settings
                 await XinSnapshotAsync(cancellationToken);
                 _logger.LogInformation("Setting: nap {So} gia tri tu ban sao, da xin admin-svc phat lai", so);
             }
-            catch (Exception ex) when (!(ex is OperationCanceledException))
+            catch (Exception ex) when ((ex as OperationCanceledException) == null)
             {
                 _logger.LogError(ex, "Khong nap duoc ban sao setting — dung gia tri khoi tao cho toi lan nap sau");
             }
@@ -72,12 +74,24 @@ namespace Crowd.Settings
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            DateTimeOffset lanXinCuoi = DateTimeOffset.UtcNow;
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
                     await Task.Delay(_store.ThoiGian(SettingKeys.SettingsReloadInterval), stoppingToken);
-                    await NapAsync(stoppingToken);
+                    int so = await NapAsync(stoppingToken);
+
+                    // Lan chay DAU TIEN cua service: queue settings-snapshot chua ton tai luc xin o
+                    // StartAsync (consumer khai bao queue SAU), nen snapshot admin phat ra bi lo.
+                    // Ban sao con rong thi xin lai — toi da moi 30 giay mot lan.
+                    if (so == 0 && DateTimeOffset.UtcNow - lanXinCuoi >= KhoangXinLai)
+                    {
+                        await XinSnapshotAsync(stoppingToken);
+                        lanXinCuoi = DateTimeOffset.UtcNow;
+                        _logger.LogInformation("Setting: ban sao van rong — xin admin-svc phat lai lan nua");
+                    }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {

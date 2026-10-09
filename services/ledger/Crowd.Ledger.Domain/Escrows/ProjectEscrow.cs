@@ -36,6 +36,22 @@ namespace Crowd.Ledger.Domain.Escrows
 
         public EscrowState State { get; private set; }
 
+        // ---- Dieu khoan da chot luc publish (project.published) — de tinh ngan sach CONG LINK ----
+
+        public int SampleCount { get; private set; }
+
+        public long UnitPriceVnd { get; private set; }
+
+        public long PlatformFeeVnd { get; private set; }
+
+        public bool AllowLinkGateway { get; private set; }
+
+        /// <summary>Tong ky quy da tieu cho kenh cong link (sharer + phan nen tang).</summary>
+        public long GateSpentVnd { get; private set; }
+
+        /// <summary>So thu tu tang dan cua gate.budget_changed — gate bo qua event cu den tre.</summary>
+        public long GateBudgetSequence { get; private set; }
+
         public DateTimeOffset ReservedAt { get; private set; }
 
         public DateTimeOffset? ClosedAt { get; private set; }
@@ -57,6 +73,55 @@ namespace Crowd.Ledger.Domain.Escrows
             {
                 Redundancy = redundancy;
             }
+        }
+
+        /// <summary>project.published: chot so mau, don gia, phi, kenh cong link.</summary>
+        public void GhiDieuKhoan(int sampleCount, long unitPriceVnd, long platformFeeVnd, bool allowLinkGateway)
+        {
+            SampleCount = sampleCount;
+            UnitPriceVnd = unitPriceVnd;
+            PlatformFeeVnd = platformFeeVnd;
+            AllowLinkGateway = allowLinkGateway;
+        }
+
+        /// <summary>
+        /// Phan ky quy DANH RIENG cho labeler chuyen nghiep: so mau x tran redundancy x
+        /// (don gia + phi) — dung muc toi thieu project-svc bat ky quy luc publish.
+        /// </summary>
+        public long DanhChoChuyenNghiepVnd()
+        {
+            return checked((long)SampleCount * Redundancy * (UnitPriceVnd + PlatformFeeVnd));
+        }
+
+        /// <summary>
+        /// Ngan sach CONG LINK con lai = ky quy − phan danh cho chuyen nghiep − da tieu cho
+        /// cong link. Cong link KHONG BAO GIO an vao tien da danh cho labeler (VD-L-03):
+        /// doanh nghiep muon chay cong link thi dat ngan sach cao hon muc toi thieu.
+        /// </summary>
+        public long NganSachCongConLai()
+        {
+            if (!AllowLinkGateway || State != EscrowState.Active || SampleCount <= 0 || Redundancy <= 0)
+            {
+                return 0;
+            }
+
+            return Math.Max(0, ReservedVnd - DanhChoChuyenNghiepVnd() - GateSpentVnd);
+        }
+
+        public void TieuChoCongLink(long soTien)
+        {
+            if (soTien <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(soTien), "So tien phai duong.");
+            }
+
+            GateSpentVnd = checked(GateSpentVnd + soTien);
+        }
+
+        public long SoThuTuNganSachMoi()
+        {
+            GateBudgetSequence = GateBudgetSequence + 1;
+            return GateBudgetSequence;
         }
 
         /// <summary>Task nay da duoc chi du so luot da ky quy chua.</summary>

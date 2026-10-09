@@ -154,6 +154,52 @@ namespace Crowd.Annotation.Domain.Annotations
             get { return _history; }
         }
 
+        /// <summary>
+        /// Nhan cua khach vang lai qua trang vuot link (gate.solved): da qua cau vang, KHONG co
+        /// labeler (khong ai duoc tra tien theo nhan — nguoi chia se link da duoc tra theo luot),
+        /// KHONG thuoc task nao (TaskId = Guid.Empty), khong tinh vao redundancy / dong thuan.
+        /// assignmentId la id tat dinh (phien, mau) — event giao lai khong tao nhan thu hai.
+        /// </summary>
+        public static LabelAnnotation TaoTuCongLink(
+            Guid assignmentId,
+            Guid projectId,
+            Guid sampleId,
+            string? storageKey,
+            RawJson? sampleContent,
+            RawJson sampleMetadata,
+            LabelPayload nhan,
+            DateTimeOffset submittedAt)
+        {
+            if (sampleMetadata == null)
+            {
+                throw new ArgumentNullException(nameof(sampleMetadata));
+            }
+
+            if (nhan == null)
+            {
+                throw new InvalidValueException("nhan_rong", "Nhan khong duoc rong.");
+            }
+
+            LabelAnnotation a = new LabelAnnotation();
+            a.Id = Guid.CreateVersion7();
+            a.AssignmentId = assignmentId;
+            a.TaskId = Guid.Empty;
+            a.ProjectId = projectId;
+            a.SampleId = sampleId;
+            a.StorageKey = storageKey;
+            a.SampleContent = sampleContent;
+            a.SampleMetadata = sampleMetadata;
+            a.LabelerId = null;
+            a._payloadTaskType = nhan.TaskType;
+            a._payloadSchemaVersion = nhan.SchemaVersion;
+            a._payloadJson = nhan.DataJson;
+            a.Source = LabelSource.LinkGateway;
+            a.Status = AnnotationStatus.PendingReview;
+            a.SubmittedAt = submittedAt;
+            a._history.Add(new AnnotationHistoryEntry("submitted", null, "Cong link", submittedAt));
+            return a;
+        }
+
         public static LabelAnnotation TaoTuLuotNop(
             Guid assignmentId,
             Guid taskId,

@@ -19,6 +19,7 @@ Mục lục:
 9. [Mã lỗi](#9-mã-lỗi)
 10. [Giới hạn](#10-giới-hạn)
 11. [Backend chưa có / cần lưu ý](#11-backend-chưa-có--cần-lưu-ý)
+12. [Cổng link: người chia sẻ và trang vượt link](#12-cổng-link-người-chia-sẻ-và-trang-vượt-link)
 
 ---
 
@@ -138,6 +139,10 @@ Cách làm khuyến nghị:
 | | Lịch sử, khiếu nại, uy tín | `GET /annotations/mine`, `POST /annotations/{id}/appeal`, `GET /quality/me` |
 | | Ví, rút tiền | `GET /ledger/me/balance`, `GET /ledger/me/transactions`, `POST /ledger/withdrawals`, `GET /ledger/withdrawals/mine` |
 | Reviewer (trong dự án) | Duyệt nhãn của dự án được giao | Giống phần duyệt nhãn của doanh nghiệp |
+| Người chia sẻ (sharer) | Quản lý link, chiến dịch | `POST /links`, `POST /links/bulk`, `GET /links`, `GET/PUT/DELETE /links/{id}`, `GET/POST /links/campaigns` |
+| | API key, Quick Link | `POST/GET /links/api-key`, `GET /links/quick?api=&url=` |
+| | Thống kê, giới thiệu, ví | `GET /gate/stats/me/daily` / `top-links` / `sources` / `outcomes`, `GET /links/referrals/me`, `POST /links/referrals/claim`, ví như labeler (mục 5.7) |
+| Khách vãng lai | Trang vượt link (không đăng nhập) | `GET /g/{code}`, `POST /g/{code}/sessions`, `POST /g/sessions/{id}/submit`, `GET /go/{code}?t=`, `POST /links/r/{code}/report` |
 | Admin | Duyệt dự án | `GET /projects/pending-approval`, `POST /projects/{id}/approve` / `reject` |
 | | Khiếu nại | `GET /annotations/appeals`, `POST /annotations/{id}/appeal/resolve` |
 | | Đối soát sổ cái | `GET /ledger/admin/reconciliation` |
@@ -145,6 +150,7 @@ Cách làm khuyến nghị:
 | | Setting hệ thống (phí, tự duyệt, hạn mức…) | `GET /admin/settings`, `PUT /admin/settings/{key}`, `GET /admin/settings/{key}/history` |
 | | Duyệt rút tiền | `GET /ledger/admin/withdrawals`, `POST /ledger/admin/withdrawals/{id}/approve` / `reject` |
 | | Đối chiếu nạp chuyển khoản | `GET /payments/admin/deposits`, `POST /payments/admin/deposits/{id}/approve` / `reject` |
+| | Kiểm duyệt link | `GET /links/admin/review-queue`, `POST /links/admin/{id}/disable` / `dismiss-reports`, `GET/POST/DELETE /links/admin/blocked-domains` |
 
 ---
 
@@ -474,7 +480,7 @@ GET /annotations/projects/{id}?status=pendingReview&page=1&pageSize=20
 
 ```json
 {
-  "id": "...", "projectId": "...", "taskId": "...", "sampleId": "...",
+  "id": "...", "projectId": "...", "taskId": "...", "sampleId": "...", "source": "professional",
   "fileUrl": "http://...", "sampleContent": null, "sampleMetadata": { "width": 300, "height": 200 },
   "labelerId": "...",
   "payload": { "taskType": "image", "schemaVersion": 1,
@@ -484,6 +490,8 @@ GET /annotations/projects/{id}?status=pendingReview&page=1&pageSize=20
   "consensusAgrees": true
 }
 ```
+
+`source`: `professional` (labeler) hoặc `linkGateway` (khách vãng lai qua trang vượt link — mục 12). Nhãn `linkGateway` có `taskId: null`, `labelerId: null`; duyệt / loại để chọn lọc dữ liệu, **không** sinh tiền theo nhãn. Nên cho lọc theo nguồn trên màn hình duyệt.
 
 Màn hình duyệt = **workspace gán nhãn ở chế độ chỉ xem**: vẽ lại mẫu (từ `fileUrl` / `sampleContent` / `sampleMetadata`) và nhãn (`payload.data`) theo đúng quy ước ở mục 6. Tập nhãn lấy từ `GET /projects/{id}` (`labelSchema`).
 
@@ -666,6 +674,8 @@ GET /quality/me     → { "reputation": 78, "agreementPercent": 92, "updatedAt":
 `reputation` 0–100 (`null` khi chưa có bằng chứng) tính từ câu vàng kiểm tra + mức khớp đồng thuận. Dự án có thể đặt `minReputation` (mục 4.5): dưới mức đó thì `next` trả 403 `chua_du_uy_tin`. API **không** trả số câu vàng đúng/sai — đếm thay đổi sau từng lần nộp là đoán được task nào là câu kiểm tra.
 
 ### 5.7 Ví và rút tiền
+
+Người chia sẻ link (`sharer`) dùng **cùng ví và cùng API** này: doanh thu cổng link vào `pendingVnd` rồi `availableVnd` như thu nhập labeler (mục 12).
 
 ```http
 GET /ledger/me/balance        → { "pendingVnd": 20000, "availableVnd": 63000, ... }
@@ -1271,6 +1281,16 @@ Danh sách các `code` thường gặp để frontend dịch. Mã không có tro
 | `lenh_rut_khong_cho_duyet` | 409 | (admin) Lệnh rút đã được xử lý |
 | `thieu_ly_do` | 400 | Từ chối (nhãn / lệnh rút / lệnh nạp) phải có lý do |
 | `gia_tri_khong_hop_le`, `thieu_gia_tri` | 400 | (admin) Giá trị setting sai kiểu / ngoài giới hạn |
+| `url_khong_hop_le`, `ten_mien_bi_chan`, `alias_khong_hop_le`, `mat_khau_khong_hop_le`, `het_han_trong_qua_khu`, `qua_nhieu_url` | 400 | Tạo link sai |
+| `alias_da_ton_tai`, `chien_dich_da_ton_tai`, `link_da_ngung` | 409 | Tạo / sửa link xung đột |
+| `khong_phai_sharer`, `chua_xac_thuc` | 403 / 401 | Tài khoản chưa có vai trò sharer / API key sai |
+| `ma_gioi_thieu_sai`, `tu_gioi_thieu`, `qua_han_nhap_ma`, `da_co_nguoi_gioi_thieu`, `gioi_thieu_vong` | 404 / 409 | Nhập mã giới thiệu không được |
+| `link_khong_ton_tai` | 404 | Trang vượt link: link không tồn tại / chưa duyệt xong / hết hạn / bị vô hiệu hoá |
+| `sai_mat_khau`, `turnstile_that_bai` | 403 | Trang vượt link: mật khẩu sai / xác minh chống bot thất bại |
+| `chua_het_dem_nguoc`, `da_nop` | 409 | Nộp trước khi hết đếm ngược / nộp trùng |
+| `thieu_cau_tra_loi`, `nhan_sai_dinh_dang`, `nhan_khong_hop_le` | 400 | Thiếu câu trả lời / nhãn sai (phiên vẫn còn, sửa rồi nộp lại) |
+| `phien_het_han`, `token_da_dung` | 410 | Bộ câu hết hạn / token mở link đã dùng: tải lại trang |
+| `token_khong_hop_le` | 403 | Token mở link sai hoặc hết hạn (3 phút) |
 | `xung_dot_setting` | 409 | (admin) Setting mâu thuẫn với setting khác (min > max) |
 | `dinh_dang_chua_ho_tro`, `coco_chi_cho_khung_anh` | 400 | Định dạng xuất không hợp lệ |
 
@@ -1297,6 +1317,8 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 | Nạp tiền | 10.000 – 500.000.000đ mỗi lần (`payment.deposit_min_vnd`, `payment.deposit_max_vnd`) |
 | Rút tiền | tối thiểu 50.000đ; thuế 10% từ 2.000.000đ (`ledger.withdraw_*`) |
 | Duyệt hàng loạt nhãn khớp | 500 nhãn mỗi lần bấm (`annotation.bulk_approve_max`) |
+| Trang vượt link | Đếm ngược 8 giây (`gate.countdown`); 1 câu vàng + 2 câu thật (`gate.gold_per_session`, `gate.real_per_session`); bộ câu sống 10 phút (`gate.session_ttl`); token mở link 3 phút, dùng một lần (`gate.token_ttl`) |
+| Link rút gọn | Mã 7 ký tự (`link.code_length`); alias 3–32 ký tự `[A-Za-z0-9_-]`; mật khẩu 4–100 ký tự; hàng loạt 100 URL (`link.bulk_max`) |
 | Tập nhãn | ≤ 20 công cụ; ≤ 100 lớp mỗi công cụ; tên lớp ≤ 50 ký tự |
 | Mỗi công cụ dạng danh sách | ≤ 1.000 mục (mặc định); polygon 3–500 đỉnh |
 | Câu vàng | ≤ 2.000 mỗi dự án (`project.gold_items_max`) |
@@ -1308,9 +1330,130 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 
 | Mục | Ảnh hưởng tới frontend |
 |---|---|
-| **CORS chưa bật ở gateway** | Frontend chạy ở origin khác (ví dụ `http://localhost:5173`) sẽ bị trình duyệt chặn. Tạm thời dùng proxy của dev server (Vite `server.proxy` trỏ `/auth`, `/me`, `/projects`, `/tasks`, `/annotations`, `/ledger`, `/payments` về `http://localhost:8080`); backend cần thêm chính sách CORS trước khi deploy |
+| **CORS chưa bật ở gateway** | Frontend chạy ở origin khác (ví dụ `http://localhost:5173`) sẽ bị trình duyệt chặn. Tạm thời dùng proxy của dev server (Vite `server.proxy` trỏ `/auth`, `/me`, `/projects`, `/tasks`, `/annotations`, `/ledger`, `/payments`, `/quality`, `/admin`, `/links`, `/g`, `/go`, `/gate` về `http://localhost:8080`); backend cần thêm chính sách CORS trước khi deploy |
 | Upload thẳng lên MinIO | Link trỏ tới `http://localhost:9000` ở dev. Trình duyệt báo lỗi CORS khi `PUT` thì cấu hình MinIO cho phép origin của frontend (biến môi trường `MINIO_API_CORS_ALLOW_ORIGIN`) |
 | Không có WebSocket / thông báo | Dùng polling theo mục 8 |
 | Chưa gộp tự động khung, đa giác, đoạn văn bản, chép lời, đoạn thời gian | Màn hình kết quả hiện danh sách nhãn đã duyệt của từng người (`labels`) |
 | Chưa có: khung trên video, điểm mốc (keypoint), đường gấp khúc, mặt nạ pixel, OCR, trả lời tự do cho văn bản / ảnh, thuộc tính cho từng đối tượng, quan hệ giữa thực thể, xếp hạng > 2 câu trả lời | Không làm UI cho các dạng này; thang điểm 1–5 tạm dùng `classification` với các lớp `"1"`…`"5"` |
 | Chưa có API hồ sơ người dùng (tên người gán, cấp độ, uy tín) | Màn hình duyệt chỉ có `labelerId` |
+
+---
+
+## 12. Cổng link: người chia sẻ và trang vượt link
+
+Kênh thu thập thứ hai (đặc tả 2.4). **Người chia sẻ** (vai trò `sharer`) rút gọn link và chia sẻ. **Khách vãng lai** mở link, giải 1–3 câu gán nhãn nhỏ (có câu vàng) thì được chuyển tới link đích. Người chia sẻ được trả tiền theo lượt vượt hợp lệ, vào **cùng ví** với thu nhập labeler (mục 5.7, rút tiền như labeler).
+
+### 12.1 Người chia sẻ: tạo và quản lý link
+
+```http
+POST /links
+{ "url": "https://example.com/bai-viet", "alias": "bai-viet-1", "password": "tuy-chon", "expiresAt": "2027-01-01T00:00:00Z", "campaignId": null }
+→ 201 { "id", "code": "bai-viet-1", "shortUrl": "http://localhost:8080/g/bai-viet-1", "destinationUrl", "domain",
+        "status": "pendingScan", "statusReason": null, "hasPassword": true, "expiresAt", "campaignId", "createdAt" }
+```
+
+- Mọi trường trừ `url` đều tuỳ chọn. Không có `alias` thì backend sinh mã ngẫu nhiên.
+- `status`:
+
+| `status` | Ý nghĩa | Hiển thị |
+|---|---|---|
+| `pendingScan` | Đang kiểm duyệt link đích (thường vài giây). Chưa chia sẻ được | "Đang kiểm tra", hỏi lại `GET /links/{id}` mỗi 2 giây |
+| `active` | Đang chạy | Nút sao chép `shortUrl` |
+| `blocked` | Link đích độc hại / tên miền bị chặn — vĩnh viễn (`statusReason`) | Báo lỗi, gợi ý tạo link khác |
+| `disabled` | Người dùng xoá, hoặc admin vô hiệu hoá vì vi phạm (`statusReason`) | |
+
+- Link đích **không sửa được** (muốn đổi thì tạo link mới). `PUT /links/{id}` chỉ đổi `{ "changePassword": true, "password": null|"...", "expiresAt", "campaignId" }`.
+- `DELETE /links/{id}` → 204, link ngừng chạy.
+- `GET /links?campaignId=&status=&page=&pageSize=` — danh sách của tôi, mới nhất trước.
+- Chiến dịch: `POST /links/campaigns {"name"}`, `GET /links/campaigns` → `[ { "id", "name", "linkCount", "createdAt" } ]`.
+- Hàng loạt (FS-03): `POST /links/bulk {"urls":[...], "campaignId"?}` → mỗi URL một dòng `{ "url", "link": LinkResponse | null, "errorCode", "error" }`. Dòng lỗi không làm hỏng dòng khác.
+
+**API key (FS-05) và Quick Link (FS-02)** — cho công cụ tự động / plugin trình duyệt:
+
+```http
+POST /links/api-key            → { "apiKey": "lk_…", "prefix": "lk_3f9a1b", "createdAt" }   ← key đầy đủ CHỈ hiện lần này
+GET  /links/api-key            → { "apiKey": null, "prefix", "createdAt" }  |  404 nếu chưa tạo
+POST /links           (header X-Api-Key: lk_…)        ← cùng body như trên, không cần token
+GET  /links/quick?api=lk_…&url=https://...&alias=...  → text/plain "http://localhost:8080/g/aB3xY9k"
+```
+
+Tạo lại key thì key cũ hết hiệu lực ngay. Hiện key một lần kèm nút sao chép và cảnh báo "lưu lại, sẽ không hiện lần nữa".
+
+**Giới thiệu (FS-08):**
+
+```http
+GET  /links/referrals/me       → { "code": "Ab3dE9xY", "referredCount": 2, "referredBy": null }
+POST /links/referrals/claim    { "code": "Ab3dE9xY" }   → 204
+```
+
+- Link mời có thể là `https://<frontend>/dang-ky?ref=<code>`. Sau khi đăng ký và đăng nhập, frontend gọi `claim`.
+- Chỉ tài khoản **mới** (mặc định trong 7 ngày kể từ đăng ký) nhập được mã. Lỗi: `tu_gioi_thieu`, `da_co_nguoi_gioi_thieu`, `qua_han_nhap_ma`, `ma_gioi_thieu_sai`.
+- Người giới thiệu nhận 10% doanh thu cổng link của người được mời, lấy từ phần nền tảng. Chỉ bắt đầu sau khi người được mời tự kiếm đủ ngưỡng (mặc định 50.000đ).
+
+**Thống kê (FS-07)** — đọc từ ClickHouse; doanh thu là **ước tính**, số chính thức ở ví (`GET /ledger/me/transactions`):
+
+```http
+GET /gate/stats/me/daily?from=2026-10-01&to=2026-10-31     (mặc định 30 ngày gần nhất, tối đa 366 ngày)
+→ [ { "date": "2026-10-09", "views": 120, "submits": 80, "paidClicks": 55, "estimatedRevenueVnd": 15400 } ]
+GET /gate/stats/me/top-links?limit=10   → [ { "key": "<linkId>", "views", "paidClicks", "estimatedRevenueVnd" } ]
+GET /gate/stats/me/sources              → key = tên miền referrer ("" = truy cập trực tiếp)
+GET /gate/stats/me/outcomes             → key ∈ tinhTien | truotCauVang | trungIp | tuVuot | hetNganSach | khongCoCauHoi
+```
+
+Thống kê có độ trễ khoảng 1–2 giây.
+
+### 12.2 Trang vượt link (khách vãng lai, không đăng nhập)
+
+Đường dẫn công khai: `/g/{code}` là trang của frontend. Frontend gọi các API sau qua gateway:
+
+```http
+GET /g/{code}
+→ { "code", "requiresPassword": false, "countdownSeconds": 8, "turnstileEnabled": true, "turnstileSiteKey": "1x00000000000000000000AA" }
+
+POST /g/{code}/sessions   { "turnstileToken": "<token widget Turnstile>", "password": "<nếu requiresPassword>" }
+→ { "sessionId", "answerableAt", "expiresAt",
+    "labelSchema": { "modality": "text", "tools": [ { "name": "loai", "kind": "classification", "classes": ["cho","meo"], ... } ] },
+    "questions": [ { "sampleId", "modality": "text", "fileUrl": null, "content": { "text": "..." }, "metadata": { "length": 16 } }, ... ] }
+
+POST /g/sessions/{sessionId}/submit   { "answers": { "<sampleId>": { "loai": { "labelIds": ["cho"] } }, ... } }
+→ đạt:   { "passed": true,  "redirectUrl": "/go/{code}?t=…", "redirectExpiresAt" }
+→ trượt: { "passed": false, "newSession": { …như trên… } }
+
+GET /go/{code}?t=…    → 302 tới link đích
+```
+
+Luồng giao diện:
+
+1. Gọi `GET /g/{code}`. 404 `link_khong_ton_tai` → trang "link không tồn tại hoặc đã bị gỡ". `requiresPassword` → ô mật khẩu.
+2. Hiện **Cloudflare Turnstile** với `turnstileSiteKey` (thư viện `https://challenges.cloudflare.com/turnstile/v0/api.js`). Dev dùng khoá test, widget luôn đạt. Có token rồi mới gọi `POST /sessions`.
+3. Bắt đầu đếm ngược tới `answerableAt` (giờ server). Trong lúc đếm, hiện câu hỏi và banner. Nộp sớm → 409 `chua_het_dem_nguoc`, nên khoá nút cho tới khi hết giờ.
+4. Vẽ từng câu bằng **đúng quy ước workspace** (mục 6): `labelSchema` + `content` / `fileUrl` + `metadata`. Cổng chỉ dùng phân loại **chọn một** và so sánh cặp, giao diện nên là nút bấm lớn, làm một tay được. Câu vàng và câu thật **trộn lẫn**, không có cờ nào phân biệt — frontend không cần và không được đoán.
+5. Phải trả lời **mọi** câu. 400 (`thieu_cau_tra_loi`, `nhan_sai_dinh_dang`) → phiên còn nguyên, sửa rồi nộp lại.
+6. `passed: false` → thay bằng `newSession`, kèm thông báo "Trả lời chưa chính xác, thử lại" (bộ mới có đếm ngược riêng).
+7. `passed: true` → nút **"Lấy link"** điều hướng trình duyệt tới `redirectUrl` (gateway trả 302 tới link đích). Token sống 3 phút và **dùng một lần**: mở lại → 410 `token_da_dung`, khi đó cho vượt lại.
+8. `questions: []` → không có câu hỏi (hết ngân sách, hoặc không có dự án phù hợp). Chỉ đếm ngược rồi nộp `{"answers":{}}` để lấy link.
+9. Nút **"Báo cáo link vi phạm"** (không cần đăng nhập): `POST /links/r/{code}/report {"reason":"..."}` → 202. Mỗi IP chỉ tính một lần.
+
+Lượt vượt chỉ sinh tiền khi đạt câu vàng, không phải chính chủ link (đăng nhập hoặc cùng IP lúc tạo link), không trùng IP trong 24 giờ, và dự án còn ngân sách cổng. Frontend **không** hiển thị điều này cho khách; người chia sẻ xem ở `outcomes`.
+
+### 12.3 Doanh nghiệp: bật cổng link cho dự án
+
+- Wizard: `PUT /projects/{id}/channels { "allowProfessional": true, "allowLinkGateway": true, "allowCollaborative": false }`.
+- Dự án chỉ lên cổng khi dữ liệu là **ảnh / văn bản / cặp**, mọi công cụ là **phân loại chọn một** hoặc **so sánh cặp**, và có câu vàng mục đích `qualityCheck`. Nên cảnh báo ở wizard nếu bật cổng mà không thoả.
+- Cổng **chỉ tiêu phần ngân sách vượt** mức ký quỹ tối thiểu (`estimatedCostVnd` ở `readiness`). Ví dụ tối thiểu 7.800đ, đặt 20.000đ → cổng được tiêu 12.200đ. Gợi ý ở bước giá: "Ngân sách cho cổng link = ngân sách − ký quỹ tối thiểu".
+- Mỗi nhãn từ cổng tốn ký quỹ `đơn giá + phí` (như nhãn chuyên nghiệp). Nhãn hiện ở màn hình duyệt với `source: "linkGateway"` (mục 4.10).
+
+### 12.4 Admin: kiểm duyệt link
+
+```http
+GET  /links/admin/review-queue?page=&pageSize=   → { "items": [ { "link": LinkResponse, "ownerId", "reportCount", "recentReasons": [...] } ], ... }
+POST /links/admin/{id}/disable  { "reason": "Lừa đảo", "withholdRevenue": true }   → link disabled; doanh thu đang treo bị giữ lại
+POST /links/admin/{id}/dismiss-reports                                            → bỏ khỏi hàng đợi
+GET  /links/admin/blocked-domains
+POST /links/admin/blocked-domains  { "domain": "casino.com", "reason": "Cờ bạc" } → { ..., "disabledLinkCount": 3 }
+DELETE /links/admin/blocked-domains/{domain}
+```
+
+- `withholdRevenue` (mặc định `true`) giữ lại mọi khoản **đang treo** của link: doanh thu người chia sẻ và hoa hồng giới thiệu. Khoản đã hết thời gian treo thì không thu hồi được.
+- Chặn tên miền thì chặn cả tên miền con, và vô hiệu hoá ngay mọi link đang chạy tới đó (có giữ doanh thu).
+

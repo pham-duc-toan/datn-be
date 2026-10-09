@@ -248,6 +248,25 @@ services:
       timeout: 3s
       retries: 20
 
+  db-gate:
+    image: postgres:16-alpine
+    container_name: datn-db-gate
+    profiles: ["all", "p2"]
+    # tier lean - ban sao (du an, mau, cau vang, link) + outbox / processed_events.
+    # Duong nong (/g, /go) KHONG cham DB nay: doc tu bo nho dem + Redis.
+    command: ["postgres","-c","max_connections=20","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: gate_user
+      POSTGRES_PASSWORD: dev_gate_pw
+      POSTGRES_DB: gate_db
+    ports: ["5408:5432"]
+    volumes: [pgdata-gate:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U gate_user -d gate_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   db-link:
     image: postgres:16-alpine
     container_name: datn-db-link
@@ -408,6 +427,7 @@ volumes:
   pgdata-ledger:
   pgdata-payment:
   pgdata-link:
+  pgdata-gate:
   pgdata-quality:
   pgdata-ml:
   pgdata-fraud:

@@ -508,8 +508,9 @@ namespace Crowd.Annotation.Api.Services
             {
                 Id = a.Id,
                 ProjectId = a.ProjectId,
-                TaskId = a.TaskId,
+                TaskId = a.TaskId == Guid.Empty ? null : a.TaskId,
                 SampleId = a.SampleId,
+                Source = a.Source,
                 FileUrl = a.StorageKey == null ? null : await _storage.TaoLinkXemAsync(a.StorageKey),
                 SampleContent = a.SampleContent,
                 SampleMetadata = a.SampleMetadata,

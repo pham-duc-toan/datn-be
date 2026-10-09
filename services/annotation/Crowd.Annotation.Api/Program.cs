@@ -10,6 +10,7 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.Contracts.Gate;
 using Crowd.Contracts.Project;
 using Crowd.Contracts.Quality;
 using Crowd.Contracts.Tasking;
@@ -42,6 +43,7 @@ builder.Services.AddEventConsumer<AnnotationDbContext, MemberBlocked, MemberBloc
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberUnblocked, MemberUnblockedProcessor>(cfg, "annotation-svc.member-unblocked");
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberRemoved, MemberRemovedProcessor>(cfg, "annotation-svc.member-removed");
 builder.Services.AddEventConsumer<AnnotationDbContext, ConsensusReached, ConsensusReachedProcessor>(cfg, "annotation-svc.consensus-reached");
+builder.Services.AddEventConsumer<AnnotationDbContext, GateSolved, GateSolvedProcessor>(cfg, "annotation-svc.gate-solved");
 
 // ---- Kho anh (chi sinh link xem) ----
 builder.Services.Configure<ObjectStorageOptions>(cfg.GetSection(ObjectStorageOptions.SectionName));

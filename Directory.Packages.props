@@ -9,6 +9,7 @@
   <ItemGroup>
     <!-- Them bang `dotnet add package`, KHONG sua tay. -->
     <PackageVersion Include="AWSSDK.S3" Version="4.0.103.4" />
+    <PackageVersion Include="ClickHouse.Client" Version="7.14.0" />
     <PackageVersion Include="JsonSchema.Net" Version="9.4.0" />
     <!-- Ghim tuong minh: EntityFrameworkCore.Design keo EF 10.0.12 con Npgsql
          keo 10.0.4, hai project bien dich ra hai phien ban khac nhau va
@@ -30,6 +31,7 @@
     <PackageVersion Include="Ocelot" Version="25.0.1" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="RabbitMQ.Client" Version="7.2.2" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.3.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>

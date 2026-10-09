@@ -65,7 +65,7 @@ namespace Crowd.Ledger.Api.Controllers
 
         /// <summary>POST /ledger/withdrawals — header Idempotency-Key BAT BUOC (docs 3.3).</summary>
         [HttpPost("withdrawals")]
-        [Authorize(Roles = CrowdRoles.Labeler)]
+        [Authorize(Roles = CrowdRoles.Labeler + "," + CrowdRoles.Sharer)]
         public async Task<IActionResult> Rut(
             [FromBody] WithdrawRequest body,
             [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
@@ -76,7 +76,7 @@ namespace Crowd.Ledger.Api.Controllers
         }
 
         [HttpGet("withdrawals/mine")]
-        [Authorize(Roles = CrowdRoles.Labeler)]
+        [Authorize(Roles = CrowdRoles.Labeler + "," + CrowdRoles.Sharer)]
         public async Task<IActionResult> LenhRut(CancellationToken ct)
         {
             return Ok(await _wallet.LenhRutCuaToiAsync(Caller.TuHttp(HttpContext, ActorRole.Labeler), ct));

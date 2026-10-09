@@ -55,6 +55,20 @@ namespace Crowd.BuildingBlocks.Auth.Http
             return new Caller(userId, laAdmin, vaiTro, LayCorrelationId(http.Request), null);
         }
 
+        /// <summary>
+        /// Nguoi dung da xac thuc bang cach KHAC token (vd API key cua sharer, FS-05):
+        /// service tu xac dinh userId roi tao Caller. Khong bao gio la admin.
+        /// </summary>
+        public static Caller TuNguoiDung(HttpContext http, Guid userId, ActorRole vaiTro)
+        {
+            if (http == null)
+            {
+                throw new ArgumentNullException(nameof(http));
+            }
+
+            return new Caller(userId, false, vaiTro, LayCorrelationId(http.Request), null);
+        }
+
         /// <summary>He thong tu lam, do mot event gay ra (consumer) hoac do dong ho (worker).</summary>
         public static Caller HeThong(Guid correlationId, Guid? causationId)
         {

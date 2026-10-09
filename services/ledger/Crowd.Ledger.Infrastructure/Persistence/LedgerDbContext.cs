@@ -26,6 +26,8 @@ namespace Crowd.Ledger.Infrastructure.Persistence
 
         public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
 
+        public DbSet<ReferralLink> Referrals => Set<ReferralLink>();
+
         public DbSet<FundsHold> Holds => Set<FundsHold>();
 
         public DbSet<Withdrawal> Withdrawals => Set<Withdrawal>();
@@ -99,7 +101,10 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.ReleaseAt).HasColumnName("release_at").IsRequired();
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.ReleasedAt).HasColumnName("released_at");
-                b.HasIndex(x => x.AnnotationId).IsUnique().HasDatabaseName("ux_holds_annotation");
+                b.Property(x => x.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(20).HasDefaultValue(HoldKind.Annotation).IsRequired();
+                b.Property(x => x.LinkId).HasColumnName("link_id");
+                b.HasIndex(x => new { x.AnnotationId, x.Kind }).IsUnique().HasDatabaseName("ux_holds_source");
+                b.HasIndex(x => x.LinkId).HasFilter("link_id IS NOT NULL AND state = 'Held'").HasDatabaseName("ix_holds_link_dang_treo");
                 b.HasIndex(x => x.ReleaseAt).HasFilter("state = 'Held'").HasDatabaseName("ix_holds_den_han");
                 b.HasIndex(x => x.TaskId).HasDatabaseName("ix_holds_task");
             });
@@ -137,7 +142,22 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.ReservedAt).HasColumnName("reserved_at").IsRequired();
                 b.Property(x => x.ClosedAt).HasColumnName("closed_at");
+                b.Property(x => x.SampleCount).HasColumnName("sample_count").IsRequired();
+                b.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
+                b.Property(x => x.PlatformFeeVnd).HasColumnName("platform_fee_vnd").IsRequired();
+                b.Property(x => x.AllowLinkGateway).HasColumnName("allow_link_gateway").IsRequired();
+                b.Property(x => x.GateSpentVnd).HasColumnName("gate_spent_vnd").IsRequired();
+                b.Property(x => x.GateBudgetSequence).HasColumnName("gate_budget_sequence").IsRequired();
                 b.HasIndex(x => x.OwnerId).HasDatabaseName("ix_project_escrows_owner");
+            });
+
+            modelBuilder.Entity<ReferralLink>(b =>
+            {
+                b.ToTable("referrals");
+                b.HasKey(x => x.ReferredId);
+                b.Property(x => x.ReferredId).HasColumnName("referred_id").ValueGeneratedNever();
+                b.Property(x => x.ReferrerId).HasColumnName("referrer_id").IsRequired();
+                b.Property(x => x.RegisteredAt).HasColumnName("registered_at").IsRequired();
             });
 
             modelBuilder.Entity<BlockedUser>(b =>

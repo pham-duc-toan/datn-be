@@ -85,6 +85,7 @@ phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload 
 | `hold.expired` | notification | Da rut duoc |
 | `payout.requested` | payment | Lenh rut DA DUYET (tu duyet theo nguong hoac admin duyet) -> chuyen sang tich hop ngoai. Lenh cho duyet KHONG phat |
 | `refund.issued` | notification | Huy du an |
+| `gate.budget_changed` | gate | Ngan sach cong link con lai cua du an (phan ky quy vuot muc danh cho labeler); `sequence` tang dan |
 
 ## payment-svc
 
@@ -99,19 +100,16 @@ phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload 
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `link.created` | (worker quet Safe Browsing) | Chua active cho toi khi quet xong |
-| `link.scan_completed` | gate | Cho phep phuc vu |
-| `link.disabled` | gate, ledger | Vi pham -> chan + giu doanh thu |
-| `link.reported` | admin | Hang doi kiem duyet thu cong |
-| `referral.registered` | ledger | Huong 10% (FS-08) |
+| `link.activated` | gate | Link qua kiem duyet (blacklist + quet URL) — gate bat dau phuc vu `/g/{code}`. Phat lai khi doi tuy chon (mat khau, het han, chien dich) |
+| `link.disabled` | gate, ledger | Chu link xoa / admin vo hieu hoa. `withholdRevenue = true` (vi pham) → ledger giu doanh thu dang treo cua link |
+| `referral.registered` | ledger | Quan he gioi thieu (FS-08) — ledger tra hoa hong tu phan nen tang |
 
 ## gate-svc
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `gate.solved` | annotation | Ghi nhan that voi `source = link_gateway` |
-| `gate.failed` | fraud | Truot cau vang -> tin hieu bot |
-| `click.validated` | link, ledger | Cong CPM cho sharer |
+| `gate.solved` | annotation | Nhan cau THAT cua khach da qua cau vang, nguon `linkGateway`, khong thuoc task |
+| `click.validated` | ledger | Luot vuot hop le: ky quy → sharer (treo) + nen tang |
 
 ## collab-svc  *(Node)*
 

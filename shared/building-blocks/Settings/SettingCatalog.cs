@@ -94,6 +94,26 @@ namespace Crowd.BuildingBlocks.Settings
         public const string IdentityPasswordMinLength = "identity.password_min_length";
         public const string IdentityPasswordMaxLength = "identity.password_max_length";
 
+        // ---- Cong link (P2) ----
+        public const string GateEnabled = "gate.enabled";
+        public const string GateCountdown = "gate.countdown";
+        public const string GateGoldPerSession = "gate.gold_per_session";
+        public const string GateRealPerSession = "gate.real_per_session";
+        public const string GateSessionTtl = "gate.session_ttl";
+        public const string GateTokenTtl = "gate.token_ttl";
+        public const string GateIpDedupeWindow = "gate.ip_dedupe_window";
+        public const string GateMaxLabelsPerSample = "gate.max_labels_per_sample";
+        public const string GateCacheRefreshInterval = "gate.cache_refresh_interval";
+        public const string GateEventFlushInterval = "gate.event_flush_interval";
+        public const string GateEventBatchSize = "gate.event_batch_size";
+        public const string LinkCodeLength = "link.code_length";
+        public const string LinkBulkMax = "link.bulk_max";
+        public const string LinkReportReviewThreshold = "link.report_review_threshold";
+        public const string LinkScanInterval = "link.scan_interval";
+        public const string LinkReferralPercent = "link.referral_percent";
+        public const string LinkReferralMinEarningsVnd = "link.referral_min_earnings_vnd";
+        public const string LinkReferralClaimWindow = "link.referral_claim_window";
+
         // ---- Ky thuat ----
         public const string OutboxPollInterval = "outbox.poll_interval";
         public const string OutboxBatchSize = "outbox.batch_size";
@@ -121,6 +141,7 @@ namespace Crowd.BuildingBlocks.Settings
         private const string NhomGanNhan = "Gan nhan va duyet nhan";
         private const string NhomChatLuong = "Chat luong";
         private const string NhomTaiKhoan = "Tai khoan";
+        private const string NhomCongLink = "Cong link";
         private const string NhomKyThuat = "Ky thuat";
 
         private const double Ngay = 86400;
@@ -315,6 +336,30 @@ namespace Crowd.BuildingBlocks.Settings
                 "Moi service doc lai ban sao setting tu DB cua no sau moi khoang nay."));
             ds.Add(Seconds(SettingKeys.SettingsSnapshotInterval, NhomKyThuat, 300, 10, Ngay,
                 "admin-svc phat lai toan bo setting dinh ky (de service lo mat event van dong bo)."));
+
+            // ================= CONG LINK (P2) =================
+            ds.Add(Bool(SettingKeys.GateEnabled, NhomCongLink, true, "Tat = trang vuot link chi chuyen thang toi dich, khong phat cau hoi, khong tra tien sharer."));
+            ds.Add(Seconds(SettingKeys.GateCountdown, NhomCongLink, 8, 0, 120, "Dem nguoc toi thieu truoc khi khach nop bai (server kiem, khong chi la giao dien)."));
+            ds.Add(Int(SettingKeys.GateGoldPerSession, NhomCongLink, 1, 1, 5, "cau", "So cau vang (da biet dap an) moi luot vuot link."));
+            ds.Add(Int(SettingKeys.GateRealPerSession, NhomCongLink, 2, 1, 10, "cau", "So cau that (can thu thap nhan) moi luot vuot link."));
+            ds.Add(Seconds(SettingKeys.GateSessionTtl, NhomCongLink, 600, 60, 3600, "Bo cau hoi da phat song bao lau."));
+            ds.Add(Seconds(SettingKeys.GateTokenTtl, NhomCongLink, 180, 30, 900, "Token mo link dich dung mot lan, song bao lau (VD-L-02)."));
+            ds.Add(Seconds(SettingKeys.GateIpDedupeWindow, NhomCongLink, Ngay, 0, 30 * Ngay,
+                "Moi IP chi tinh mot luot co tien cho moi link trong khoang nay (dac ta: 24 gio)."));
+            ds.Add(Int(SettingKeys.GateMaxLabelsPerSample, NhomCongLink, 5, 1, 1000, "nhan", "Moi mau nhan toi da bay nhieu nhan tu cong link."));
+            ds.Add(Seconds(SettingKeys.GateCacheRefreshInterval, NhomCongLink, 60, 5, 3600, "Gate nap lai bo nho dem du an / mau / link tu ban sao sau moi khoang nay."));
+            ds.Add(Seconds(SettingKeys.GateEventFlushInterval, NhomKyThuat, 1, 0.2, 60, "Gate chuyen luot vuot tu Redis Stream sang outbox + ClickHouse sau moi khoang nay."));
+            ds.Add(Int(SettingKeys.GateEventBatchSize, NhomKyThuat, 200, 1, 5000, "luot", "So luot vuot gate chuyen moi lo."));
+            ds.Add(Int(SettingKeys.LinkCodeLength, NhomCongLink, 7, 5, 12, "ky tu", "Do dai ma link ngau nhien."));
+            ds.Add(Int(SettingKeys.LinkBulkMax, NhomCongLink, 100, 1, 1000, "link", "Rut gon hang loat toi da bay nhieu link moi lan (FS-03)."));
+            ds.Add(Int(SettingKeys.LinkReportReviewThreshold, NhomCongLink, 3, 1, 1000, "bao cao",
+                "Link bi bao cao tu bay nhieu IP khac nhau thi vao hang doi kiem duyet."));
+            ds.Add(Seconds(SettingKeys.LinkScanInterval, NhomKyThuat, 2, 1, 3600, "Worker quet link cho kiem duyet (Safe Browsing) sau moi khoang nay."));
+            ds.Add(Int(SettingKeys.LinkReferralPercent, NhomCongLink, 10, 0, 50, "%", "Nguoi gioi thieu huong phan tram nay tren doanh thu cong link cua nguoi duoc moi (FS-08). Lay tu phan cua nen tang."));
+            ds.Add(Long(SettingKeys.LinkReferralMinEarningsVnd, NhomCongLink, 50000, 0, 1e12, "dong",
+                "Chi tra hoa hong sau khi nguoi duoc moi da tu kiem duoc tong bay nhieu (chong tai khoan clone tu moi nhau — VD-L-05)."));
+            ds.Add(Seconds(SettingKeys.LinkReferralClaimWindow, NhomCongLink, 7 * Ngay, 0, 365 * Ngay,
+                "Tai khoan moi tao trong khoang nay moi nhap duoc ma gioi thieu."));
 
             return ds;
         }

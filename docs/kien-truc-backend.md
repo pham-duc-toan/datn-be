@@ -78,8 +78,8 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `annotation-svc` | 8104 | annotation_db | C# | annotations, versions, drafts, reviews, appeals, export_jobs, project_members_cache | Ghi nóng nhất, dữ liệu lớn nhất |
 | `ledger-svc` | 8105 | ledger_db | C# | accounts, journal_entries, holds, escrows | **Nhất quán tuyệt đối** |
 | `payment-svc` | 8106 | payment_db | C# | payment_intents, payouts, provider_txns, reconciliations | Tích hợp ngoài, webhook + retry, cô lập rủi ro |
-| `link-svc` | 8107 | link_db | C# | links, campaigns, referrals, blacklist, reports | Bounded context của Sharer |
-| `gate-svc` | 8108 | **ClickHouse** gate_db + redis-gate | C# | gate_sessions, click_events, cpm_entries | **Traffic ~100× phần còn lại**, sập độc lập |
+| `link-svc` | 8107 | link_db | C# | links, campaigns, api_keys, referral_codes, referrals, blocked_domains, link_reports | Bounded context của Sharer (**đã có**, mục 3.6) |
+| `gate-svc` | 8108 | **ClickHouse** + redis-gate + Postgres gate_db (bản sao + outbox) | C# | Redis: phiên, jti, chống trùng IP, stream; ClickHouse: click_events; Postgres: gate_projects, gate_samples, gate_gold_items, gate_links, gate_budgets | **Traffic ~100× phần còn lại**, sập độc lập (**đã có**, mục 3.6) |
 | `media-svc` | 8109 | media_db | C# | signed_grants, access_audit, watermark_log, project_members_cache | CPU watermark + streaming |
 | `notification-svc` | 8110 | notification_db | C# | notifications, templates, prefs | Fan-out chậm không được chặn ai |
 | `admin-svc` | 8111 | admin_db | C# | **settings, setting_history** (đã có); review_queues, disputes, audit_log, requests_readmodel (P6) | Chủ của setting hệ thống (mục 3.10). Quyền cao nhất — giới hạn blast radius |
@@ -173,7 +173,7 @@ Không mặc định Postgres cho tất cả. Mỗi service chọn store hợp v
 | ledger | PostgreSQL | 5405 | ACID là toàn bộ lý do service này tồn tại |
 | payment | PostgreSQL | 5406 | ACID |
 | link | PostgreSQL | 5407 | CRUD quan hệ |
-| **gate** | **ClickHouse** + **Redis riêng** | 8123 / 6381 | `click_events` append-only hàng triệu dòng/ngày, truy vấn 100% là aggregate theo thời gian (FS-07) |
+| **gate** | **ClickHouse** + **Redis riêng** + Postgres nhỏ | 8123 / 6381 / 5408 | `click_events` append-only hàng triệu dòng/ngày, truy vấn 100% là aggregate theo thời gian (FS-07). Postgres chỉ cho đường **nguội** (bản sao + outbox cần transaction) — đường nóng không chạm |
 | quality | PostgreSQL | 5421 | Ma trận tin cậy, khối lượng nhỏ |
 | ml | PostgreSQL + **pgvector** | 5422 | Embedding cho active learning; model artifact để MinIO |
 | fraud | PostgreSQL (`WITH RECURSIVE`) | 5423 | Bài toán đồ thị nhưng nông (2–3 hop) |
@@ -294,27 +294,47 @@ Reaper (30s/lần): Leased quá hạn → Expired, trả chỗ về pool (SKIP L
 
 ### 3.6. Cổng vượt link: đường nóng phải rỗng
 
-`gate-svc` chịu tải cao nhất, request redirect **không chạm Postgres**:
+**Đã có (P2).** `link-svc` giữ link của người chia sẻ; `gate-svc` phục vụ trang vượt link cho khách vãng lai. Các lựa chọn đã chốt:
+
+| # | Câu hỏi | Chọn | Lý do |
+|---|---|---|---|
+| G1 | Câu hỏi lấy từ đâu | **Bản sao riêng trong gate** (nghe `project.published`, `dataset.ingested`, `gold_set.updated`), nạp vào **bộ nhớ** (`GateCatalog`) | Đường nóng không gọi HTTP sang task-svc, không khoá dòng Postgres, khách bỏ ngang không để lại lease treo |
+| G2 | Nhãn của khách đi đâu | `gate.solved` → annotation-svc, nguồn `linkGateway`, **không** thuộc task, **không** tính vào redundancy / đồng thuận | Kênh nhãn rẻ, luôn qua câu vàng; doanh nghiệp vẫn duyệt / loại để chọn lọc dữ liệu |
+| G3 | Dự án nào lên cổng | Chỉ dự án **bật kênh cổng link**, dữ liệu ảnh / văn bản / cặp, mọi công cụ là **phân loại chọn một** hoặc **so sánh cặp**, có câu vàng **QualityCheck** | Khách có ~10 giây và không được huấn luyện (VD-L-08). Câu vàng của bài test đầu vào không đưa lên trang công khai |
+| G4 | Trả người chia sẻ khi nào | **Khi qua câu vàng**, tiền **treo** như labeler. Sharer = số nhãn thật × (đơn giá − phí/nhãn); ký quỹ trừ số nhãn × (đơn giá + phí) — đúng công thức đặc tả 2.4 | Không phải chờ ai duyệt; treo để kịp giữ lại khi link vi phạm |
+| G5 | Ngân sách cổng (VD-L-03) | Cổng chỉ tiêu phần ký quỹ **vượt** mức tối thiểu cho labeler (số mẫu × trần redundancy × (đơn giá + phí)). Ledger phát `gate.budget_changed` sau mỗi lượt | Cổng link **không bao giờ** ăn vào tiền đã dành cho labeler chuyên nghiệp. Doanh nghiệp muốn chạy cổng thì đặt ngân sách cao hơn mức tối thiểu |
+| G6 | Datastore | Redis (phiên, jti, chống trùng IP, Redis Stream) + ClickHouse (`click_events`) + **Postgres nhỏ** cho bản sao và outbox | Outbox và chống xử lý trùng cần transaction — Redis / ClickHouse không có. Postgres chỉ ở đường nguội |
 
 ```
-Bước 0  Cloudflare Turnstile (ở gateway)   → bot rẻ tiền chết ở đây, chưa tốn task nào
-Bước 1  Đếm ngược 5–10s + banner
-Bước 2  GET  /gate/{code}/questions
-          → k câu vàng + m câu thật; cache Redis 60s theo projectId
-          → đáp án câu vàng KHÔNG BAO GIỜ ra client
-Bước 3  POST /gate/{code}/submit
-          → chấm chỉ câu vàng, server-side
-          → trượt: cấp bộ mới, không token, không doanh thu
-          → đạt : JWT{jti, linkId, aud=domain, exp=180s}
-                  SET jti EX 180          (Redis, chống replay)
-                  publish gate.solved + click.validated   (ASYNC — không chặn response)
-Bước 4  GET  /go/{code}?t=JWT
-          → Lua: DEL jti (dùng một lần) → 302 tới link đích
+Bước 0  Turnstile (siteverify phía server, fail-closed)  → bot rẻ tiền chết ở đây, chưa tốn câu nào
+Bước 1  GET  /g/{code}                → cần mật khẩu? đếm ngược bao lâu?  (bộ nhớ, không DB)
+Bước 2  POST /g/{code}/sessions       → k câu vàng + m câu thật TRỘN LẪN, lưu phiên vào Redis
+          (setting gate.gold_per_session / gate.real_per_session; mẫu đủ gate.max_labels_per_sample thì thôi phát)
+Bước 3  POST /g/sessions/{id}/submit  → server kiểm đếm ngược; kiểm định dạng nhãn (Crowd.Labeling);
+          DEL phiên (một request thắng); chấm CHỈ câu vàng
+          → trượt: bộ câu mới, không token
+          → đạt : phân loại lượt  tự vượt (token chủ link / cùng IP lúc tạo link) → không tiền
+                                  trùng IP trong 24 giờ (SET NX)                → không tiền
+                                  hết ngân sách cổng                            → không tiền
+                                  còn lại                                       → tính tiền
+                  XADD gate:events {nhãn, lượt tính tiền, dòng thống kê}       (Redis Stream)
+                  SET jti EX 180 → JWT HS256 {jti, lnk, aud, exp}
+Bước 4  GET  /go/{code}?t=JWT → kiểm chữ ký + đúng link → GETDEL jti (dùng một lần) → 302 link đích
 
-Chống trùng IP:  SETNX click:{linkId}:{sha256(ip+salt+day)} EX 86400
+Relay (worker, theo lô): Redis Stream → outbox (gate.solved, click.validated) COMMIT → ClickHouse → ACK
+   chết giữa chừng: lần sau đọc lại mục chưa ACK; trùng bị chặn ở bên nhận
+   (ledger theo ClickId, annotation theo id tất định (phiên, mẫu), ClickHouse ReplacingMergeTree theo click_id)
 ```
 
-Doanh thu CPM cộng bởi consumer, không nằm trong request path. Đúng như đặc tả: bot không giải được nhãn → không sinh nhãn hợp lệ → CPM tự về 0, không cần tầng chống bot riêng.
+Doanh thu cộng bởi consumer của ledger, không nằm trong request. Đúng như đặc tả: bot không giải được câu vàng thì không sinh lượt hợp lệ, nên doanh thu tự về 0.
+
+**link-svc:**
+- Link mới ở `pendingScan`. Worker quét (Google Safe Browsing khi có khoá; dev dùng danh sách tên miền giả lập) rồi `active` + `link.activated`, hoặc `blocked`.
+- Tên miền bị chặn (admin) chặn cả tên miền con; chặn thêm thì link đang chạy tới tên miền đó bị vô hiệu hoá ngay.
+- Báo cáo từ trang vượt link: mỗi IP một lần, vượt `link.report_review_threshold` thì vào hàng đợi kiểm duyệt. Admin vô hiệu hoá kèm **giữ doanh thu** → ledger chuyển khoản đang treo của link sang `platform:withheld`.
+- API key (FS-05) và Quick Link (FS-02) cho công cụ tự động. Giới thiệu (FS-08): tài khoản mới nhập mã trong `link.referral_claim_window`; ledger trả 10% từ **phần nền tảng** khi người được mời đã tự kiếm ≥ `link.referral_min_earnings_vnd` (VD-L-05).
+
+IP không lưu thô: `sha256(muối | ip)` (muối `Privacy:IpSalt` dùng chung giữa link và gate để so "người vượt có phải người tạo link"); bản chống trùng theo ngày còn trộn thêm ngày.
 
 ### 3.7. Redundancy thích ứng — vòng lặp event giữa hai service
 
@@ -631,7 +651,7 @@ Service 2 project: `Api → BuildingBlocks`, `Tests → Api`.
 |---|---|---|
 | **P0** | gateway, identity, project, task, annotation | Chạy end-to-end **mọi loại dữ liệu** (ảnh, văn bản, âm thanh, video, cặp) với 7 loại công cụ nhãn (mục 3.9). Tạo dự án → upload → gán nhãn → xem kết quả, xuất JSON / CSV / COCO |
 | **P1** | ledger, payment | Vòng tiền khép kín: nạp → ký quỹ → duyệt nhãn → hold → rút |
-| **P2** | link, gate | Kênh thu thập thứ hai + chống lạm dụng |
+| **P2** | link, gate | Kênh thu thập thứ hai + chống lạm dụng (**đã có**, mục 3.6) |
 | **P3** | quality | Chất lượng đo được bằng số: đồng thuận, Krippendorff alpha, Dawid–Skene, redundancy thích ứng, câu vàng kiểm tra, uy tín (**đã có**, mục 3.7) |
 | **P4** | ml, fraud | Pre-labeling + active learning (SAM để sau cùng) |
 | **P5** | collab | Kênh thu thập thứ ba |

@@ -5,7 +5,9 @@ using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.Contracts.Annotation;
+using Crowd.Contracts.Gate;
 using Crowd.Contracts.Identity;
+using Crowd.Contracts.Link;
 using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
 using Crowd.Ledger.Api.Services;
@@ -74,7 +76,7 @@ namespace Crowd.Ledger.Api.Consumers
                 throw new ArgumentNullException(nameof(envelope));
             }
 
-            return _flow.GhiNhanRedundancyAsync(envelope.Payload, ct);
+            return _flow.GhiNhanRedundancyAsync(envelope.Payload, Nguon.Tu(envelope), ct);
         }
     }
 
@@ -262,6 +264,84 @@ namespace Crowd.Ledger.Api.Consumers
             {
                 _db.BlockedUsers.Add(BlockedUser.Tao(uid, _clock.GetUtcNow()));
             }
+        }
+    }
+
+    /// <summary>click.validated (gate-svc): tra nguoi chia se link theo luot vuot hop le.</summary>
+    public sealed class ClickValidatedProcessor : IEventProcessor<ClickValidated>
+    {
+        private readonly MoneyFlowService _flow;
+
+        public ClickValidatedProcessor(MoneyFlowService flow)
+        {
+            if (flow == null)
+            {
+                throw new ArgumentNullException(nameof(flow));
+            }
+
+            _flow = flow;
+        }
+
+        public Task XuLyAsync(EventEnvelope<ClickValidated> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            return _flow.ChiTraCongLinkAsync(envelope.Payload, Nguon.Tu(envelope), ct);
+        }
+    }
+
+    /// <summary>referral.registered (link-svc): ghi quan he gioi thieu de tinh hoa hong.</summary>
+    public sealed class ReferralRegisteredProcessor : IEventProcessor<ReferralRegistered>
+    {
+        private readonly MoneyFlowService _flow;
+
+        public ReferralRegisteredProcessor(MoneyFlowService flow)
+        {
+            if (flow == null)
+            {
+                throw new ArgumentNullException(nameof(flow));
+            }
+
+            _flow = flow;
+        }
+
+        public Task XuLyAsync(EventEnvelope<ReferralRegistered> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            return _flow.GhiGioiThieuAsync(envelope.Payload, ct);
+        }
+    }
+
+    /// <summary>link.disabled (link-svc): vi pham da xac nhan → giu doanh thu dang treo cua link.</summary>
+    public sealed class LinkDisabledProcessor : IEventProcessor<LinkDisabled>
+    {
+        private readonly MoneyFlowService _flow;
+
+        public LinkDisabledProcessor(MoneyFlowService flow)
+        {
+            if (flow == null)
+            {
+                throw new ArgumentNullException(nameof(flow));
+            }
+
+            _flow = flow;
+        }
+
+        public Task XuLyAsync(EventEnvelope<LinkDisabled> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            return _flow.GiuDoanhThuLinkAsync(envelope.Payload, Nguon.Tu(envelope), ct);
         }
     }
 }
