@@ -71,10 +71,7 @@ async def xin_snapshot() -> None:
 
 async def vong_lap_nap_lai(dung: asyncio.Event) -> None:
     while not dung.is_set():
-        try:
-            await asyncio.wait_for(dung.wait(), timeout=settings_store.giay(settings_store.SETTINGS_RELOAD_INTERVAL))
-        except asyncio.TimeoutError:
-            pass
+        await settings_store.cho_theo_setting(settings_store.SETTINGS_RELOAD_INTERVAL, dung)
         if dung.is_set():
             break
         try:

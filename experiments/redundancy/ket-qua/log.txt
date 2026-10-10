@@ -1,0 +1,16 @@
+dog: 123s
+face: 126s
+duck: 11s
+nist-trec-relevance: 132s
+relevance-2: 223s
+mo-phong-K2-spam0: 13s
+mo-phong-K2-spam10: 14s
+mo-phong-K2-spam20: 14s
+mo-phong-K2-spam30: 13s
+mo-phong-K2-spam40: 13s
+mo-phong-K4-spam0: 56s
+mo-phong-K4-spam10: 56s
+mo-phong-K4-spam20: 54s
+mo-phong-K4-spam30: 52s
+mo-phong-K4-spam40: 49s
+xong

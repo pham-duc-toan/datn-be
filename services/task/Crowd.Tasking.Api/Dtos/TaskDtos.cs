@@ -84,4 +84,21 @@ namespace Crowd.Tasking.Api.Dtos
         /// <summary>Tong so luot can = so task (tru vang) x redundancy.</summary>
         public required int RequiredSubmissions { get; init; }
     }
+
+    /// <summary>
+    /// GET /internal/projects/{id}/close-check — project-svc hoi truoc khi dong du an.
+    /// </summary>
+    public sealed class CloseCheckResponse
+    {
+        public required Guid ProjectId { get; init; }
+
+        /// <summary>task-svc da nhan project.paused (khong cap task moi nua).</summary>
+        public required bool Paused { get; init; }
+
+        /// <summary>Luot dang giu con han — labeler con nop duoc.</summary>
+        public required int ActiveLeases { get; init; }
+
+        /// <summary>Luot da nop cua task THAT (khong tinh cau vang) — phai bang so nhan ben annotation-svc.</summary>
+        public required int SubmittedCount { get; init; }
+    }
 }

@@ -265,10 +265,33 @@ Compensation: [Chờ duyệt] quá 72h không ai duyệt → project.cancelled �
 |---|---|---|
 | Publish dự án | project → ledger → project | Hoàn escrow nếu timeout hoặc admin từ chối |
 | Duyệt nhãn | annotation → ledger (hold) → *(3–7 ngày)* → ledger (release) | Tranh chấp thắng → `dispute.resolved` đảo bút toán |
-| Hủy dự án | project → task (dừng cấp) → ledger (hoàn phần chưa dùng) | — (chỉ đi tới) |
+| Hủy / hoàn thành dự án | project (đã **tạm dừng**) → hỏi task + đóng sổ annotation (HTTP nội bộ) → `project.completed` / `cancelled` → task (đóng), ledger (hoàn phần chưa dùng) | Đóng sổ xong mà project lưu lỗi → bấm lại (idempotent) hoặc chạy tiếp (`project.resumed` mở sổ) |
 | Rút tiền | ledger (giữ) → payment (gọi ngoài) → ledger (chốt hoặc hoàn) | `payout.failed` → trả về số dư khả dụng |
 | Vượt link | gate → annotation (ghi nhãn) + ledger (CPM) | Không cần: at-least-once + consumer idempotent |
 | Chốt phiên collab | collab → annotation (1 bản chung) → ledger (chia theo đóng góp) | Leader chỉnh ±20% → bút toán điều chỉnh, ghi log |
+
+### 3.4.1. Đóng dự án: không để labeler làm không công
+
+Hoàn thành hoặc hủy dự án **đã chạy** là lúc ledger trả ký quỹ còn lại về doanh nghiệp. Sau đó nhãn nào được duyệt cũng không còn tiền trả. Vì vậy chỉ đóng được khi **không còn việc nào có thể sinh tiền cho labeler**:
+
+```
+POST /projects/{id}/complete | /cancel   (Running → 409 can_tam_dung_truoc: phải Tạm dừng trước)
+  1. task-svc        GET  /internal/projects/{id}/close-check
+       đã nhận project.paused? còn lượt đang giữ? → bao nhiêu lượt nộp thật (không tính câu vàng)
+  2. annotation-svc  POST /internal/projects/{id}/close {submittedCount}
+       MỘT transaction, khoá project_terms FOR UPDATE:
+         số nhãn chuyên nghiệp == submittedCount   (không nhãn nào đang trên đường)
+         0 nhãn chờ duyệt, 0 khiếu nại đang mở
+         0 nhãn bị từ chối còn trong hạn khiếu nại  (chống "từ chối hàng loạt rồi đóng ngay")
+       đạt → closed_at = now (đóng sổ)
+  3. đạt cả hai → Completed / Cancelled → project.completed / project.cancelled → ledger hoàn ký quỹ
+  chưa đạt → 409 chua_the_dong + closeCheck (lý do, số liệu, hạn khiếu nại cuối)
+  gọi nội bộ lỗi → 503 (không kiểm được thì không đóng)
+```
+
+- **Đóng sổ** chặn mọi thao tác làm đổi tiền sau đó: duyệt, duyệt hàng loạt, từ chối, khiếu nại, phân xử (409 `du_an_da_ket_thuc`). Các thao tác này đọc `project_terms` bằng `FOR SHARE` trong cùng transaction, nên một khiếu nại chen vào lúc đang đóng sổ hoặc đã commit trước (đóng sổ thấy nó và từ chối đóng), hoặc phải chờ và thấy dự án đã đóng.
+- Nhãn từ cổng link không gắn tiền (sharer đã được trả theo lượt), nên không chặn việc đóng.
+- **Ngoại lệ có kiểm soát với luật 1 mục 4:** đây là lời gọi HTTP đồng bộ đầu tiên giữa hai service nghiệp vụ. Nó không nằm trên đường nóng (đóng dự án rất hiếm), và hỏi thẳng **chủ dữ liệu** đúng như luật "quyết định tiền bạc không đọc bản sao". Endpoint nằm dưới `/internal` (gateway không định tuyến) và cần header `X-Internal-Key` (`InternalApi:Key`, bộ lọc `[InternalApi]` trong `shared/auth`).
 
 ### 3.5. Lease task 15 phút (FL-06)
 
@@ -278,7 +301,10 @@ Compensation: [Chờ duyệt] quá 72h không ai duyệt → project.cancelled �
 POST /tasks/projects/{projectId}/next
   1. Điều kiện: đọc bản sao trong task_db (project_snapshots, project_members_cache,
      labeler_cache) — thiếu dữ liệu thì TỪ CHỐI (VD-D-04)
-  2. SELECT ... ORDER BY random() LIMIT 1 FOR UPDATE SKIP LOCKED   (VD-T-06)
+  2. Chọn NGẪU NHIÊN trong N task còn chỗ cũ nhất rồi khoá một dòng   (VD-T-06)
+       truy vấn con: N ứng viên đầu hàng theo chỉ mục, KHÔNG khoá (N = task.lease_candidate_window, 32)
+       truy vấn ngoài: ORDER BY random() trên ≤ N dòng, LIMIT 1 FOR UPDATE SKIP LOCKED
+     cả N dòng đang bị giữ → rơi về ORDER BY t.id LIMIT 1 FOR UPDATE SKIP LOCKED (FIFO)
      không khóa được mà vẫn còn ứng viên → thử lại vài lần, không báo "hết task" oan
   3. INSERT assignment(state=Leased, expires_at = now + 15m) + tăng active_lease_count
      UNIQUE (project, labeler) WHERE Leased: mỗi người giữ tối đa 1 task/dự án
@@ -289,6 +315,8 @@ POST /tasks/assignments/{id}/submit
 
 Reaper (30s/lần): Leased quá hạn → Expired, trả chỗ về pool (SKIP LOCKED, chạy nhiều bản được)
 ```
+
+**Đo dưới tải ([NC-B-06](thi-nghiem/nc-b-06-hieu-nang.md#2-phân-phối-task)):** 46.804 lượt nộp tới 400 labeler đồng thời, 0 cấp trùng, 0 vượt redundancy. Bản đầu dùng `ORDER BY random()`: Postgres đọc và sắp xếp mọi task ứng viên mỗi lần lấy (82 ms ở dự án 20.000 mẫu). Đổi sang `ORDER BY t.id` và thêm chỉ mục `ix_assignments_labeler_active (labeler_id, task_id)` cho `NOT EXISTS` (trước đó quét tuần tự cả bảng assignments) thì thông lượng tăng khoảng 2 lần, đạt ~120 lượt/giây trên một instance. Thuần FIFO thì labeler bấm cùng lúc dễ rơi vào cùng task (dễ thông đồng), nên bước 2 chọn ngẫu nhiên trong cửa sổ N task đầu hàng: chi phí bị chặn theo N chứ không theo cỡ dự án. **Không** dùng `OFFSET` ngẫu nhiên, vì Postgres khoá cả các dòng bị OFFSET bỏ qua. Đo: 4 labeler bấm liên tiếp, FIFO cho 2 task khác nhau, cửa sổ 32 cho 3–4 task; thông lượng ngang FIFO ở 10–100 labeler.
 
 **Vì sao không dùng Redis cho lease (khác bản thiết kế đầu):** câu UPDATE có điều kiện trên dòng đã khóa đã nguyên tử sẵn. Thêm Redis tạo **hai** nguồn sự thật phải đồng bộ — VD-T-02 chính là lỗi hai nguồn đó lệch nhau. `redis-task` để dành cho cache eligibility khi hàng đợi lên hàng triệu task (VD-T-07, P2).
 
@@ -328,6 +356,13 @@ Relay (worker, theo lô): Redis Stream → outbox (gate.solved, click.validated)
 
 Doanh thu cộng bởi consumer của ledger, không nằm trong request. Đúng như đặc tả: bot không giải được câu vàng thì không sinh lượt hợp lệ, nên doanh thu tự về 0.
 
+**Ledger chi theo lượt hay theo lô (VD-M-08).** Setting `ledger.gate_payout_mode`:
+
+- `perClick` (mặc định): mỗi `click.validated` là một bút toán dưới khoá sổ cái toàn cục, tiền treo vào ví ngay.
+- `batched`: consumer chỉ INSERT một dòng `gate_clicks` (khoá chính `click_id`, chống trùng). Cứ `ledger.gate_batch_interval` (60 giây), `GateBatchWorker` gộp tối đa `ledger.gate_batch_size` lượt: mỗi dự án **một** bút toán `clickbatch:{lô}:{dự án}`, mỗi cặp (người chia sẻ, link) một khoản treo. Lượt vượt ngân sách bị từ chối, giống chế độ theo lượt.
+
+Đo ([NC-B-06](thi-nghiem/nc-b-06-hieu-nang.md#1-chi-tiền-cổng-link-perclick-so-với-batched)): perClick dừng ở ~30 lượt/giây và **không tăng khi thêm instance**. batched đạt ~70/s trên một instance và ~170/s với ba instance, đổi lại độ trễ tiền vào ví bằng khoảng nửa chu kỳ.
+
 **link-svc:**
 - Link mới ở `pendingScan`. Worker quét (Google Safe Browsing khi có khoá; dev dùng danh sách tên miền giả lập) rồi `active` + `link.activated`, hoặc `blocked`.
 - Tên miền bị chặn (admin) chặn cả tên miền con; chặn thêm thì link đang chạy tới tên miền đó bị vô hiệu hoá ngay.
@@ -358,6 +393,18 @@ Các quyết định đã chốt khi làm P3:
 | P3-3 | Đồng thuận dùng làm gì | **Gợi ý, vẫn duyệt tay** + nút duyệt hàng loạt nhãn khớp | Tiền chỉ chi khi có người chịu trách nhiệm bấm — tránh nhiều tài khoản cùng nhãn sai tự rút tiền (VD-Q-02) |
 | P3-4 | Redundancy thích ứng | **Có, ký quỹ tính theo trần** `maxRedundancy` | Lượt thêm luôn có tiền; ledger chặn chi theo trần mỗi task (VD-M-03); phần không dùng tự hoàn khi kết thúc. Trần chặn vòng lặp vô hạn (VD-Q-08) |
 | P3-5 | Ai giữ điểm uy tín | **quality-svc** phát `reputation.changed` | identity-svc chưa lưu điểm này; quality có đủ bằng chứng (câu vàng + đồng thuận + DS) |
+
+**Khi nào dừng mua thêm nhãn** (setting `quality.redundancy_policy`, hàm thuần trong `services/quality/app/redundancy.py`):
+
+| Chính sách | Quyết định khi task đủ người |
+|---|---|
+| `majority` (mặc định) | Quy tắc P3: có đáp án quá bán thì chốt, không thì xin thêm một người tới trần |
+| `posterior` | Tính hậu nghiệm từng đáp án, **có trọng số theo độ chính xác từng labeler** (mô hình một đồng xu; độ chính xác lấy từ Dawid–Skene nếu có, không thì từ câu vàng làm mượt). Chốt khi đáp án dẫn đầu ≥ `quality.posterior_target` (0,95) |
+| `voi` | Dừng tối ưu: chỉ mua thêm nếu tồn tại m nhãn nữa (m ≤ 6 và ≤ phần còn lại tới trần) mà giá trị thông tin kỳ vọng × `quality.voi_value_ratio` vượt chi phí m nhãn |
+
+Hai chính sách mới áp cho công cụ chọn một (phân loại một lớp, so sánh cặp). Chạm trần mà chưa đủ tin cậy thì task là **tranh chấp**, để người duyệt xử lý. Thí nghiệm trên 5 bộ dữ liệu công khai và mô phỏng ([NC-D-01](thi-nghiem/nc-d-01-redundancy-thich-ung.md)): để đạt cùng độ chính xác với cố định n nhãn, `posterior` / `voi` cần ít hơn 29–76% nhãn. Mặc định vẫn là `majority`, vì khi mọi labeler đều mới (chưa có bằng chứng về độ chính xác) thì `posterior` đắt hơn.
+
+**Đánh giá một task được xếp hàng theo task** (`pg_advisory_xact_lock`): hai nhãn cuối của cùng task xử lý song song thì mỗi transaction chỉ thấy nhãn của mình, cả hai đếm thiếu và task kẹt vĩnh viễn không có đồng thuận. Lỗi này lộ ra khi chạy E2E tổng thể; phép thử ép race (40 task, hai người nộp đồng thời) cho 40/40 task có kết quả.
 
 Gộp tự động hiện chỉ cho `classification` và `pairwise` (đa số tuyệt đối). Công cụ khác (khung, chép lời…) cho trạng thái `notApplicable` — gộp chúng (WBF, ROVER) là việc tiếp theo.
 
@@ -453,9 +500,9 @@ assignments / annotations / gold_items:  task_type = modality,
 | # | Câu hỏi | Chọn | Lý do |
 |---|---|---|---|
 | S1 | Lưu ở đâu | **Một bảng chung `settings` trong `admin_db`**, mỗi dòng một khóa (`key`, `value jsonb`, `version`, `updated_at`, `updated_by`) + `setting_history` (cũ → mới, ai, lý do) | Một chỗ cho admin xem và sửa; lịch sử để truy "ai hạ phí lúc nào" |
-| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 83 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
+| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 108 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
 | S3 | Service đọc thế nào | **Bản sao `settings_replica` trong DB của chính mỗi service** + bộ nhớ (`SettingsStore`). Nhận `setting.changed`; lúc khởi động nạp bản sao rồi xin `settings.snapshot_requested`, admin-svc phát `settings.snapshot` (cả lúc khởi động và định kỳ) | Đúng luật 1–2 mục 4: không gọi HTTP sang admin-svc trong đường nóng; admin-svc chết thì mọi service vẫn chạy với giá trị đã có. Mỗi khóa có `version` riêng — event đến sai thứ tự không ghi đè giá trị mới |
-| S4 | Đổi có hiệu lực khi nào | **Chỉ cho thao tác mới.** Giá trị đọc lại mỗi lần dùng; thứ đã chốt thì giữ: dự án đã publish giữ phí lúc publish, lease đang chạy giữ hạn cũ, lệnh rút đã tạo giữ thuế đã tính | Không ai bị đổi luật giữa chừng. `consumers.prefetch_count` là ngoại lệ (`restart`) vì chỉ đặt được lúc mở kênh |
+| S4 | Đổi có hiệu lực khi nào | **Chỉ cho thao tác mới.** Chu kỳ worker (giải phóng tiền treo, reaper, quét link…) đọc lại mỗi giây qua `ChoTheoSetting`, nên rút ngắn chu kỳ có hiệu lực ngay, không phải chờ hết chu kỳ cũ. Giá trị đọc lại mỗi lần dùng; thứ đã chốt thì giữ: dự án đã publish giữ phí lúc publish, lease đang chạy giữ hạn cũ, lệnh rút đã tạo giữ thuế đã tính | Không ai bị đổi luật giữa chừng. `consumers.prefetch_count` là ngoại lệ (`restart`) vì chỉ đặt được lúc mở kênh |
 | S5 | Domain có đọc setting không | **Không.** Tầng Api đọc setting, dựng **đối tượng quy định** (`QuyDinhDuAn`, `QuyDinhDuLieu`, `QuyDinhBaiTest`, `QuyDinhDuyetNhan`, `QuyDinhRut`, `QuyDinhNap`, `NguongKhop`) truyền vào domain | Domain vẫn thuần, test không cần hạ tầng. Độ rộng cột DB (`CotDb.*`) vẫn là hằng số của schema — setting độ dài bị chặn trần ở đó |
 | S6 | Tiến trình không có DB | Gateway giữ setting **trong bộ nhớ**, nghe qua một queue tạm (tự xóa khi tắt) | Gateway chỉ cần trần upload; không đáng một database |
 
@@ -512,7 +559,7 @@ web-bff  ──┬─► identity-svc    GET /users/{id}/profile
            (4 lời gọi song song, timeout 300ms, phần nào lỗi thì degrade phần đó)
 ```
 
-Ranh giới đọc/ghi: quyết định **tiền bạc** luôn hỏi lại chủ sở hữu dữ liệu, không bao giờ đọc từ bản sao.
+Ranh giới đọc/ghi: quyết định **tiền bạc** luôn hỏi lại chủ sở hữu dữ liệu, không bao giờ đọc từ bản sao. Ví dụ duy nhất hiện có của lời gọi HTTP đồng bộ giữa hai service nghiệp vụ là **đóng dự án** (mục 3.4.1): hiếm, không ở đường nóng, hỏi thẳng task-svc và annotation-svc trước khi ký quỹ được hoàn.
 
 ---
 

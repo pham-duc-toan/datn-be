@@ -80,7 +80,7 @@ namespace Crowd.Settings
             {
                 try
                 {
-                    await Task.Delay(_store.ThoiGian(SettingKeys.SettingsReloadInterval), stoppingToken);
+                    await ChoTheoSetting.ChoAsync(_store, SettingKeys.SettingsReloadInterval, stoppingToken);
                     int so = await NapAsync(stoppingToken);
 
                     // Lan chay DAU TIEN cua service: queue settings-snapshot chua ton tai luc xin o

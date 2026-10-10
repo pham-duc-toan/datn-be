@@ -148,67 +148,96 @@ namespace Crowd.Annotation.Api.Services
         public async Task<BulkApproveResponse> DuyetKhopDongThuanAsync(Guid projectId, Caller caller, CancellationToken ct)
         {
             await KiemQuyenDuyetAsync(projectId, caller, ct);
-            ProjectTerms dieuKhoan = await LayDieuKhoanAsync(projectId, ct);
-            Guid nguoiDuyet = caller.LayUserId();
-            DateTimeOffset bayGio = _clock.GetUtcNow();
 
-            List<LabelAnnotation> ds = await _db.Annotations
-                .Where(a => a.ProjectId == projectId
-                            && a.Status == AnnotationStatus.PendingReview
-                            && a.ConsensusAgrees == true)
-                .OrderBy(a => a.SubmittedAt)
-                .Take(_settings.SoNguyen(SettingKeys.AnnotationBulkApproveMax))
-                .ToListAsync(ct);
-
-            int duyet = 0;
-            int boQua = 0;
-            foreach (LabelAnnotation a in ds)
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
             {
-                if (a.LabelerId.HasValue && a.LabelerId.Value == nguoiDuyet)
+                ProjectTerms dieuKhoan = await KhoaDieuKhoanMoAsync(projectId, ct);
+                Guid nguoiDuyet = caller.LayUserId();
+                DateTimeOffset bayGio = _clock.GetUtcNow();
+
+                List<LabelAnnotation> ds = await _db.Annotations
+                    .Where(a => a.ProjectId == projectId
+                                && a.Status == AnnotationStatus.PendingReview
+                                && a.ConsensusAgrees == true)
+                    .OrderBy(a => a.SubmittedAt)
+                    .Take(_settings.SoNguyen(SettingKeys.AnnotationBulkApproveMax))
+                    .ToListAsync(ct);
+
+                int duyet = 0;
+                int boQua = 0;
+                foreach (LabelAnnotation a in ds)
                 {
-                    boQua++;
-                    continue;
+                    if (a.LabelerId.HasValue && a.LabelerId.Value == nguoiDuyet)
+                    {
+                        boQua++;
+                        continue;
+                    }
+
+                    a.Duyet(nguoiDuyet, bayGio);
+                    _events.PhatDaDuyet(a, dieuKhoan, caller);
+                    duyet++;
                 }
 
-                a.Duyet(nguoiDuyet, bayGio);
-                _events.PhatDaDuyet(a, dieuKhoan, caller);
-                duyet++;
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return new BulkApproveResponse { ApprovedCount = duyet, SkippedOwnCount = boQua };
             }
-
-            await _db.SaveChangesAsync(ct);
-            return new BulkApproveResponse { ApprovedCount = duyet, SkippedOwnCount = boQua };
+            finally
+            {
+                await tx.DisposeAsync();
+            }
         }
 
         public async Task<AnnotationResponse> DuyetAsync(Guid annotationId, Caller caller, CancellationToken ct)
         {
-            LabelAnnotation a = await LayDeDuyetAsync(annotationId, caller, ct);
-            ProjectTerms dieuKhoan = await LayDieuKhoanAsync(a.ProjectId, ct);
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                LabelAnnotation a = await LayDeDuyetAsync(annotationId, caller, ct);
+                ProjectTerms dieuKhoan = await KhoaDieuKhoanMoAsync(a.ProjectId, ct);
 
-            a.Duyet(caller.LayUserId(), _clock.GetUtcNow());
-            _events.PhatDaDuyet(a, dieuKhoan, caller);
+                a.Duyet(caller.LayUserId(), _clock.GetUtcNow());
+                _events.PhatDaDuyet(a, dieuKhoan, caller);
 
-            await _db.SaveChangesAsync(ct);
-            return await TaoResponseAsync(a, _clock.GetUtcNow());
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return await TaoResponseAsync(a, _clock.GetUtcNow());
+            }
+            finally
+            {
+                await tx.DisposeAsync();
+            }
         }
 
         public async Task<AnnotationResponse> TuChoiAsync(Guid annotationId, string? lyDo, Caller caller, CancellationToken ct)
         {
-            LabelAnnotation a = await LayDeDuyetAsync(annotationId, caller, ct);
-
-            a.TuChoi(caller.LayUserId(), lyDo ?? string.Empty, _clock.GetUtcNow(), QuyDinhTuSetting.DuyetNhan(_settings));
-
-            _events.Phat(caller, new AnnotationRejected
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
             {
-                AnnotationId = a.Id,
-                TaskId = a.TaskId,
-                ProjectId = a.ProjectId,
-                LabelerId = a.LabelerId,
-                Reason = a.RejectReason!,
-                IsFinal = false,
-            });
+                LabelAnnotation a = await LayDeDuyetAsync(annotationId, caller, ct);
+                await KhoaDieuKhoanMoAsync(a.ProjectId, ct);
 
-            await _db.SaveChangesAsync(ct);
-            return await TaoResponseAsync(a, _clock.GetUtcNow());
+                a.TuChoi(caller.LayUserId(), lyDo ?? string.Empty, _clock.GetUtcNow(), QuyDinhTuSetting.DuyetNhan(_settings));
+
+                _events.Phat(caller, new AnnotationRejected
+                {
+                    AnnotationId = a.Id,
+                    TaskId = a.TaskId,
+                    ProjectId = a.ProjectId,
+                    LabelerId = a.LabelerId,
+                    Reason = a.RejectReason!,
+                    IsFinal = false,
+                });
+
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return await TaoResponseAsync(a, _clock.GetUtcNow());
+            }
+            finally
+            {
+                await tx.DisposeAsync();
+            }
         }
 
         public async Task<IReadOnlyList<HistoryEntryResponse>> LichSuAsync(Guid annotationId, Caller caller, CancellationToken ct)
@@ -283,27 +312,39 @@ namespace Crowd.Annotation.Api.Services
         public async Task<AnnotationResponse> KhieuNaiAsync(Guid annotationId, string? noiDung, Caller caller, CancellationToken ct)
         {
             Guid uid = caller.LayUserId();
-            LabelAnnotation? a = await _db.Annotations.FirstOrDefaultAsync(x => x.Id == annotationId, ct);
 
-            // Nhan cua nguoi khac → 404, khong tiet lo no ton tai (BOLA).
-            if (a == null || a.LabelerId != uid)
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
             {
-                throw new NotFoundException("Khong tim thay nhan.");
+                LabelAnnotation? a = await _db.Annotations.FirstOrDefaultAsync(x => x.Id == annotationId, ct);
+
+                // Nhan cua nguoi khac → 404, khong tiet lo no ton tai (BOLA).
+                if (a == null || a.LabelerId != uid)
+                {
+                    throw new NotFoundException("Khong tim thay nhan.");
+                }
+
+                await KhoaDieuKhoanMoAsync(a.ProjectId, ct);
+
+                DateTimeOffset bayGio = _clock.GetUtcNow();
+                a.KhieuNai(uid, noiDung ?? string.Empty, bayGio, QuyDinhTuSetting.DuyetNhan(_settings));
+
+                _events.Phat(caller, new AppealOpened
+                {
+                    AnnotationId = a.Id,
+                    ProjectId = a.ProjectId,
+                    LabelerId = uid,
+                    Message = a.AppealMessage!,
+                });
+
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return await TaoResponseAsync(a, bayGio);
             }
-
-            DateTimeOffset bayGio = _clock.GetUtcNow();
-            a.KhieuNai(uid, noiDung ?? string.Empty, bayGio, QuyDinhTuSetting.DuyetNhan(_settings));
-
-            _events.Phat(caller, new AppealOpened
+            finally
             {
-                AnnotationId = a.Id,
-                ProjectId = a.ProjectId,
-                LabelerId = uid,
-                Message = a.AppealMessage!,
-            });
-
-            await _db.SaveChangesAsync(ct);
-            return await TaoResponseAsync(a, bayGio);
+                await tx.DisposeAsync();
+            }
         }
 
         // =====================================================================
@@ -331,35 +372,46 @@ namespace Crowd.Annotation.Api.Services
                 throw new ArgumentNullException(nameof(body));
             }
 
-            LabelAnnotation? a = await _db.Annotations.FirstOrDefaultAsync(x => x.Id == annotationId, ct);
-            if (a == null)
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
             {
-                throw new NotFoundException("Khong tim thay nhan.");
-            }
-
-            DateTimeOffset bayGio = _clock.GetUtcNow();
-            bool chapNhan = a.XuLyKhieuNai(caller.LayUserId(), body.Accept, body.Note, bayGio);
-
-            if (chapNhan)
-            {
-                // Khieu nai thang: labeler duoc tra tien nhu duoc duyet tu dau.
-                _events.PhatDaDuyet(a, await LayDieuKhoanAsync(a.ProjectId, ct), caller);
-            }
-            else
-            {
-                _events.Phat(caller, new AnnotationRejected
+                LabelAnnotation? a = await _db.Annotations.FirstOrDefaultAsync(x => x.Id == annotationId, ct);
+                if (a == null)
                 {
-                    AnnotationId = a.Id,
-                    TaskId = a.TaskId,
-                    ProjectId = a.ProjectId,
-                    LabelerId = a.LabelerId,
-                    Reason = body.Note ?? a.RejectReason ?? "Khieu nai bi bac",
-                    IsFinal = true,
-                });
-            }
+                    throw new NotFoundException("Khong tim thay nhan.");
+                }
 
-            await _db.SaveChangesAsync(ct);
-            return await TaoResponseAsync(a, bayGio);
+                ProjectTerms dieuKhoan = await KhoaDieuKhoanMoAsync(a.ProjectId, ct);
+
+                DateTimeOffset bayGio = _clock.GetUtcNow();
+                bool chapNhan = a.XuLyKhieuNai(caller.LayUserId(), body.Accept, body.Note, bayGio);
+
+                if (chapNhan)
+                {
+                    // Khieu nai thang: labeler duoc tra tien nhu duoc duyet tu dau.
+                    _events.PhatDaDuyet(a, dieuKhoan, caller);
+                }
+                else
+                {
+                    _events.Phat(caller, new AnnotationRejected
+                    {
+                        AnnotationId = a.Id,
+                        TaskId = a.TaskId,
+                        ProjectId = a.ProjectId,
+                        LabelerId = a.LabelerId,
+                        Reason = body.Note ?? a.RejectReason ?? "Khieu nai bi bac",
+                        IsFinal = true,
+                    });
+                }
+
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return await TaoResponseAsync(a, bayGio);
+            }
+            finally
+            {
+                await tx.DisposeAsync();
+            }
         }
 
         // =====================================================================
@@ -464,6 +516,24 @@ namespace Crowd.Annotation.Api.Services
         /// Don gia + phi TU BAN SAO. Chua co (project.published chua toi) thi TU
         /// CHOI duyet — khong bao gio phat annotation.approved voi so tien doan mo.
         /// </summary>
+        /// <summary>
+        /// Khoa CHIA SE dong dieu khoan du an (trong transaction dang mo) va kiem du an CON MO.
+        /// Du an da dong so (sap / da tra ky quy) → 409 du_an_da_ket_thuc. Xem DieuKhoanDuAn.
+        /// </summary>
+        private async Task<ProjectTerms> KhoaDieuKhoanMoAsync(Guid projectId, CancellationToken ct)
+        {
+            ProjectTerms? t = await DieuKhoanDuAn.KhoaChiaSeAsync(_db, projectId, ct);
+            if (t == null)
+            {
+                throw new RuleViolationException(
+                    "chua_co_dieu_khoan",
+                    "Chua dong bo xong don gia cua du an. Thu lai sau it giay.");
+            }
+
+            t.KiemConMo();
+            return t;
+        }
+
         private async Task<ProjectTerms> LayDieuKhoanAsync(Guid projectId, CancellationToken ct)
         {
             ProjectTerms? t = await _db.ProjectTerms.FirstOrDefaultAsync(x => x.ProjectId == projectId, ct);

@@ -33,6 +33,35 @@ namespace Crowd.Project.Api.Exceptions
     }
 
     /// <summary>
+    /// Chua dong (hoan thanh / huy) duoc du an — 409 kem "closeCheck": so lieu con phai xu ly
+    /// (luot dang lam, nhan cho duyet, khieu nai, han khieu nai...) de giao dien huong dan.
+    /// </summary>
+    public sealed class ChuaTheDongDuAnException : Exception
+    {
+        public ChuaTheDongDuAnException(string message, object chiTiet)
+            : base(message)
+        {
+            if (chiTiet == null)
+            {
+                throw new ArgumentNullException(nameof(chiTiet));
+            }
+
+            ChiTiet = chiTiet;
+        }
+
+        public object ChiTiet { get; }
+    }
+
+    /// <summary>Goi service noi bo khong duoc (tat, het gio, loi) → 503. Tu choi thay vi doan.</summary>
+    public sealed class DichVuKhongSanSangException : Exception
+    {
+        public DichVuKhongSanSangException(string message, Exception? inner)
+            : base(message, inner)
+        {
+        }
+    }
+
+    /// <summary>
     /// Doi MOI ngoai le da biet thanh ProblemDetails voi ma HTTP dung, o MOT cho.
     /// Controller va service khong viet try/catch cho tung truong hop.
     ///
@@ -41,6 +70,8 @@ namespace Crowd.Project.Api.Exceptions
     ///   ForbiddenException             → 403
     ///   NotFoundException              → 404
     ///   RuleViolationException         → 409  trang thai khong cho phep
+    ///   ChuaTheDongDuAnException       → 409  chua_the_dong, kem closeCheck
+    ///   DichVuKhongSanSangException    → 503  goi service noi bo loi
     ///   DbUpdateConcurrencyException   → 409  nguoi khac vua sua cung luc (xmin, VD-D-11)
     ///   con lai                        → 500  (ASP.NET tu xu ly, khong lo chi tiet)
     ///
@@ -95,6 +126,18 @@ namespace Crowd.Project.Api.Exceptions
                 code = rule.Code;
                 message = rule.Message;
             }
+            else if (exception is ChuaTheDongDuAnException)
+            {
+                status = StatusCodes.Status409Conflict;
+                code = "chua_the_dong";
+                message = exception.Message;
+            }
+            else if (exception is DichVuKhongSanSangException)
+            {
+                status = StatusCodes.Status503ServiceUnavailable;
+                code = "dich_vu_khong_san_sang";
+                message = exception.Message;
+            }
             else if (exception is NotFoundException)
             {
                 status = StatusCodes.Status404NotFound;
@@ -128,6 +171,12 @@ namespace Crowd.Project.Api.Exceptions
             chiTiet.Title = code;
             chiTiet.Detail = message;
             chiTiet.Extensions["code"] = code;
+
+            ChuaTheDongDuAnException? chuaDong = exception as ChuaTheDongDuAnException;
+            if (chuaDong != null)
+            {
+                chiTiet.Extensions["closeCheck"] = chuaDong.ChiTiet;
+            }
 
             // HttpContext va Exception la "required init" — phai gan trong khoi { }.
             ProblemDetailsContext ngucanh = new ProblemDetailsContext

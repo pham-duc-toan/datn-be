@@ -234,6 +234,14 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<bool>("IsFinal")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_final");
+
                     b.Property<string>("Modality")
                         .IsRequired()
                         .HasMaxLength(20)

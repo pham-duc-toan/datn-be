@@ -333,6 +333,7 @@ namespace Crowd.Admin.Api.Services
                 Max = d.Max,
                 Effect = d.EffectName,
                 Description = d.Description,
+                Choices = d.Choices,
                 DefaultValue = d.DefaultValue.DeepClone(),
                 Value = s == null ? d.DefaultValue.DeepClone() : JsonNode.Parse(s.ValueJson),
                 Version = s == null ? 0 : s.Version,

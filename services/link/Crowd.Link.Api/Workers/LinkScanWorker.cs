@@ -71,7 +71,7 @@ namespace Crowd.Link.Api.Workers
 
                 try
                 {
-                    await Task.Delay(_settings.ThoiGian(SettingKeys.LinkScanInterval), stoppingToken);
+                    await ChoTheoSetting.ChoAsync(_settings, SettingKeys.LinkScanInterval, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {

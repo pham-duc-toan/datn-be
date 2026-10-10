@@ -115,7 +115,7 @@ namespace Crowd.Gate.Api.Workers
 
                 try
                 {
-                    await Task.Delay(_settings.ThoiGian(SettingKeys.GateEventFlushInterval), stoppingToken);
+                    await ChoTheoSetting.ChoAsync(_settings, SettingKeys.GateEventFlushInterval, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {

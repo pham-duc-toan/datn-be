@@ -616,11 +616,21 @@ curl -s http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793ba
 curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/export?format=csv" -H "Authorization: Bearer <token-biz1>" -o ketqua.csv
 curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/export?format=json" -H "Authorization: Bearer <token-biz1>"
 
-# Hoàn thành P4 → ledger trả phần ký quỹ còn dư về biz1 (khả dụng +300.000, vì P4 chưa chi đồng nào)
+# Hoàn thành P4 → ledger trả phần ký quỹ còn dư về biz1 (khả dụng +300.000, vì P4 chưa chi đồng nào).
+# Dự án đã chạy phải TẠM DỪNG trước (đang chạy → 409 can_tam_dung_truoc).
+curl -s -X POST http://localhost:8080/projects/2fde6d4c-ee31-57ae-8632-b2e6e0721217/pause -H "Authorization: Bearer <token-biz1>"
+sleep 2
 curl -s -X POST http://localhost:8080/projects/2fde6d4c-ee31-57ae-8632-b2e6e0721217/complete -H "Authorization: Bearer <token-biz1>"
 sleep 3
 curl -s http://localhost:8080/ledger/me/balance -H "Authorization: Bearer <token-biz1>"
 ```
+
+**Đóng dự án khi còn việc dở** (xem [kiến trúc 3.4.1](kien-truc-backend.md#341-đóng-dự-án-không-để-labeler-làm-không-công)): hoàn thành / hủy trả **409 `chua_the_dong`** kèm `closeCheck` cho tới khi:
+- không còn lượt labeler đang giữ (`con_luot_dang_lam` — chờ họ nộp, hoặc lease hết hạn);
+- không còn nhãn chờ duyệt (`con_nhan_cho_duyet`) và khiếu nại đang mở (`con_khieu_nai`);
+- nhãn bị từ chối đã qua hạn khiếu nại `annotation.appeal_window`, mặc định 7 ngày (`con_han_khieu_nai`, có `appealWindowEndsAt`). Muốn thử nhanh thì đặt setting này = 0.
+
+Sau khi đóng, duyệt / từ chối / khiếu nại nhãn của dự án đó → 409 `du_an_da_ket_thuc`. Endpoint nội bộ `/internal/...` của task-svc (8103) và annotation-svc (8104) cần header `X-Internal-Key` (dev: `dev_internal_key`), gateway không định tuyến.
 
 ### 6.13 Phân quyền chiều ngang (BOLA)
 
@@ -807,11 +817,21 @@ Kiểm tra thêm:
 - Labeler gọi `/quality/projects/{id}/summary`: **404**.
 - Câu vàng chỉ được trộn khi labeler **còn task thật** để làm, và mỗi câu vàng mỗi người chỉ gặp một lần.
 
+**Chính sách dừng mua nhãn** (mặc định `majority`). Đổi sang `posterior` hoặc `voi` để gộp có trọng số theo độ chính xác từng labeler ([NC-D-01](thi-nghiem/nc-d-01-redundancy-thich-ung.md)):
+
+```bash
+curl -s -X PUT http://localhost:8080/admin/settings/quality.redundancy_policy -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"value":"posterior","reason":"thu chinh sach hau nghiem"}'
+# giá trị khác majority/posterior/voi → 400 gia_tri_khong_hop_le
+```
+
+Áp cho task **đủ người sau khi đổi**. Với `posterior`, hai labeler mới (độ chính xác mặc định 0,7) chọn trùng nhau **chưa đủ** τ = 0,95, nên task xin thêm người tới trần. Chạm trần mà vẫn chưa đủ thì `consensus_rounds.status = disputed`, `final` rỗng.
+
 ---
 
 ### 6.16 Setting hệ thống (admin): phí, tự duyệt, hạn mức
 
-Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (83 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
+Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (108 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
 
 ```bash
 # Toàn bộ setting: key, group, type, value, defaultValue, min, max, unit, effect, description, version
@@ -952,6 +972,7 @@ Kiểm tra thêm:
 - **Giới thiệu:** `GET /links/referrals/me` lấy mã; tài khoản **mới đăng ký** gọi `POST /links/referrals/claim {"code":"..."}`. Khi người được mời kiếm tiền qua cổng (và đã vượt `link.referral_min_earnings_vnd`), người giới thiệu nhận 10% vào `pendingVnd`.
 - **Kiểm duyệt:** khách bấm báo cáo `POST /links/r/<code>/report {"reason":"..."}`. Đủ `link.report_review_threshold` IP khác nhau thì link vào `GET /links/admin/review-queue`. Admin `POST /links/admin/<id>/disable {"reason":"...","withholdRevenue":true}` → trang vượt link 404, doanh thu đang treo của link chuyển sang `platform:withheld`.
 - Chặn tên miền: `POST /links/admin/blocked-domains {"domain":"casino.com","reason":"..."}` — chặn cả tên miền con, link đang chạy tới đó bị vô hiệu hoá ngay.
+- **Chi theo lô:** đặt `ledger.gate_payout_mode = batched` (và `ledger.gate_batch_interval` nhỏ, vd 10 giây, cho dễ thấy). Lượt vượt link giờ chỉ nằm ở `gate_clicks` với `state = Queued`, ví chưa đổi. Sau một chu kỳ thì `state = Paid` và `pendingVnd` tăng, số tiền như chế độ theo lượt. Xem: `docker exec datn-db-ledger psql -U ledger_user -d ledger_db -c "select state, count(*), max(settled_at) from gate_clicks group by 1"`.
 
 ## 7. Kiểm tra tổng sau khi test
 
@@ -965,6 +986,30 @@ Chạy lúc nào cũng phải ra `healthy: true`. Nếu không, một luồng ti
 Xem event chạy qua hệ thống: mở RabbitMQ UI tại http://localhost:15672, tab **Queues**. Mỗi queue có tên dạng `<service>.<event>`, ví dụ `ledger-svc.annotation-approved`. Hàng đợi dead-letter nằm ở exchange `datn.dlx`.
 
 ---
+
+## 7.1 Chạy lại thí nghiệm (NC-D-01, NC-B-06)
+
+Mã ở `experiments/`, môi trường Python riêng:
+
+```bash
+cd experiments
+python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
+
+# NC-D-01 — redundancy thích ứng (không cần hệ thống chạy; tải benchmark vào experiments/.cache/)
+.venv/Scripts/python redundancy/chay.py        # ~25 phút → redundancy/ket-qua/ket-qua.json + docs/thi-nghiem/img/nc-d-01-*.png
+.venv/Scripts/python redundancy/bao_cao.py     # in các bảng markdown cho báo cáo
+
+# NC-B-06 — cần hệ thống dev đang chạy (mục 3)
+cd perf
+../.venv/Scripts/python ledger_cpm.py --mode perClick --mode batched                 # ledger cô lập: vhost bench, DB ledger_bench, cổng 8195
+../.venv/Scripts/python ledger_cpm.py --mode perClick --mode batched --so-instance 3
+../.venv/Scripts/python task_lease.py --muc 10,50,100,200,400 --giay 30 --tien-trinh 8 --ra task-lease.json
+../.venv/Scripts/python ve.py                                                        # vẽ lại biểu đồ
+```
+
+- `task_lease.py` tạo **dự án mới** (20.000 mẫu) và 400 labeler `bench-*@crowd.local` mỗi lần chạy, trong DB dev. Ký quỹ nạp qua sandbox.
+- Kiểm `cpu_client_max` trong kết quả: gần 1,0 nghĩa là bộ sinh tải đã bão hoà. Khi đó tăng `--tien-trinh`, vì con số đo được là trần của client chứ không phải của service ([NC-B-06 mục 2.3](thi-nghiem/nc-b-06-hieu-nang.md#23-sai-lầm-phương-pháp-đã-sửa)).
+- Đang chạy service thì build sẽ lỗi khoá DLL. Dừng service trước khi build.
 
 ## 8. Sự cố thường gặp
 
@@ -990,4 +1035,5 @@ Xem event chạy qua hệ thống: mở RabbitMQ UI tại http://localhost:15672
 | Lô manifest đứng mãi ở `pending` | project-svc không chạy (worker nạp dữ liệu chạy bên trong nó). Bật lên là lô được xử lý; lô `ingesting` dở dang được làm lại từ đầu |
 | Lỗi bucket `datasets` không tồn tại | `minio-init` chưa chạy. Chạy lại `docker compose ... up -d` |
 | Nhãn đã duyệt nhưng labeler chưa thấy tiền | ledger-svc chưa chạy, hoặc event đang nằm trong outbox của annotation. Bật ledger lên thì event sẽ được giao (at-least-once) |
+| Hoàn thành / hủy dự án trả 503 `dich_vu_khong_san_sang` | project-svc không gọi được task-svc hoặc annotation-svc (đang tắt), hoặc `InternalApi:Key` / địa chỉ trong appsettings của project, task, annotation không khớp nhau |
 | P2 tự chuyển sang `cancelled` | Đúng thiết kế: dự án chờ duyệt quá `project.approval_timeout` (mặc định 72 giờ) thì tự hủy và hoàn ký quỹ (compensation của saga) |

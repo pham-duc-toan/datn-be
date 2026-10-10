@@ -150,7 +150,4 @@ async def vong_lap(dung: asyncio.Event) -> None:
             log.info("Lo Dawid-Skene xong: %s (du an, cong cu)", so)
         except Exception:  # noqa: BLE001
             log.exception("Lo Dawid-Skene that bai, thu lai lo sau")
-        try:
-            await asyncio.wait_for(dung.wait(), timeout=settings_store.giay(settings_store.DS_INTERVAL))
-        except asyncio.TimeoutError:
-            pass
+        await settings_store.cho_theo_setting(settings_store.DS_INTERVAL, dung)

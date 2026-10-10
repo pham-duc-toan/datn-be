@@ -110,6 +110,43 @@
     "description": "So khoan treo den han giai phong moi lo."
   },
   {
+    "key": "ledger.gate_payout_mode",
+    "group": "Ky thuat",
+    "type": "text",
+    "default": "perClick",
+    "min": null,
+    "max": 50,
+    "unit": "",
+    "effect": "newOperations",
+    "description": "Chi tien luot vuot link: perClick = moi luot mot but toan ngay (tien vao vi sau vai giay, nghen khi tai cao); batched = gom theo du an moi ledger.gate_batch_interval roi viet mot but toan (VD-M-08).",
+    "choices": [
+      "perClick",
+      "batched"
+    ]
+  },
+  {
+    "key": "ledger.gate_batch_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 60,
+    "min": 1,
+    "max": 3600,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Che do batched: gom luot vuot link bao lau mot lan."
+  },
+  {
+    "key": "ledger.gate_batch_size",
+    "group": "Ky thuat",
+    "type": "int",
+    "default": 5000,
+    "min": 1,
+    "max": 100000,
+    "unit": "luot",
+    "effect": "newOperations",
+    "description": "Che do batched: toi da bay nhieu luot moi lo."
+  },
+  {
     "key": "ledger.withdraw_min_vnd",
     "group": "Phi va tien",
     "type": "long",
@@ -638,6 +675,17 @@
     "description": "Cho giua hai lan thu khoa task."
   },
   {
+    "key": "task.lease_candidate_window",
+    "group": "Gan nhan va duyet nhan",
+    "type": "int",
+    "default": 32,
+    "min": 1,
+    "max": 1000,
+    "unit": "task",
+    "effect": "newOperations",
+    "description": "Cap task NGAU NHIEN trong N task con cho cu nhat (1 = dung thu tu, task cu truoc). Labeler bam cung luc it roi vao cung mot task; chi phi lay task tang theo N."
+  },
+  {
     "key": "annotation.appeal_window",
     "group": "Gan nhan va duyet nhan",
     "type": "durationSeconds",
@@ -724,6 +772,44 @@
     "unit": "nhan",
     "effect": "newOperations",
     "description": "Suc nang tien nghiem: so bang chung can de diem roi xa muc tien nghiem."
+  },
+  {
+    "key": "quality.redundancy_policy",
+    "group": "Chat luong",
+    "type": "text",
+    "default": "majority",
+    "min": null,
+    "max": 50,
+    "unit": "",
+    "effect": "newOperations",
+    "description": "Khi nao xin them nguoi gan cho mot mau (NC-D-01): majority = tranh chap (khong lua chon nao qua ban) thi xin them; posterior = dung khi xac suat hau nghiem cua dap an dan dau >= quality.posterior_target (co trong so theo do chinh xac labeler); voi = dung toi uu mot buoc: chi mua them nhan khi gia tri thong tin ky vong vuot chi phi (quality.voi_value_ratio).",
+    "choices": [
+      "majority",
+      "posterior",
+      "voi"
+    ]
+  },
+  {
+    "key": "quality.posterior_target",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.95,
+    "min": 0.5,
+    "max": 0.999,
+    "unit": "xac suat",
+    "effect": "newOperations",
+    "description": "Chinh sach posterior: du tin cay de dung khi hau nghiem cua dap an dan dau dat muc nay."
+  },
+  {
+    "key": "quality.voi_value_ratio",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 20,
+    "min": 1,
+    "max": 10000,
+    "unit": "lan",
+    "effect": "newOperations",
+    "description": "Chinh sach voi: mot nhan CUOI dung gia tri bang bay nhieu lan chi phi mot nhan mua them. Cao = chiu mua them nhieu hon de tang do chinh xac."
   },
   {
     "key": "labeling.threshold.bbox",

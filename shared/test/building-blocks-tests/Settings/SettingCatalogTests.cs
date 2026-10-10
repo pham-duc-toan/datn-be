@@ -60,6 +60,10 @@ namespace Crowd.BuildingBlocks.Tests.Settings
 
             // Gia tri doc tu JSON (DB / event) cung qua dung cua kiem.
             Assert.Null(phi.KiemGiaTri(JsonNode.Parse("40")));
+
+            SettingDefinition chinhSach = SettingCatalog.Lay(SettingKeys.QualityRedundancyPolicy);
+            Assert.Null(chinhSach.KiemGiaTri(JsonValue.Create("posterior")));
+            Assert.NotNull(chinhSach.KiemGiaTri(JsonValue.Create("ngau_nhien")));
         }
 
         [Fact]
@@ -98,6 +102,16 @@ namespace Crowd.BuildingBlocks.Tests.Settings
                     ["effect"] = d.EffectName,
                     ["description"] = d.Description,
                 };
+                if (d.Choices != null)
+                {
+                    JsonArray lc = new JsonArray();
+                    foreach (string c in d.Choices)
+                    {
+                        lc.Add(c);
+                    }
+
+                    o["choices"] = lc;
+                }
                 ds.Add(o);
             }
 

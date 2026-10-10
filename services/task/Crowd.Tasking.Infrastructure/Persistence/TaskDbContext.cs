@@ -147,6 +147,15 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                     .HasFilter("state IN ('Leased','Submitted')")
                     .HasDatabaseName("ux_assignments_task_labeler_active");
 
+                // Cung cap do theo chieu NGUOC (labeler truoc) cho NOT EXISTS cua cau lay
+                // task: "cac task labeler nay dang giu / da nop". Chi muc tren bat dau bang
+                // task_id nen Postgres phai quet TUAN TU ca bang assignments moi lan lay
+                // task — NC-B-06: 28 ms / lan voi 34.000 luot, tang theo so luot da giao.
+                // Co chi muc nay: doc dung cac dong cua labeler (Merge Anti Join), ~2 ms.
+                b.HasIndex(x => new { x.LabelerId, x.TaskId })
+                    .HasFilter("state IN ('Leased','Submitted')")
+                    .HasDatabaseName("ix_assignments_labeler_active");
+
                 // Moi labeler giu toi da MOT task moi du an cung luc.
                 b.HasIndex(x => new { x.ProjectId, x.LabelerId })
                     .IsUnique()

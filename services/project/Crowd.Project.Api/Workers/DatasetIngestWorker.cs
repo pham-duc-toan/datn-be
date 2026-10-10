@@ -78,7 +78,7 @@ namespace Crowd.Project.Api.Workers
                 {
                     try
                     {
-                        await Task.Delay(_settings.ThoiGian(SettingKeys.DatasetWorkerIdle), stoppingToken);
+                        await ChoTheoSetting.ChoAsync(_settings, SettingKeys.DatasetWorkerIdle, stoppingToken);
                     }
                     catch (OperationCanceledException)
                     {

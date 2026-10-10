@@ -59,6 +59,7 @@ builder.Services.AddScoped<LedgerEventPublisher>();
 builder.Services.AddScoped<MoneyFlowService>();
 builder.Services.AddScoped<WalletService>();
 builder.Services.AddScoped<WithdrawalApprovalService>();
+builder.Services.AddHostedService<GateBatchWorker>();
 builder.Services.AddScoped<ReconciliationService>();
 builder.Services.AddHostedService<HoldReleaseWorker>();
 builder.Services.AddScoped<LedgerSeeder>();

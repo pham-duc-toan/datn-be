@@ -200,11 +200,31 @@ namespace Crowd.Project.Tests
             p.TiepTuc(Luc);
             Assert.Equal(ProjectStatus.Running, p.Status);
 
+            RuleViolationException loi = Assert.Throws<RuleViolationException>(() => p.HoanThanh(Luc));
+            Assert.Equal("can_tam_dung_truoc", loi.Code);
+
+            p.TamDung(Luc);
             p.HoanThanh(Luc);
             Assert.Equal(ProjectStatus.Completed, p.Status);
             Assert.True(p.DaKetThuc());
 
             Assert.Throws<RuleViolationException>(() => p.TamDung(Luc));
+        }
+
+        [Fact]
+        public void Huy_du_an_dang_chay_phai_tam_dung_truoc()
+        {
+            LabelingProject p = DuAnSanSang();
+            p.YeuCauPublish(100, 0, Phi, Luc);
+            p.XacNhanDaKyQuy(Luc);
+            p.Duyet(Luc);
+
+            RuleViolationException loi = Assert.Throws<RuleViolationException>(() => p.Huy("doi y", Luc));
+            Assert.Equal("can_tam_dung_truoc", loi.Code);
+
+            p.TamDung(Luc);
+            p.Huy("doi y", Luc);
+            Assert.Equal(ProjectStatus.Cancelled, p.Status);
         }
 
         [Fact]

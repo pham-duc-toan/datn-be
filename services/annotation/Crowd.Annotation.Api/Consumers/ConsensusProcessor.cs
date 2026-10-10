@@ -128,11 +128,17 @@ namespace Crowd.Annotation.Api.Consumers
                 return;
             }
 
-            ProjectTerms? dieuKhoan = await _db.ProjectTerms.FirstOrDefaultAsync(x => x.ProjectId == projectId, ct);
+            ProjectTerms? dieuKhoan = await DieuKhoanDuAn.KhoaChiaSeAsync(_db, projectId, ct);
             if (dieuKhoan == null)
             {
                 // project.published chua toi — nem loi de broker giao lai sau.
                 throw new InvalidOperationException("Chua co dieu khoan du an " + projectId + " de tu duyet.");
+            }
+
+            if (dieuKhoan.DaDong)
+            {
+                // Ky quy da / sap tra ve doanh nghiep — khong con tien de tu duyet.
+                return;
             }
 
             Caller heThong = Caller.HeThong(envelope.CorrelationId, envelope.EventId);

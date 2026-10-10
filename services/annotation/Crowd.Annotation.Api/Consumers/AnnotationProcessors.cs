@@ -75,6 +75,17 @@ namespace Crowd.Annotation.Api.Consumers
                 return;
             }
 
+            // Du an da dong so: project-svc chi dong khi so luot nop ben task-svc KHOP so nhan
+            // o day va khong con luot dang giu — nen nhan toi sau la sai bat bien. NEM LOI de
+            // message vao DLQ cho nguoi xem (VD-D-06), khong am tham luu nhan se khong ai tra tien.
+            // Chua co dieu khoan (project.published chua toi) thi van luu nhu cu.
+            ProjectTerms? dieuKhoan = await DieuKhoanDuAn.KhoaChiaSeAsync(_db, p.ProjectId, ct);
+            if (dieuKhoan != null && dieuKhoan.DaDong)
+            {
+                throw new InvalidOperationException(
+                    "Luot nop " + p.AssignmentId + " toi sau khi du an " + p.ProjectId + " da dong so.");
+            }
+
             LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
                 p.AssignmentId,
                 p.TaskId,
@@ -136,6 +147,103 @@ namespace Crowd.Annotation.Api.Consumers
             // Doc qua dung cua kiem cua Crowd.Labeling: tap nhan hong → NEM LOI → DLQ.
             _db.ProjectTerms.Add(ProjectTerms.Tao(
                 p.ProjectId, p.OwnerId, p.UnitPriceVnd, p.PlatformFeeVnd, LabelSchema.Doc(p.LabelSchema)));
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Dong so du an ← project.resumed | project.completed | project.cancelled
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// project.resumed: mo lai so neu lan dong so truoc do khong duoc project-svc chot
+    /// (doanh nghiep chay tiep). Event cu hon luc dong so thi bo qua.
+    /// </summary>
+    public sealed class ProjectResumedProcessor : IEventProcessor<ProjectResumed>
+    {
+        private readonly AnnotationDbContext _db;
+
+        public ProjectResumedProcessor(AnnotationDbContext db)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            _db = db;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<ProjectResumed> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            ProjectTerms? t = await DieuKhoanDuAn.KhoaAsync(_db, envelope.Payload.ProjectId, ct);
+            if (t != null)
+            {
+                t.MoLai(envelope.OccurredAt);
+            }
+        }
+    }
+
+    /// <summary>project.completed: dong so VINH VIEN (thuong da dong qua API noi bo truoc do).</summary>
+    public sealed class ProjectCompletedProcessor : IEventProcessor<ProjectCompleted>
+    {
+        private readonly AnnotationDbContext _db;
+
+        public ProjectCompletedProcessor(AnnotationDbContext db)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            _db = db;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<ProjectCompleted> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            ProjectTerms? t = await DieuKhoanDuAn.KhoaAsync(_db, envelope.Payload.ProjectId, ct);
+            if (t != null)
+            {
+                t.KetThuc(envelope.OccurredAt);
+            }
+        }
+    }
+
+    /// <summary>project.cancelled: nhu completed (du an huy truoc publish thi chua co dieu khoan — bo qua).</summary>
+    public sealed class ProjectCancelledProcessor : IEventProcessor<ProjectCancelled>
+    {
+        private readonly AnnotationDbContext _db;
+
+        public ProjectCancelledProcessor(AnnotationDbContext db)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            _db = db;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<ProjectCancelled> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            ProjectTerms? t = await DieuKhoanDuAn.KhoaAsync(_db, envelope.Payload.ProjectId, ct);
+            if (t != null)
+            {
+                t.KetThuc(envelope.OccurredAt);
+            }
         }
     }
 

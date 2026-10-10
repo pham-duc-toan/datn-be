@@ -265,6 +265,63 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                     b.ToTable("holds", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Ledger.Domain.Holds.GateClick", b =>
+                {
+                    b.Property<Guid>("ClickId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("click_id");
+
+                    b.Property<Guid?>("BatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_id");
+
+                    b.Property<Guid>("LinkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("link_id");
+
+                    b.Property<long>("PlatformAmountVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("platform_amount_vnd");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.Property<DateTimeOffset?>("SettledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("settled_at");
+
+                    b.Property<long>("SharerAmountVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sharer_amount_vnd");
+
+                    b.Property<Guid>("SharerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sharer_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.Property<DateTimeOffset>("ValidatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("validated_at");
+
+                    b.HasKey("ClickId");
+
+                    b.HasIndex("ReceivedAt")
+                        .HasDatabaseName("ix_gate_clicks_cho_gop")
+                        .HasFilter("state = 'Queued'");
+
+                    b.ToTable("gate_clicks", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Ledger.Domain.Holds.ReferralLink", b =>
                 {
                     b.Property<Guid>("ReferredId")

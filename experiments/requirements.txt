@@ -1,0 +1,10 @@
+# Thi nghiem NC-D-01 (redundancy thich ung) va NC-B-06 (hieu nang). Venv rieng: experiments/.venv
+numpy
+pandas
+matplotlib
+crowd-kit==1.4.2
+requests
+aio-pika
+httpx
+PyJWT[crypto]
+psycopg[binary]

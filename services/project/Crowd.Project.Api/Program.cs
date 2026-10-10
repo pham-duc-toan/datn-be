@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
@@ -68,6 +69,8 @@ builder.Services.AddScoped<ProjectSeeder>();
 
 // ---- Kiem token (giong moi service) ----
 builder.Services.AddCrowdJwtAuthentication(builder.Configuration);
+builder.Services.AddCrowdInternalApi(builder.Configuration);
+builder.Services.AddHttpClient<DongSoClient>();
 
 // ---- HTTP ----
 builder.Services

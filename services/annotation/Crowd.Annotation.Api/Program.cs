@@ -6,6 +6,7 @@ using Crowd.Annotation.Api.Exceptions;
 using Crowd.Annotation.Api.Seeding;
 using Crowd.Annotation.Api.Services;
 using Crowd.Annotation.Infrastructure.Persistence;
+using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
@@ -38,6 +39,9 @@ builder.Services.AddCrowdSettings<AnnotationDbContext>(cfg, "annotation-svc");
 builder.Services.AddOutbox<AnnotationDbContext>(cfg);
 builder.Services.AddEventConsumer<AnnotationDbContext, AssignmentSubmitted, AssignmentSubmittedProcessor>(cfg, "annotation-svc.assignment-submitted");
 builder.Services.AddEventConsumer<AnnotationDbContext, ProjectPublished, ProjectPublishedProcessor>(cfg, "annotation-svc.project-published");
+builder.Services.AddEventConsumer<AnnotationDbContext, ProjectResumed, ProjectResumedProcessor>(cfg, "annotation-svc.project-resumed");
+builder.Services.AddEventConsumer<AnnotationDbContext, ProjectCompleted, ProjectCompletedProcessor>(cfg, "annotation-svc.project-completed");
+builder.Services.AddEventConsumer<AnnotationDbContext, ProjectCancelled, ProjectCancelledProcessor>(cfg, "annotation-svc.project-cancelled");
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberAdded, MemberAddedProcessor>(cfg, "annotation-svc.member-added");
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberBlocked, MemberBlockedProcessor>(cfg, "annotation-svc.member-blocked");
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberUnblocked, MemberUnblockedProcessor>(cfg, "annotation-svc.member-unblocked");
@@ -52,10 +56,12 @@ builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
 // ---- Nghiep vu ----
 builder.Services.AddScoped<AnnotationEventPublisher>();
 builder.Services.AddScoped<AnnotationService>();
+builder.Services.AddScoped<DongSoService>();
 builder.Services.AddScoped<AnnotationSeeder>();
 
 // ---- HTTP ----
 builder.Services.AddCrowdJwtAuthentication(cfg);
+builder.Services.AddCrowdInternalApi(cfg);
 builder.Services
     .AddControllers()
     .AddJsonOptions(options =>

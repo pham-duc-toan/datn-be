@@ -19,6 +19,9 @@ namespace Crowd.BuildingBlocks.Settings
         public const string LedgerHoldDuration = "ledger.hold_duration";
         public const string LedgerHoldReleaseInterval = "ledger.hold_release_interval";
         public const string LedgerHoldReleaseBatchSize = "ledger.hold_release_batch_size";
+        public const string LedgerGatePayoutMode = "ledger.gate_payout_mode";
+        public const string LedgerGateBatchInterval = "ledger.gate_batch_interval";
+        public const string LedgerGateBatchSize = "ledger.gate_batch_size";
         public const string LedgerWithdrawMinVnd = "ledger.withdraw_min_vnd";
         public const string LedgerWithdrawTaxThresholdVnd = "ledger.withdraw_tax_threshold_vnd";
         public const string LedgerWithdrawTaxPercent = "ledger.withdraw_tax_percent";
@@ -71,6 +74,7 @@ namespace Crowd.BuildingBlocks.Settings
         public const string TaskReaperBatchSize = "task.reaper_batch_size";
         public const string TaskLeaseRetryCount = "task.lease_retry_count";
         public const string TaskLeaseRetryDelay = "task.lease_retry_delay";
+        public const string TaskLeaseCandidateWindow = "task.lease_candidate_window";
         public const string AnnotationAppealWindow = "annotation.appeal_window";
         public const string AnnotationReasonMaxLength = "annotation.reason_max_length";
         public const string AnnotationBulkApproveMax = "annotation.bulk_approve_max";
@@ -82,6 +86,9 @@ namespace Crowd.BuildingBlocks.Settings
         public const string QualityReputationGoldWeight = "quality.reputation_gold_weight";
         public const string QualityReputationPrior = "quality.reputation_prior";
         public const string QualityReputationPriorStrength = "quality.reputation_prior_strength";
+        public const string QualityRedundancyPolicy = "quality.redundancy_policy";
+        public const string QualityPosteriorTarget = "quality.posterior_target";
+        public const string QualityVoiValueRatio = "quality.voi_value_ratio";
         public const string LabelingThresholdBbox = "labeling.threshold.bbox";
         public const string LabelingThresholdPolygon = "labeling.threshold.polygon";
         public const string LabelingThresholdSpan = "labeling.threshold.span";
@@ -142,6 +149,10 @@ namespace Crowd.BuildingBlocks.Settings
         private const string NhomChatLuong = "Chat luong";
         private const string NhomTaiKhoan = "Tai khoan";
         private const string NhomCongLink = "Cong link";
+
+        private static readonly string[] ChinhSachRedundancy = new string[] { "majority", "posterior", "voi" };
+
+        private static readonly string[] CheDoChiCongLink = new string[] { "perClick", "batched" };
         private const string NhomKyThuat = "Ky thuat";
 
         private const double Ngay = 86400;
@@ -207,6 +218,11 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Seconds(SettingKeys.LedgerHoldReleaseInterval, NhomKyThuat, 60, 5, 3600,
                 "Chu ky worker quet khoan treo den han."));
             ds.Add(Int(SettingKeys.LedgerHoldReleaseBatchSize, NhomKyThuat, 100, 1, 10000, "khoan", "So khoan treo den han giai phong moi lo."));
+            ds.Add(Choice(SettingKeys.LedgerGatePayoutMode, NhomKyThuat, "perClick", CheDoChiCongLink,
+                "Chi tien luot vuot link: perClick = moi luot mot but toan ngay (tien vao vi sau vai giay, nghen khi tai cao); "
+                + "batched = gom theo du an moi ledger.gate_batch_interval roi viet mot but toan (VD-M-08)."));
+            ds.Add(Seconds(SettingKeys.LedgerGateBatchInterval, NhomKyThuat, 60, 1, 3600, "Che do batched: gom luot vuot link bao lau mot lan."));
+            ds.Add(Int(SettingKeys.LedgerGateBatchSize, NhomKyThuat, 5000, 1, 100000, "luot", "Che do batched: toi da bay nhieu luot moi lo."));
             ds.Add(Long(SettingKeys.LedgerWithdrawMinVnd, NhomTien, 50000, 0, 1e12, "dong", "So tien rut toi thieu mot lan."));
             ds.Add(Long(SettingKeys.LedgerWithdrawTaxThresholdVnd, NhomTien, 2000000, 0, 1e13, "dong",
                 "Rut tu muc nay tro len thi khau tru thue TNCN."));
@@ -290,6 +306,9 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Int(SettingKeys.TaskLeaseRetryCount, NhomKyThuat, 5, 0, 100, "lan",
                 "So lan thu lai khi khong khoa duoc task nao trong luc van con ung vien."));
             ds.Add(Seconds(SettingKeys.TaskLeaseRetryDelay, NhomKyThuat, 0.04, 0, 5, "Cho giua hai lan thu khoa task."));
+            ds.Add(Int(SettingKeys.TaskLeaseCandidateWindow, NhomGanNhan, 32, 1, 1000, "task",
+                "Cap task NGAU NHIEN trong N task con cho cu nhat (1 = dung thu tu, task cu truoc). "
+                + "Labeler bam cung luc it roi vao cung mot task; chi phi lay task tang theo N."));
             ds.Add(Seconds(SettingKeys.AnnotationAppealWindow, NhomGanNhan, 7 * Ngay, 0, 365 * Ngay,
                 "Labeler duoc khieu nai trong bao lau ke tu khi nhan bi tu choi."));
             ds.Add(Int(SettingKeys.AnnotationReasonMaxLength, NhomGanNhan, 1000, 10, 1000, "ky tu",
@@ -307,6 +326,14 @@ namespace Crowd.BuildingBlocks.Settings
                 "Muc tien nghiem cua diem uy tin (nguoi moi bat dau quanh muc nay)."));
             ds.Add(Double(SettingKeys.QualityReputationPriorStrength, NhomChatLuong, 2, 0, 1000, "nhan",
                 "Suc nang tien nghiem: so bang chung can de diem roi xa muc tien nghiem."));
+            ds.Add(Choice(SettingKeys.QualityRedundancyPolicy, NhomChatLuong, "majority", ChinhSachRedundancy,
+                "Khi nao xin them nguoi gan cho mot mau (NC-D-01): majority = tranh chap (khong lua chon nao qua ban) thi xin them; "
+                + "posterior = dung khi xac suat hau nghiem cua dap an dan dau >= quality.posterior_target (co trong so theo do chinh xac labeler); "
+                + "voi = dung toi uu mot buoc: chi mua them nhan khi gia tri thong tin ky vong vuot chi phi (quality.voi_value_ratio)."));
+            ds.Add(Double(SettingKeys.QualityPosteriorTarget, NhomChatLuong, 0.95, 0.5, 0.999, "xac suat",
+                "Chinh sach posterior: du tin cay de dung khi hau nghiem cua dap an dan dau dat muc nay."));
+            ds.Add(Double(SettingKeys.QualityVoiValueRatio, NhomChatLuong, 20, 1, 10000, "lan",
+                "Chinh sach voi: mot nhan CUOI dung gia tri bang bay nhieu lan chi phi mot nhan mua them. Cao = chiu mua them nhieu hon de tang do chinh xac."));
             ds.Add(Double(SettingKeys.LabelingThresholdBbox, NhomChatLuong, 0.5, 0, 1, "IoU",
                 "Nguong cham cau vang mac dinh cho khung (cong cu khong tu dat matchThreshold)."));
             ds.Add(Double(SettingKeys.LabelingThresholdPolygon, NhomChatLuong, 0.5, 0, 1, "IoU", "Nguong cham mac dinh cho da giac."));
@@ -387,6 +414,11 @@ namespace Crowd.BuildingBlocks.Settings
         private static SettingDefinition Seconds(string key, string group, double def, double min, double max, string description)
         {
             return new SettingDefinition(key, group, SettingType.ThoiGian, JsonValue.Create(def), min, max, "giay", SettingEffect.NewOperations, description);
+        }
+
+        private static SettingDefinition Choice(string key, string group, string def, string[] choices, string description)
+        {
+            return new SettingDefinition(key, group, SettingType.Chuoi, JsonValue.Create(def), null, 50, "", SettingEffect.NewOperations, description, choices);
         }
 
         private static SettingDefinition Text(string key, string group, string def, int maxLength, string description)

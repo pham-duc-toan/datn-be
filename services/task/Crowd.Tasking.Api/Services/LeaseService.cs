@@ -162,7 +162,7 @@ namespace Crowd.Tasking.Api.Services
                     return await TaoResponseAsync(cauVang, taskVang, duAn!);
                 }
 
-                // 4. KHOA mot task ngau nhien con cho (SKIP LOCKED, VD-T-06).
+                // 4. KHOA mot task con cho, ngau nhien trong cua so dau hang doi (SKIP LOCKED, VD-T-06).
                 LabelingTask? task = await KhoaMotTaskAsync(projectId, labelerId, ct);
                 if (task == null)
                 {
@@ -370,6 +370,29 @@ namespace Crowd.Tasking.Api.Services
             return ketQua;
         }
 
+        /// <summary>
+        /// Cho project-svc truoc khi DONG du an (hoan thanh / huy): da tam dung chua, con
+        /// luot dang giu khong, bao nhieu luot nop that. Chi doc.
+        /// </summary>
+        public async Task<CloseCheckResponse> KiemDongDuAnAsync(Guid projectId, CancellationToken ct)
+        {
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            ProjectSnapshot? duAn = await _db.ProjectSnapshots.AsNoTracking().FirstOrDefaultAsync(p => p.ProjectId == projectId, ct);
+
+            int dangGiu = await _db.Assignments.CountAsync(
+                a => a.ProjectId == projectId && a.State == AssignmentState.Leased && a.ExpiresAt > bayGio, ct);
+            int daNop = await _db.Assignments.CountAsync(
+                a => a.ProjectId == projectId && a.State == AssignmentState.Submitted && !a.IsGold, ct);
+
+            return new CloseCheckResponse
+            {
+                ProjectId = projectId,
+                Paused = duAn != null && duAn.Status == SnapshotStatus.Paused,
+                ActiveLeases = dangGiu,
+                SubmittedCount = daNop,
+            };
+        }
+
         /// <summary>Tien do du an (FB-20) — chi chu du an (theo ban sao thanh vien) hoac admin.</summary>
         public async Task<ProgressResponse> TienDoAsync(Guid projectId, Caller caller, CancellationToken ct)
         {
@@ -423,9 +446,10 @@ namespace Crowd.Tasking.Api.Services
         private async Task<LabelingTask?> KhoaMotTaskAsync(Guid projectId, Guid labelerId, CancellationToken ct)
         {
             int soLanThuLai = _settings.SoNguyen(SettingKeys.TaskLeaseRetryCount);
+            int cuaSo = _settings.SoNguyen(SettingKeys.TaskLeaseCandidateWindow);
             for (int lan = 0; lan <= soLanThuLai; lan++)
             {
-                LabelingTask? task = await TaskQueries.KhoaMotUngVienAsync(_db, projectId, labelerId, ct);
+                LabelingTask? task = await TaskQueries.KhoaMotUngVienAsync(_db, projectId, labelerId, cuaSo, ct);
                 if (task != null)
                 {
                     return task;

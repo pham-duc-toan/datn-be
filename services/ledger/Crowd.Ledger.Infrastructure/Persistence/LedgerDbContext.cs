@@ -28,6 +28,8 @@ namespace Crowd.Ledger.Infrastructure.Persistence
 
         public DbSet<ReferralLink> Referrals => Set<ReferralLink>();
 
+        public DbSet<GateClick> GateClicks => Set<GateClick>();
+
         public DbSet<FundsHold> Holds => Set<FundsHold>();
 
         public DbSet<Withdrawal> Withdrawals => Set<Withdrawal>();
@@ -149,6 +151,25 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.GateSpentVnd).HasColumnName("gate_spent_vnd").IsRequired();
                 b.Property(x => x.GateBudgetSequence).HasColumnName("gate_budget_sequence").IsRequired();
                 b.HasIndex(x => x.OwnerId).HasDatabaseName("ix_project_escrows_owner");
+            });
+
+            modelBuilder.Entity<GateClick>(b =>
+            {
+                b.ToTable("gate_clicks");
+                b.HasKey(x => x.ClickId);
+                b.Property(x => x.ClickId).HasColumnName("click_id").ValueGeneratedNever();
+                b.Property(x => x.LinkId).HasColumnName("link_id").IsRequired();
+                b.Property(x => x.SharerId).HasColumnName("sharer_id").IsRequired();
+                b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
+                b.Property(x => x.SharerAmountVnd).HasColumnName("sharer_amount_vnd").IsRequired();
+                b.Property(x => x.PlatformAmountVnd).HasColumnName("platform_amount_vnd").IsRequired();
+                b.Property(x => x.ValidatedAt).HasColumnName("validated_at").IsRequired();
+                b.Property(x => x.ReceivedAt).HasColumnName("received_at").IsRequired();
+                b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
+                b.Property(x => x.BatchId).HasColumnName("batch_id");
+                b.Property(x => x.SettledAt).HasColumnName("settled_at");
+                b.Ignore(x => x.TongVnd);
+                b.HasIndex(x => x.ReceivedAt).HasFilter("state = 'Queued'").HasDatabaseName("ix_gate_clicks_cho_gop");
             });
 
             modelBuilder.Entity<ReferralLink>(b =>

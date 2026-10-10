@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
@@ -67,6 +68,7 @@ builder.Services.AddScoped<TaskSeeder>();
 
 // ---- HTTP ----
 builder.Services.AddCrowdJwtAuthentication(cfg);
+builder.Services.AddCrowdInternalApi(cfg);
 builder.Services
     .AddControllers()
     .AddJsonOptions(options =>

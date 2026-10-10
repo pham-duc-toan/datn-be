@@ -458,6 +458,27 @@ POST /projects/{id}/pause | /resume | /complete
 POST /projects/{id}/cancel   { "reason": "..." }
 ```
 
+**Hoàn thành / hủy dự án đã chạy** (ký quỹ còn lại về ví doanh nghiệp) chỉ được khi không còn việc nào có thể sinh tiền cho labeler. Gợi ý màn hình theo từng bước:
+
+| Phản hồi | Ý nghĩa | FE làm gì |
+|---|---|---|
+| 409 `can_tam_dung_truoc` | Dự án đang chạy | Nút "Tạm dừng" trước; tạm dừng thì ngừng cấp task mới, người đang làm vẫn nộp được |
+| 409 `chua_the_dong`, `closeCheck.reasons` chứa `chua_dong_bo_tam_dung` | Lệnh tạm dừng chưa tới task-svc | Thử lại sau vài giây |
+| … `con_luot_dang_lam` (`activeLeases`) | Labeler đang làm dở | "Còn N người đang làm — chờ họ nộp (tối đa 15 phút)" |
+| … `con_nhan_cho_duyet` (`pendingReview`) | Còn nhãn chưa duyệt | Link sang hàng duyệt / nút duyệt hàng loạt |
+| … `con_khieu_nai` (`openAppeals`) | Có khiếu nại chờ admin | "Chờ admin phân xử" |
+| … `con_han_khieu_nai` (`rejectedInAppealWindow`, `appealWindowEndsAt`) | Nhãn bị từ chối còn trong hạn khiếu nại | "Đóng được sau {appealWindowEndsAt}" |
+| … `nhan_chua_dong_bo` (`annotationCount` ≠ `submittedCount`) | Nhãn vừa nộp chưa tới annotation-svc | Thử lại sau vài giây |
+| 503 `dich_vu_khong_san_sang` | Không kiểm được | Thử lại sau |
+
+```json
+{ "code": "chua_the_dong", "detail": "Chua dong duoc du an: con 2 nhan cho duyet.",
+  "closeCheck": { "reasons": ["con_nhan_cho_duyet"], "activeLeases": 0, "submittedCount": 2, "annotationCount": 2,
+                  "pendingReview": 2, "openAppeals": 0, "rejectedInAppealWindow": 0, "appealWindowEndsAt": null } }
+```
+
+Sau khi đóng: duyệt, từ chối, khiếu nại, phân xử nhãn của dự án → 409 `du_an_da_ket_thuc`.
+
 Thành viên (dự án `private` cần thêm labeler bằng tay; reviewer luôn do chủ dự án thêm):
 
 ```http
@@ -1167,7 +1188,7 @@ Mọi con số nghiệp vụ (phí nền tảng, tự duyệt, hạn mức nạp
 GET /admin/settings
 → [ { "key": "fee.platform_percent", "group": "Phi va tien", "type": "int", "unit": "%",
       "min": 0, "max": 90, "effect": "newOperations", "description": "...",
-      "defaultValue": 30, "value": 30, "version": 1, "updatedAt": "...", "updatedBy": null }, ... ]   (83 mục)
+      "defaultValue": 30, "value": 30, "version": 1, "updatedAt": "...", "updatedBy": null, "choices": null }, ... ]   (108 mục)
 
 GET /admin/settings/{key}
 PUT /admin/settings/{key}   { "value": 20, "reason": "Khuyen mai thang 10" }   → SettingResponse (version + 1)
@@ -1184,6 +1205,7 @@ Gợi ý màn hình: nhóm theo `group`, mỗi dòng một ô nhập theo `type`
 | `double` | số thực | số |
 | `durationSeconds` | số giây (nên hiển thị đổi sang phút / giờ / ngày) | số giây |
 | `text` | ô văn bản nhiều dòng | chuỗi |
+| `text` có `choices` (mảng, khác `null`) | **danh sách chọn** từ `choices` (vd `quality.redundancy_policy`: `majority` / `posterior` / `voi`; `ledger.gate_payout_mode`: `perClick` / `batched`) | một phần tử của `choices`; ngoài danh sách → 400 |
 
 - `effect: "restart"`: hiện ghi chú "có tác dụng khi service khởi động lại".
 - Hiện `defaultValue` cạnh giá trị đang dùng, có nút "về mặc định" (PUT lại `defaultValue`).

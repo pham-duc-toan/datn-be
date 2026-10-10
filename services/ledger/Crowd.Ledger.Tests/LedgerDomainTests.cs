@@ -226,6 +226,55 @@ namespace Crowd.Ledger.Tests
         }
     }
 
+    public sealed class GateBatchTests
+    {
+        private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
+
+        [Fact]
+        public void But_toan_lo_cong_link_can_bang_va_ghi_no_escrow_mot_dong()
+        {
+            Guid duAn = Guid.NewGuid();
+            Guid s1 = Guid.NewGuid();
+            Guid s2 = Guid.NewGuid();
+            Dictionary<Guid, long> sharer = new Dictionary<Guid, long> { [s1] = 2800, [s2] = 1400 };
+
+            JournalEntry e = Postings.ChiTraCongLinkLo(Guid.NewGuid(), duAn, sharer, 3600, Luc);
+
+            Assert.Equal(0, e.Lines.Sum(l => l.Amount));
+            Assert.Single(e.Lines, l => l.AccountCode == AccountCodes.ProjectEscrow(duAn));
+            Assert.Equal(-7800, e.Lines.Single(l => l.AccountCode == AccountCodes.ProjectEscrow(duAn)).Amount);
+            Assert.Equal(3600, e.Lines.Single(l => l.AccountCode == AccountCodes.PlatformFee).Amount);
+        }
+
+        [Fact]
+        public void Ngan_sach_cong_link_chi_la_phan_vuot_muc_danh_cho_labeler()
+        {
+            ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 20000, Luc);
+            e.DatRedundancy(1);
+            e.GhiDieuKhoan(6, 1000, 300, true);
+            Assert.Equal(7800, e.DanhChoChuyenNghiepVnd());
+            Assert.Equal(12200, e.NganSachCongConLai());
+
+            e.TieuChoCongLink(2600);
+            Assert.Equal(9600, e.NganSachCongConLai());
+
+            ProjectEscrow khongBat = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 20000, Luc);
+            khongBat.DatRedundancy(1);
+            khongBat.GhiDieuKhoan(6, 1000, 300, false);
+            Assert.Equal(0, khongBat.NganSachCongConLai());
+        }
+
+        [Fact]
+        public void Luot_cong_link_chi_mot_lan_khi_gop_lo()
+        {
+            GateClick c = GateClick.Tao(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1400, 1200, Luc, Luc);
+            Assert.Equal(GateClickState.Queued, c.State);
+            Assert.Equal(2600, c.TongVnd);
+            c.DaChi(Guid.NewGuid(), Luc);
+            Assert.Equal(GateClickState.Paid, c.State);
+        }
+    }
+
     public sealed class HoldAndEscrowTests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);

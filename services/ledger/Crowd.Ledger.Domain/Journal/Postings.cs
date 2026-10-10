@@ -97,6 +97,37 @@ namespace Crowd.Ledger.Domain.Journal
             return JournalEntry.Tao(JournalEntryType.GateClickPayout, "click:" + clickId, "Chi tra luot vuot link", luc, dong);
         }
 
+        /// <summary>
+        /// Chi theo LO (VD-M-08): MOT but toan cho moi luot cong link cua mot du an trong lo —
+        /// ky quy −tong, moi sharer +phan cua minh (treo), nen tang +tong phan nen tang.
+        /// Mot dong ghi no escrow thay vi hang nghin: het nghen dong nong.
+        /// </summary>
+        public static JournalEntry ChiTraCongLinkLo(
+            Guid batchId, Guid projectId, IReadOnlyDictionary<Guid, long> sharer, long platformAmount, DateTimeOffset luc)
+        {
+            if (sharer == null || sharer.Count == 0)
+            {
+                throw new InvalidValueException("lo_rong", "Lo chi tra rong.");
+            }
+
+            long tong = platformAmount;
+            List<JournalLine> dong = new List<JournalLine>();
+            foreach (KeyValuePair<Guid, long> s in sharer)
+            {
+                BatBuocDuong(s.Value);
+                tong = checked(tong + s.Value);
+                dong.Add(new JournalLine(AccountCodes.LabelerPending(s.Key), s.Value));
+            }
+
+            if (platformAmount > 0)
+            {
+                dong.Add(new JournalLine(AccountCodes.PlatformFee, platformAmount));
+            }
+
+            dong.Insert(0, new JournalLine(AccountCodes.ProjectEscrow(projectId), -tong));
+            return JournalEntry.Tao(JournalEntryType.GateClickPayout, "clickbatch:" + batchId + ":" + projectId, "Chi tra lo luot vuot link", luc, dong);
+        }
+
         /// <summary>Hoa hong gioi thieu (FS-08): lay tu phi nen tang, khong tru vao thu nhap nguoi duoc moi.</summary>
         public static JournalEntry HoaHongGioiThieu(Guid clickId, Guid referrerId, long amount, DateTimeOffset luc)
         {

@@ -9,10 +9,12 @@ Moi thao tac doc gia tri MOI lan dung (khong giu lau) — admin doi la thao tac
 tiep theo dung gia tri moi.
 """
 
+import asyncio
 import json
 import logging
 import math
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +38,9 @@ OUTBOX_RETRY_MAX_DELAY = "outbox.retry_max_delay"
 CONSUMERS_RECONNECT_DELAY = "consumers.reconnect_delay"
 CONSUMERS_PREFETCH_COUNT = "consumers.prefetch_count"
 SETTINGS_RELOAD_INTERVAL = "settings.reload_interval"
+REDUNDANCY_POLICY = "quality.redundancy_policy"
+POSTERIOR_TARGET = "quality.posterior_target"
+VOI_VALUE_RATIO = "quality.voi_value_ratio"
 
 
 def _nap_catalog() -> dict[str, dict[str, Any]]:
@@ -70,6 +75,8 @@ def kiem_gia_tri(key: str, gia_tri: Any) -> str | None:
             return "phai la chuoi"
         if d["max"] is not None and len(gia_tri) > d["max"]:
             return "qua dai"
+        if d.get("choices") is not None and gia_tri not in d["choices"]:
+            return "phai la mot trong " + ", ".join(d["choices"])
         return None
 
     if isinstance(gia_tri, bool) or not isinstance(gia_tri, (int, float)) or not math.isfinite(gia_tri):
@@ -130,9 +137,31 @@ def so_thuc(key: str) -> float:
     return float(_lay(key))
 
 
+def chuoi(key: str) -> str:
+    return str(_lay(key))
+
+
 def giay(key: str) -> float:
     """Setting kieu durationSeconds."""
     return float(_lay(key))
+
+
+async def cho_theo_setting(key: str, dung: asyncio.Event, nhip: float = 1.0) -> bool:
+    """
+    Cho mot chu ky worker lay tu setting `key` (durationSeconds), theo NHIP ngan va doc lai
+    setting moi nhip — admin rut chu ky thi co hieu luc trong toi da mot nhip, khong phai ngu not
+    chu ky cu (giong ChoTheoSetting ben C#). Tra True neu `dung` duoc bat (dang tat service).
+    """
+    bat_dau = time.monotonic()
+    while True:
+        con_lai = giay(key) - (time.monotonic() - bat_dau)
+        if con_lai <= 0:
+            return dung.is_set()
+        try:
+            await asyncio.wait_for(dung.wait(), timeout=min(nhip, con_lai))
+            return True
+        except asyncio.TimeoutError:
+            continue
 
 
 def xoa_het_cho_test() -> None:

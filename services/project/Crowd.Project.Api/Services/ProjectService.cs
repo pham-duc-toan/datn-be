@@ -41,6 +41,10 @@ namespace Crowd.Project.Api.Services
         private readonly TimeProvider _clock;
         private readonly ILogger<ProjectService> _logger;
         private readonly ISettings _settings;
+        private readonly DongSoClient _dongSo;
+
+        private static readonly string[] LyDoChuaDongBoTamDung = { "chua_dong_bo_tam_dung" };
+        private static readonly string[] LyDoConLuotDangLam = { "con_luot_dang_lam" };
 
         public ProjectService(
             ProjectDbContext db,
@@ -49,14 +53,21 @@ namespace Crowd.Project.Api.Services
             IOptions<ProjectSagaOptions> saga,
             TimeProvider clock,
             ILogger<ProjectService> logger,
-            ISettings settings)
+            ISettings settings,
+            DongSoClient dongSo)
         {
             if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
             }
 
+            if (dongSo == null)
+            {
+                throw new ArgumentNullException(nameof(dongSo));
+            }
+
             _settings = settings;
+            _dongSo = dongSo;
 
             if (db == null)
             {
@@ -546,6 +557,7 @@ namespace Crowd.Project.Api.Services
         public async Task<ProjectResponse> HoanThanhAsync(Guid id, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            await DamBaoDongSoAsync(duAn, ct);
             duAn.HoanThanh(_clock.GetUtcNow());
 
             _events.Phat(caller, new ProjectCompleted { ProjectId = duAn.Id, OwnerId = duAn.OwnerId });
@@ -557,12 +569,90 @@ namespace Crowd.Project.Api.Services
         public async Task<ProjectResponse> HuyAsync(Guid id, string? lyDo, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            await DamBaoDongSoAsync(duAn, ct);
             duAn.Huy(lyDo, _clock.GetUtcNow());
 
             PhatDaHuy(duAn, caller);
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
+        }
+
+        /// <summary>
+        /// Truoc khi dong (hoan thanh / huy) mot du an DA CHAY — ngay sau do ledger tra ky quy
+        /// con lai ve doanh nghiep — bao dam khong con viec nao sinh tien cho labeler:
+        ///   1. task-svc: da nhan project.paused, khong con luot dang giu, lay so luot nop that;
+        ///   2. annotation-svc: so nhan khop so luot nop, khong nhan cho duyet / khieu nai mo /
+        ///      nhan bi tu choi con han khieu nai — dat thi DONG SO ngay trong cung transaction.
+        /// Du an chua chay (Nhap, Cho duyet) khong co nhan → bo qua. Dang Running thi domain nem
+        /// can_tam_dung_truoc o buoc sau — KHONG goi dong so de khoi dong bang nham.
+        /// Annotation da dong so ma luu du an loi → doanh nghiep bam lai (dong so idempotent),
+        /// hoac chay tiep: project.resumed mo lai so ben annotation-svc.
+        /// </summary>
+        private async Task DamBaoDongSoAsync(LabelingProject duAn, CancellationToken ct)
+        {
+            if (duAn.Status != ProjectStatus.Paused)
+            {
+                return;
+            }
+
+            TaskCloseCheck task = await _dongSo.KiemTaskAsync(duAn.Id, ct);
+            if (!task.Paused || task.ActiveLeases > 0)
+            {
+                throw new ChuaTheDongDuAnException(
+                    !task.Paused
+                        ? "He thong dang xu ly lenh tam dung, thu lai sau vai giay."
+                        : "Con " + task.ActiveLeases + " luot labeler dang lam do. Cho ho nop xong (hoac het han lease) roi dong.",
+                    new
+                    {
+                        reasons = !task.Paused ? LyDoChuaDongBoTamDung : LyDoConLuotDangLam,
+                        activeLeases = task.ActiveLeases,
+                        submittedCount = task.SubmittedCount,
+                    });
+            }
+
+            AnnotationCloseResult so = await _dongSo.DongSoAnnotationAsync(duAn.Id, task.SubmittedCount, ct);
+            if (!so.Closed)
+            {
+                throw new ChuaTheDongDuAnException(MoTaChuaDong(so), new
+                {
+                    reasons = so.Reasons,
+                    activeLeases = 0,
+                    submittedCount = so.SubmittedCount,
+                    annotationCount = so.AnnotationCount,
+                    pendingReview = so.PendingReview,
+                    openAppeals = so.OpenAppeals,
+                    rejectedInAppealWindow = so.RejectedInAppealWindow,
+                    appealWindowEndsAt = so.AppealWindowEndsAt,
+                });
+            }
+        }
+
+        private static string MoTaChuaDong(AnnotationCloseResult so)
+        {
+            List<string> phan = new List<string>();
+            if (so.PendingReview > 0)
+            {
+                phan.Add(so.PendingReview + " nhan cho duyet");
+            }
+
+            if (so.OpenAppeals > 0)
+            {
+                phan.Add(so.OpenAppeals + " khieu nai cho admin phan xu");
+            }
+
+            if (so.RejectedInAppealWindow > 0)
+            {
+                phan.Add(so.RejectedInAppealWindow + " nhan bi tu choi con trong han khieu nai"
+                         + (so.AppealWindowEndsAt.HasValue ? " (het han " + so.AppealWindowEndsAt.Value.ToString("u") + ")" : string.Empty));
+            }
+
+            if (so.AnnotationCount != so.SubmittedCount)
+            {
+                phan.Add("nhan dang dong bo (" + so.AnnotationCount + "/" + so.SubmittedCount + "), thu lai sau vai giay");
+            }
+
+            return "Chua dong duoc du an: con " + string.Join("; ", phan) + ".";
         }
 
         /// <summary>

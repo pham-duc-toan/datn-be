@@ -615,7 +615,12 @@ namespace Crowd.Project.Domain.Projects
 
         public void HoanThanh(DateTimeOffset luc)
         {
-            if (Status != ProjectStatus.Running && Status != ProjectStatus.Paused)
+            if (Status == ProjectStatus.Running)
+            {
+                throw CanTamDungTruoc("hoan thanh");
+            }
+
+            if (Status != ProjectStatus.Paused)
             {
                 throw KhongTheKhi("hoan thanh");
             }
@@ -633,9 +638,13 @@ namespace Crowd.Project.Domain.Projects
         /// </summary>
         public void Huy(string? lyDo, DateTimeOffset luc)
         {
+            if (Status == ProjectStatus.Running)
+            {
+                throw CanTamDungTruoc("huy");
+            }
+
             bool duocHuy = Status == ProjectStatus.Draft
                            || Status == ProjectStatus.PendingApproval
-                           || Status == ProjectStatus.Running
                            || Status == ProjectStatus.Paused;
 
             if (!duocHuy)
@@ -719,6 +728,17 @@ namespace Crowd.Project.Domain.Projects
             {
                 throw KhongTheKhi(hanhDong);
             }
+        }
+
+        /// <summary>
+        /// Dong du an DA CHAY (ky quy sap tra ve doanh nghiep) phai qua Tam dung truoc: ngung
+        /// cap task moi, cho nguoi dang lam nop xong, duyet het — roi moi dong (xem DongDuAnService).
+        /// </summary>
+        private static RuleViolationException CanTamDungTruoc(string hanhDong)
+        {
+            return new RuleViolationException(
+                "can_tam_dung_truoc",
+                "Hay tam dung du an truoc khi " + hanhDong + ": ngung cap task moi, duyet het nhan roi moi dong.");
         }
 
         private RuleViolationException KhongTheKhi(string hanhDong)

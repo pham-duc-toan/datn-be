@@ -87,7 +87,7 @@ namespace Crowd.Tasking.Api.Workers
 
                 try
                 {
-                    await Task.Delay(_settings.ThoiGian(SettingKeys.TaskReaperInterval), stoppingToken);
+                    await ChoTheoSetting.ChoAsync(_settings, SettingKeys.TaskReaperInterval, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {

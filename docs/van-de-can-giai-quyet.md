@@ -231,7 +231,7 @@ Danh sách mọi rủi ro kỹ thuật, bảo mật, pháp lý và sản phẩm 
 | B-03 | **Kiểm thử kiểu Jepsen cho lease manager** | Toxiproxy + Elle/Knossos | So Redis lease vs etcd lease: **số lần cấp trùng lease khi phân mạng**, kèm chi phí độ trễ. Một chương CAP có số liệu từ hệ thống của chính mình | ⭐⭐⭐ | Cao |
 | B-04 | **Deterministic simulation testing** | Tự cài, **chỉ cho `ledger-svc`** | Thời gian/mạng/đĩa/RNG mô phỏng có seed → bug tái hiện 100% theo seed. Thứ cao cấp nhất danh sách này | ⭐⭐⭐ | Rất cao |
 | B-05 | Chaos có kịch bản | Toxiproxy / Chaos Mesh | Bảng 5 kịch bản (giết ledger giữa saga, tắt RabbitMQ 60s, `FLUSHALL` redis-task, ngắt mạng annotation↔task, giết payment giữa payout) + chứng minh bất biến giữ nguyên | ⭐⭐⭐ | TB |
-| B-06 | **Thí nghiệm hiệu năng có giả thuyết** | k6 | Đường cong A (ghi CPM trực tiếp) vs B (gộp lô 60s): điểm bão hòa, p99, lock wait. **Chứng minh `VD-M-08` bằng số** | ⭐⭐⭐ | Thấp |
+| B-06 | **Thí nghiệm hiệu năng có giả thuyết** | k6 | Đường cong A (ghi CPM trực tiếp) vs B (gộp lô 60s): điểm bão hòa, p99, lock wait. **Chứng minh `VD-M-08` bằng số**. **Đã làm** ([báo cáo](thi-nghiem/nc-b-06-hieu-nang.md)): perClick ~30/s không tăng theo instance, batched ~70/s → ~170/s với 3 instance; kèm đo lấy task (0 cấp trùng / 46.804 lượt, sửa câu lấy task tăng thông lượng ~2 lần) | ⭐⭐⭐ | Thấp |
 | B-07 | Chính thức hóa ledger thành Event Sourcing | — | Số dư là projection có snapshot; truy vấn số dư tại thời điểm T. Kiến trúc đã đi 80%, chỉ cần đặt tên và bổ sung | ⭐⭐ | Thấp |
 
 ### M.3. Nhánh C — Blockchain, phần không phải gimmick · `NC-C`
@@ -250,7 +250,7 @@ Chọn **một** làm điểm nhấn. Đây là phần biến đồ án từ "x�
 
 | Mã | Hạng mục | Artifact phải tạo ra | Giá trị | Công sức |
 |---|---|---|---|---|
-| D-01 | **Redundancy thích ứng như bài toán dừng tối ưu** ⬅ khuyến nghị | Thay quy tắc thô của FQ-03 bằng quyết định tuần tự: *sau k nhãn, dựa trên hậu nghiệm Dawid–Skene, giá trị thông tin kỳ vọng của nhãn thứ k+1 có vượt chi phí biên 200đ không?* Chạy trên benchmark truth-inference công khai. **Kết quả cần có: đường cong "độ chính xác ↔ số nhãn phải mua" so với redundancy cố định n=3/5/7, quy ra % tiết kiệm chi phí** | ⭐⭐⭐ | Cao |
+| D-01 | **Redundancy thích ứng như bài toán dừng tối ưu** ⬅ khuyến nghị | Thay quy tắc thô của FQ-03 bằng quyết định tuần tự: *sau k nhãn, dựa trên hậu nghiệm Dawid–Skene, giá trị thông tin kỳ vọng của nhãn thứ k+1 có vượt chi phí biên 200đ không?* Chạy trên benchmark truth-inference công khai. **Kết quả cần có: đường cong "độ chính xác ↔ số nhãn phải mua" so với redundancy cố định n=3/5/7, quy ra % tiết kiệm chi phí**. **Đã làm** ([báo cáo](thi-nghiem/nc-d-01-redundancy-thich-ung.md)): 5 benchmark + mô phỏng, cùng độ chính xác cần ít hơn 29–76% nhãn so với cố định n; chính sách `posterior` / `voi` chọn bằng setting `quality.redundancy_policy` | ⭐⭐⭐ | Cao |
 | D-02 | Peer prediction / Bayesian Truth Serum | Cơ chế trả thưởng khiến khai báo trung thực là chiến lược tối ưu, **không cần câu hỏi vàng** — tấn công đúng điểm yếu `VD-Q-01`. Mechanism design thật, nhưng khó đo hơn D-01 | ⭐⭐⭐ | Rất cao |
 | D-03 | Cài Dawid–Skene + MACE từ đầu và đánh giá | So với majority vote trên benchmark công khai, đối chiếu kết quả đã công bố. Ít mới nhất nhưng chắc chắn ra kết quả | ⭐⭐ | TB |
 

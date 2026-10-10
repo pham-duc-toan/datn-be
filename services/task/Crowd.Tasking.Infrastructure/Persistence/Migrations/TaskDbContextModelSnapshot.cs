@@ -199,6 +199,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_assignments_reaper")
                         .HasFilter("state = 'Leased'");
 
+                    b.HasIndex("LabelerId", "TaskId")
+                        .HasDatabaseName("ix_assignments_labeler_active")
+                        .HasFilter("state IN ('Leased','Submitted')");
+
                     b.HasIndex("ProjectId", "LabelerId")
                         .IsUnique()
                         .HasDatabaseName("ux_assignments_one_lease_per_project")

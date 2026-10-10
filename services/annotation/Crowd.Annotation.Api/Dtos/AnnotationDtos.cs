@@ -170,4 +170,37 @@ namespace Crowd.Annotation.Api.Dtos
 
         public required IReadOnlyList<SampleResultResponse> Samples { get; init; }
     }
+
+    /// <summary>POST /internal/projects/{id}/close — project-svc gui so luot nop that ben task-svc.</summary>
+    public sealed class CloseProjectRequest
+    {
+        public int SubmittedCount { get; init; }
+    }
+
+    /// <summary>
+    /// Ket qua dong so. Closed = false thi kem ly do + so lieu de doanh nghiep biet con phai
+    /// xu ly gi (duyet het nhan cho, cho admin phan xu, cho het han khieu nai...).
+    /// </summary>
+    public sealed class CloseProjectResponse
+    {
+        public required bool Closed { get; init; }
+
+        /// <summary>Ma ly do: nhan_chua_dong_bo, con_nhan_cho_duyet, con_khieu_nai, con_han_khieu_nai.</summary>
+        public required IReadOnlyList<string> Reasons { get; init; }
+
+        /// <summary>So nhan cua labeler chuyen nghiep (khong tinh nhan cong link — khong gan tien).</summary>
+        public required int AnnotationCount { get; init; }
+
+        public required int SubmittedCount { get; init; }
+
+        public required int PendingReview { get; init; }
+
+        public required int OpenAppeals { get; init; }
+
+        /// <summary>Nhan bi tu choi, chua khieu nai, con trong han khieu nai.</summary>
+        public required int RejectedInAppealWindow { get; init; }
+
+        /// <summary>Luc han khieu nai cuoi cung het (null neu khong con nhan nao trong han).</summary>
+        public required DateTimeOffset? AppealWindowEndsAt { get; init; }
+    }
 }

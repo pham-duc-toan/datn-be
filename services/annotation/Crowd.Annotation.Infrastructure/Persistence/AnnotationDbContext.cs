@@ -148,6 +148,9 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
                 b.Property(x => x.PlatformFeeVnd).HasColumnName("platform_fee_vnd").IsRequired();
                 b.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
+                b.Property(x => x.ClosedAt).HasColumnName("closed_at");
+                b.Property(x => x.IsFinal).HasColumnName("is_final").IsRequired();
+                b.Ignore(x => x.DaDong);
 
                 // Tap nhan dang chuan, chep nguyen tu project.published.
                 b.Ignore(x => x.LabelSchema);

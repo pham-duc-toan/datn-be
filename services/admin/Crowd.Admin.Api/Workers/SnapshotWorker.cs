@@ -47,7 +47,7 @@ namespace Crowd.Admin.Api.Workers
             {
                 try
                 {
-                    await Task.Delay(_settings.ThoiGian(SettingKeys.SettingsSnapshotInterval), stoppingToken);
+                    await ChoTheoSetting.ChoAsync(_settings, SettingKeys.SettingsSnapshotInterval, stoppingToken);
 
                     using (IServiceScope scope = _scopes.CreateScope())
                     {

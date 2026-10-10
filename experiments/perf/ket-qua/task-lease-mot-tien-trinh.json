@@ -1,0 +1,81 @@
+{
+ "ghi_chu": "Bo do CU: mot tien trinh Python sinh tai, bao hoa 100% mot nhan CPU -> so lieu do tran cua CLIENT, khong phai cua task-svc. Giu lai de doi chieu. Tai tao tu log console (file JSON goc bi ghi de); chi co thong luong va do tre lay task.",
+ "random": {
+  "muc": [
+   {
+    "dong_thoi": 10,
+    "thong_luong": 24.7,
+    "lay_p50_ms": 196,
+    "lay_p99_ms": 2826
+   },
+   {
+    "dong_thoi": 50,
+    "thong_luong": 21.7,
+    "lay_p50_ms": 853,
+    "lay_p99_ms": 5766
+   },
+   {
+    "dong_thoi": 100,
+    "thong_luong": 19.5,
+    "lay_p50_ms": 1852,
+    "lay_p99_ms": 9708
+   },
+   {
+    "dong_thoi": 200,
+    "thong_luong": 20.3,
+    "lay_p50_ms": 4094,
+    "lay_p99_ms": 18065
+   },
+   {
+    "dong_thoi": 400,
+    "thong_luong": 20.7,
+    "lay_p50_ms": 9801,
+    "lay_p99_ms": 20209
+   }
+  ],
+  "kiem_dung": {
+   "cap_trung": 0,
+   "vuot_redundancy": 0,
+   "tong_luot_nop": 3208
+  }
+ },
+ "id": {
+  "muc": [
+   {
+    "dong_thoi": 10,
+    "thong_luong": 29.3,
+    "lay_p50_ms": 122,
+    "lay_p99_ms": 831
+   },
+   {
+    "dong_thoi": 50,
+    "thong_luong": 21.0,
+    "lay_p50_ms": 789,
+    "lay_p99_ms": 5101
+   },
+   {
+    "dong_thoi": 100,
+    "thong_luong": 21.1,
+    "lay_p50_ms": 1413,
+    "lay_p99_ms": 10134
+   },
+   {
+    "dong_thoi": 200,
+    "thong_luong": 20.4,
+    "lay_p50_ms": 3313,
+    "lay_p99_ms": 20677
+   },
+   {
+    "dong_thoi": 400,
+    "thong_luong": 21.9,
+    "lay_p50_ms": 9465,
+    "lay_p99_ms": 22851
+   }
+  ],
+  "kiem_dung": {
+   "cap_trung": 0,
+   "vuot_redundancy": 0,
+   "tong_luot_nop": 3409
+  }
+ }
+}

@@ -2,6 +2,8 @@ using System;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Crowd.BuildingBlocks.Settings
 {
@@ -56,6 +58,22 @@ namespace Crowd.BuildingBlocks.Settings
             string unit,
             SettingEffect effect,
             string description)
+            : this(key, group, type, defaultValue, min, max, unit, effect, description, null)
+        {
+        }
+
+        /// <param name="choices">Chi voi kieu Chuoi: tap gia tri hop le (setting dang "chon mot"). null = chuoi tu do.</param>
+        public SettingDefinition(
+            string key,
+            string group,
+            SettingType type,
+            JsonNode defaultValue,
+            double? min,
+            double? max,
+            string unit,
+            SettingEffect effect,
+            string description,
+            IReadOnlyList<string>? choices)
         {
             if (string.IsNullOrWhiteSpace(key))
             {
@@ -77,6 +95,13 @@ namespace Crowd.BuildingBlocks.Settings
             Unit = unit;
             Effect = effect;
             Description = description;
+
+            if (choices != null && type != SettingType.Chuoi)
+            {
+                throw new ArgumentException("Chi setting kieu chuoi moi co danh sach lua chon: " + key, nameof(choices));
+            }
+
+            Choices = choices;
 
             string? loi = KiemGiaTri(DefaultValue);
             if (loi != null)
@@ -105,6 +130,9 @@ namespace Crowd.BuildingBlocks.Settings
         public SettingEffect Effect { get; }
 
         public string Description { get; }
+
+        /// <summary>Gia tri hop le cua setting "chon mot" (vd quality.redundancy_policy). null = khong gioi han.</summary>
+        public IReadOnlyList<string>? Choices { get; }
 
         /// <summary>Ten kieu tren API / catalog.json: bool, int, long, double, durationSeconds, text.</summary>
         public string TypeName
@@ -161,6 +189,11 @@ namespace Crowd.BuildingBlocks.Settings
                 if (Max.HasValue && s.Length > Max.Value)
                 {
                     return "toi da " + Max.Value.ToString(CultureInfo.InvariantCulture) + " ky tu.";
+                }
+
+                if (Choices != null && !Choices.Contains(s))
+                {
+                    return "phai la mot trong: " + string.Join(", ", Choices) + ".";
                 }
 
                 return null;

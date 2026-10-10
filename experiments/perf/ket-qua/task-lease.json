@@ -1,0 +1,85 @@
+{
+ "du_an": "01a1213f-0e2f-74af-833a-9c3061dd4c25",
+ "muc": [
+  {
+   "dong_thoi": 10,
+   "giay": 30,
+   "nop": 2665,
+   "thong_luong": 88.8,
+   "lay_p50_ms": 51.88310000085039,
+   "lay_p95_ms": 83.56539999658708,
+   "lay_p99_ms": 106.91210000004503,
+   "nop_p50_ms": 47.05319999993662,
+   "nop_p99_ms": 111.45269999906304,
+   "het_task": 0,
+   "loi": {},
+   "tien_trinh": 8,
+   "cpu_client_max": 0.39
+  },
+  {
+   "dong_thoi": 50,
+   "giay": 30,
+   "nop": 3291,
+   "thong_luong": 109.7,
+   "lay_p50_ms": 257.49179999911576,
+   "lay_p95_ms": 523.9843999988807,
+   "lay_p99_ms": 881.3095000004978,
+   "nop_p50_ms": 136.37890000245534,
+   "nop_p99_ms": 516.5093000032357,
+   "het_task": 0,
+   "loi": {},
+   "tien_trinh": 8,
+   "cpu_client_max": 0.37
+  },
+  {
+   "dong_thoi": 100,
+   "giay": 30,
+   "nop": 3701,
+   "thong_luong": 123.4,
+   "lay_p50_ms": 573.3618999984174,
+   "lay_p95_ms": 831.5220000004047,
+   "lay_p99_ms": 1060.5299999988347,
+   "nop_p50_ms": 206.3769999986107,
+   "nop_p99_ms": 431.84760000076494,
+   "het_task": 0,
+   "loi": {},
+   "tien_trinh": 8,
+   "cpu_client_max": 0.4
+  },
+  {
+   "dong_thoi": 200,
+   "giay": 30,
+   "nop": 3672,
+   "thong_luong": 122.4,
+   "lay_p50_ms": 1111.8185999985144,
+   "lay_p95_ms": 1468.1706999981543,
+   "lay_p99_ms": 3505.1805000002787,
+   "nop_p50_ms": 366.88759999742615,
+   "nop_p99_ms": 3653.8111999980174,
+   "het_task": 0,
+   "loi": {},
+   "tien_trinh": 8,
+   "cpu_client_max": 0.51
+  },
+  {
+   "dong_thoi": 400,
+   "giay": 30,
+   "nop": 2193,
+   "thong_luong": 73.1,
+   "lay_p50_ms": 1990.8452999989095,
+   "lay_p95_ms": 8236.672800001543,
+   "lay_p99_ms": 12882.473300000129,
+   "nop_p50_ms": 1781.9404000001668,
+   "nop_p99_ms": 13418.349999999919,
+   "het_task": 0,
+   "loi": {},
+   "tien_trinh": 8,
+   "cpu_client_max": 0.73
+  }
+ ],
+ "kiem_dung": {
+  "cap_trung": 0,
+  "vuot_redundancy": 0,
+  "tong_luot_nop": 15522
+ }
+}

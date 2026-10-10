@@ -83,7 +83,7 @@ namespace Crowd.Ledger.Api.Workers
 
                 try
                 {
-                    await Task.Delay(_settings.ThoiGian(SettingKeys.LedgerHoldReleaseInterval), stoppingToken);
+                    await ChoTheoSetting.ChoAsync(_settings, SettingKeys.LedgerHoldReleaseInterval, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {

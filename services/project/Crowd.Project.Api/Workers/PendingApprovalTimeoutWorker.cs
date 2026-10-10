@@ -88,7 +88,7 @@ namespace Crowd.Project.Api.Workers
 
                 try
                 {
-                    await Task.Delay(_settings.ThoiGian(SettingKeys.ProjectApprovalScanInterval), stoppingToken);
+                    await ChoTheoSetting.ChoAsync(_settings, SettingKeys.ProjectApprovalScanInterval, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {

@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Collections.Generic;
 
 namespace Crowd.Admin.Api.Dtos
 {
@@ -25,6 +26,9 @@ namespace Crowd.Admin.Api.Dtos
         public required string Effect { get; init; }
 
         public required string Description { get; init; }
+
+        /// <summary>Setting "chon mot": cac gia tri hop le (ve thanh danh sach chon). null = nhap tu do.</summary>
+        public IReadOnlyList<string>? Choices { get; init; }
 
         public required JsonNode DefaultValue { get; init; }
 

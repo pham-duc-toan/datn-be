@@ -26,8 +26,24 @@ namespace Crowd.Tasking.Api.Consumers
     /// <summary>Lay ban sao du an, chua co thi tao "chua publish".</summary>
     internal static class Snapshots
     {
+        /// <summary>Nhom khoa advisory cua ban sao du an (tham so dau cua pg_advisory_xact_lock).</summary>
+        private const int NhomKhoaBanSao = 7001;
+
+        /// <summary>
+        /// KHOA theo du an truoc khi doc / tao: project.published, dataset.ingested,
+        /// gold_set.updated... di qua CAC QUEUE KHAC NHAU nen co the xu ly cung luc. Khi ban
+        /// sao chua co, ca hai cung INSERT → mot ben vi pham PK_project_snapshots, message
+        /// bi tra lai hang doi (gap khi chay E2E tong the: gold_set.updated dung project.published).
+        /// pg_advisory_xact_lock xep hang hai ben; ben sau doc duoc ban sao ben truoc vua
+        /// commit. Khoa tu nha khi transaction cua IdempotencyGuard ket thuc.
+        /// </summary>
         public static async Task<ProjectSnapshot> LayHoacTaoAsync(TaskDbContext db, Guid projectId, CancellationToken ct)
         {
+            await db.Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_xact_lock({0}, hashtext({1}))",
+                new object[] { NhomKhoaBanSao, projectId.ToString() },
+                ct);
+
             ProjectSnapshot? s = await db.ProjectSnapshots.FirstOrDefaultAsync(p => p.ProjectId == projectId, ct);
             if (s == null)
             {

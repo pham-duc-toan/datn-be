@@ -20,7 +20,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence
     /// </summary>
     public static class TaskQueries
     {
-        /// <summary>Dieu kien "task nay con cap duoc cho labeler {1}" — dung chung cho hai cau duoi.</summary>
+        /// <summary>Dieu kien "task nay con cap duoc cho labeler {1}" — dung chung cho cac cau duoi.</summary>
         private const string DieuKienUngVien =
             " WHERE t.project_id = {0} " +
             "   AND t.state = 'Open' " +
@@ -31,32 +31,64 @@ namespace Crowd.Tasking.Infrastructure.Persistence
             "                      AND a.state IN ('Leased','Submitted')) ";
 
         /// <summary>
-        /// Chon NGAU NHIEN MOT task con cho va KHOA no (VD-T-06).
+        /// Chon MOT task con cho va KHOA no (VD-T-06): NGAU NHIEN trong `cuaSo` task con cho
+        /// cu nhat. cuaSo &lt;= 1 = dung thu tu (task cu truoc).
         ///
         /// SKIP LOCKED: dong dang bi request khac giu khoa thi BO QUA, lay dong ke
         /// — 50 labeler bam "nhan task" cung luc khong xep hang sau nhau.
         ///
-        /// ORDER BY random(): moi request thu cac dong theo mot thu tu khac nhau,
-        /// nen ho toa ra nhieu task thay vi cung tranh "dong dau tien".
+        /// KHONG ORDER BY random() tren CA du an: Postgres phai quet VA SAP XEP moi task
+        /// ung vien moi lan lay — do o NC-B-06: 82 ms / lan voi du an 20.000 mau. Cung
+        /// KHONG dung OFFSET ngau nhien: Postgres KHOA ca cac dong bi OFFSET bo qua.
+        ///
+        /// Cach lam: truy van con lay `cuaSo` ung vien dau hang doi theo chi muc
+        /// ix_tasks_pool, KHONG khoa; truy van ngoai xao chung (random() tren toi da
+        /// cuaSo dong) roi khoa MOT dong — LockRows nam tren Sort nen chi dong duoc chon
+        /// bi khoa, dong dang bi giu thi bo qua sang dong ke. Chi phi chan theo cuaSo,
+        /// khong theo kich thuoc du an. Ngau nhien de labeler bam cung luc it roi vao
+        /// cung mot task (kho thong dong, it tranh khoa dong khi nop).
+        ///
+        /// Ca cuaSo dong deu dang bi giu (tai rat cao) → roi ve cau FIFO, cau nay di
+        /// tiep qua cac dong bi khoa thay vi bao "het task".
+        ///
+        /// Dieu kien con cho lap lai o truy van ngoai: dong vua bi giao dich khac sua
+        /// thi Postgres kiem lai dieu kien tren ban moi nhat sau khi khoa.
+        ///
+        /// NOT EXISTS dua vao chi muc ix_assignments_labeler_active (labeler_id,
+        /// task_id); thieu no Postgres quet tuan tu ca bang assignments moi lan lay.
         ///
         /// CHI KHOA MOT DONG (LIMIT 1). Ban dau khoa 20 ung vien roi chon mot —
         /// test dong thoi cho thay loi: request dau khoa CA 20 dong, request sau
         /// SKIP het va tuong la "het task" trong khi task van con.
-        ///
-        /// NOT EXISTS: khong cap lai task ma chinh labeler nay dang giu hoac da nop.
         /// </summary>
-        public static Task<LabelingTask?> KhoaMotUngVienAsync(
-            TaskDbContext db, Guid projectId, Guid labelerId, CancellationToken ct)
+        public static async Task<LabelingTask?> KhoaMotUngVienAsync(
+            TaskDbContext db, Guid projectId, Guid labelerId, int cuaSo, CancellationToken ct)
         {
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
             }
 
-            string sql = "SELECT t.* FROM tasks t " + DieuKienUngVien +
-                         " ORDER BY random() LIMIT 1 FOR UPDATE OF t SKIP LOCKED";
+            if (cuaSo > 1)
+            {
+                string ngauNhien =
+                    "SELECT t.* FROM tasks t " +
+                    " WHERE t.id IN (SELECT t.id FROM tasks t " + DieuKienUngVien + " ORDER BY t.id LIMIT {2}) " +
+                    "   AND t.state = 'Open' " +
+                    "   AND t.active_lease_count + t.submitted_count < t.redundancy_target " +
+                    " ORDER BY random() LIMIT 1 FOR UPDATE OF t SKIP LOCKED";
 
-            return db.Tasks.FromSqlRaw(sql, projectId, labelerId).FirstOrDefaultAsync(ct);
+                LabelingTask? chon = await db.Tasks.FromSqlRaw(ngauNhien, projectId, labelerId, cuaSo).FirstOrDefaultAsync(ct);
+                if (chon != null)
+                {
+                    return chon;
+                }
+            }
+
+            string fifo = "SELECT t.* FROM tasks t " + DieuKienUngVien +
+                          " ORDER BY t.id LIMIT 1 FOR UPDATE OF t SKIP LOCKED";
+
+            return await db.Tasks.FromSqlRaw(fifo, projectId, labelerId).FirstOrDefaultAsync(ct);
         }
 
         /// <summary>

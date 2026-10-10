@@ -98,7 +98,7 @@ namespace Crowd.Payment.Api.Workers
 
                 try
                 {
-                    await Task.Delay(_settings.ThoiGian(SettingKeys.PaymentPayoutInterval), stoppingToken);
+                    await ChoTheoSetting.ChoAsync(_settings, SettingKeys.PaymentPayoutInterval, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {

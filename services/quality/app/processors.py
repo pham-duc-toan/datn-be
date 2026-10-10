@@ -12,7 +12,7 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import consensus, reputation
+from app import consensus, reputation, settings_store
 from app.contracts import (
     AnnotationSubmitted,
     ConsensusReached,
@@ -91,7 +91,17 @@ async def gold_answered(s: AsyncSession, env: Envelope[GoldAnswered]) -> None:
 # =====================================================================
 
 
+NHOM_KHOA_TASK = 7002  # tham so dau cua pg_advisory_xact_lock — tach khoi khoa cua service khac
+
+
 async def danh_gia_task(s: AsyncSession, task_id: uuid.UUID, env: Envelope) -> None:
+    # KHOA THEO TASK truoc khi dem: hai nhan cuoi cua cung task (hoac nhan cuoi + target) xu ly
+    # SONG SONG trong hai transaction thi moi ben chi thay nhan cua minh (ben kia chua commit),
+    # deu dem thieu va KHONG BEN NAO tinh dong thuan — task ket vinh vien (gap khi chay E2E:
+    # hai nhan den cach nhau 19 ms). Khoa xep hang hai ben; ben sau lay khoa khi ben truoc da
+    # commit nen dem du (READ COMMITTED). Khoa tu nha khi transaction cua consumer ket thuc.
+    await s.execute(text("SELECT pg_advisory_xact_lock(:nhom, hashtext(:t))"), {"nhom": NHOM_KHOA_TASK, "t": str(task_id)})
+
     muc_tieu = (await s.execute(
         text("SELECT project_id, sample_id, target FROM task_targets WHERE task_id = :t"), {"t": task_id})).first()
     if muc_tieu is None:
@@ -122,7 +132,8 @@ async def danh_gia_task(s: AsyncSession, task_id: uuid.UUID, env: Envelope) -> N
     schema = du_an.label_schema if isinstance(du_an.label_schema, dict) else json.loads(du_an.label_schema)
     nhan = [consensus.Nhan(str(d.annotation_id), str(d.labeler_id), d.data if isinstance(d.data, dict) else json.loads(d.data))
             for d in dong]
-    kq = consensus.danh_gia(schema, nhan, muc_tieu.target, du_an.max_redundancy)
+    cs = await chinh_sach_hien_tai(s, [d.labeler_id for d in dong])
+    kq = consensus.danh_gia(schema, nhan, muc_tieu.target, du_an.max_redundancy, cs)
 
     trang_thai = "moreRequested" if kq.xin_them is not None else kq.status
     await s.execute(
@@ -170,6 +181,37 @@ async def danh_gia_task(s: AsyncSession, task_id: uuid.UUID, env: Envelope) -> N
 # =====================================================================
 # UY TIN
 # =====================================================================
+
+
+async def chinh_sach_hien_tai(s: AsyncSession, labeler_ids: list[uuid.UUID]) -> consensus.ChinhSach:
+    """
+    Chinh sach dung theo setting quality.redundancy_policy (NC-D-01). Voi posterior / voi can
+    do chinh xac tung labeler: do tin cay Dawid–Skene neu co, khong thi ti le dung cau vang
+    LAM MUOT ve tien nghiem (cung cach tinh uy tin) — labeler moi khong bi tin qua muc.
+    """
+    ten = settings_store.chuoi(settings_store.REDUNDANCY_POLICY)
+    ts = reputation.tham_so_hien_tai()
+    if ten == "majority":
+        return consensus.ChinhSach()
+
+    do_cx: dict[str, float] = {}
+    for l in set(labeler_ids):
+        ds = await ds_skill_cua(s, l)
+        if ds is not None:
+            do_cx[str(l)] = ds
+            continue
+        g = (await s.execute(
+            text("SELECT COUNT(*) AS tong, COUNT(*) FILTER (WHERE correct) AS dung FROM gold_answers WHERE labeler_id = :l"),
+            {"l": l})).one()
+        do_cx[str(l)] = reputation.lam_muot(g.dung, g.tong, ts)
+
+    return consensus.ChinhSach(
+        ten=ten,
+        nguong=settings_store.so_thuc(settings_store.POSTERIOR_TARGET),
+        ti_le_gia_tri=settings_store.so_thuc(settings_store.VOI_VALUE_RATIO),
+        do_chinh_xac=do_cx,
+        mac_dinh=ts.tien_nghiem,
+    )
 
 
 async def ds_skill_cua(s: AsyncSession, labeler_id: uuid.UUID) -> float | None:

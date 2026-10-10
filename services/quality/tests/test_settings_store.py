@@ -65,3 +65,51 @@ def test_doc_event_setting_cua_csharp():
     snap = dict(tho, eventType="settings.snapshot", payload={"items": [{"key": "quality.ds_interval", "value": 60, "settingVersion": 1}]})
     env2 = env_mod.doc(json.dumps(snap).encode(), SettingsSnapshot)
     assert env2.payload.items[0].value == 60
+
+
+# ---- cho_theo_setting: doc lai chu ky moi nhip (admin rut chu ky co hieu luc ngay) ----
+
+def _chu_ky_gia(monkeypatch, giay_ban_dau):
+    hop = {"giay": giay_ban_dau}
+    monkeypatch.setattr(st, "giay", lambda key: hop["giay"])
+    return hop
+
+
+def test_cho_du_chu_ky_khi_setting_khong_doi(monkeypatch):
+    import asyncio, time
+    _chu_ky_gia(monkeypatch, 0.3)
+    t0 = time.monotonic()
+    bi_dung = asyncio.run(st.cho_theo_setting(st.DS_INTERVAL, asyncio.Event(), nhip=0.05))
+    assert not bi_dung
+    assert time.monotonic() - t0 >= 0.29
+
+
+def test_rut_ngan_chu_ky_giua_chung_thi_ket_thuc_som(monkeypatch):
+    import asyncio, time
+    hop = _chu_ky_gia(monkeypatch, 30.0)
+
+    async def chay():
+        cho = asyncio.create_task(st.cho_theo_setting(st.DS_INTERVAL, asyncio.Event(), nhip=0.05))
+        await asyncio.sleep(0.2)
+        hop["giay"] = 0.1
+        return await cho
+
+    t0 = time.monotonic()
+    assert not asyncio.run(chay())
+    assert time.monotonic() - t0 < 5
+
+
+def test_dung_service_thi_thoat_ngay(monkeypatch):
+    import asyncio, time
+    _chu_ky_gia(monkeypatch, 30.0)
+
+    async def chay():
+        dung = asyncio.Event()
+        cho = asyncio.create_task(st.cho_theo_setting(st.DS_INTERVAL, dung, nhip=1.0))
+        await asyncio.sleep(0.1)
+        dung.set()
+        return await cho
+
+    t0 = time.monotonic()
+    assert asyncio.run(chay())
+    assert time.monotonic() - t0 < 1
