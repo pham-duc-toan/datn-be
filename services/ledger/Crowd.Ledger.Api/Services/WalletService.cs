@@ -76,7 +76,7 @@ namespace Crowd.Ledger.Api.Services
             Guid uid = caller.LayUserId();
 
             List<Guid> duAnDangKyQuy = await _db.Escrows
-                .Where(e => e.OwnerId == uid && e.State == EscrowState.Active)
+                .Where(e => e.OwnerId == uid && e.State != EscrowState.Closed)
                 .Select(e => e.ProjectId)
                 .ToListAsync(ct);
 

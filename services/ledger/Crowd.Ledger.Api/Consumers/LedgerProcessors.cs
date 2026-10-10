@@ -126,7 +126,8 @@ namespace Crowd.Ledger.Api.Consumers
                 throw new ArgumentNullException(nameof(envelope));
             }
 
-            return _flow.TraKyQuyAsync(envelope.Payload.ProjectId, true, Nguon.Tu(envelope), ct);
+            int? soNhan = envelope.Payload.ApprovedAnnotationCount;
+            return _flow.TraKyQuyAsync(envelope.Payload.ProjectId, true, soNhan.HasValue ? soNhan.Value : 0, Nguon.Tu(envelope), ct);
         }
     }
 
@@ -151,7 +152,8 @@ namespace Crowd.Ledger.Api.Consumers
                 throw new ArgumentNullException(nameof(envelope));
             }
 
-            return _flow.TraKyQuyAsync(envelope.Payload.ProjectId, false, Nguon.Tu(envelope), ct);
+            int? soNhan = envelope.Payload.ApprovedAnnotationCount;
+            return _flow.TraKyQuyAsync(envelope.Payload.ProjectId, false, soNhan.HasValue ? soNhan.Value : 0, Nguon.Tu(envelope), ct);
         }
     }
 

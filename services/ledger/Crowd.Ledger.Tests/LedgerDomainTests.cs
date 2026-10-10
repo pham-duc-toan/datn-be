@@ -303,4 +303,64 @@ namespace Crowd.Ledger.Tests
             Assert.True(e.VuotRedundancy(3));
         }
     }
+
+    /// <summary>
+    /// NC-B-01: du an ket thuc khi annotation.approved chua toi ledger — ky quy DANG DONG,
+    /// chi du so nhan da duyet luc dong so moi hoan phan con lai.
+    /// </summary>
+    public sealed class EscrowClosingTests
+    {
+        private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 10, 8, 0, 0, TimeSpan.Zero);
+
+        [Fact]
+        public void Bat_dau_dong_giu_so_nhan_can_chi_va_ly_do()
+        {
+            ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 1000, Luc);
+            e.BatDauDong(2, false);
+
+            Assert.Equal(EscrowState.Closing, e.State);
+            Assert.Equal(2, e.ExpectedPaidAnnotations);
+            Assert.False(e.ClosingIsCancel);
+        }
+
+        [Fact]
+        public void Chi_du_so_nhan_moi_duoc_dong()
+        {
+            ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 1000, Luc);
+            e.BatDauDong(2, true);
+
+            Assert.False(e.DaChiDuDeDong(1));
+            Assert.True(e.DaChiDuDeDong(2));
+        }
+
+        [Fact]
+        public void Ky_quy_active_khong_bao_gio_tu_dong()
+        {
+            ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 1000, Luc);
+
+            Assert.False(e.DaChiDuDeDong(100));
+        }
+
+        [Fact]
+        public void Khong_bat_dau_dong_ky_quy_da_dong_hoac_so_nhan_khong_duong()
+        {
+            ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 1000, Luc);
+            Assert.Throws<ArgumentOutOfRangeException>(() => e.BatDauDong(0, false));
+
+            e.Dong(Luc);
+            Assert.Throws<InvalidOperationException>(() => e.BatDauDong(1, false));
+        }
+
+        [Fact]
+        public void Ky_quy_dang_dong_khong_con_ngan_sach_cong_link()
+        {
+            ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 1_000_000, Luc);
+            e.DatRedundancy(1);
+            e.GhiDieuKhoan(1, 1000, 300, true);
+            Assert.True(e.NganSachCongConLai() > 0);
+
+            e.BatDauDong(1, false);
+            Assert.Equal(0, e.NganSachCongConLai());
+        }
+    }
 }

@@ -181,12 +181,14 @@ payout.requested v1  (PayoutRequested)
     WithdrawalId             Guid                 required
 
 project.cancelled v1  (ProjectCancelled)
+    ApprovedAnnotationCount  Int32?               nullable
     OwnerId                  Guid                 required
     ProjectId                Guid                 required
     Reason                   String?              nullable
     WasEscrowed              Boolean              required
 
 project.completed v1  (ProjectCompleted)
+    ApprovedAnnotationCount  Int32?               nullable
     OwnerId                  Guid                 required
     ProjectId                Guid                 required
 

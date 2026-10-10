@@ -144,6 +144,8 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.ReservedAt).HasColumnName("reserved_at").IsRequired();
                 b.Property(x => x.ClosedAt).HasColumnName("closed_at");
+                b.Property(x => x.ExpectedPaidAnnotations).HasColumnName("expected_paid_annotations");
+                b.Property(x => x.ClosingIsCancel).HasColumnName("closing_is_cancel").IsRequired();
                 b.Property(x => x.SampleCount).HasColumnName("sample_count").IsRequired();
                 b.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
                 b.Property(x => x.PlatformFeeVnd).HasColumnName("platform_fee_vnd").IsRequired();

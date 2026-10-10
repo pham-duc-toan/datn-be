@@ -33,6 +33,8 @@ namespace Crowd.Project.Api.Helpers
 
         public int PendingReview { get; init; }
 
+        public int ApprovedCount { get; init; }
+
         public int OpenAppeals { get; init; }
 
         public int RejectedInAppealWindow { get; init; }

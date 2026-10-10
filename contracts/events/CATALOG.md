@@ -178,6 +178,11 @@ phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload 
    (tran redundancy thich ung) va `GoldCheckPercent` ngay tren v1. Du lieu cu: migration
    `KiemSoatChatLuong` dat tran = redundancy, ti le cau vang = 10%.
 
+   *Ngoai le thu tu (2026-10-10, cung ly do):* `project.completed` va `project.cancelled` them
+   `ApprovedAnnotationCount` (`int?`) ngay tren v1 — so nhan da duyet luc dong so, de ledger
+   chi hoan ky quy khi da chi du (annotation.approved di queue khac, co the toi sau; TLA+
+   `NC-B-01` tim ra). `null` = event cu: ledger hoan ngay nhu truoc.
+
 ## Dinh dang nhan: tap nhan (`LabelSchema`) + nhan (`LabelPayload`)
 
 Dinh nghia trong `shared/labeling` (Crowd.Labeling). Hinh dang JSON nam trong

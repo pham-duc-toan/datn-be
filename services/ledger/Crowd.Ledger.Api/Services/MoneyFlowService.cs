@@ -488,6 +488,7 @@ namespace Crowd.Ledger.Api.Services
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
             Guid labelerId = a.LabelerId.Value;
+            int nhanDaChiTruoc = escrow.State == EscrowState.Closing ? await DemNhanDaChiAsync(a.ProjectId, ct) : 0;
 
             await _writer.GhiAsync(Postings.ChiTraNhan(a.AnnotationId, a.ProjectId, labelerId, a.AmountVnd, a.PlatformFeeVnd, bayGio), ct);
 
@@ -502,6 +503,18 @@ namespace Crowd.Ledger.Api.Services
                 AmountVnd = a.AmountVnd,
                 ReleaseAt = hold.ReleaseAt,
             });
+
+            // Du an da ket thuc, ky quy dang cho chi not nhan da duyet: chi du thi hoan phan con lai.
+            if (escrow.DaChiDuDeDong(nhanDaChiTruoc + 1))
+            {
+                await DongVaHoanKyQuyAsync(escrow, escrow.ClosingIsCancel, caller, ct);
+            }
+        }
+
+        /// <summary>So nhan (labeler chuyen nghiep) cua du an da duoc chi — moi nhan mot khoan treo.</summary>
+        private Task<int> DemNhanDaChiAsync(Guid projectId, CancellationToken ct)
+        {
+            return _db.Holds.CountAsync(h => h.ProjectId == projectId && h.Kind == HoldKind.Annotation, ct);
         }
 
         /// <summary>Worker: giai phong MOT khoan treo den han. Goi trong transaction cua worker.</summary>
@@ -523,18 +536,40 @@ namespace Crowd.Ledger.Api.Services
         /// Huy / hoan thanh: tra TOAN BO so du ky quy con lai ve doanh nghiep. So
         /// du do lay tu CHINH tai khoan escrow:project (VD-M-10) — khong tinh lai tu
         /// don gia x so nhan, nen khong the lech voi thuc te da chi.
+        ///
+        /// NHUNG chi khi da chi DU soNhanDaDuyet (so nhan da duyet luc dong so, annotation-svc
+        /// tra ve): annotation.approved va project.completed di HAI QUEUE khac nhau, approved co
+        /// the toi SAU. Hoan ngay thi approved toi sau gap ky_quy_da_dong → DLQ, labeler da duoc
+        /// duyet ma khong bao gio duoc tra (TLA+ NC-B-01 tim ra, trace 15 buoc). Chua du → Closing:
+        /// van chi cho nhan da duyet, chi du thi ChiTraNhanAsync hoan phan con lai.
         /// </summary>
-        public async Task TraKyQuyAsync(Guid projectId, bool laHuy, Caller caller, CancellationToken ct)
+        public async Task TraKyQuyAsync(Guid projectId, bool laHuy, int soNhanDaDuyet, Caller caller, CancellationToken ct)
         {
             await _writer.KhoaAsync(ct);
 
             ProjectEscrow? escrow = await _db.Escrows.FirstOrDefaultAsync(x => x.ProjectId == projectId, ct);
-            if (escrow == null || escrow.State == EscrowState.Closed)
+            if (escrow == null || escrow.State != EscrowState.Active)
             {
-                // Huy luc con Nhap (chua tung ky quy) hoac event giao lai: khong co gi de tra.
+                // Huy luc con Nhap (chua tung ky quy), dang dong / da dong, hoac event giao lai.
                 return;
             }
 
+            int daChi = await DemNhanDaChiAsync(projectId, ct);
+            if (daChi < soNhanDaDuyet)
+            {
+                escrow.BatDauDong(soNhanDaDuyet, laHuy);
+                _logger.LogInformation(
+                    "Du an {ProjectId} ket thuc nhung moi chi {DaChi}/{CanChi} nhan da duyet — giu ky quy cho toi khi chi du",
+                    projectId, daChi, soNhanDaDuyet);
+                return;
+            }
+
+            await DongVaHoanKyQuyAsync(escrow, laHuy, caller, ct);
+        }
+
+        private async Task DongVaHoanKyQuyAsync(ProjectEscrow escrow, bool laHuy, Caller caller, CancellationToken ct)
+        {
+            Guid projectId = escrow.ProjectId;
             long conLai = await _writer.SoDuAsync(AccountCodes.ProjectEscrow(projectId), ct);
             DateTimeOffset bayGio = _clock.GetUtcNow();
 

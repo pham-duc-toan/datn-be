@@ -25,7 +25,7 @@ E2E_PROFILE=demo python tests/e2e/chay_hoi_quy.py
 | [docs/kien-truc-backend.md](docs/kien-truc-backend.md) | Kiến trúc, các quyết định kỹ thuật và lý do |
 | [docs/tich-hop-frontend.md](docs/tich-hop-frontend.md) | Hợp đồng API cho frontend |
 | [docs/van-de-can-giai-quyet.md](docs/van-de-can-giai-quyet.md) | Sổ vấn đề và hướng nâng cao |
-| [docs/thi-nghiem/](docs/thi-nghiem/) | Thí nghiệm có số liệu: redundancy thích ứng (NC-D-01), hiệu năng (NC-B-06) |
+| [docs/thi-nghiem/](docs/thi-nghiem/) | Thí nghiệm có số liệu: redundancy thích ứng (NC-D-01), hiệu năng (NC-B-06), đặc tả TLA+ dòng tiền (NC-B-01) |
 
 ## Cấu trúc
 
@@ -35,6 +35,7 @@ services/      mỗi service một thư mục (identity, project, task, annotati
 shared/        thư viện dùng chung (auth, messaging, outbox, settings, labeling, storage, seeding)
 contracts/     JSON Schema tập nhãn + danh mục event
 tests/e2e/     kiểm thử đầu-cuối qua API thật
+spec/tla/      đặc tả TLA+ dòng tiền + đóng dự án, chạy bằng TLC (python spec/tla/chay_tlc.py)
 experiments/   mã thí nghiệm
 deploy/docker/ Dockerfile; docker-compose.demo.yml (cả hệ thống), docker-compose.infra.yml (hạ tầng cho dev)
 ```

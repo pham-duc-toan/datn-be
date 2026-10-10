@@ -44,6 +44,7 @@ ok &= chay("p3_chat_luong", "e2e_p3.py")
 ok &= chay("p2_cong_link_perClick", "e2e_p2.py")
 ok &= chay("modality", "e2e_modality.py")
 ok &= chay("ep_race_quality", "ep_race_quality.py")
+ok &= chay("dong_cho_chi", "e2e_dong_cho_chi.py")
 
 dat("ledger.gate_batch_interval", 2)
 dat("ledger.gate_payout_mode", "batched")

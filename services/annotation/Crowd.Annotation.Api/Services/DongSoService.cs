@@ -69,6 +69,7 @@ namespace Crowd.Annotation.Api.Services
 
                 int soNhan = await nhan.CountAsync(ct);
                 int choDuyet = await nhan.CountAsync(a => a.Status == AnnotationStatus.PendingReview, ct);
+                int daDuyet = await nhan.CountAsync(a => a.Status == AnnotationStatus.Approved, ct);
                 int khieuNai = await nhan.CountAsync(a => a.Status == AnnotationStatus.Appealed, ct);
                 IQueryable<LabelAnnotation> conHan = nhan.Where(
                     a => a.Status == AnnotationStatus.Rejected && a.AppealMessage == null && a.ReviewedAt >= moc);
@@ -118,6 +119,7 @@ namespace Crowd.Annotation.Api.Services
                     AnnotationCount = soNhan,
                     SubmittedCount = soLuotNop,
                     PendingReview = choDuyet,
+                    ApprovedCount = daDuyet,
                     OpenAppeals = khieuNai,
                     RejectedInAppealWindow = soConHan,
                     AppealWindowEndsAt = hetHan,

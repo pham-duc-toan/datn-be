@@ -168,6 +168,14 @@ namespace Crowd.Contracts.Project
         public required bool WasEscrowed { get; init; }
 
         public string? Reason { get; init; }
+
+        /// <summary>
+        /// So nhan (labeler chuyen nghiep) DA DUYET luc dong so (annotation-svc tra ve khi dong).
+        /// Ledger chi hoan ky quy khi da chi DU so nhan nay: event annotation.approved va event nay
+        /// di hai queue khac nhau, approved co the toi SAU (NC-B-01, TLA+ tim ra). 0 = khong co nhan
+        /// nao; null = event cu truoc thay doi nay (hoan ngay nhu truoc).
+        /// </summary>
+        public int? ApprovedAnnotationCount { get; init; }
     }
 
     /// <summary>Du an ket thuc binh thuong. Ledger giai phong phan escrow con du.</summary>
@@ -186,5 +194,13 @@ namespace Crowd.Contracts.Project
         public required Guid ProjectId { get; init; }
 
         public required Guid OwnerId { get; init; }
+
+        /// <summary>
+        /// So nhan (labeler chuyen nghiep) DA DUYET luc dong so (annotation-svc tra ve khi dong).
+        /// Ledger chi hoan ky quy khi da chi DU so nhan nay: event annotation.approved va event nay
+        /// di hai queue khac nhau, approved co the toi SAU (NC-B-01, TLA+ tim ra). 0 = khong co nhan
+        /// nao; null = event cu truoc thay doi nay (hoan ngay nhu truoc).
+        /// </summary>
+        public int? ApprovedAnnotationCount { get; init; }
     }
 }

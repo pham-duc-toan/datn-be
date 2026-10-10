@@ -6,6 +6,13 @@ namespace Crowd.Ledger.Domain.Escrows
     {
         Active,
 
+        /// <summary>
+        /// Du an da ket thuc nhung CON nhan da duyet chua chi (annotation.approved toi sau
+        /// project.completed — hai queue khac nhau, NC-B-01). Van nhan chi tra cho cac nhan do;
+        /// chi DU thi tra phan con lai va chuyen Closed. Khong chi cho cong link nua.
+        /// </summary>
+        Closing,
+
         /// <summary>Da tra phan con lai (huy/hoan thanh). Khong nhan chi tra nua.</summary>
         Closed,
     }
@@ -55,6 +62,12 @@ namespace Crowd.Ledger.Domain.Escrows
         public DateTimeOffset ReservedAt { get; private set; }
 
         public DateTimeOffset? ClosedAt { get; private set; }
+
+        /// <summary>Closing: so nhan da duyet luc dong so — chi du chung thi moi hoan ky quy.</summary>
+        public int? ExpectedPaidAnnotations { get; private set; }
+
+        /// <summary>Closing: dong vi huy (refund.issued) hay hoan thanh (escrow.released).</summary>
+        public bool ClosingIsCancel { get; private set; }
 
         public static ProjectEscrow Tao(Guid projectId, Guid ownerId, long reservedVnd, DateTimeOffset luc)
         {
@@ -128,6 +141,32 @@ namespace Crowd.Ledger.Domain.Escrows
         public bool VuotRedundancy(int soLanDaChiChoTask)
         {
             return Redundancy > 0 && soLanDaChiChoTask >= Redundancy;
+        }
+
+        /// <summary>Du an ket thuc ma con nhan da duyet chua chi: giu ky quy cho toi khi chi du.</summary>
+        public void BatDauDong(int soNhanCanChi, bool laHuy)
+        {
+            if (State != EscrowState.Active)
+            {
+                throw new InvalidOperationException("Chi bat dau dong duoc ky quy dang Active (dang " + State + ").");
+            }
+
+            if (soNhanCanChi <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(soNhanCanChi), "So nhan can chi phai duong.");
+            }
+
+            State = EscrowState.Closing;
+            ExpectedPaidAnnotations = soNhanCanChi;
+            ClosingIsCancel = laHuy;
+        }
+
+        /// <summary>Dang dong va da chi du so nhan da duyet luc dong so.</summary>
+        public bool DaChiDuDeDong(int soNhanDaChi)
+        {
+            return State == EscrowState.Closing
+                   && ExpectedPaidAnnotations.HasValue
+                   && soNhanDaChi >= ExpectedPaidAnnotations.Value;
         }
 
         public void Dong(DateTimeOffset luc)

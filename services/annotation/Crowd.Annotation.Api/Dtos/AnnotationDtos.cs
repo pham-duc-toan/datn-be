@@ -195,6 +195,12 @@ namespace Crowd.Annotation.Api.Dtos
 
         public required int PendingReview { get; init; }
 
+        /// <summary>
+        /// Nhan chuyen nghiep DA DUYET (gom khieu nai thang). project-svc dua vao project.completed /
+        /// project.cancelled: ledger chi hoan ky quy khi da chi du so nhan nay.
+        /// </summary>
+        public required int ApprovedCount { get; init; }
+
         public required int OpenAppeals { get; init; }
 
         /// <summary>Nhan bi tu choi, chua khieu nai, con trong han khieu nai.</summary>

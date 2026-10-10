@@ -284,12 +284,17 @@ POST /projects/{id}/complete | /cancel   (Running → 409 can_tam_dung_truoc: ph
          0 nhãn chờ duyệt, 0 khiếu nại đang mở
          0 nhãn bị từ chối còn trong hạn khiếu nại  (chống "từ chối hàng loạt rồi đóng ngay")
        đạt → closed_at = now (đóng sổ)
-  3. đạt cả hai → Completed / Cancelled → project.completed / project.cancelled → ledger hoàn ký quỹ
+  3. đạt cả hai → Completed / Cancelled → project.completed / project.cancelled {ApprovedAnnotationCount}
+  4. ledger: đã chi đủ số nhãn đã duyệt → hoàn ký quỹ còn lại, Closed
+             chưa đủ (annotation.approved đi queue khác, còn đang trên đường) → Closing:
+               vẫn chi cho nhãn đã duyệt, không chi cổng link; chi đủ thì tự hoàn + Closed
   chưa đạt → 409 chua_the_dong + closeCheck (lý do, số liệu, hạn khiếu nại cuối)
   gọi nội bộ lỗi → 503 (không kiểm được thì không đóng)
 ```
 
+- **Bước 4 do TLA+ tìm ra** ([NC-B-01](thi-nghiem/nc-b-01-tla.md)): trước đó ledger hoàn ký quỹ ngay khi nhận `project.completed`; nếu `annotation.approved` của nhãn vừa duyệt tới sau, nó gặp ký quỹ đã đóng, vào DLQ, và labeler không được trả.
 - **Đóng sổ** chặn mọi thao tác làm đổi tiền sau đó: duyệt, duyệt hàng loạt, từ chối, khiếu nại, phân xử (409 `du_an_da_ket_thuc`). Các thao tác này đọc `project_terms` bằng `FOR SHARE` trong cùng transaction, nên một khiếu nại chen vào lúc đang đóng sổ hoặc đã commit trước (đóng sổ thấy nó và từ chối đóng), hoặc phải chờ và thấy dự án đã đóng.
+- Nhãn **nộp tới** khi đã đóng sổ nhưng dự án chưa kết thúc hẳn vẫn được ghi nhận. Doanh nghiệp có thể chạy tiếp sau một lần đóng sổ mà project-svc chưa chốt, và `project.resumed` đi queue khác với `assignment.submitted` (TLA+ tìm ra). Chỉ khi đã nhận `project.completed` / `cancelled` thì nhãn tới sau mới là lỗi (vào DLQ).
 - Nhãn từ cổng link không gắn tiền (sharer đã được trả theo lượt), nên không chặn việc đóng.
 - **Ngoại lệ có kiểm soát với luật 1 mục 4:** đây là lời gọi HTTP đồng bộ đầu tiên giữa hai service nghiệp vụ. Nó không nằm trên đường nóng (đóng dự án rất hiếm), và hỏi thẳng **chủ dữ liệu** đúng như luật "quyết định tiền bạc không đọc bản sao". Endpoint nằm dưới `/internal` (gateway không định tuyến) và cần header `X-Internal-Key` (`InternalApi:Key`, bộ lọc `[InternalApi]` trong `shared/auth`).
 

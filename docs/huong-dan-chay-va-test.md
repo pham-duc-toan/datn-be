@@ -91,6 +91,7 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_p2.py` | Cổng link: rút gọn, vượt link, Turnstile, chống trùng IP, hoa hồng, kiểm duyệt (`chay_hoi_quy` chạy hai lần: chi `perClick` và `batched`) |
 | `e2e_modality.py` | Ảnh, văn bản, âm thanh, video, cặp, khung ảnh; media sinh bằng ffmpeg (`tao_media.py`) |
 | `ep_race_quality.py` | Ép race: hai người nộp đồng thời nhãn cuối của cùng task |
+| `e2e_dong_cho_chi.py` | Kịch bản TLA+ tìm ra (NC-B-01): dừng container ledger, duyệt và đóng dự án, bật lại. Nhãn đã duyệt phải được trả dù `completed` tới trước `approved` (chỉ chạy với `E2E_PROFILE=demo`) |
 
 Kết quả từng bộ ghi vào `tests/e2e/ket-qua/`. Địa chỉ và tên container đọc từ `moi_truong.py` (`E2E_PROFILE`, `E2E_GATEWAY`...).
 
@@ -1045,7 +1046,15 @@ Xem event chạy qua hệ thống: mở RabbitMQ UI tại http://localhost:15672
 
 Muốn chạy toàn bộ kiểm tra tự động thay vì từng lệnh: xem mục 0.2.
 
-## 7.1 Chạy lại thí nghiệm (NC-D-01, NC-B-06)
+## 7.1 Chạy lại thí nghiệm (NC-D-01, NC-B-06, NC-B-01)
+
+**NC-B-01 — TLA+** (cần Java 11+; lần đầu tự tải `tla2tools.jar`):
+
+```bash
+python spec/tla/chay_tlc.py            # 6 biến thể: bản đúng không vi phạm, 5 biến thể lỗi phải bị bắt (~40 giây)
+python spec/tla/chay_tlc.py hien_tai   # một biến thể; trace rút gọn ở spec/tla/ket-qua/<tên>.trace.txt
+```
+
 
 Mã ở `experiments/`, môi trường Python riêng:
 

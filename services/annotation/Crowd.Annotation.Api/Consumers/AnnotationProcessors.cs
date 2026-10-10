@@ -75,15 +75,17 @@ namespace Crowd.Annotation.Api.Consumers
                 return;
             }
 
-            // Du an da dong so: project-svc chi dong khi so luot nop ben task-svc KHOP so nhan
-            // o day va khong con luot dang giu — nen nhan toi sau la sai bat bien. NEM LOI de
-            // message vao DLQ cho nguoi xem (VD-D-06), khong am tham luu nhan se khong ai tra tien.
-            // Chua co dieu khoan (project.published chua toi) thi van luu nhu cu.
+            // Du an da KET THUC (project.completed / cancelled): project-svc chi dong khi so luot nop
+            // ben task-svc KHOP so nhan o day va khong con luot dang giu — nhan toi sau la sai bat
+            // bien. NEM LOI de message vao DLQ cho nguoi xem (VD-D-06).
+            // Dong so nhung CHUA ket thuc thi VAN GHI NHAN: doanh nghiep co the chay tiep sau lan dong
+            // so ma project-svc chua chot, va project.resumed (mo so) di queue khac voi assignment.submitted
+            // — nop co the toi truoc (TLA+ NC-B-01 tim ra). Nhan moi o "cho duyet" tu chan lan dong sau.
             ProjectTerms? dieuKhoan = await DieuKhoanDuAn.KhoaChiaSeAsync(_db, p.ProjectId, ct);
-            if (dieuKhoan != null && dieuKhoan.DaDong)
+            if (dieuKhoan != null && dieuKhoan.IsFinal)
             {
                 throw new InvalidOperationException(
-                    "Luot nop " + p.AssignmentId + " toi sau khi du an " + p.ProjectId + " da dong so.");
+                    "Luot nop " + p.AssignmentId + " toi sau khi du an " + p.ProjectId + " da ket thuc.");
             }
 
             LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(

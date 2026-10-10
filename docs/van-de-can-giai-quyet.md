@@ -226,7 +226,7 @@ Danh sách mọi rủi ro kỹ thuật, bảo mật, pháp lý và sản phẩm 
 
 | Mã | Hạng mục | Công cụ | Artifact phải tạo ra | Giá trị | Công sức |
 |---|---|---|---|---|---|
-| B-01 | **Đặc tả hình thức cho bất biến tiền** | TLA+ / TLC | Spec ~200 dòng mô hình hóa publish / duyệt nhãn / release hold / rút tiền chạy xen kẽ. Báo cáo số trạng thái đã duyệt, **và trace vi phạm nếu tìm được** | ⭐⭐⭐ | Cao |
+| B-01 | **Đặc tả hình thức cho bất biến tiền** | TLA+ / TLC | Spec ~200 dòng mô hình hóa publish / duyệt nhãn / release hold / rút tiền chạy xen kẽ. Báo cáo số trạng thái đã duyệt, **và trace vi phạm nếu tìm được**. **Đã làm** ([báo cáo](thi-nghiem/nc-b-01-tla.md)): bản đúng 1,45 triệu trạng thái không vi phạm; 5 biến thể lỗi đều bị bắt; **tìm ra 2 lỗi thật** (hoàn ký quỹ trước khi chi xong nhãn đã duyệt; nhãn nộp sau khi chạy tiếp bị đẩy vào DLQ) — đã sửa, E2E kiểm chứng | ⭐⭐⭐ | Cao |
 | B-02 | Bản nhẹ của B-01 | FsCheck / Hypothesis | Property-based test với harness chạy đồng thời — phương án dự phòng nếu TLA+ trễ | ⭐⭐ | Thấp |
 | B-03 | **Kiểm thử kiểu Jepsen cho lease manager** | Toxiproxy + Elle/Knossos | So Redis lease vs etcd lease: **số lần cấp trùng lease khi phân mạng**, kèm chi phí độ trễ. Một chương CAP có số liệu từ hệ thống của chính mình | ⭐⭐⭐ | Cao |
 | B-04 | **Deterministic simulation testing** | Tự cài, **chỉ cho `ledger-svc`** | Thời gian/mạng/đĩa/RNG mô phỏng có seed → bug tái hiện 100% theo seed. Thứ cao cấp nhất danh sách này | ⭐⭐⭐ | Rất cao |

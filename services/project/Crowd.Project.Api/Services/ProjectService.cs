@@ -526,7 +526,7 @@ namespace Crowd.Project.Api.Services
             LabelingProject duAn = await LayTheoIdAsync(id, ct);
             duAn.TuChoiDuyet(lyDo ?? string.Empty, _clock.GetUtcNow());
 
-            PhatDaHuy(duAn, caller);
+            PhatDaHuy(duAn, 0, caller);
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -557,10 +557,15 @@ namespace Crowd.Project.Api.Services
         public async Task<ProjectResponse> HoanThanhAsync(Guid id, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            await DamBaoDongSoAsync(duAn, ct);
+            int soNhanDaDuyet = await DamBaoDongSoAsync(duAn, ct);
             duAn.HoanThanh(_clock.GetUtcNow());
 
-            _events.Phat(caller, new ProjectCompleted { ProjectId = duAn.Id, OwnerId = duAn.OwnerId });
+            _events.Phat(caller, new ProjectCompleted
+            {
+                ProjectId = duAn.Id,
+                OwnerId = duAn.OwnerId,
+                ApprovedAnnotationCount = soNhanDaDuyet,
+            });
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -569,10 +574,10 @@ namespace Crowd.Project.Api.Services
         public async Task<ProjectResponse> HuyAsync(Guid id, string? lyDo, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            await DamBaoDongSoAsync(duAn, ct);
+            int soNhanDaDuyet = await DamBaoDongSoAsync(duAn, ct);
             duAn.Huy(lyDo, _clock.GetUtcNow());
 
-            PhatDaHuy(duAn, caller);
+            PhatDaHuy(duAn, soNhanDaDuyet, caller);
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -588,12 +593,14 @@ namespace Crowd.Project.Api.Services
         /// can_tam_dung_truoc o buoc sau — KHONG goi dong so de khoi dong bang nham.
         /// Annotation da dong so ma luu du an loi → doanh nghiep bam lai (dong so idempotent),
         /// hoac chay tiep: project.resumed mo lai so ben annotation-svc.
+        /// Tra ve so nhan da duyet luc dong — project.completed / cancelled mang theo de ledger chi
+        /// hoan ky quy SAU KHI da chi du (annotation.approved co the toi ledger sau event dong).
         /// </summary>
-        private async Task DamBaoDongSoAsync(LabelingProject duAn, CancellationToken ct)
+        private async Task<int> DamBaoDongSoAsync(LabelingProject duAn, CancellationToken ct)
         {
             if (duAn.Status != ProjectStatus.Paused)
             {
-                return;
+                return 0;
             }
 
             TaskCloseCheck task = await _dongSo.KiemTaskAsync(duAn.Id, ct);
@@ -626,6 +633,8 @@ namespace Crowd.Project.Api.Services
                     appealWindowEndsAt = so.AppealWindowEndsAt,
                 });
             }
+
+            return so.ApprovedCount;
         }
 
         private static string MoTaChuaDong(AnnotationCloseResult so)
@@ -685,7 +694,7 @@ namespace Crowd.Project.Api.Services
                 }
 
                 duAn.HuyDoQuaHanChoDuyet(hanChoDuyet, bayGio);
-                PhatDaHuy(duAn, Caller.HeThong(Guid.CreateVersion7(), null));
+                PhatDaHuy(duAn, 0, Caller.HeThong(Guid.CreateVersion7(), null));
 
                 try
                 {
@@ -741,7 +750,8 @@ namespace Crowd.Project.Api.Services
             };
         }
 
-        private void PhatDaHuy(LabelingProject duAn, Caller caller)
+        /// <summary>soNhanDaDuyet: tu lan dong so (du an da chay); 0 khi huy luc chua chay (chua co nhan).</summary>
+        private void PhatDaHuy(LabelingProject duAn, int soNhanDaDuyet, Caller caller)
         {
             _events.Phat(caller, new ProjectCancelled
             {
@@ -749,6 +759,7 @@ namespace Crowd.Project.Api.Services
                 OwnerId = duAn.OwnerId,
                 WasEscrowed = duAn.WasEscrowed,
                 Reason = duAn.StatusReason,
+                ApprovedAnnotationCount = soNhanDaDuyet,
             });
         }
 
