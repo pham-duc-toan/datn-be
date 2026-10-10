@@ -133,7 +133,7 @@ services:
       nofile: { soft: 262144, hard: 262144 }
     volumes: [ch-gate-data:/var/lib/clickhouse]
     healthcheck:
-      test: ["CMD","wget","--spider","-q","http://localhost:8123/ping"]
+      test: ["CMD","wget","--spider","-q","http://127.0.0.1:8123/ping"]
       interval: 10s
       timeout: 5s
       retries: 20

@@ -404,7 +404,7 @@ Các quyết định đã chốt khi làm P3:
 
 Hai chính sách mới áp cho công cụ chọn một (phân loại một lớp, so sánh cặp). Chạm trần mà chưa đủ tin cậy thì task là **tranh chấp**, để người duyệt xử lý. Thí nghiệm trên 5 bộ dữ liệu công khai và mô phỏng ([NC-D-01](thi-nghiem/nc-d-01-redundancy-thich-ung.md)): để đạt cùng độ chính xác với cố định n nhãn, `posterior` / `voi` cần ít hơn 29–76% nhãn. Mặc định vẫn là `majority`, vì khi mọi labeler đều mới (chưa có bằng chứng về độ chính xác) thì `posterior` đắt hơn.
 
-**Đánh giá một task được xếp hàng theo task** (`pg_advisory_xact_lock`): hai nhãn cuối của cùng task xử lý song song thì mỗi transaction chỉ thấy nhãn của mình, cả hai đếm thiếu và task kẹt vĩnh viễn không có đồng thuận. Lỗi này lộ ra khi chạy E2E tổng thể; phép thử ép race (40 task, hai người nộp đồng thời) cho 40/40 task có kết quả.
+**Đánh giá một task được xếp hàng theo task** (`pg_advisory_xact_lock`): hai nhãn cuối của cùng task xử lý song song thì mỗi transaction chỉ thấy nhãn của mình, cả hai đếm thiếu và task kẹt vĩnh viễn không có đồng thuận. Lỗi này lộ ra khi chạy E2E tổng thể. Sau khi sửa, khi nhiều task được quyết định song song lại lộ thêm **deadlock lúc cập nhật uy tín**: hai task của cùng hai labeler khoá dòng `reputations` theo thứ tự ngược nhau, giao lại vẫn đụng nhau, đủ 5 lần thì vào DLQ. Sửa bằng cách cập nhật theo `labeler_id` tăng dần. Phép thử ép race (`tests/e2e/ep_race_quality.py`, 40 task mỗi lần, hai người nộp đồng thời) cho 120/120 task có kết quả qua 3 lần chạy, và nằm trong bộ hồi quy của CI.
 
 Gộp tự động hiện chỉ cho `classification` và `pairwise` (đa số tuyệt đối). Công cụ khác (khung, chép lời…) cho trạng thái `notApplicable` — gộp chúng (WBF, ROVER) là việc tiếp theo.
 

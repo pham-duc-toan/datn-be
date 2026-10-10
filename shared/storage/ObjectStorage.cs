@@ -15,8 +15,16 @@ namespace Crowd.BuildingBlocks.Storage
     {
         public const string SectionName = "ObjectStorage";
 
-        /// <summary>Vd http://localhost:9000</summary>
+        /// <summary>Dia chi service dung de doc / ghi file. Vd http://localhost:9000, trong docker: http://minio:9000.</summary>
         public string ServiceUrl { get; set; } = "http://localhost:9000";
+
+        /// <summary>
+        /// Dia chi NGUOI DUNG (trinh duyet, cong cu) toi duoc, dung de KY link xem / tai len.
+        /// Rong = dung ServiceUrl (chay truc tiep tren may). Trong docker compose service noi
+        /// MinIO qua "minio:9000" nhung trinh duyet chi toi duoc "localhost:19000" — chu ky
+        /// presigned gan voi host nen phai ky bang dia chi cong khai.
+        /// </summary>
+        public string PublicUrl { get; set; } = string.Empty;
 
         public string AccessKey { get; set; } = string.Empty;
 
@@ -57,6 +65,12 @@ namespace Crowd.BuildingBlocks.Storage
         /// </summary>
         Task<string> TaoLinkTaiLenAsync(string key);
 
+        /// <summary>
+        /// Link xem NOI BO cho tien trinh chay canh service (ffprobe) — ky bang dia chi service
+        /// (ServiceUrl), khong phai dia chi cong khai. Khong bao gio tra cho nguoi dung.
+        /// </summary>
+        Task<string> TaoLinkNoiBoAsync(string key);
+
         /// <summary>Thong tin file; null neu khong ton tai.</summary>
         Task<ThongTinFile?> ThongTinAsync(string key, CancellationToken ct);
 
@@ -84,6 +98,11 @@ namespace Crowd.BuildingBlocks.Storage
         private readonly ObjectStorageOptions _options;
         private readonly AmazonS3Client _client;
 
+        /// <summary>Chi de KY link cho nguoi dung (PublicUrl); trung _client neu khong cau hinh PublicUrl.</summary>
+        private readonly AmazonS3Client _clientCongKhai;
+
+        private readonly string _urlCongKhai;
+
         /// <summary>Setting he thong (thoi han link) — null khi service khong dang ky (test, cong cu).</summary>
         private readonly ISettings? _settings;
 
@@ -102,8 +121,26 @@ namespace Crowd.BuildingBlocks.Storage
 
             _options = options.Value;
 
+            BasicAWSCredentials khoa = new BasicAWSCredentials(_options.AccessKey, _options.SecretKey);
+            _client = new AmazonS3Client(khoa, TaoCauHinh(_options.ServiceUrl));
+
+            if (string.IsNullOrWhiteSpace(_options.PublicUrl))
+            {
+                _clientCongKhai = _client;
+                _urlCongKhai = _options.ServiceUrl;
+            }
+            else
+            {
+                // Ky presigned khong goi mang: client nay khong bao gio ket noi toi PublicUrl.
+                _clientCongKhai = new AmazonS3Client(khoa, TaoCauHinh(_options.PublicUrl));
+                _urlCongKhai = _options.PublicUrl;
+            }
+        }
+
+        private static AmazonS3Config TaoCauHinh(string url)
+        {
             AmazonS3Config cauHinh = new AmazonS3Config();
-            cauHinh.ServiceURL = _options.ServiceUrl;
+            cauHinh.ServiceURL = url;
 
             // MinIO dung dia chi dang http://host/bucket/key. Mac dinh AWS dung
             // http://bucket.host/key — voi localhost se khong phan giai duoc.
@@ -113,9 +150,30 @@ namespace Crowd.BuildingBlocks.Storage
             // buoc de khong phu thuoc phien ban MinIO ho tro hay khong.
             cauHinh.RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED;
             cauHinh.ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED;
+            return cauHinh;
+        }
 
-            BasicAWSCredentials khoa = new BasicAWSCredentials(_options.AccessKey, _options.SecretKey);
-            _client = new AmazonS3Client(khoa, cauHinh);
+        private Task<string> KyLinkAsync(AmazonS3Client client, string url, string key, HttpVerb verb, TimeSpan han)
+        {
+            GetPreSignedUrlRequest yeuCau = new GetPreSignedUrlRequest();
+            yeuCau.BucketName = _options.Bucket;
+            yeuCau.Key = key;
+            yeuCau.Verb = verb;
+            yeuCau.Expires = DateTime.UtcNow.Add(han);
+
+            // KHONG ky kem Content-Type (link PUT): client (curl, trinh duyet) gui header nao
+            // cung duoc. Loai file that duoc worker kiem lai bang noi dung.
+            if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            {
+                yeuCau.Protocol = Protocol.HTTP;
+            }
+
+            return client.GetPreSignedURLAsync(yeuCau);
+        }
+
+        private TimeSpan HanXem()
+        {
+            return _settings == null ? _options.LinkTtl : _settings.ThoiGian(SettingKeys.StorageViewLinkTtl);
         }
 
         public async Task LuuAsync(string key, byte[] noiDung, string contentType, CancellationToken ct)
@@ -144,36 +202,18 @@ namespace Crowd.BuildingBlocks.Storage
 
         public Task<string> TaoLinkXemAsync(string key)
         {
-            GetPreSignedUrlRequest yeuCau = new GetPreSignedUrlRequest();
-            yeuCau.BucketName = _options.Bucket;
-            yeuCau.Key = key;
-            yeuCau.Verb = HttpVerb.GET;
-            yeuCau.Expires = DateTime.UtcNow.Add(_settings == null ? _options.LinkTtl : _settings.ThoiGian(SettingKeys.StorageViewLinkTtl));
-
-            if (_options.ServiceUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-            {
-                yeuCau.Protocol = Protocol.HTTP;
-            }
-
-            return _client.GetPreSignedURLAsync(yeuCau);
+            return KyLinkAsync(_clientCongKhai, _urlCongKhai, key, HttpVerb.GET, HanXem());
         }
 
         public Task<string> TaoLinkTaiLenAsync(string key)
         {
-            GetPreSignedUrlRequest yeuCau = new GetPreSignedUrlRequest();
-            yeuCau.BucketName = _options.Bucket;
-            yeuCau.Key = key;
-            yeuCau.Verb = HttpVerb.PUT;
-            yeuCau.Expires = DateTime.UtcNow.Add(_settings == null ? _options.UploadLinkTtl : _settings.ThoiGian(SettingKeys.UploadLinkTtl));
+            TimeSpan han = _settings == null ? _options.UploadLinkTtl : _settings.ThoiGian(SettingKeys.UploadLinkTtl);
+            return KyLinkAsync(_clientCongKhai, _urlCongKhai, key, HttpVerb.PUT, han);
+        }
 
-            // KHONG ky kem Content-Type: client (curl, trinh duyet) gui header nao
-            // cung duoc. Loai file that duoc worker kiem lai bang noi dung.
-            if (_options.ServiceUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-            {
-                yeuCau.Protocol = Protocol.HTTP;
-            }
-
-            return _client.GetPreSignedURLAsync(yeuCau);
+        public Task<string> TaoLinkNoiBoAsync(string key)
+        {
+            return KyLinkAsync(_client, _options.ServiceUrl, key, HttpVerb.GET, HanXem());
         }
 
         public async Task<ThongTinFile?> ThongTinAsync(string key, CancellationToken ct)
@@ -197,6 +237,11 @@ namespace Crowd.BuildingBlocks.Storage
 
         public void Dispose()
         {
+            if (!ReferenceEquals(_clientCongKhai, _client))
+            {
+                _clientCongKhai.Dispose();
+            }
+
             _client.Dispose();
         }
     }

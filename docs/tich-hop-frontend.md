@@ -27,7 +27,8 @@ Mục lục:
 
 | Mục | Quy ước |
 |---|---|
-| Base URL | Gateway: `http://localhost:8080` (dev). Mọi đường dẫn trong tài liệu tính từ đây |
+| Base URL | Gateway: `http://localhost:8080` (dev) hoặc `http://localhost:18080` (stack Docker `docker-compose.demo.yml`). Mọi đường dẫn trong tài liệu tính từ đây |
+| CORS | Gateway cho phép origin trong `Cors:AllowedOrigins` — mặc định `http://localhost:3000` và `http://localhost:5173`. Origin khác thì thêm vào cấu hình (biến môi trường `Cors__AllowedOrigins__2=...`) |
 | Định dạng | JSON, UTF-8. Tên trường **camelCase** |
 | Enum | Chuỗi camelCase: `"running"`, `"pendingReview"`, `"qualityCheck"`… Gửi lên cũng dùng dạng này |
 | ID | UUID dạng chuỗi |
@@ -1352,7 +1353,6 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 
 | Mục | Ảnh hưởng tới frontend |
 |---|---|
-| **CORS chưa bật ở gateway** | Frontend chạy ở origin khác (ví dụ `http://localhost:5173`) sẽ bị trình duyệt chặn. Tạm thời dùng proxy của dev server (Vite `server.proxy` trỏ `/auth`, `/me`, `/projects`, `/tasks`, `/annotations`, `/ledger`, `/payments`, `/quality`, `/admin`, `/links`, `/g`, `/go`, `/gate` về `http://localhost:8080`); backend cần thêm chính sách CORS trước khi deploy |
 | Upload thẳng lên MinIO | Link trỏ tới `http://localhost:9000` ở dev. Trình duyệt báo lỗi CORS khi `PUT` thì cấu hình MinIO cho phép origin của frontend (biến môi trường `MINIO_API_CORS_ALLOW_ORIGIN`) |
 | Không có WebSocket / thông báo | Dùng polling theo mục 8 |
 | Chưa gộp tự động khung, đa giác, đoạn văn bản, chép lời, đoạn thời gian | Màn hình kết quả hiện danh sách nhãn đã duyệt của từng người (`labels`) |

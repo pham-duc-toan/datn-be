@@ -1,0 +1,20 @@
+# Ngu canh build = goc repo (Dockerfile o deploy/docker). Loai moi thu khong can de build nhanh
+# va khong lo du lieu may dev vao image.
+**/bin/
+**/obj/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/node_modules/
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+docs/
+experiments/
+tests/
+*.md
+!services/**/README.md
+**/*.user
+**/appsettings.*.local.json

@@ -1,3 +1,4 @@
+using System;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.Gateway.Api.Middlewares;
 using Crowd.Settings;
@@ -13,6 +14,24 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 // reloadOnChange: sua route luc dang chay khong phai khoi dong lai.
 builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange: true);
 
+// Docker: DownstreamHosts__8101=identity ... ghi de "localhost" trong ocelot.json (xem DownstreamHosts).
+DownstreamHosts.GhiDe(builder.Configuration);
+
+// CORS cho frontend: chi cac nguon khai trong Cors:AllowedOrigins (dev: localhost:3000, :5173).
+// Dat O GATEWAY vi day la cua duy nhat frontend goi toi; service phia sau khong can biet.
+string[]? nguonFe = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+string[] nguonChoPhep = nguonFe == null ? Array.Empty<string>() : nguonFe;
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("frontend", policy =>
+    {
+        policy.WithOrigins(nguonChoPhep)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .WithExposedHeaders("X-Correlation-Id");
+    });
+});
+
 // Kiem token o gateway bang CUNG bo cau hinh voi moi service (shared/auth).
 // Route nao trong ocelot.json co AuthenticationOptions "Bearer" thi Ocelot goi
 // scheme nay truoc khi chuyen tiep; token sai → 401 ngay tai gateway.
@@ -25,6 +44,9 @@ builder.Services.AddCrowdSettingsInMemory(builder.Configuration, "gateway");
 builder.Services.AddOcelot(builder.Configuration);
 
 WebApplication app = builder.Build();
+
+// CORS truoc moi thu: tra loi preflight OPTIONS ngay, khong chuyen tiep vao service.
+app.UseCors("frontend");
 
 // Chay TRUOC Ocelot: gan correlationId roi moi chuyen tiep.
 app.UseMiddleware<CorrelationIdMiddleware>();

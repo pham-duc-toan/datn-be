@@ -172,7 +172,11 @@ async def danh_gia_task(s: AsyncSession, task_id: uuid.UUID, env: Envelope) -> N
             {"a": uuid.UUID(a), "p": muc_tieu.project_id, "t": task_id, "l": labeler_cua[a], "v": v},
         )
 
-    for labeler in {labeler_cua[a] for a, v in kq.agrees.items() if v is not None}:
+    # Cap nhat uy tin theo THU TU CO DINH (labeler_id tang dan): hai task khac nhau cua cung hai
+    # labeler A, B duoc quyet dinh song song ma mot ben khoa A→B, ben kia B→A thi deadlock (dong
+    # reputations, hoac INSERT ... ON CONFLICT cho labeler moi). Postgres huy mot ben, giao lai
+    # van dung nhau → du 5 lan thi message vao DLQ va task mat ket qua (gap o phep thu ep race).
+    for labeler in sorted({labeler_cua[a] for a, v in kq.agrees.items() if v is not None}, key=str):
         await cap_nhat_uy_tin(s, labeler, env)
 
     log.info("Task %s: %s (%s nhan)", task_id, kq.status, len(nhan))

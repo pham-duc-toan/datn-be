@@ -42,6 +42,62 @@ curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/j
   -d '{"email":"admin@crowd.local","password":"Matkhau@123"}'
 ```
 
+## 0.1 Chạy cả hệ thống bằng Docker (demo một lệnh)
+
+Không cần cài .NET hay Python, chỉ cần Docker. Toàn bộ 11 service, hạ tầng và dữ liệu seed chạy trong container, **tách hẳn khỏi môi trường dev**: tên `datn-demo-*`, volume riêng, cổng lệch +10000, nên chạy song song với dev được.
+
+```bash
+docker compose -f docker-compose.demo.yml up -d --build      # lần đầu build khoảng 5–10 phút
+python tests/e2e/cho_san_sang.py                              # chờ migrate + seed xong (pip install requests)
+
+curl -s -X POST http://localhost:18080/auth/login -H "Content-Type: application/json" \
+  -d '{"email":"admin@crowd.local","password":"Matkhau@123"}'
+
+docker compose -f docker-compose.demo.yml down -v             # tắt và XOÁ dữ liệu demo
+```
+
+| Địa chỉ | Dùng để |
+|---|---|
+| http://localhost:18080 | Gateway: mọi API ở mục 6, thay `8080` bằng `18080` |
+| http://localhost:18025 | Mailpit (email) |
+| http://localhost:19001 | MinIO console (`datn` / `dev_minio_pw`) |
+| http://localhost:25672 | RabbitMQ management (`datn` / `dev_rabbit_pw`) |
+| 18103 / 18104 / 18107 / 18108 | task / annotation / link / gate gọi thẳng (cho E2E) |
+
+Khác với chạy trên máy:
+- Link xem / tải file ký bằng `ObjectStorage:PublicUrl` = `http://localhost:19000`, vì trong mạng compose các service gọi MinIO qua `minio:9000`, còn trình duyệt chỉ tới được cổng publish.
+- Gateway ghi đè host của `ocelot.json` bằng `DownstreamHosts__<cổng>=<service>`.
+- gate-svc và link-svc tin `X-Forwarded-For` từ mạng nội bộ `10.88.0.0/24` (`ForwardedHeaders:TrustedNetworks`); nếu không, mọi khách sẽ mang IP của gateway.
+- Khoá nội bộ lấy từ biến `INTERNAL_API_KEY` (mặc định `demo_internal_key`).
+
+Mọi giá trị bí mật trong file này là **giá trị dev**, không dùng cho production.
+
+## 0.2 Bộ test E2E và CI
+
+Bộ E2E nằm ở `tests/e2e/`. Mỗi lần chạy, bộ tổng thể tự tạo tài khoản và dự án mới:
+
+```bash
+pip install -r tests/e2e/requirements.txt          # chỉ cần requests; e2e_modality cần thêm ffmpeg
+python tests/e2e/chay_hoi_quy.py                   # chạy mọi bộ + kiểm DLQ, outbox, đối soát (máy dev)
+E2E_PROFILE=demo python tests/e2e/chay_hoi_quy.py  # chạy trên stack demo (docker compose)
+python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
+```
+
+| Bộ | Phủ |
+|---|---|
+| `e2e_tong_the.py` | Xác thực, nạp tiền, vòng đời dự án + ký quỹ, test đầu vào, lấy/nộp task, đồng thuận + posterior/VOI, duyệt + khiếu nại, vòng tiền tới rút, cửa sổ lấy task, đóng dự án, phân quyền, định dạng nhãn |
+| `e2e_settings.py` | Đổi setting lúc chạy (phí, tự duyệt, giới hạn, nạp chuyển khoản, quality nhận setting) |
+| `e2e_p3.py` | Đồng thuận, redundancy thích ứng, câu vàng, uy tín |
+| `e2e_p2.py` | Cổng link: rút gọn, vượt link, Turnstile, chống trùng IP, hoa hồng, kiểm duyệt (`chay_hoi_quy` chạy hai lần: chi `perClick` và `batched`) |
+| `e2e_modality.py` | Ảnh, văn bản, âm thanh, video, cặp, khung ảnh; media sinh bằng ffmpeg (`tao_media.py`) |
+| `ep_race_quality.py` | Ép race: hai người nộp đồng thời nhãn cuối của cùng task |
+
+Kết quả từng bộ ghi vào `tests/e2e/ket-qua/`. Địa chỉ và tên container đọc từ `moi_truong.py` (`E2E_PROFILE`, `E2E_GATEWAY`...).
+
+**CI** (`.github/workflows/ci.yml`, mỗi push và pull request):
+1. `unit`: `dotnet test -c Release` và `pytest` của quality-svc.
+2. `e2e`: `docker compose -f docker-compose.demo.yml up --build` trên máy sạch → `cho_san_sang.py` → `chay_hoi_quy.py`. Lỗi thì tải log mọi container về dạng artifact.
+
 ---
 
 ## 1. Yêu cầu
@@ -986,6 +1042,8 @@ Chạy lúc nào cũng phải ra `healthy: true`. Nếu không, một luồng ti
 Xem event chạy qua hệ thống: mở RabbitMQ UI tại http://localhost:15672, tab **Queues**. Mỗi queue có tên dạng `<service>.<event>`, ví dụ `ledger-svc.annotation-approved`. Hàng đợi dead-letter nằm ở exchange `datn.dlx`.
 
 ---
+
+Muốn chạy toàn bộ kiểm tra tự động thay vì từng lệnh: xem mục 0.2.
 
 ## 7.1 Chạy lại thí nghiệm (NC-D-01, NC-B-06)
 

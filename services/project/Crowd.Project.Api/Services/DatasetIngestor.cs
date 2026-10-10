@@ -414,8 +414,9 @@ namespace Crowd.Project.Api.Services
 
             bool laVideo = duAn.Modality == Modalities.Video;
 
-            // ffprobe doc qua link ky san — chi tai phan can thiet cua file.
-            ThongTinMedia? media = await _probe.DocAsync(await _storage.TaoLinkXemAsync(khoa), _settings.ThoiGian(SettingKeys.MediaFfprobeTimeout), ct);
+            // ffprobe doc qua link ky san NOI BO (dia chi service, khong phai PublicUrl) — chi tai
+            // phan can thiet cua file.
+            ThongTinMedia? media = await _probe.DocAsync(await _storage.TaoLinkNoiBoAsync(khoa), _settings.ThoiGian(SettingKeys.MediaFfprobeTimeout), ct);
             if (media != null)
             {
                 if (laVideo && !media.CoVideo)

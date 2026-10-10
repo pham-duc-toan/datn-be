@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
@@ -94,11 +95,9 @@ builder.Services
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
-// IP that cua khach nam o X-Forwarded-For do gateway ghi (chi tin proxy loopback — mac dinh).
-builder.Services.Configure<ForwardedHeadersOptions>(o =>
-{
-    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
-});
+// IP that cua khach nam o X-Forwarded-For do gateway ghi. Tin proxy loopback (mac dinh) va
+// cac mang trong ForwardedHeaders:TrustedNetworks (docker compose: mang noi bo).
+builder.Services.Configure<ForwardedHeadersOptions>(o => ProxyTinCay.CauHinh(o, builder.Configuration));
 
 WebApplication app = builder.Build();
 
