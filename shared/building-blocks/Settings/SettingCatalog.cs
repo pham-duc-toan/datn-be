@@ -100,6 +100,14 @@ namespace Crowd.BuildingBlocks.Settings
         public const string IdentityRefreshTokenLifetime = "identity.refresh_token_lifetime";
         public const string IdentityPasswordMinLength = "identity.password_min_length";
         public const string IdentityPasswordMaxLength = "identity.password_max_length";
+        public const string IdentityKybFileMaxBytes = "identity.kyb_file_max_bytes";
+
+        // ---- Thong bao (notification-svc, FC-06) ----
+        public const string NotificationEmailEnabled = "notification.email_enabled";
+        public const string NotificationEmailFrom = "notification.email_from";
+        public const string NotificationEmailInterval = "notification.email_interval";
+        public const string NotificationEmailBatchSize = "notification.email_batch_size";
+        public const string NotificationEmailMaxAttempts = "notification.email_max_attempts";
 
         // ---- Cong link (P2) ----
         public const string GateEnabled = "gate.enabled";
@@ -148,6 +156,7 @@ namespace Crowd.BuildingBlocks.Settings
         private const string NhomGanNhan = "Gan nhan va duyet nhan";
         private const string NhomChatLuong = "Chat luong";
         private const string NhomTaiKhoan = "Tai khoan";
+        private const string NhomThongBao = "Thong bao";
         private const string NhomCongLink = "Cong link";
 
         private static readonly string[] ChinhSachRedundancy = new string[] { "majority", "posterior", "voi" };
@@ -349,6 +358,18 @@ namespace Crowd.BuildingBlocks.Settings
                 "Refresh token song bao lau (dang nhap duoc giu bao lau)."));
             ds.Add(Int(SettingKeys.IdentityPasswordMinLength, NhomTaiKhoan, 8, 6, 128, "ky tu", "Do dai mat khau toi thieu."));
             ds.Add(Int(SettingKeys.IdentityPasswordMaxLength, NhomTaiKhoan, 128, 16, 1024, "ky tu", "Do dai mat khau toi da."));
+            ds.Add(Long(SettingKeys.IdentityKybFileMaxBytes, NhomTaiKhoan, 10 * MB, 100 * 1024, 50 * MB, "byte",
+                "Kich thuoc toi da file giay phep kinh doanh (KYB)."));
+
+            // ================= THONG BAO =================
+            ds.Add(Bool(SettingKeys.NotificationEmailEnabled, NhomThongBao, true,
+                "Gui email thong bao (tat thi chi con thong bao trong ung dung)."));
+            ds.Add(Text(SettingKeys.NotificationEmailFrom, NhomThongBao, "Crowd Label <no-reply@crowd.local>", 200,
+                "Dia chi nguoi gui email thong bao."));
+            ds.Add(Seconds(SettingKeys.NotificationEmailInterval, NhomKyThuat, 5, 1, 3600, "Chu ky worker gui email thong bao."));
+            ds.Add(Int(SettingKeys.NotificationEmailBatchSize, NhomKyThuat, 50, 1, 1000, "email", "So email moi lo gui."));
+            ds.Add(Int(SettingKeys.NotificationEmailMaxAttempts, NhomKyThuat, 5, 1, 50, "lan",
+                "Gui email loi bao nhieu lan thi bo (thong bao trong ung dung van con)."));
 
             // ================= KY THUAT =================
             ds.Add(Seconds(SettingKeys.OutboxPollInterval, NhomKyThuat, 0.5, 0.05, 60, "Outbox nghi bao lau khi khong co event cho gui."));

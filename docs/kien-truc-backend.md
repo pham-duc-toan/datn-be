@@ -81,7 +81,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `link-svc` | 8107 | link_db | C# | links, campaigns, api_keys, referral_codes, referrals, blocked_domains, link_reports | Bounded context của Sharer (**đã có**, mục 3.6) |
 | `gate-svc` | 8108 | **ClickHouse** + redis-gate + Postgres gate_db (bản sao + outbox) | C# | Redis: phiên, jti, chống trùng IP, stream; ClickHouse: click_events; Postgres: gate_projects, gate_samples, gate_gold_items, gate_links, gate_budgets | **Traffic ~100× phần còn lại**, sập độc lập (**đã có**, mục 3.6) |
 | `media-svc` | 8109 | media_db | C# | signed_grants, access_audit, watermark_log, project_members_cache | CPU watermark + streaming |
-| `notification-svc` | 8110 | notification_db | C# | notifications, templates, prefs | Fan-out chậm không được chặn ai |
+| `notification-svc` | 8110 | notification_db | C# | notifications, email_preferences; bản sao contacts, project_owners, withdrawal_owners (**đã có**, mục 3.11) | Fan-out chậm không được chặn ai |
 | `admin-svc` | 8111 | admin_db | C# | **settings, setting_history** (đã có); review_queues, disputes, audit_log, requests_readmodel (P6) | Chủ của setting hệ thống (mục 3.10). Quyền cao nhất — giới hạn blast radius |
 | `quality-svc` | 8201 | quality_db | Python | consensus_rounds, label_agreements, gold_answers, ds_skills, project_metrics, reputations | Ngôn ngữ khác + tính batch nặng |
 | `ml-svc` | 8202 | ml_db (pgvector) | Python | models, predictions, uncertainty_scores | GPU, scale độc lập, sập vẫn chạy được hệ thống |
@@ -92,7 +92,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 
 | Service | Mã chức năng |
 |---|---|
-| identity | FC-01→08, FB-01, FL-01, FL-12 |
+| identity | FC-01→08, FB-01, FB-02, FM-01 (dữ liệu + API duyệt KYB, khoá / mở tài khoản — mục 3.11), FL-01, FL-12 |
 | project | FB-10→18, FB-24, FL-02, FL-03 |
 | task | FL-06, FB-15, FQ-03 |
 | annotation | FL-04, FL-05, FL-07, FL-08, FL-09, FB-21, FB-25 |
@@ -105,7 +105,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | collab | FR-01→09 |
 | media | FP-02→04, FP-06 |
 | notification | FC-06 |
-| admin | FM-01→09, FB-02, FP-01, FP-05, mục 2.9 |
+| admin | FM-02→09, FP-01, FP-05, mục 2.9 (màn hình FM-01 gọi API của identity) |
 | fraud | FM-07, chống farm và lạm dụng referral |
 
 ---
@@ -413,7 +413,7 @@ Hai chính sách mới áp cho công cụ chọn một (phân loại một lớp
 
 Gộp tự động hiện chỉ cho `classification` và `pairwise` (đa số tuyệt đối). Công cụ khác (khung, chép lời…) cho trạng thái `notApplicable` — gộp chúng (WBF, ROVER) là việc tiếp theo.
 
-Dawid–Skene / Krippendorff alpha chạy **batch** (mặc định 15 phút, admin chạy tay được) trên các công cụ một giá trị (phân loại một lớp, so sánh cặp); labeler cần ≥ 5 nhãn trong dự án mới được chấm DS (VD-Q-07). Không chạy trong request.
+Dawid–Skene / Krippendorff alpha chạy **batch** (mặc định 15 phút, admin chạy tay được) trên các công cụ một giá trị (phân loại một lớp, so sánh cặp); labeler cần ≥ 5 nhãn trong dự án mới được chấm DS (VD-Q-07). Không chạy trong request. Mỗi lô **chỉ tính lại dự án có nhãn mới** (bảng `ds_state` giữ số nhãn đã dùng; `labels` chỉ INSERT nên số khác ⇔ có nhãn mới, kể cả nhãn đến trễ). Tính lại mọi dự án tốn ~1 giây / dự án (EM của crowd-kit): trên DB dev 107 dự án, lô đầy đủ mất 102 giây và nút "chạy ngay" của admin quá timeout gateway; lô tăng dần mất 0,04 giây. `?full=true` vẫn tính lại tất cả (sau khi đổi `quality.ds_min_labels`).
 
 Giới hạn hiện tại: quality-svc chỉ biết các dự án publish **sau khi** nó chạy (cộng 5 dự án seed). Dự án cũ hơn được bỏ qua kèm cảnh báo, không vào DLQ.
 
@@ -505,7 +505,7 @@ assignments / annotations / gold_items:  task_type = modality,
 | # | Câu hỏi | Chọn | Lý do |
 |---|---|---|---|
 | S1 | Lưu ở đâu | **Một bảng chung `settings` trong `admin_db`**, mỗi dòng một khóa (`key`, `value jsonb`, `version`, `updated_at`, `updated_by`) + `setting_history` (cũ → mới, ai, lý do) | Một chỗ cho admin xem và sửa; lịch sử để truy "ai hạ phí lúc nào" |
-| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 108 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
+| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 114 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
 | S3 | Service đọc thế nào | **Bản sao `settings_replica` trong DB của chính mỗi service** + bộ nhớ (`SettingsStore`). Nhận `setting.changed`; lúc khởi động nạp bản sao rồi xin `settings.snapshot_requested`, admin-svc phát `settings.snapshot` (cả lúc khởi động và định kỳ) | Đúng luật 1–2 mục 4: không gọi HTTP sang admin-svc trong đường nóng; admin-svc chết thì mọi service vẫn chạy với giá trị đã có. Mỗi khóa có `version` riêng — event đến sai thứ tự không ghi đè giá trị mới |
 | S4 | Đổi có hiệu lực khi nào | **Chỉ cho thao tác mới.** Chu kỳ worker (giải phóng tiền treo, reaper, quét link…) đọc lại mỗi giây qua `ChoTheoSetting`, nên rút ngắn chu kỳ có hiệu lực ngay, không phải chờ hết chu kỳ cũ. Giá trị đọc lại mỗi lần dùng; thứ đã chốt thì giữ: dự án đã publish giữ phí lúc publish, lease đang chạy giữ hạn cũ, lệnh rút đã tạo giữ thuế đã tính | Không ai bị đổi luật giữa chừng. `consumers.prefetch_count` là ngoại lệ (`restart`) vì chỉ đặt được lúc mở kênh |
 | S5 | Domain có đọc setting không | **Không.** Tầng Api đọc setting, dựng **đối tượng quy định** (`QuyDinhDuAn`, `QuyDinhDuLieu`, `QuyDinhBaiTest`, `QuyDinhDuyetNhan`, `QuyDinhRut`, `QuyDinhNap`, `NguongKhop`) truyền vào domain | Domain vẫn thuần, test không cần hạ tầng. Độ rộng cột DB (`CotDb.*`) vẫn là hằng số của schema — setting độ dài bị chặn trần ở đó |
@@ -536,6 +536,21 @@ admin-svc: nhận → phát settings.snapshot (toàn bộ); cũng phát lúc kh�
 **Cố ý KHÔNG đưa vào setting:** chuỗi kết nối, host/tài khoản RabbitMQ – MinIO, khóa bí mật, cổng, đường dẫn ffprobe (hạ tầng); `x-delivery-limit` (đổi phải xóa queue); `Saga:BoQuaKyQuy` (cờ dev — để trong bảng thì ai có quyền admin bật được "publish không cần tiền"); `ClockSkew` của JWT (bảo mật); độ rộng cột DB; giới hạn trong JSON Schema hợp đồng nhãn; dữ liệu kịch bản seed.
 
 ---
+
+### 3.11. KYB, khoá tài khoản và thông báo
+
+| # | Quyết định | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| K1 | KYB nằm ở đâu | **identity-svc** (bảng `business_profiles`, 1–1 với user) | identity là chủ của "ai là ai, vai trò gì". admin-svc hiện chỉ giữ setting; hàng đợi duyệt chung (mục 5, `IRequestProcessor`) **chưa làm** — màn hình admin gọi thẳng `/kyb/admin`. Lệch so với mục 5: KYB chưa đi qua khung đơn phê duyệt chung |
+| K2 | Chặn cái gì | **Chỉ publish** | Doanh nghiệp vẫn dựng dự án, nạp dữ liệu, nạp tiền trong lúc chờ duyệt — không chặn onboarding. Tiền chỉ rời ví khi publish (ký quỹ), nên chặn đúng chỗ rủi ro |
+| K3 | project-svc biết "đã xác minh" thế nào | **Bản sao** `verified_businesses` từ event `business.verified` | Không gọi đồng bộ identity lúc publish (luật dữ liệu chéo, mục 4). `verified` là trạng thái cuối, không thu hồi, nên bản sao chỉ INSERT, idempotent. Đánh đổi: vài trăm ms sau khi duyệt mới publish được |
+| K4 | Giấy phép | Link ký `PUT` thẳng lên bucket riêng `kyb-docs` (không công khai); nộp thì kiểm file **thật sự tồn tại** + kích thước thật; admin xem bằng link ký 5 phút | Không đi qua service (file lớn). Xin link mà không tải lên → nộp 409 `thieu_giay_phep` |
+| K5 | Khoá tài khoản | Đổi trạng thái + **thu hồi mọi refresh token** trong cùng transaction + outbox `user.blocked`; task-svc nghe event và chặn nhận task | Không có danh sách đen JWT: access token đang sống (≤ 15 phút) vẫn đọc được dữ liệu, nhưng không nhận được task mới và không làm mới được. Không khoá được admin (409) |
+| K6 | Gửi email ở đâu | Consumer **chỉ ghi dòng** `notifications` (email `Pending`); `EmailWorker` gửi theo lô `FOR UPDATE SKIP LOCKED`, lỗi thì backoff 10 s × 2ⁿ (≤ 30 phút), tối đa `notification.email_max_attempts` lần | SMTP chậm / sập không làm nghẽn consumer, không đẩy message vào DLQ; chạy nhiều instance không gửi trùng. Thông báo trong ứng dụng luôn có, kể cả khi email hỏng |
+| K7 | Biết gửi cho ai | **Bản sao** địa chỉ (`user.registered`), chủ dự án (`project.publish_requested`), chủ lệnh rút (`payout.requested`) | Event tiền / dự án không mang email hay chủ sở hữu; notification không gọi ngược service khác |
+| K8 | Tuỳ chọn email | Theo **loại**; 3 loại **bắt buộc** (KYB, tài khoản, rút tiền — ảnh hưởng tài khoản hoặc tiền đã rời ví) không tắt được | Loại bán nhiều (`nhan_duyet`, `tien_kha_dung`) mặc định tắt email |
+| K9 | Loại bán nhiều | **Gộp**: sự kiện mới cộng dồn vào dòng cùng loại (và cùng đường dẫn) còn chưa đọc, chưa gửi email, sự kiện gần nhất trong 24 giờ; khoá dòng `FOR UPDATE` | Với sharer, **mỗi lượt click** sinh một khoản treo → không gộp thì nghìn thông báo / ngày. Khoá dòng: hai instance không cộng mất nhau; `EmailWorker` đang gửi dòng đó thì consumer chờ, Postgres kiểm lại điều kiện → dòng đã gửi không còn khớp → mở dòng mới |
+| K10 | Đẩy hay hỏi | Frontend **hỏi** `unread-count` mỗi 30 giây khi tab đang mở | Truy vấn rẻ (index một phần `read_at IS NULL`). WebSocket để sau khi có nhu cầu thời gian thực thật |
 
 ## 4. Dữ liệu chéo — ba luật cứng
 
@@ -707,7 +722,7 @@ Service 2 project: `Api → BuildingBlocks`, `Tests → Api`.
 | **P3** | quality | Chất lượng đo được bằng số: đồng thuận, Krippendorff alpha, Dawid–Skene, redundancy thích ứng, câu vàng kiểm tra, uy tín (**đã có**, mục 3.7) |
 | **P4** | ml, fraud | Pre-labeling + active learning (SAM để sau cùng) |
 | **P5** | collab | Kênh thu thập thứ ba |
-| **P6** | media, notification, admin | Watermark, audit, export thêm định dạng (YOLO, Pascal VOC, CoNLL), bảng quản trị; workspace frontend cho từng công cụ |
+| **P6** | media, notification, admin | Watermark, audit, export thêm định dạng (YOLO, Pascal VOC, CoNLL), bảng quản trị; workspace frontend cho từng công cụ. **Đã có:** admin-svc (setting), notification-svc (thông báo + email), KYB và khoá tài khoản ở identity (mục 3.11) |
 
 P0→P3 là lõi bảo vệ được của đồ án. Nếu thời gian ép, cắt SAM (FA-03) và collab realtime (mục 2.5) trước — tốn công nhất trên mỗi điểm giá trị.
 

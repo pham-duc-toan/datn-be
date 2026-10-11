@@ -6,6 +6,7 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
 using Crowd.Project.Api.Consumers;
 using Crowd.Project.Api.Exceptions;
@@ -44,6 +45,9 @@ builder.Services.AddEventConsumer<ProjectDbContext, EscrowReserved, EscrowReserv
     builder.Configuration, "project-svc.escrow-reserved");
 builder.Services.AddEventConsumer<ProjectDbContext, EscrowRejected, EscrowRejectedProcessor>(
     builder.Configuration, "project-svc.escrow-rejected");
+// KYB: doanh nghiep da xac minh moi publish duoc (FB-02).
+builder.Services.AddEventConsumer<ProjectDbContext, BusinessVerified, BusinessVerifiedProcessor>(
+    builder.Configuration, "project-svc.business-verified");
 
 // ---- Kho anh MinIO ----
 builder.Services.Configure<ObjectStorageOptions>(builder.Configuration.GetSection(ObjectStorageOptions.SectionName));

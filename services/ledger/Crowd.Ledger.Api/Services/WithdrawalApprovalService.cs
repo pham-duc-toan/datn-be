@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.Contracts.Ledger;
 using Crowd.Ledger.Api.Dtos;
 using Crowd.Ledger.Api.Exceptions;
 using Crowd.Ledger.Domain.Journal;
@@ -111,6 +112,16 @@ namespace Crowd.Ledger.Api.Services
                 await _writer.GhiAsync(
                     Postings.DaoRut(w.Id, w.LabelerId, w.NetVnd, w.TaxVnd, bayGio, "Dao but toan rut bi admin tu choi"),
                     ct);
+
+                // Bao labeler (notification-svc): khong co event nay thi labeler chi thay tien
+                // "tu nhien" quay ve vi ma khong biet vi sao.
+                _events.Phat(caller, new WithdrawalRejected
+                {
+                    WithdrawalId = w.Id,
+                    LabelerId = w.LabelerId,
+                    AmountVnd = w.NetVnd + w.TaxVnd,
+                    Reason = w.FailureReason ?? string.Empty,
+                });
             }, ct);
         }
 

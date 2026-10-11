@@ -169,6 +169,13 @@ services:
     volumes: [pgdata-admin:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U admin_user -d admin_db"], interval: 5s, timeout: 3s, retries: 30 }
 
+  db-notification:
+    <<: *postgres
+    container_name: datn-demo-db-notification
+    environment: { POSTGRES_USER: notification_user, POSTGRES_PASSWORD: dev_notification_pw, POSTGRES_DB: notification_db }
+    volumes: [pgdata-notification:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U notification_user -d notification_db"], interval: 5s, timeout: 3s, retries: 30 }
+
   # ------------------------------------------------------------------ service
   admin:
     <<: *dotnet-service
@@ -190,11 +197,30 @@ services:
     build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Identity.Api } }
     depends_on:
       rabbitmq: { condition: service_healthy }
+      # Giay phep kinh doanh (KYB) luu o bucket kyb-docs do minio-init tao.
+      minio-init: { condition: service_completed_successfully }
       db-identity: { condition: service_healthy }
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8101
       ConnectionStrings__IdentityDb: Host=db-identity;Port=5432;Database=identity_db;Username=identity_user;Password=dev_identity_pw;Maximum Pool Size=10
+
+  notification:
+    <<: *dotnet-service
+    image: datn/notification:demo
+    container_name: datn-demo-notification
+    build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Notification.Api } }
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      db-notification: { condition: service_healthy }
+      mailpit: { condition: service_started }
+    environment:
+      <<: *dotnet-env
+      ASPNETCORE_URLS: http://+:8110
+      ConnectionStrings__NotificationDb: Host=db-notification;Port=5432;Database=notification_db;Username=notification_user;Password=dev_notification_pw;Maximum Pool Size=10
+      # Email thong bao gui qua Mailpit (xem tai http://localhost:18025).
+      Smtp__Host: mailpit
+      Smtp__Port: "1025"
 
   project:
     <<: *dotnet-service
@@ -338,6 +364,7 @@ services:
       DownstreamHosts__8106: payment
       DownstreamHosts__8107: link
       DownstreamHosts__8108: gate
+      DownstreamHosts__8110: notification
       DownstreamHosts__8111: admin
       DownstreamHosts__8201: quality
       Cors__AllowedOrigins__0: http://localhost:3000
@@ -358,3 +385,4 @@ volumes:
   pgdata-gate:
   pgdata-quality:
   pgdata-admin:
+  pgdata-notification:

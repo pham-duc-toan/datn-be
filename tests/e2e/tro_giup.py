@@ -49,14 +49,39 @@ def hdr(tok):
     return {"Authorization": "Bearer " + tok}
 
 
-def dang_ky(vai, ten):
+def dang_ky(vai, ten, xac_minh=True):
+    """Tao tai khoan moi. Doanh nghiep: mac dinh tu lam KYB + admin duyet (chua xac minh thi
+    khong publish duoc du an). xac_minh=False de test chinh luong KYB."""
     email = f"e2e-{TAG}-{ten}@crowd.local"
     r = requests.post(G + "/auth/register", json={"email": email, "password": PW, "displayName": ten, "roles": vai})
     assert r.status_code in (200, 201), r.text
     t = login_raw(email).json()
     h = hdr(t["accessToken"])
     uid = requests.get(G + "/me", headers=h).json()["userId"]
-    return {"h": h, "id": uid, "email": email, "refresh": t["refreshToken"]}
+    u = {"h": h, "id": uid, "email": email, "refresh": t["refreshToken"]}
+    if "business" in vai and xac_minh:
+        xac_minh_kyb(u)
+    return u
+
+
+PDF_MAU = b"%PDF-1.4" + bytes([10]) + b"% giay phep kinh doanh mau (E2E)" + bytes([10]) + b"%%EOF" + bytes([10])
+
+
+def nop_kyb(u, ten_cong_ty="Cong ty E2E", mst="0312345678"):
+    """Khai ho so + tai giay phep (PUT thang len kho) + nop. Tra response nop."""
+    requests.put(G + "/kyb/me", headers=u["h"], json={"companyName": ten_cong_ty, "taxCode": mst, "address": "Ha Noi"}).raise_for_status()
+    up = requests.post(G + "/kyb/me/license", headers=u["h"], json={"fileName": "giay-phep.pdf", "sizeBytes": len(PDF_MAU)})
+    up.raise_for_status()
+    requests.put(up.json()["uploadUrl"], data=PDF_MAU).raise_for_status()
+    return requests.post(G + "/kyb/me/submit", headers=u["h"])
+
+
+def xac_minh_kyb(u):
+    """KYB tron goi: nop → admin duyet → cho project-svc nhan business.verified (moi publish duoc)."""
+    nop_kyb(u).raise_for_status()
+    requests.post(G + f"/kyb/admin/{u['id']}/approve", headers=admin).raise_for_status()
+    ok = cho(lambda: sql("project", f"select count(*) from verified_businesses where business_id='{u['id']}'") == "1", 30)
+    assert ok, "project-svc chua nhan business.verified"
 
 
 admin = hdr(login_raw("admin@crowd.local").json()["accessToken"])

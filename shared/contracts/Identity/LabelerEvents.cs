@@ -25,6 +25,22 @@ namespace Crowd.Contracts.Identity
         public string? Reason { get; init; }
     }
 
+    /// <summary>Admin mo khoa tai khoan. Nguoi nghe: task (cho nhan task lai), ledger, notification.</summary>
+    public sealed record UserUnblocked : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "user.unblocked"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid UserId { get; init; }
+    }
+
     /// <summary>
     /// Diem uy tin moi, thang 0-100. Mang GIA TRI MOI chu khong phai do chenh:
     /// consumer ghi de, va dung occurredAt de bo qua ban cu den tre (VD-D-05).

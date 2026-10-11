@@ -12,22 +12,24 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `user.registered` | notification | Gui email xac thuc |
+| `user.registered` | notification | Ban sao dia chi lien lac (`contacts`) de gui email thong bao |
 | `user.email_verified` | notification | Kich hoat tai khoan |
-| `user.blocked` | task, gate, link, ledger | Thu hoi lease, chan tao link, khoa rut tien |
+| `user.blocked` | task, ledger, notification (du kien: gate, link) | Chan nhan task, khoa rut tien, bao + email (bat buoc) kem ly do. Phat khi admin khoa (FM-01) |
+| `user.unblocked` | notification (du kien: task, ledger) | Bao + email "da mo khoa" |
 | `reputation.changed` | task | Cap nhat `task_svc.labeler_cache` phuc vu loc eligibility. **Hien do quality-svc phat** (identity-svc chua luu diem uy tin) |
 | `level.changed` | task, notification | |
-| `business.kyb_submitted` | admin | Day vao hang doi duyet (FM-01) |
-| `business.verified` | project, ledger | Cho phep publish du an, cho phep nap tien |
+| `business.kyb_submitted` | — (du kien: admin) | Ho so cho duyet. Hien admin doc hang doi qua `GET /kyb/admin` cua identity |
+| `business.verified` | project, notification | project: ban sao `verified_businesses` → cho phep publish (KYB chi chan publish, khong chan nap tien) |
+| `business.kyb_rejected` | notification | Bao + email (bat buoc) kem ly do; doanh nghiep sua va nop lai |
 
 ## project-svc
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `project.publish_requested` | ledger | **Saga buoc 1** — yeu cau ky quy (2.11) |
+| `project.publish_requested` | ledger, notification | **Saga buoc 1** — yeu cau ky quy (2.11). notification: ban sao chu du an (`project_owners`) |
 | `project.published` | task, annotation, ledger, quality, notification, ml | Sinh task, chot dieu khoan, tran chi tra (`MaxRedundancy`), ban sao tap nhan cho quality |
 | `project.paused` / `project.resumed` | task | Ngung/mo cap phat task |
-| `project.cancelled` | task, ledger | Dung task + hoan tien phan chua dung |
+| `project.cancelled` | task, ledger, notification | Dung task + hoan tien phan chua dung; bao doanh nghiep neu da ky quy |
 | `project.completed` | task, ledger, notification | Giai phong escrow con du |
 | `dataset.ingested` | task, ml | Sinh task tu sample; ml bat dau pre-label |
 | `gold_set.updated` | task, gate | Cap nhat bo cau hoi vang |
@@ -49,7 +51,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | Event | Consumer | Muc dich |
 |---|---|---|
 | `annotation.submitted` | quality, fraud | Dau vao dong thuan va Dawid-Skene; phat hien gian lan |
-| `annotation.approved` | ledger, identity | **Chi tra** + cong diem uy tin |
+| `annotation.approved` | ledger, notification (du kien: identity) | **Chi tra**; notification: chi nhan kenh chuyen nghiep, thong bao GOP theo du an |
 | `annotation.rejected` | notification, identity | Thong bao + tru uy tin |
 | `appeal.opened` | admin | Hang doi khieu nai (FL-09) |
 
@@ -79,21 +81,22 @@ phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload 
 | Event | Consumer | Muc dich |
 |---|---|---|
 | `escrow.reserved` | project | **Saga buoc 2** — du tien, cho phep publish |
-| `escrow.rejected` | project, notification | Thieu tien -> tra ve Nhap |
-| `escrow.released` | — | Audit |
+| `escrow.rejected` | project, notification | Thieu tien -> tra ve Nhap; bao "Du an chua publish duoc" |
+| `escrow.released` | notification | Bao doanh nghiep phan ky quy con du da ve vi |
 | `funds.held` | notification | Vao so du cho doi soat (3–7 ngay) |
-| `hold.expired` | notification | Da rut duoc |
-| `payout.requested` | payment | Lenh rut DA DUYET (tu duyet theo nguong hoac admin duyet) -> chuyen sang tich hop ngoai. Lenh cho duyet KHONG phat |
-| `refund.issued` | notification | Huy du an |
+| `hold.expired` | notification | Da rut duoc. Thong bao GOP (sharer: moi luot click mot khoan treo) |
+| `payout.requested` | payment, notification | Lenh rut DA DUYET (tu duyet theo nguong hoac admin duyet) -> chuyen sang tich hop ngoai. Lenh cho duyet KHONG phat. notification: ban sao chu lenh rut (`withdrawal_owners`) |
+| `withdrawal.rejected` | notification | Admin tu choi lenh rut cho duyet; tien da ve vi kha dung. Bao + email (bat buoc) kem ly do |
+| `refund.issued` | notification | Hoan ky quy (huy / dong du an) |
 | `gate.budget_changed` | gate | Ngan sach cong link con lai cua du an (phan ky quy vuot muc danh cho labeler); `sequence` tang dan |
 
 ## payment-svc
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `deposit.confirmed` | ledger | Webhook cong da xac thuc, hoac admin duyet chuyen khoan thu cong (`provider = manual_transfer`) -> ghi so |
+| `deposit.confirmed` | ledger, notification | Webhook cong da xac thuc, hoac admin duyet chuyen khoan thu cong (`provider = manual_transfer`) -> ghi so |
 | `payout.completed` | ledger, notification | Chot but toan |
-| `payout.failed` | ledger, admin | Hoan lai so du kha dung |
+| `payout.failed` | ledger, notification (du kien: admin) | Hoan lai so du kha dung |
 | `reconciliation.mismatch` | admin | Doi soat cuoi ngay lech |
 
 ## link-svc

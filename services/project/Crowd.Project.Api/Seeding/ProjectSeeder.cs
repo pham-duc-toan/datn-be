@@ -10,6 +10,7 @@ using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Labeling;
 using Crowd.Project.Api.Helpers;
+using Crowd.Project.Domain.Businesses;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
@@ -78,8 +79,33 @@ namespace Crowd.Project.Api.Seeding
             _logger = logger;
         }
 
+        /// <summary>
+        /// Doanh nghiep seed da xac minh (KYB) — identity-svc seed ho so Verified nhung khong phat
+        /// business.verified (seed bo event chua gui), nen ban sao o day tu them. Idempotent.
+        /// </summary>
+        private async Task DamBaoDoanhNghiepSeedDaXacMinhAsync(CancellationToken ct)
+        {
+            DateTimeOffset luc = _clock.GetUtcNow() - TimeSpan.FromDays(10);
+            bool coMoi = false;
+            foreach (SeedUser su in KichBanSeed.Users)
+            {
+                if (su.Roles.Contains("business") && !await _db.VerifiedBusinesses.AnyAsync(v => v.BusinessId == su.Id, ct))
+                {
+                    _db.VerifiedBusinesses.Add(VerifiedBusiness.Tao(su.Id, luc));
+                    coMoi = true;
+                }
+            }
+
+            if (coMoi)
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+        }
+
         public async Task ChayAsync(CancellationToken ct)
         {
+            await DamBaoDoanhNghiepSeedDaXacMinhAsync(ct);
+
             // Idempotent THEO TUNG DU AN: DB cu da co P1-P4 thi van them P5-P7 khi
             // kich ban moi bo sung du an.
             List<Guid> ids = KichBanSeed.Projects.Select(p => p.Id).ToList();

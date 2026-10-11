@@ -20,6 +20,8 @@ Mục lục:
 10. [Giới hạn](#10-giới-hạn)
 11. [Backend chưa có / cần lưu ý](#11-backend-chưa-có--cần-lưu-ý)
 12. [Cổng link: người chia sẻ và trang vượt link](#12-cổng-link-người-chia-sẻ-và-trang-vượt-link)
+13. [Xác minh doanh nghiệp (KYB)](#13-xác-minh-doanh-nghiệp-kyb)
+14. [Thông báo trong ứng dụng và email](#14-thông-báo-trong-ứng-dụng-và-email)
 
 ---
 
@@ -88,7 +90,7 @@ POST /auth/login
 { "email": "a@b.com", "password": "..." }
 → 200 { "accessToken": "...", "refreshToken": "...", "tokenType": "Bearer", "expiresIn": 900 }
 → 401 (sai email hoặc mật khẩu — thông báo chung, không nói sai cái nào)
-→ 403 tài khoản bị khóa
+→ 403 tài khoản bị khóa (admin khoá, mục 7.4) — hiện "Tài khoản đã bị khoá, liên hệ quản trị viên"
 ```
 
 ### 2.2 Người dùng hiện tại
@@ -108,7 +110,7 @@ Dùng `roles` để chọn giao diện. Một tài khoản có thể có nhiều
 | `refreshToken` | 14 ngày | **Dùng một lần**: mỗi lần làm mới trả cặp token mới, token cũ hết hiệu lực |
 
 ```http
-POST /auth/refresh   { "refreshToken": "..." }   → 200 cặp token mới | 401
+POST /auth/refresh   { "refreshToken": "..." }   → 200 cặp token mới | 401 (kể cả khi tài khoản vừa bị khoá)
 POST /auth/logout    { "refreshToken": "..." }   → 204 (luôn 204)
 ```
 
@@ -123,7 +125,9 @@ Cách làm khuyến nghị:
 
 | Vai trò | Màn hình | API chính |
 |---|---|---|
-| Doanh nghiệp | Ví, nạp tiền | `GET /ledger/me/balance`, `POST /payments/deposits`, `GET /payments/deposits/{id}` |
+| Mọi vai trò | Chuông thông báo, tuỳ chọn email | `GET /notifications/me/unread-count`, `GET /notifications/me`, `POST /notifications/me/{id}/read`, `POST /notifications/me/read-all`, `GET/PUT /notifications/me/preferences` (mục 14) |
+| Doanh nghiệp | Hồ sơ doanh nghiệp (KYB) — **phải được duyệt mới publish được** | `GET/PUT /kyb/me`, `POST /kyb/me/license`, `POST /kyb/me/submit` (mục 13) |
+| | Ví, nạp tiền | `GET /ledger/me/balance`, `POST /payments/deposits`, `GET /payments/deposits/{id}` |
 | | Danh sách dự án của tôi | `GET /projects?mine=true` |
 | | Wizard tạo dự án | `POST /projects`, `PUT /projects/{id}/label-schema`, `/guideline`, `/pricing`, `/channels`, `/eligibility` |
 | | Nạp dữ liệu | `POST /projects/{id}/datasets` (ZIP), `POST /projects/{id}/uploads` + `POST /projects/{id}/datasets/manifest`, `GET /projects/{id}/datasets`, `GET /projects/{id}/samples` |
@@ -144,7 +148,9 @@ Cách làm khuyến nghị:
 | | API key, Quick Link | `POST/GET /links/api-key`, `GET /links/quick?api=&url=` |
 | | Thống kê, giới thiệu, ví | `GET /gate/stats/me/daily` / `top-links` / `sources` / `outcomes`, `GET /links/referrals/me`, `POST /links/referrals/claim`, ví như labeler (mục 5.7) |
 | Khách vãng lai | Trang vượt link (không đăng nhập) | `GET /g/{code}`, `POST /g/{code}/sessions`, `POST /g/sessions/{id}/submit`, `GET /go/{code}?t=`, `POST /links/r/{code}/report` |
-| Admin | Duyệt dự án | `GET /projects/pending-approval`, `POST /projects/{id}/approve` / `reject` |
+| Admin | Duyệt hồ sơ doanh nghiệp | `GET /kyb/admin`, `GET /kyb/admin/{businessId}`, `POST /kyb/admin/{businessId}/approve` / `reject` (mục 13.2) |
+| | Quản lý tài khoản, khoá / mở khoá | `GET /users/admin`, `POST /users/admin/{userId}/block` / `unblock` (mục 7.4) |
+| | Duyệt dự án | `GET /projects/pending-approval`, `POST /projects/{id}/approve` / `reject` |
 | | Khiếu nại | `GET /annotations/appeals`, `POST /annotations/{id}/appeal/resolve` |
 | | Đối soát sổ cái | `GET /ledger/admin/reconciliation` |
 | | Chạy Dawid–Skene ngay | `POST /quality/admin/dawid-skene/run` |
@@ -441,7 +447,10 @@ GET /projects/{id}/readiness
 ```http
 POST /projects/{id}/publish
 → 200 ProjectResponse { "status": "pendingEscrow" }
+→ 409 chua_xac_minh_doanh_nghiep   (hồ sơ KYB chưa được admin duyệt — mục 13)
 ```
+
+Nên gọi `GET /kyb/me` trước khi mở checklist: `status` khác `verified` thì hiện thẻ "Xác minh doanh nghiệp" đứng đầu checklist và khoá nút publish. Các bước còn lại (tạo dự án, tập nhãn, nạp dữ liệu, nạp tiền) **không** cần KYB.
 
 Sau đó hỏi lại `GET /projects/{id}` mỗi 1–2 giây trong tối đa ~30 giây:
 
@@ -606,7 +615,7 @@ GET /quality/projects/{id}/labelers
       "dawidSkeneSkill": { "cam_xuc": 0.97 }, "reputation": 90 } ]
 ```
 
-`dawidSkeneSkill` theo từng công cụ (0–1); rỗng khi labeler có dưới 5 nhãn trong dự án. Admin chạy lô Dawid–Skene ngay bằng `POST /quality/admin/dawid-skene/run`.
+`dawidSkeneSkill` theo từng công cụ (0–1); rỗng khi labeler có dưới 5 nhãn trong dự án. Admin chạy lô Dawid–Skene ngay bằng `POST /quality/admin/dawid-skene/run` → `{ "computed": 3, "full": false }`: chỉ tính lại dự án **có nhãn mới** từ lần trước (nhanh). `?full=true` tính lại mọi dự án — chậm (~1 giây / dự án), chỉ dùng sau khi đổi `quality.ds_min_labels`.
 
 ---
 
@@ -1189,7 +1198,7 @@ Mọi con số nghiệp vụ (phí nền tảng, tự duyệt, hạn mức nạp
 GET /admin/settings
 → [ { "key": "fee.platform_percent", "group": "Phi va tien", "type": "int", "unit": "%",
       "min": 0, "max": 90, "effect": "newOperations", "description": "...",
-      "defaultValue": 30, "value": 30, "version": 1, "updatedAt": "...", "updatedBy": null, "choices": null }, ... ]   (108 mục)
+      "defaultValue": 30, "value": 30, "version": 1, "updatedAt": "...", "updatedBy": null, "choices": null }, ... ]   (114 mục)
 
 GET /admin/settings/{key}
 PUT /admin/settings/{key}   { "value": 20, "reason": "Khuyen mai thang 10" }   → SettingResponse (version + 1)
@@ -1246,11 +1255,27 @@ POST /payments/admin/deposits/{intentId}/reject   { "reason": "..." }           
 - Admin tìm giao dịch trong sao kê theo `transferCode` và `amountVnd`, nhập **mã giao dịch ngân hàng** vào `bankTxnRef` (tùy chọn nhưng nên có). Một mã chỉ dùng cho một lệnh: dùng lại → **409** `ma_giao_dich_trung`.
 - Duyệt được cả lệnh `pending` (tiền đã về nhưng doanh nghiệp chưa bấm "đã chuyển").
 
+### 7.4 Quản lý tài khoản, khoá / mở khoá
+
+```http
+GET  /users/admin?search=&role=&status=&page=1&pageSize=20      (mới tạo trước)
+→ { "items": [ { "userId", "email", "displayName", "roles": ["business"], "status": "active",
+                 "blockedAt": null, "blockedReason": null, "kybStatus": "verified", "createdAt" } ],
+    "page", "pageSize", "total" }
+POST /users/admin/{userId}/block    { "reason": "Gian lận nhãn" }   → AdminUserResponse (status blocked)
+POST /users/admin/{userId}/unblock                                 → AdminUserResponse (status active)
+```
+
+- `search`: tìm trong email và tên hiển thị (không phân biệt hoa thường). `role`: `business` / `labeler` / `sharer` / `admin`. `status`: `active` / `blocked`.
+- `kybStatus` chỉ có ở tài khoản doanh nghiệp: `draft` / `submitted` / `verified` / `rejected`, `null` nếu chưa mở hồ sơ.
+- Khoá có hiệu lực **ngay**: đăng nhập trả 403, refresh token bị thu hồi (401). Access token đang còn hạn (tối đa 15 phút) vẫn đọc được dữ liệu, nhưng **nhận task bị chặn** sau vài giây (`tai_khoan_bi_khoa`). Người bị khoá nhận thông báo + email có lý do.
+- Khoá / mở khoá lại tài khoản đã ở trạng thái đó: trả 200, không làm gì. Không ghi lý do → **400** `thieu_ly_do`. Khoá admin → **409** `khong_khoa_admin`.
+
 ---
 
 ## 8. Dữ liệu cập nhật trễ: khi nào phải hỏi lại
 
-Các service trao đổi với nhau qua hàng đợi sự kiện, nên một số thay đổi **xuất hiện ở service khác sau vài trăm ms đến vài giây**. Backend hiện **chưa có WebSocket / thông báo đẩy**; frontend hỏi lại (polling) có giới hạn số lần:
+Các service trao đổi với nhau qua hàng đợi sự kiện, nên một số thay đổi **xuất hiện ở service khác sau vài trăm ms đến vài giây**. Backend **chưa có WebSocket / thông báo đẩy**; frontend hỏi lại (polling) có giới hạn số lần. Kết quả của các việc chạy nền (dự án được duyệt, nhãn bị từ chối, rút tiền xong…) cũng được gửi thành **thông báo** (mục 14) — màn hình đang mở thì polling, còn người dùng ở trang khác thì thấy qua chuông thông báo:
 
 | Sau khi | Chờ thấy ở | Cách làm |
 |---|---|---|
@@ -1265,6 +1290,8 @@ Các service trao đổi với nhau qua hàng đợi sự kiện, nên một s�
 | Rút tiền | `withdrawals/mine` → `completed` / `failed` | Mỗi vài giây. Lệnh `pendingApproval` chờ người duyệt: không polling, hỏi lại khi mở trang |
 | Admin duyệt rút / nạp chuyển khoản | Số dư người dùng đổi | Vài giây |
 | Admin đổi setting | Mọi service áp dụng | Thường < 1 giây; service đang tắt sẽ nhận khi bật lại |
+| Admin duyệt KYB | `POST /projects/{id}/publish` hết trả 409 `chua_xac_minh_doanh_nghiep` | Thường < 1 giây. Gặp 409 ngay sau khi nhận thông báo "đã xác minh" thì thử lại sau 1–2 giây |
+| Bất kỳ sự kiện nào ở trên | Thông báo mới ở `GET /notifications/me/unread-count` | Hỏi mỗi 30 giây khi tab đang mở (mục 14) |
 
 ---
 
@@ -1316,6 +1343,15 @@ Danh sách các `code` thường gặp để frontend dịch. Mã không có tro
 | `token_khong_hop_le` | 403 | Token mở link sai hoặc hết hạn (3 phút) |
 | `xung_dot_setting` | 409 | (admin) Setting mâu thuẫn với setting khác (min > max) |
 | `dinh_dang_chua_ho_tro`, `coco_chi_cho_khung_anh` | 400 | Định dạng xuất không hợp lệ |
+| `chua_xac_minh_doanh_nghiep` | 409 | Publish khi hồ sơ KYB chưa được duyệt |
+| `ten_doanh_nghiep_khong_hop_le`, `ma_so_thue_khong_hop_le`, `dia_chi_khong_hop_le` | 400 | Khai hồ sơ KYB sai (mã số thuế: 10 chữ số, chi nhánh `0123456789-001`) |
+| `file_khong_hop_le`, `file_qua_lon` | 400 | Giấy phép không phải pdf/png/jpg hoặc quá dung lượng |
+| `ho_so_chua_du`, `thieu_giay_phep` | 409 | Nộp KYB khi chưa khai đủ / chưa tải giấy phép lên |
+| `ho_so_dang_cho_duyet`, `da_xac_minh` | 409 | Sửa / nộp lại hồ sơ đang chờ duyệt hoặc đã xác minh |
+| `khong_cho_duyet` | 409 | (admin) Duyệt / từ chối hồ sơ không ở trạng thái chờ |
+| `khong_khoa_admin` | 409 | (admin) Khoá tài khoản admin |
+| `trang_thai_khong_hop_le` | 400 | (admin) Tham số `status` sai |
+| `loai_bat_buoc`, `loai_khong_hop_le`, `thieu_tuy_chon` | 400 | Tắt email loại bắt buộc / loại không tồn tại / thiếu `items` |
 
 ---
 
@@ -1345,6 +1381,7 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 | Tập nhãn | ≤ 20 công cụ; ≤ 100 lớp mỗi công cụ; tên lớp ≤ 50 ký tự |
 | Mỗi công cụ dạng danh sách | ≤ 1.000 mục (mặc định); polygon 3–500 đỉnh |
 | Câu vàng | ≤ 2.000 mỗi dự án (`project.gold_items_max`) |
+| Giấy phép kinh doanh (KYB) | `.pdf` / `.png` / `.jpg`, ≤ 10 MB (`identity.kyb_file_max_bytes`) |
 | Phân trang | `pageSize` ≤ 100 |
 
 ---
@@ -1354,7 +1391,8 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 | Mục | Ảnh hưởng tới frontend |
 |---|---|
 | Upload thẳng lên MinIO | Link trỏ tới `http://localhost:9000` ở dev. Trình duyệt báo lỗi CORS khi `PUT` thì cấu hình MinIO cho phép origin của frontend (biến môi trường `MINIO_API_CORS_ALLOW_ORIGIN`) |
-| Không có WebSocket / thông báo | Dùng polling theo mục 8 |
+| Không có WebSocket / thông báo đẩy | Thông báo đã có (mục 14) nhưng frontend phải tự hỏi `unread-count`; trạng thái từng màn hình vẫn polling theo mục 8 |
+| Chưa xác minh tự động với cơ quan thuế | Admin tự đối chiếu giấy phép và mã số thuế (mục 13.2). Hồ sơ đã xác minh không sửa được qua API |
 | Chưa gộp tự động khung, đa giác, đoạn văn bản, chép lời, đoạn thời gian | Màn hình kết quả hiện danh sách nhãn đã duyệt của từng người (`labels`) |
 | Chưa có: khung trên video, điểm mốc (keypoint), đường gấp khúc, mặt nạ pixel, OCR, trả lời tự do cho văn bản / ảnh, thuộc tính cho từng đối tượng, quan hệ giữa thực thể, xếp hạng > 2 câu trả lời | Không làm UI cho các dạng này; thang điểm 1–5 tạm dùng `classification` với các lớp `"1"`…`"5"` |
 | Chưa có API hồ sơ người dùng (tên người gán, cấp độ, uy tín) | Màn hình duyệt chỉ có `labelerId` |
@@ -1479,3 +1517,101 @@ DELETE /links/admin/blocked-domains/{domain}
 - `withholdRevenue` (mặc định `true`) giữ lại mọi khoản **đang treo** của link: doanh thu người chia sẻ và hoa hồng giới thiệu. Khoản đã hết thời gian treo thì không thu hồi được.
 - Chặn tên miền thì chặn cả tên miền con, và vô hiệu hoá ngay mọi link đang chạy tới đó (có giữ doanh thu).
 
+---
+
+## 13. Xác minh doanh nghiệp (KYB)
+
+Doanh nghiệp phải được admin xác minh mới **publish** được dự án; mọi bước khác (tạo dự án, tập nhãn, nạp dữ liệu, nạp tiền) làm được ngay sau khi đăng ký. Tài khoản seed `doanhnghiep*@crowd.local` đã được xác minh sẵn.
+
+```
+draft ──nộp──► submitted ──duyệt──► verified   (khoá, không sửa được nữa)
+  ▲               │
+  │            từ chối (kèm lý do)
+  └── sửa ◄── rejected
+```
+
+### 13.1 Doanh nghiệp: khai hồ sơ và nộp
+
+```http
+GET /kyb/me
+→ { "businessId", "status": "draft", "companyName": "", "taxCode": "", "address": "",
+    "hasLicense": false, "licenseFileName": null, "rejectReason": null, "submittedAt": null, "reviewedAt": null }
+
+PUT /kyb/me   { "companyName": "Công ty TNHH ABC", "taxCode": "0312345678", "address": "Hà Nội" }   → KybResponse
+
+POST /kyb/me/license   { "fileName": "giay-phep.pdf", "sizeBytes": 245000 }
+→ { "uploadUrl": "http://localhost:9000/kyb-docs/...", "method": "PUT", "expiresAt": "..." }
+PUT <uploadUrl>   (body = nội dung file, gửi thẳng lên kho file — không qua gateway, không kèm Authorization)
+
+POST /kyb/me/submit   → KybResponse { "status": "submitted" }
+```
+
+- Màn hình: một form (tên, mã số thuế, địa chỉ) + ô chọn file giấy phép + nút "Nộp hồ sơ". Thứ tự gọi: `PUT /kyb/me` → `POST /kyb/me/license` → `PUT <uploadUrl>` → `POST /kyb/me/submit`.
+- Tải file mới thì giấy phép cũ được thay. `hasLicense: true` nghĩa là đã xin link; nộp mà file chưa thực sự lên kho → **409** `thieu_giay_phep`.
+- `submitted`: hiện "Đang chờ duyệt", khoá form (sửa → **409** `ho_so_dang_cho_duyet`).
+- `rejected`: hiện `rejectReason`, mở lại form để sửa và nộp lại.
+- `verified`: hiện huy hiệu "Đã xác minh". Kết quả duyệt / từ chối đến qua thông báo + **email bắt buộc** (mục 14).
+
+### 13.2 Admin: hàng đợi duyệt
+
+```http
+GET  /kyb/admin?status=submitted&page=1&pageSize=20     (mặc định submitted, nộp sớm nhất trước)
+→ { "items": [ { "profile": KybResponse, "email", "displayName", "accountStatus": "active", "licenseUrl": null } ],
+    "page", "pageSize", "total" }
+GET  /kyb/admin/{businessId}      → như trên, có "licenseUrl" (link xem giấy phép, sống 5 phút)
+POST /kyb/admin/{businessId}/approve                          → KybResponse { "status": "verified" }
+POST /kyb/admin/{businessId}/reject  { "reason": "Giấy phép bị mờ" }   → KybResponse { "status": "rejected" }
+```
+
+- `status` lọc được cả `verified` / `rejected` / `draft` để tra cứu.
+- Mở chi tiết mới có `licenseUrl`; link hết hạn thì gọi lại API chi tiết. Ảnh hiện bằng `<img>`, PDF bằng `<iframe>` hoặc mở tab mới.
+- Duyệt / từ chối hồ sơ không còn chờ (admin khác vừa xử lý) → **409** `khong_cho_duyet`. Từ chối thiếu lý do → **400** `thieu_ly_do`.
+
+---
+
+## 14. Thông báo trong ứng dụng và email
+
+notification-svc ghi lại các sự kiện liên quan tới người dùng thành **thông báo trong ứng dụng** (luôn có) và gửi **email** theo tuỳ chọn. Backend không đẩy: frontend hỏi số chưa đọc định kỳ.
+
+```http
+GET  /notifications/me/unread-count                        → { "count": 3 }
+GET  /notifications/me?unreadOnly=false&page=1&pageSize=20 (mới nhất trước)
+→ { "items": [ { "id", "type": "du_an", "title": "Dự án đã được duyệt",
+                 "body": "Dự án đã được duyệt và đang chạy — labeler bắt đầu nhận task.",
+                 "link": "/projects/3f2c...", "createdAt", "readAt": null } ],
+    "page", "pageSize", "total", "unreadCount": 3 }
+POST /notifications/me/{id}/read    → 204   (đọc rồi vẫn 204; thông báo của người khác → 404)
+POST /notifications/me/read-all     → { "updated": 3 }
+```
+
+Cách làm khuyến nghị:
+
+- Chuông trên thanh điều hướng: gọi `unread-count` khi tải trang, rồi **mỗi 30 giây khi tab đang hiển thị** (dừng khi `document.hidden`). Mở danh sách thì gọi `GET /notifications/me`.
+- `title` và `body` đã là tiếng Việt có dấu, hiện nguyên văn. `link` là **đường dẫn tài nguyên của backend** (`/projects/{id}`, `/kyb/me`, `/ledger/me`, `/ledger/withdrawals`) — frontend ánh xạ sang route màn hình tương ứng; `null` thì không có nút "Xem".
+- Bấm vào một thông báo: `POST .../{id}/read` rồi điều hướng theo `link`.
+
+**Loại thông báo** (`type`) và email:
+
+| `type` | Khi nào | Người nhận | Email |
+|---|---|---|---|
+| `kyb_ket_qua` | Hồ sơ KYB được duyệt / bị từ chối | Doanh nghiệp | **Bắt buộc** |
+| `tai_khoan` | Tài khoản bị khoá / mở khoá | Mọi vai trò | **Bắt buộc** |
+| `rut_tien` | Rút tiền thành công / thất bại / admin từ chối lệnh rút | Labeler, sharer | **Bắt buộc** |
+| `nap_tien` | Nạp tiền thành công | Doanh nghiệp | Bật (tắt được) |
+| `du_an` | Dự án được duyệt, publish không được (thiếu tiền, bị từ chối), bị huỷ (có ký quỹ), hoàn ký quỹ | Doanh nghiệp | Bật (tắt được) |
+| `nhan_tu_choi` | Nhãn bị từ chối, khiếu nại bị bác | Labeler | Bật (tắt được) |
+| `nhan_duyet` | Nhãn được duyệt (chỉ kênh chuyên nghiệp — kênh cổng link không báo từng nhãn). **Gộp** theo dự án | Labeler | Tắt (bật được) |
+| `tien_kha_dung` | Tiền treo chuyển sang khả dụng (với sharer: mỗi lượt click / mỗi lô). **Gộp** | Labeler, sharer | Tắt (bật được) |
+
+**Gộp:** hai loại phát sinh nhiều (`nhan_duyet`, `tien_kha_dung`) không tạo một dòng cho mỗi sự kiện. Sự kiện mới được **cộng dồn** vào thông báo cùng loại (và cùng dự án) còn **chưa đọc**, chưa gửi email, có sự kiện gần nhất trong 24 giờ. Thông báo đó được viết lại ("3 nhãn được duyệt, tổng +60.000 đ…", "60.000 đ (3 khoản) đã chuyển…") và `createdAt` chuyển thành thời điểm sự kiện mới nhất, nên dòng này nổi lên đầu danh sách (`unread-count` không tăng thêm). Người dùng đọc rồi thì sự kiện sau mở dòng mới.
+
+```http
+GET /notifications/me/preferences
+→ [ { "type": "rut_tien", "label": "Kết quả rút tiền", "mandatory": true, "emailEnabled": true }, ... ]   (8 mục)
+PUT /notifications/me/preferences   { "items": [ { "type": "du_an", "emailEnabled": false } ] }
+→ danh sách đầy đủ sau khi lưu
+```
+
+- Màn hình cài đặt: mỗi loại một công tắc "Gửi email", dùng `label` làm nhãn. `mandatory: true` thì hiện công tắc bật và **khoá** (gửi tắt → **400** `loai_bat_buoc`).
+- Chỉ cần gửi các loại thay đổi. Tắt email không ảnh hưởng thông báo trong ứng dụng.
+- Email đi trễ vài giây (gửi nền, tự thử lại khi máy chủ mail lỗi). Ở dev xem email tại Mailpit `http://localhost:8025` (stack demo: `http://localhost:18025`).

@@ -43,6 +43,11 @@ def kiem() -> list[str]:
             chua.append("admin-svc")
         if requests.get(G + "/ledger/me/balance", headers=biz, timeout=5).status_code != 200:
             chua.append("ledger-svc")
+        if requests.get(G + "/notifications/me/unread-count", headers=biz, timeout=5).status_code != 200:
+            chua.append("notification-svc")
+        kyb = requests.get(G + "/kyb/me", headers=biz, timeout=5)
+        if kyb.status_code != 200 or kyb.json().get("status") != "verified":
+            chua.append("KYB doanh nghiep seed (identity-svc)")
     except (requests.RequestException, KeyError, ValueError) as ex:
         chua.append(f"loi goi API: {ex}")
     return chua

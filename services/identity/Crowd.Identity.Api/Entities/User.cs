@@ -49,6 +49,11 @@ namespace Crowd.Identity.Api.Entities
 
         public UserStatus Status { get; private set; }
 
+        /// <summary>Luc bi admin khoa (FM-01); null = dang hoat dong.</summary>
+        public DateTimeOffset? BlockedAt { get; private set; }
+
+        public string? BlockedReason { get; private set; }
+
         public DateTimeOffset CreatedAt { get; private set; }
 
         public static User Tao(
@@ -77,6 +82,39 @@ namespace Crowd.Identity.Api.Entities
             user.CreatedAt = luc;
 
             return user;
+        }
+
+        /// <summary>Admin khoa tai khoan. Tra ve false neu da bi khoa tu truoc (khong phat event lan hai).</summary>
+        public bool Khoa(string lyDo, DateTimeOffset luc)
+        {
+            if (Status == UserStatus.Blocked)
+            {
+                return false;
+            }
+
+            Status = UserStatus.Blocked;
+            BlockedAt = luc;
+            BlockedReason = lyDo;
+            return true;
+        }
+
+        /// <summary>Admin mo khoa. Tra ve false neu dang hoat dong san.</summary>
+        public bool MoKhoa()
+        {
+            if (Status != UserStatus.Blocked)
+            {
+                return false;
+            }
+
+            Status = UserStatus.Active;
+            BlockedAt = null;
+            BlockedReason = null;
+            return true;
+        }
+
+        public bool LaDoanhNghiep()
+        {
+            return _roles.Contains("business");
         }
 
         public void DatPasswordHash(string hash)

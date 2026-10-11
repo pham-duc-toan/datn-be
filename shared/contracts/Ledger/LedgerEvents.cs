@@ -116,4 +116,29 @@ namespace Crowd.Contracts.Ledger
 
         public required string BankAccount { get; init; }
     }
+
+    /// <summary>
+    /// Admin tu choi lenh rut dang cho duyet — but toan dao, tien ve vi kha dung. Nguoi nghe:
+    /// notification (bao labeler kem ly do). Rut thanh cong / that bai thi xem payout.completed / failed.
+    /// </summary>
+    public sealed record WithdrawalRejected : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "withdrawal.rejected"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid WithdrawalId { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        public required long AmountVnd { get; init; }
+
+        public required string Reason { get; init; }
+    }
 }

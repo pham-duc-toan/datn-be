@@ -99,6 +99,34 @@
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {
+      // identity-svc: xác minh doanh nghiệp (KYB) — doanh nghiệp nộp hồ sơ, admin duyệt (/kyb/admin...).
+      // Không đặt dưới /admin vì /admin/* thuộc admin-svc.
+      "UpstreamPathTemplate": "/kyb/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post", "Put"],
+      "DownstreamPathTemplate": "/kyb/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8101 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
+      // identity-svc: admin quản lý tài khoản — danh sách, khoá / mở khoá (FM-01).
+      "UpstreamPathTemplate": "/users/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/users/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8101 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
+      // notification-svc: thông báo trong ứng dụng + tuỳ chọn email (FC-06).
+      "UpstreamPathTemplate": "/notifications/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post", "Put"],
+      "DownstreamPathTemplate": "/notifications/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8110 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
       // quality-svc (Python): chỉ số đồng thuận, độ tin cậy labeler, uy tín.
       "UpstreamPathTemplate": "/quality/{everything}",
       "UpstreamHttpMethod": ["Get", "Post"],

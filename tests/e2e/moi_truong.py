@@ -3,7 +3,7 @@
 Dev (service chay tren may + docker-compose.infra.yml):   khong can dat gi.
 Stack demo / CI (docker-compose.demo.yml):                 E2E_PROFILE=demo
 Tung gia tri van ghi de duoc rieng: E2E_GATEWAY, E2E_TASK_URL, E2E_ANNOTATION_URL, E2E_LINK_URL,
-E2E_GATE_URL, E2E_RABBIT_MGMT, E2E_CONTAINER_PREFIX.
+E2E_GATE_URL, E2E_RABBIT_MGMT, E2E_MAILPIT, E2E_CONTAINER_PREFIX.
 """
 
 import os
@@ -26,6 +26,7 @@ URL_ANNOTATION = _url("E2E_ANNOTATION_URL", 8104)
 URL_LINK = _url("E2E_LINK_URL", 8107)
 URL_GATE = _url("E2E_GATE_URL", 8108)
 RABBIT_MGMT = _url("E2E_RABBIT_MGMT", 15672)
+MAILPIT = _url("E2E_MAILPIT", 8025)   # xem email thong bao (API /api/v1/search)
 TIEN_TO_CONTAINER = os.environ.get("E2E_CONTAINER_PREFIX", _TIEN_TO)
 
 # Mat khau chung cua moi tai khoan seed va tai khoan E2E tu tao.

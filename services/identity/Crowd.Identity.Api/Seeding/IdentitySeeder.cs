@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Identity.Api.Entities;
@@ -60,6 +61,7 @@ namespace Crowd.Identity.Api.Seeding
             if (await _db.Users.AnyAsync(u => u.Id == adminId, ct))
             {
                 _logger.LogInformation("Seed identity: da co du lieu seed — bo qua");
+                await DamBaoKybDoanhNghiepSeedAsync(ct);
                 return;
             }
 
@@ -93,6 +95,45 @@ namespace Crowd.Identity.Api.Seeding
                 "Seed identity: tao {SoTao} tai khoan, mat khau chung '{MatKhau}'",
                 soTao,
                 KichBanSeed.MatKhauChung);
+
+            await DamBaoKybDoanhNghiepSeedAsync(ct);
+        }
+
+        /// <summary>
+        /// Doanh nghiep seed da XAC MINH san (KYB) — kich ban demo publish duoc ngay. Chay ca khi
+        /// tai khoan da seed tu truoc (DB dev cu chua co bang business_profiles). project-svc tu
+        /// them ban sao "da xac minh" cho cung cac doanh nghiep nay (khong qua event).
+        /// </summary>
+        private async Task DamBaoKybDoanhNghiepSeedAsync(CancellationToken ct)
+        {
+            DateTimeOffset luc = _clock.GetUtcNow() - TimeSpan.FromDays(10);
+            int soTao = 0;
+            int thuTu = 0;
+
+            foreach (SeedUser su in KichBanSeed.Users)
+            {
+                if (!su.Roles.Contains("business"))
+                {
+                    continue;
+                }
+
+                thuTu = thuTu + 1;
+                if (await _db.BusinessProfiles.AnyAsync(p => p.UserId == su.Id, ct)
+                    || !await _db.Users.AnyAsync(u => u.Id == su.Id, ct))
+                {
+                    continue;
+                }
+
+                string maSoThue = "010" + thuTu.ToString("D7", System.Globalization.CultureInfo.InvariantCulture);
+                _db.BusinessProfiles.Add(BusinessProfile.TaoDaXacMinh(su.Id, su.DisplayName, maSoThue, "Ha Noi", luc));
+                soTao = soTao + 1;
+            }
+
+            if (soTao > 0)
+            {
+                await _db.SaveChangesAsync(ct);
+                _logger.LogInformation("Seed identity: {SoTao} ho so doanh nghiep da xac minh (KYB)", soTao);
+            }
         }
     }
 }

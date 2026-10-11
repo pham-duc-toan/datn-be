@@ -47,6 +47,18 @@ assignment.submitted v1  (AssignmentSubmitted)
     SubmittedAt              DateTimeOffset       required
     TaskId                   Guid                 required
 
+business.kyb_rejected v1  (BusinessKybRejected)
+    BusinessId               Guid                 required
+    Reason                   String               required
+
+business.kyb_submitted v1  (BusinessKybSubmitted)
+    BusinessId               Guid                 required
+    CompanyName              String               required
+
+business.verified v1  (BusinessVerified)
+    BusinessId               Guid                 required
+    VerifiedAt               DateTimeOffset       required
+
 click.validated v1  (ClickValidated)
     ClickId                  Guid                 required
     LabelCount               Int32                required
@@ -286,3 +298,12 @@ user.registered v1  (UserRegistered)
     Email                    String               required
     Roles                    IReadOnlyList<String> required
     UserId                   Guid                 required
+
+user.unblocked v1  (UserUnblocked)
+    UserId                   Guid                 required
+
+withdrawal.rejected v1  (WithdrawalRejected)
+    AmountVnd                Int64                required
+    LabelerId                Guid                 required
+    Reason                   String               required
+    WithdrawalId             Guid                 required

@@ -38,6 +38,8 @@ namespace Crowd.Identity.Api.Persistence.Configurations
                 .HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
 
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.BlockedAt).HasColumnName("blocked_at");
+            builder.Property(x => x.BlockedReason).HasColumnName("blocked_reason").HasMaxLength(1000);
 
             // Roles la thuoc tinh CHI DOC; thu that su luu xuong database la
             // truong private _roles. Postgres luu thanh mang text[].

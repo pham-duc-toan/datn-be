@@ -434,6 +434,14 @@ namespace Crowd.Project.Api.Services
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
             DateTimeOffset bayGio = _clock.GetUtcNow();
 
+            // KYB (FB-02): chi doanh nghiep da xac minh moi publish duoc. Ban sao tu business.verified.
+            if (!await _db.VerifiedBusinesses.AnyAsync(v => v.BusinessId == duAn.OwnerId, ct))
+            {
+                throw new RuleViolationException(
+                    "chua_xac_minh_doanh_nghiep",
+                    "Doanh nghiep chua duoc xac minh (KYB). Nop ho so tai /kyb/me va cho admin duyet truoc khi publish.");
+            }
+
             int soMau = await DemMauAsync(id, ct);
             int soVangTest = await DemVangTestAsync(id, ct);
 

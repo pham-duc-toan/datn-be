@@ -911,6 +911,72 @@
     "description": "Do dai mat khau toi da."
   },
   {
+    "key": "identity.kyb_file_max_bytes",
+    "group": "Tai khoan",
+    "type": "long",
+    "default": 10485760,
+    "min": 102400,
+    "max": 52428800,
+    "unit": "byte",
+    "effect": "newOperations",
+    "description": "Kich thuoc toi da file giay phep kinh doanh (KYB)."
+  },
+  {
+    "key": "notification.email_enabled",
+    "group": "Thong bao",
+    "type": "bool",
+    "default": true,
+    "min": null,
+    "max": null,
+    "unit": "",
+    "effect": "newOperations",
+    "description": "Gui email thong bao (tat thi chi con thong bao trong ung dung)."
+  },
+  {
+    "key": "notification.email_from",
+    "group": "Thong bao",
+    "type": "text",
+    "default": "Crowd Label <no-reply@crowd.local>",
+    "min": null,
+    "max": 200,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Dia chi nguoi gui email thong bao."
+  },
+  {
+    "key": "notification.email_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 5,
+    "min": 1,
+    "max": 3600,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Chu ky worker gui email thong bao."
+  },
+  {
+    "key": "notification.email_batch_size",
+    "group": "Ky thuat",
+    "type": "int",
+    "default": 50,
+    "min": 1,
+    "max": 1000,
+    "unit": "email",
+    "effect": "newOperations",
+    "description": "So email moi lo gui."
+  },
+  {
+    "key": "notification.email_max_attempts",
+    "group": "Ky thuat",
+    "type": "int",
+    "default": 5,
+    "min": 1,
+    "max": 50,
+    "unit": "lan",
+    "effect": "newOperations",
+    "description": "Gui email loi bao nhieu lan thi bo (thong bao trong ung dung van con)."
+  },
+  {
     "key": "outbox.poll_interval",
     "group": "Ky thuat",
     "type": "durationSeconds",

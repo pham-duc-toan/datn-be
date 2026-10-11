@@ -18,8 +18,9 @@ Khi dán, xóa luôn cặp dấu `< >`. Ví dụ `Bearer <token-biz1>` sẽ thà
 ## 0. Chạy nhanh (đã quen thì chỉ cần mục này)
 
 ```bash
-# 1. Hạ tầng: RabbitMQ, MinIO, Postgres của các service P0 (kể cả admin) + P1 + P2 (cổng link) + P3 (quality)
-docker compose -f docker-compose.infra.yml --profile p0 --profile p1 --profile p2 --profile p3 up -d
+# 1. Hạ tầng: RabbitMQ, MinIO, Mailpit, Postgres của các service P0 (kể cả admin) + P1 + P2 (cổng link)
+#    + P3 (quality) + P6 (notification)
+docker compose -f docker-compose.infra.yml --profile p0 --profile p1 --profile p2 --profile p3 --profile p6 up -d
 
 # 2. Build một lần
 dotnet build datn.slnx
@@ -34,6 +35,7 @@ dotnet run --project services/ledger/Crowd.Ledger.Api
 dotnet run --project services/payment/Crowd.Payment.Api
 dotnet run --project services/link/Crowd.Link.Api            # cổng link: link rút gọn của người chia sẻ
 dotnet run --project services/gate/Crowd.Gate.Api            # cổng link: trang vượt link
+dotnet run --project services/notification/Crowd.Notification.Api   # thông báo + email (Mailpit)
 dotnet run --project services/gateway/Crowd.Gateway.Api
 cd services/quality && .venv/Scripts/python -m app.main     # quality-svc (Python) — tạo .venv lần đầu: mục 3
 
@@ -91,7 +93,10 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_p2.py` | Cổng link: rút gọn, vượt link, Turnstile, chống trùng IP, hoa hồng, kiểm duyệt (`chay_hoi_quy` chạy hai lần: chi `perClick` và `batched`) |
 | `e2e_modality.py` | Ảnh, văn bản, âm thanh, video, cặp, khung ảnh; media sinh bằng ffmpeg (`tao_media.py`) |
 | `ep_race_quality.py` | Ép race: hai người nộp đồng thời nhãn cuối của cùng task |
+| `e2e_kyb_thong_bao.py` | KYB doanh nghiệp (khai hồ sơ, giấy phép, từ chối → nộp lại → duyệt, chặn publish khi chưa xác minh), thông báo trong ứng dụng + **email thật qua Mailpit**, tuỳ chọn email, gộp thông báo, khoá / mở khoá tài khoản |
 | `e2e_dong_cho_chi.py` | Kịch bản TLA+ tìm ra (NC-B-01): dừng container ledger, duyệt và đóng dự án, bật lại. Nhãn đã duyệt phải được trả dù `completed` tới trước `approved` (chỉ chạy với `E2E_PROFILE=demo`) |
+
+Tài khoản doanh nghiệp do E2E tự tạo được **xác minh KYB tự động** (`tro_giup.dang_ky(..., xac_minh=True)`, mặc định) để các bộ cũ publish được như trước.
 
 Kết quả từng bộ ghi vào `tests/e2e/ket-qua/`. Địa chỉ và tên container đọc từ `moi_truong.py` (`E2E_PROFILE`, `E2E_GATEWAY`...).
 
@@ -117,11 +122,11 @@ Kết quả từng bộ ghi vào `tests/e2e/ket-qua/`. Địa chỉ và tên con
 ## 2. Khởi động hạ tầng
 
 ```bash
-docker compose -f docker-compose.infra.yml --profile p0 --profile p1 --profile p2 --profile p3 up -d
+docker compose -f docker-compose.infra.yml --profile p0 --profile p1 --profile p2 --profile p3 --profile p6 up -d
 docker ps --format "table {{.Names}}\t{{.Status}}"      # đợi mọi container (healthy)
 ```
 
-`--profile p0` bật Postgres của identity, project, task, annotation **và admin** (setting hệ thống, mục 6.16). `--profile p1` bật thêm Postgres của ledger và payment. `--profile p2` bật hạ tầng cổng link: Postgres của link và gate, Redis riêng của gate, ClickHouse. `--profile p3` bật Postgres của quality. RabbitMQ và MinIO thuộc nhóm core nên luôn được bật. Container `minio-init` chạy một lần để tạo bucket `datasets` rồi tự thoát, đó là bình thường.
+`--profile p0` bật Postgres của identity, project, task, annotation **và admin** (setting hệ thống, mục 6.16). `--profile p1` bật thêm Postgres của ledger và payment. `--profile p2` bật hạ tầng cổng link: Postgres của link và gate, Redis riêng của gate, ClickHouse. `--profile p3` bật Postgres của quality. `--profile p6` bật Postgres của notification. RabbitMQ và MinIO thuộc nhóm core nên luôn được bật. Container `minio-init` chạy một lần để tạo bucket `datasets` rồi tự thoát, đó là bình thường.
 
 | Thành phần | Cổng | Đăng nhập (dev) |
 |---|---|---|
@@ -131,6 +136,8 @@ docker ps --format "table {{.Names}}\t{{.Status}}"      # đợi mọi container
 | Postgres ledger / payment | 5405 / 5406 | như trên |
 | Postgres quality | 5421 | `quality_user` / `dev_quality_pw` |
 | Postgres admin | 5411 | `admin_user` / `dev_admin_pw` |
+| Postgres notification | 5410 | `notification_user` / `dev_notification_pw` |
+| Mailpit (hộp thư giả, nhận mọi email) | SMTP 1025, UI **8025** | không cần. Mở http://localhost:8025 để đọc email thông báo |
 | Postgres link / gate | 5407 / 5408 | `link_user` / `dev_link_pw`, `gate_user` / `dev_gate_pw` |
 | Redis gate | 6381 | không mật khẩu (dev). `docker exec -it datn-redis-gate redis-cli` |
 | ClickHouse gate | HTTP **8123** | `gate_user` / `dev_gate_pw`, database `gate_db` |
@@ -153,6 +160,7 @@ Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledge
 | payment-svc | 8106 | `dotnet run --project services/payment/Crowd.Payment.Api` |
 | link-svc | 8107 | `dotnet run --project services/link/Crowd.Link.Api` |
 | gate-svc | 8108 | `dotnet run --project services/gate/Crowd.Gate.Api` |
+| notification-svc | 8110 | `dotnet run --project services/notification/Crowd.Notification.Api` |
 | quality-svc (Python) | 8201 | `cd services/quality && .venv/Scripts/python -m app.main` |
 
 **quality-svc lần đầu** cần tạo môi trường Python (một lần):
@@ -161,7 +169,7 @@ Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledge
 cd services/quality
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt      # Linux/macOS: .venv/bin/pip
-.venv/Scripts/python -m pytest -q                   # 22 test logic: đồng thuận, uy tín, Dawid-Skene, hợp đồng envelope, setting
+.venv/Scripts/python -m pytest -q                   # 32 test logic: đồng thuận, uy tín, Dawid-Skene, hợp đồng envelope, setting
 ```
 
 Biến môi trường tiền tố `QUALITY_` chỉ còn giữ phần hạ tầng (chuỗi kết nối, RabbitMQ, JWKS, môi trường — xem [app/config.py](../services/quality/app/config.py)). Production phải đặt `QUALITY_ENVIRONMENT=Production` (tắt seed). Chu kỳ Dawid–Skene, trọng số uy tín… là **setting hệ thống**: muốn DS chạy mỗi phút thì `PUT /admin/settings/quality.ds_interval {"value":60}` (mục 6.16).
@@ -246,6 +254,8 @@ tài khoản   dự án, ảnh   task,      nhãn +          ký quỹ,     lệ
 | rev1 | `reviewer1@crowd.local` | `0d352aaf-338d-5930-8bd7-e737a04e3ba3` | labeler (**reviewer của P1**) | Duyệt nhãn với tư cách reviewer |
 
 `rev1` có vai trò hệ thống là `labeler`. "Reviewer" là vai trò *trong dự án*, do chủ dự án gán.
+
+biz1 và biz2 đã được **xác minh KYB** sẵn (hồ sơ `verified`), nên publish được ngay. Doanh nghiệp đăng ký mới phải nộp hồ sơ và chờ admin duyệt (mục 6.18).
 
 ### 4.3 Dự án (tên bắt đầu bằng `[Seed]`, chủ là biz1)
 
@@ -888,7 +898,7 @@ curl -s -X PUT http://localhost:8080/admin/settings/quality.redundancy_policy -H
 
 ### 6.16 Setting hệ thống (admin): phí, tự duyệt, hạn mức
 
-Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (108 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
+Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (114 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
 
 ```bash
 # Toàn bộ setting: key, group, type, value, defaultValue, min, max, unit, effect, description, version
@@ -1030,6 +1040,61 @@ Kiểm tra thêm:
 - **Kiểm duyệt:** khách bấm báo cáo `POST /links/r/<code>/report {"reason":"..."}`. Đủ `link.report_review_threshold` IP khác nhau thì link vào `GET /links/admin/review-queue`. Admin `POST /links/admin/<id>/disable {"reason":"...","withholdRevenue":true}` → trang vượt link 404, doanh thu đang treo của link chuyển sang `platform:withheld`.
 - Chặn tên miền: `POST /links/admin/blocked-domains {"domain":"casino.com","reason":"..."}` — chặn cả tên miền con, link đang chạy tới đó bị vô hiệu hoá ngay.
 - **Chi theo lô:** đặt `ledger.gate_payout_mode = batched` (và `ledger.gate_batch_interval` nhỏ, vd 10 giây, cho dễ thấy). Lượt vượt link giờ chỉ nằm ở `gate_clicks` với `state = Queued`, ví chưa đổi. Sau một chu kỳ thì `state = Paid` và `pendingVnd` tăng, số tiền như chế độ theo lượt. Xem: `docker exec datn-db-ledger psql -U ledger_user -d ledger_db -c "select state, count(*), max(settled_at) from gate_clicks group by 1"`.
+
+### 6.18 Xác minh doanh nghiệp (KYB), thông báo, khoá tài khoản
+
+```bash
+# Doanh nghiệp mới đăng ký → hồ sơ draft; publish bị chặn 409 chua_xac_minh_doanh_nghiep
+curl -s -X POST http://localhost:8080/auth/register -H "Content-Type: application/json" \
+  -d '{"email":"biz-moi@crowd.local","password":"Matkhau@123","displayName":"Biz moi","roles":["business"]}'
+# đăng nhập lấy <token-biz-moi> như mục 5
+curl -s http://localhost:8080/kyb/me -H "Authorization: Bearer <token-biz-moi>"
+
+# Khai hồ sơ (mã số thuế 10 chữ số; sai → 400 ma_so_thue_khong_hop_le)
+curl -s -X PUT http://localhost:8080/kyb/me -H "Authorization: Bearer <token-biz-moi>" -H "Content-Type: application/json" \
+  -d '{"companyName":"Cong ty Moi","taxCode":"0312345678","address":"Ha Noi"}'
+
+# Xin link tải giấy phép (.pdf/.png/.jpg, tối đa 10 MB) → uploadUrl; PUT file thẳng lên MinIO; rồi nộp
+curl -s -X POST http://localhost:8080/kyb/me/license -H "Authorization: Bearer <token-biz-moi>" -H "Content-Type: application/json" \
+  -d '{"fileName":"giay-phep.pdf","sizeBytes":1234}'
+curl -s -X PUT --data-binary @giay-phep.pdf "<uploadUrl>"
+curl -s -X POST http://localhost:8080/kyb/me/submit -H "Authorization: Bearer <token-biz-moi>"     # → submitted
+
+# Admin: hàng đợi, chi tiết (licenseUrl xem được 5 phút), duyệt hoặc từ chối (bắt buộc lý do)
+curl -s "http://localhost:8080/kyb/admin?status=submitted" -H "Authorization: Bearer <token-admin>"
+curl -s http://localhost:8080/kyb/admin/<businessId> -H "Authorization: Bearer <token-admin>"
+curl -s -X POST http://localhost:8080/kyb/admin/<businessId>/reject -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"reason":"Giay phep bi mo"}'
+#   → doanh nghiệp sửa + nộp lại (2 lệnh trên), admin duyệt:
+curl -s -X POST http://localhost:8080/kyb/admin/<businessId>/approve -H "Authorization: Bearer <token-admin>"
+#   → project-svc nhận business.verified (bảng verified_businesses) → publish được
+
+# Thông báo (mọi vai trò): số chưa đọc, danh sách, đọc, tuỳ chọn email
+curl -s http://localhost:8080/notifications/me/unread-count -H "Authorization: Bearer <token-biz-moi>"
+curl -s http://localhost:8080/notifications/me -H "Authorization: Bearer <token-biz-moi>"
+curl -s -X POST http://localhost:8080/notifications/me/read-all -H "Authorization: Bearer <token-biz-moi>"
+curl -s http://localhost:8080/notifications/me/preferences -H "Authorization: Bearer <token-biz-moi>"
+curl -s -X PUT http://localhost:8080/notifications/me/preferences -H "Authorization: Bearer <token-biz-moi>" \
+  -H "Content-Type: application/json" -d '{"items":[{"type":"du_an","emailEnabled":false}]}'
+#   loại bắt buộc (kyb_ket_qua, tai_khoan, rut_tien) không tắt được → 400 loai_bat_buoc
+# Email: mở http://localhost:8025 (Mailpit) — "Hồ sơ doanh nghiệp bị từ chối", "Doanh nghiệp đã được xác minh"...
+
+# Admin khoá / mở khoá tài khoản (không khoá được admin → 409 khong_khoa_admin)
+curl -s "http://localhost:8080/users/admin?search=labeler3" -H "Authorization: Bearer <token-admin>"
+curl -s -X POST http://localhost:8080/users/admin/14299c5f-f7c3-5075-b65a-cd4fbc2aa194/block -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"reason":"Thu khoa"}'
+#   → lab3 đăng nhập 403, refresh token 401, nhận task 403 tai_khoan_bi_khoa (sau vài giây), có email "Tài khoản bị khoá"
+curl -s -X POST http://localhost:8080/users/admin/14299c5f-f7c3-5075-b65a-cd4fbc2aa194/unblock -H "Authorization: Bearer <token-admin>"
+```
+
+Xem trong database:
+
+```bash
+docker exec datn-db-identity psql -U identity_user -d identity_db -c "select user_id, status, company_name, tax_code, reject_reason from business_profiles"
+docker exec datn-db-notification psql -U notification_user -d notification_db -c "select user_id, type, title, merged_count, email_state, created_at from notifications order by created_at desc limit 10"
+```
+
+Thông báo loại phát sinh nhiều (`nhan_duyet`, `tien_kha_dung`) được **gộp**: sự kiện mới cộng dồn vào dòng cùng loại còn chưa đọc (`merged_count` tăng), nên sharer có nghìn click / ngày chỉ thấy một dòng "Tiền đã khả dụng".
 
 ## 7. Kiểm tra tổng sau khi test
 

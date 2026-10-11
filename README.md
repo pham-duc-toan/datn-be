@@ -1,6 +1,6 @@
 # Hệ thống gán nhãn dữ liệu cộng đồng — backend
 
-Microservice (.NET 10 + một service Python) cho nền tảng gán nhãn: doanh nghiệp ký quỹ và đăng dự án, labeler nhận task và được trả tiền qua sổ cái ghi kép, kiểm soát chất lượng bằng đồng thuận / câu vàng / redundancy thích ứng, và kênh thu thập qua cổng vượt link.
+Microservice (.NET 10 + một service Python) cho nền tảng gán nhãn: doanh nghiệp ký quỹ và đăng dự án, labeler nhận task và được trả tiền qua sổ cái ghi kép, kiểm soát chất lượng bằng đồng thuận / câu vàng / redundancy thích ứng, kênh thu thập qua cổng vượt link, xác minh doanh nghiệp (KYB) và thông báo trong ứng dụng + email.
 
 ## Chạy thử bằng một lệnh
 
@@ -11,7 +11,7 @@ docker compose -f docker-compose.demo.yml up -d --build
 pip install requests && python tests/e2e/cho_san_sang.py     # chờ migrate + seed xong
 ```
 
-Gateway ở `http://localhost:18080`. Tài khoản mẫu `admin@crowd.local`, `doanhnghiep1@crowd.local`, `labeler1@crowd.local`… với mật khẩu chung `Matkhau@123`. Chạy toàn bộ kiểm thử E2E trên stack này:
+Gateway ở `http://localhost:18080`, email thông báo xem ở Mailpit `http://localhost:18025`. Tài khoản mẫu `admin@crowd.local`, `doanhnghiep1@crowd.local`, `labeler1@crowd.local`… với mật khẩu chung `Matkhau@123`. Chạy toàn bộ kiểm thử E2E trên stack này:
 
 ```bash
 E2E_PROFILE=demo python tests/e2e/chay_hoi_quy.py
@@ -31,7 +31,7 @@ E2E_PROFILE=demo python tests/e2e/chay_hoi_quy.py
 
 ```
 services/      mỗi service một thư mục (identity, project, task, annotation, ledger, payment,
-               link, gate, admin, gateway; quality viết bằng Python)
+               link, gate, notification, admin, gateway; quality viết bằng Python)
 shared/        thư viện dùng chung (auth, messaging, outbox, settings, labeling, storage, seeding)
 contracts/     JSON Schema tập nhãn + danh mục event
 tests/e2e/     kiểm thử đầu-cuối qua API thật

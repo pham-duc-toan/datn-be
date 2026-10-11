@@ -125,7 +125,8 @@ async def cua_toi(ng: NguoiGoi = Depends(can_vai_tro("labeler"))) -> dict:
 
 
 @router.post("/admin/dawid-skene/run")
-async def chay_ds_ngay(ng: NguoiGoi = Depends(can_vai_tro("admin"))) -> dict:
-    """Admin chay lo Dawid-Skene ngay (binh thuong chay dinh ky) — tien cho demo."""
-    so = await ds_batch.chay_mot_lo()
-    return {"computed": so}
+async def chay_ds_ngay(full: bool = False, ng: NguoiGoi = Depends(can_vai_tro("admin"))) -> dict:
+    """Admin chay lo Dawid-Skene ngay (binh thuong chay dinh ky). Mac dinh chi du an co nhan moi;
+    full=true tinh lai tat ca (cham: ~1 giay / du an) — dung sau khi doi quality.ds_min_labels."""
+    so = await ds_batch.chay_mot_lo(tat_ca=full)
+    return {"computed": so, "full": full}

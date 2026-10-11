@@ -4,7 +4,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.BuildingBlocks.Storage;
 using Crowd.Identity.Api.Entities;
+using Crowd.Identity.Api.Exceptions;
 using Crowd.Identity.Api.Persistence;
 using Crowd.Identity.Api.Seeding;
 using Crowd.Identity.Api.Services;
@@ -65,6 +67,14 @@ namespace Crowd.Identity.Api
 
             // Nghiep vu dang ky/dang nhap. Scoped vi dung IdentityDbContext.
             builder.Services.AddScoped<AuthService>();
+
+            // KYB (FB-01/02, FM-01): giay phep nam trong bucket PRIVATE kyb-docs (S-07).
+            builder.Services.Configure<ObjectStorageOptions>(builder.Configuration.GetSection(ObjectStorageOptions.SectionName));
+            builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
+            builder.Services.AddScoped<KybService>();
+            builder.Services.AddScoped<TaiKhoanAdminService>();
+            builder.Services.AddProblemDetails();
+            builder.Services.AddExceptionHandler<ApiExceptionHandler>();
             builder.Services.AddScoped<IdentitySeeder>();
 
             // Controller nam o thu muc Controllers/, tu duoc tim thay qua
@@ -92,6 +102,7 @@ namespace Crowd.Identity.Api
                 }
             }
 
+            app.UseExceptionHandler();
             app.UseAuthentication();
             app.UseAuthorization();
 

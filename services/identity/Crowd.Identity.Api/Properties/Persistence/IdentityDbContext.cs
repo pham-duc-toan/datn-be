@@ -25,6 +25,8 @@ namespace Crowd.Identity.Api.Persistence
 
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
+        public DbSet<BusinessProfile> BusinessProfiles => Set<BusinessProfile>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -41,6 +43,7 @@ namespace Crowd.Identity.Api.Persistence
             // Nghiep vu cua rieng identity-svc
             modelBuilder.ApplyConfiguration(new UserConfiguration());
             modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
+            modelBuilder.ApplyConfiguration(new BusinessProfileConfiguration());
 
             // Ha tang dung chung — giong het annotation-svc
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());

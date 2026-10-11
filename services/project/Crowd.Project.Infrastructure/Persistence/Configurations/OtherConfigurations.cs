@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Project.Domain.Businesses;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.EntranceTests;
@@ -179,6 +180,22 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
 
             builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             builder.HasIndex(x => new { x.ProjectId, x.UserId }).HasDatabaseName("ix_entrance_attempts_project_user");
+        }
+    }
+
+    public sealed class VerifiedBusinessConfiguration : IEntityTypeConfiguration<VerifiedBusiness>
+    {
+        public void Configure(EntityTypeBuilder<VerifiedBusiness> builder)
+        {
+            if (builder == null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
+            builder.ToTable("verified_businesses");
+            builder.Property(x => x.BusinessId).HasColumnName("business_id").ValueGeneratedNever();
+            builder.HasKey(x => x.BusinessId);
+            builder.Property(x => x.VerifiedAt).HasColumnName("verified_at").IsRequired();
         }
     }
 }

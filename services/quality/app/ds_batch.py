@@ -81,11 +81,22 @@ def uoc_luong(df: pd.DataFrame, min_nhan: int) -> tuple[dict[str, tuple[float, i
     return ky_nang, alpha
 
 
-async def chay_mot_lo() -> int:
-    """Chay DS cho moi du an. Tra ve so (du an, cong cu) da tinh."""
+# Du an can tinh: so nhan hien tai khac so nhan da dung o lan tinh truoc (ds_state). tat_ca = bo qua dieu
+# kien (admin chay lai toan bo, vd sau khi doi quality.ds_min_labels).
+_SQL_DU_AN_CAN_TINH = text(
+    "SELECT p.project_id, p.label_schema FROM projects p "
+    "JOIN (SELECT project_id, count(*) AS n FROM labels WHERE labeler_id IS NOT NULL GROUP BY project_id) c "
+    "  ON c.project_id = p.project_id "
+    "LEFT JOIN ds_state st ON st.project_id = p.project_id "
+    "WHERE :tat_ca OR st.label_count IS DISTINCT FROM c.n"
+)
+
+
+async def chay_mot_lo(tat_ca: bool = False) -> int:
+    """Chay DS cho cac du an CO NHAN MOI (tat_ca=True: moi du an). Tra ve so (du an, cong cu) da tinh."""
     so = 0
     async with session_factory()() as s:
-        du_an = (await s.execute(text("SELECT project_id, label_schema FROM projects"))).all()
+        du_an = (await s.execute(_SQL_DU_AN_CAN_TINH, {"tat_ca": tat_ca})).all()
 
     for d in du_an:
         schema = d.label_schema if isinstance(d.label_schema, dict) else json.loads(d.label_schema)
@@ -139,6 +150,16 @@ async def chay_mot_lo() -> int:
         for labeler in anh_huong:
             async with session_factory()() as s, s.begin():
                 await cap_nhat_uy_tin(s, labeler, None)
+
+        # Ghi so nhan DA DOC (khong dem lai): nhan moi den trong luc tinh → so khac → lo sau tinh lai.
+        async with session_factory()() as s, s.begin():
+            await s.execute(
+                text(
+                    "INSERT INTO ds_state (project_id, label_count, computed_at) VALUES (:p, :n, now()) "
+                    "ON CONFLICT (project_id) DO UPDATE SET label_count = EXCLUDED.label_count, computed_at = now()"
+                ),
+                {"p": d.project_id, "n": len(nhan)},
+            )
 
     return so
 

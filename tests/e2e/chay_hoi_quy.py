@@ -45,6 +45,7 @@ ok &= chay("p2_cong_link_perClick", "e2e_p2.py")
 ok &= chay("modality", "e2e_modality.py")
 ok &= chay("ep_race_quality", "ep_race_quality.py")
 ok &= chay("dong_cho_chi", "e2e_dong_cho_chi.py")
+ok &= chay("kyb_thong_bao", "e2e_kyb_thong_bao.py")
 
 dat("ledger.gate_batch_interval", 2)
 dat("ledger.gate_payout_mode", "batched")
@@ -61,12 +62,16 @@ dlq = [(x["name"], x.get("messages", 0)) for x in q if x["name"].endswith(".dlq"
 print(f"  DLQ co tin: {dlq if dlq else 'khong (0 / ' + str(sum(1 for x in q if x['name'].endswith('.dlq'))) + ' hang DLQ)'}")
 ok &= not dlq
 ton = {}
-for db in ("identity", "project", "task", "annotation", "ledger", "payment", "link", "gate", "quality", "admin"):
+for db in ("identity", "project", "task", "annotation", "ledger", "payment", "link", "gate", "quality", "admin", "notification"):
     r = subprocess.run(["docker", "exec", sql_container(db), "psql", "-U", f"{db}_user", "-d", f"{db}_db", "-tAc",
                         "select count(*) from outbox where published_at is null"], capture_output=True, text=True)
     ton[db] = (r.stdout.strip() or r.stderr.strip()[:60])
 print("  outbox chua gui:", ton)
 ok &= all(v == "0" for v in ton.values())
+r = subprocess.run(["docker", "exec", sql_container("notification"), "psql", "-U", "notification_user", "-d", "notification_db",
+                    "-tAc", "select count(*) from notifications where email_state = 'Failed'"], capture_output=True, text=True)
+print("  email thong bao gui hong (Failed):", r.stdout.strip() or r.stderr.strip()[:60])
+ok &= r.stdout.strip() == "0"
 rec = requests.get(G + "/ledger/admin/reconciliation", headers=admin()).json()
 print("  doi soat so cai:", "LANH" if rec.get("healthy") else rec)
 ok &= rec.get("healthy") is True
