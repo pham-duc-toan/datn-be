@@ -922,6 +922,17 @@
     "description": "Kich thuoc toi da file giay phep kinh doanh (KYB)."
   },
   {
+    "key": "identity.refresh_token_cleanup_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 120,
+    "min": 60,
+    "max": 604800,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Chu ky xoa refresh token da het han."
+  },
+  {
     "key": "notification.email_enabled",
     "group": "Thong bao",
     "type": "bool",

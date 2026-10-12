@@ -1198,7 +1198,7 @@ Mọi con số nghiệp vụ (phí nền tảng, tự duyệt, hạn mức nạp
 GET /admin/settings
 → [ { "key": "fee.platform_percent", "group": "Phi va tien", "type": "int", "unit": "%",
       "min": 0, "max": 90, "effect": "newOperations", "description": "...",
-      "defaultValue": 30, "value": 30, "version": 1, "updatedAt": "...", "updatedBy": null, "choices": null }, ... ]   (114 mục)
+      "defaultValue": 30, "value": 30, "version": 1, "updatedAt": "...", "updatedBy": null, "choices": null }, ... ]   (115 mục)
 
 GET /admin/settings/{key}
 PUT /admin/settings/{key}   { "value": 20, "reason": "Khuyen mai thang 10" }   → SettingResponse (version + 1)

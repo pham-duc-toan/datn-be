@@ -11,6 +11,7 @@ using Crowd.Identity.Api.Persistence;
 using Crowd.Identity.Api.Seeding;
 using Crowd.Identity.Api.Services;
 using Crowd.Identity.Api.Settings;
+using Crowd.Identity.Api.Workers;
 using Crowd.Seeding;
 using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
@@ -67,6 +68,10 @@ namespace Crowd.Identity.Api
 
             // Nghiep vu dang ky/dang nhap. Scoped vi dung IdentityDbContext.
             builder.Services.AddScoped<AuthService>();
+
+            // Don refresh token het han (chay nen, chu ky theo setting).
+            builder.Services.AddScoped<RefreshTokenCleanupService>();
+            builder.Services.AddHostedService<RefreshTokenCleanupWorker>();
 
             // KYB (FB-01/02, FM-01): giay phep nam trong bucket PRIVATE kyb-docs (S-07).
             builder.Services.Configure<ObjectStorageOptions>(builder.Configuration.GetSection(ObjectStorageOptions.SectionName));

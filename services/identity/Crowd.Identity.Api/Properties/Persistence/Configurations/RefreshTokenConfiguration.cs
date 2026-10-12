@@ -33,6 +33,8 @@ namespace Crowd.Identity.Api.Persistence.Configurations
 
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
             builder.Property(x => x.ExpiresAt).HasColumnName("expires_at").IsRequired();
+            // RefreshTokenCleanupWorker xoa theo expires_at — khong co index thi moi lo quet ca bang.
+            builder.HasIndex(x => x.ExpiresAt).HasDatabaseName("ix_refresh_tokens_het_han");
             builder.Property(x => x.RevokedAt).HasColumnName("revoked_at");
             builder.Property(x => x.ReplacedById).HasColumnName("replaced_by_id");
         }

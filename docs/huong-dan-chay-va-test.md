@@ -898,7 +898,7 @@ curl -s -X PUT http://localhost:8080/admin/settings/quality.redundancy_policy -H
 
 ### 6.16 Setting hệ thống (admin): phí, tự duyệt, hạn mức
 
-Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (114 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
+Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (115 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
 
 ```bash
 # Toàn bộ setting: key, group, type, value, defaultValue, min, max, unit, effect, description, version

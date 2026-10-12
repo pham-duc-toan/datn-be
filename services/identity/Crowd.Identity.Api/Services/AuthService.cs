@@ -356,12 +356,16 @@ namespace Crowd.Identity.Api.Services
             };
         }
 
+        /// <summary>
+        /// Thu hoi moi token CON HAN cua ho. Token het han thi bo qua: thu hoi no vo nghia, va de
+        /// RefreshTokenCleanupService xoa dong het han ma khong tranh khoa voi luong nay.
+        /// </summary>
         private Task<int> ThuHoiCaHoAsync(Guid hoToken, DateTimeOffset luc, CancellationToken ct)
         {
             DateTimeOffset? thuHoiLuc = luc;
 
             return _db.RefreshTokens
-                .Where(t => t.FamilyId == hoToken && t.RevokedAt == null)
+                .Where(t => t.FamilyId == hoToken && t.RevokedAt == null && t.ExpiresAt > luc)
                 .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, thuHoiLuc), ct);
         }
     }

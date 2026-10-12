@@ -418,7 +418,8 @@ try:
     mine2 = requests.get(G + "/tasks/assignments/mine", headers=l2["h"]).json()
     t2 = next(x for x in mine2 if x["projectId"] == C)
     kiem("dang tam dung van NOP NOT duoc luot dang giu", nop(l1, t1["assignmentId"], "a").status_code == 200 and nop(l2, t2["assignmentId"], "b").status_code == 200)
-    j = cho(lambda: (lambda x: x.json() if "con_nhan_cho_duyet" in ly_do(x) else None)(dong(C)), 20)
+    # Cho ca 2 nhan toi annotation-svc: "con_nhan_cho_duyet" da hien khi moi co 1 nhan (kem nhan_chua_dong_bo).
+    j = cho(lambda: (lambda x: x.json() if "con_nhan_cho_duyet" in ly_do(x) and "nhan_chua_dong_bo" not in ly_do(x) else None)(dong(C)), 20)
     kiem("2 nhan cho duyet → 409 con_nhan_cho_duyet, kem so lieu", j is not None and j["closeCheck"]["pendingReview"] == 2, dong(C).text)
     nhan_c = [a for a in ds_nhan(biz, C) if a["status"] == "pendingReview"]
     x1 = next(a for a in nhan_c if a["labelerId"] == l1["id"])

@@ -117,9 +117,9 @@ namespace Crowd.Identity.Api.Services
             DateTimeOffset bayGio = _clock.GetUtcNow();
             if (u.Khoa(ly, bayGio))
             {
-                // Thu hoi moi phien dang nhap: refresh token khong con dung duoc.
+                // Thu hoi moi phien dang nhap CON HAN (dong het han de job don xoa — xem RefreshTokenCleanupService).
                 await _db.RefreshTokens
-                    .Where(t => t.UserId == userId && t.RevokedAt == null)
+                    .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > bayGio)
                     .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, bayGio), ct);
 
                 Phat(caller, new UserBlocked { UserId = userId, Reason = ly });

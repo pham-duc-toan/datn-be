@@ -101,6 +101,7 @@ namespace Crowd.BuildingBlocks.Settings
         public const string IdentityPasswordMinLength = "identity.password_min_length";
         public const string IdentityPasswordMaxLength = "identity.password_max_length";
         public const string IdentityKybFileMaxBytes = "identity.kyb_file_max_bytes";
+        public const string IdentityRefreshTokenCleanupInterval = "identity.refresh_token_cleanup_interval";
 
         // ---- Thong bao (notification-svc, FC-06) ----
         public const string NotificationEmailEnabled = "notification.email_enabled";
@@ -360,6 +361,8 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Int(SettingKeys.IdentityPasswordMaxLength, NhomTaiKhoan, 128, 16, 1024, "ky tu", "Do dai mat khau toi da."));
             ds.Add(Long(SettingKeys.IdentityKybFileMaxBytes, NhomTaiKhoan, 10 * MB, 100 * 1024, 50 * MB, "byte",
                 "Kich thuoc toi da file giay phep kinh doanh (KYB)."));
+            ds.Add(Seconds(SettingKeys.IdentityRefreshTokenCleanupInterval, NhomKyThuat, 120, 60, 7 * Ngay,
+                "Chu ky xoa refresh token da het han."));
 
             // ================= THONG BAO =================
             ds.Add(Bool(SettingKeys.NotificationEmailEnabled, NhomThongBao, true,

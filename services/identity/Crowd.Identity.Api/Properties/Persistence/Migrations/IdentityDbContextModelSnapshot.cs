@@ -213,6 +213,9 @@ namespace Crowd.Identity.Api.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_refresh_tokens_het_han");
+
                     b.HasIndex("FamilyId")
                         .HasDatabaseName("ix_refresh_tokens_family");
 
