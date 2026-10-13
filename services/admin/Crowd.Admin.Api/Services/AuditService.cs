@@ -1,0 +1,224 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
+using Crowd.Admin.Api.Dtos;
+using Crowd.Admin.Api.Entities;
+using Crowd.Admin.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace Crowd.Admin.Api.Services
+{
+    /// <summary>
+    /// Doc nhat ky audit (FP-06) va thong ke tong quan (FM-09) — deu tu bang audit_events, nen admin-svc
+    /// khong phai hoi service nao (khong vi pham luat "khong goi dong bo"). Thong ke chi co tu luc audit
+    /// bat dau ghi (AuditSince).
+    /// </summary>
+    public sealed class AuditService
+    {
+        public const int SoNgayToiDa = 366;
+        private static readonly TimeSpan LechVietNam = TimeSpan.FromHours(7);
+
+        private readonly AdminDbContext _db;
+        private readonly TimeProvider _clock;
+
+        public AuditService(AdminDbContext db, TimeProvider clock)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            if (clock == null)
+            {
+                throw new ArgumentNullException(nameof(clock));
+            }
+
+            _db = db;
+            _clock = clock;
+        }
+
+        /// <summary>Loc theo nguoi lam, loai event (khop dung hoac tien to "project."), chuoi thao tac, khoang thoi gian.</summary>
+        public async Task<AuditPageResponse> TraCuuAsync(
+            Guid? actorId, string? eventType, Guid? correlationId, DateTimeOffset? from, DateTimeOffset? to,
+            int page, int pageSize, CancellationToken ct)
+        {
+            int trang = page < 1 ? 1 : page;
+            int co = pageSize < 1 || pageSize > 100 ? 50 : pageSize;
+
+            IQueryable<AuditEvent> q = _db.AuditEvents.AsNoTracking();
+            if (actorId.HasValue)
+            {
+                Guid a = actorId.Value;
+                q = q.Where(x => x.ActorId == a);
+            }
+
+            if (!string.IsNullOrWhiteSpace(eventType))
+            {
+                string loai = eventType.Trim();
+                q = loai.EndsWith('.')
+                    ? q.Where(x => x.EventType.StartsWith(loai))
+                    : q.Where(x => x.EventType == loai);
+            }
+
+            if (correlationId.HasValue)
+            {
+                Guid c = correlationId.Value;
+                q = q.Where(x => x.CorrelationId == c);
+            }
+
+            if (from.HasValue)
+            {
+                DateTimeOffset tu = from.Value.ToUniversalTime();
+                q = q.Where(x => x.OccurredAt >= tu);
+            }
+
+            if (to.HasValue)
+            {
+                DateTimeOffset den = to.Value.ToUniversalTime();
+                q = q.Where(x => x.OccurredAt < den);
+            }
+
+            int tong = await q.CountAsync(ct);
+            List<AuditEvent> ds = await q.OrderByDescending(x => x.OccurredAt).ThenBy(x => x.EventId)
+                .Skip((trang - 1) * co).Take(co).ToListAsync(ct);
+
+            return new AuditPageResponse
+            {
+                Items = ds.Select(e => new AuditEventResponse
+                {
+                    EventId = e.EventId,
+                    EventType = e.EventType,
+                    Producer = e.Producer,
+                    OccurredAt = e.OccurredAt,
+                    CorrelationId = e.CorrelationId,
+                    CausationId = e.CausationId,
+                    ActorId = e.ActorId,
+                    ActorRole = e.ActorRole,
+                    Payload = JsonNode.Parse(e.PayloadJson),
+                }).ToList(),
+                Page = trang,
+                PageSize = co,
+                Total = tong,
+            };
+        }
+
+        /// <summary>Thong ke [from, to] theo ngay gio Viet Nam (mac dinh 30 ngay gan nhat).</summary>
+        public async Task<StatsOverviewResponse> TongQuanAsync(DateOnly? from, DateOnly? to, CancellationToken ct)
+        {
+            DateOnly homNay = DateOnly.FromDateTime(_clock.GetUtcNow().ToOffset(LechVietNam).DateTime);
+            DateOnly den = to ?? homNay;
+            DateOnly tu = from ?? den.AddDays(-29);
+            if (tu > den || den.DayNumber - tu.DayNumber + 1 > SoNgayToiDa)
+            {
+                throw new AdminException(400, "khoang_ngay_khong_hop_le", "from <= to, toi da " + SoNgayToiDa + " ngay.");
+            }
+
+            // Npgsql chi nhan DateTimeOffset UTC (offset 0): moc ngay gio Viet Nam doi ve UTC.
+            DateTimeOffset batDau = new DateTimeOffset(tu.ToDateTime(TimeOnly.MinValue), LechVietNam).ToUniversalTime();
+            DateTimeOffset ketThuc = new DateTimeOffset(den.AddDays(1).ToDateTime(TimeOnly.MinValue), LechVietNam).ToUniversalTime();
+
+            List<DongTheoLoai> theoLoai = await _db.Database.SqlQuery<DongTheoLoai>($@"
+                SELECT event_type AS ""Loai"", COUNT(*)::int AS ""So"",
+                       COALESCE(SUM(COALESCE((payload->>'amountVnd')::bigint, (payload->>'netAmountVnd')::bigint, 0)), 0)::bigint AS ""Tien"",
+                       COALESCE(SUM((payload->>'platformFeeVnd')::bigint), 0)::bigint AS ""Phi""
+                FROM audit_events
+                WHERE occurred_at >= {batDau} AND occurred_at < {ketThuc}
+                GROUP BY event_type").ToListAsync(ct);
+            Dictionary<string, DongTheoLoai> loai = theoLoai.ToDictionary(x => x.Loai, StringComparer.Ordinal);
+
+            List<DongTheoNgay> theoNgay = await _db.Database.SqlQuery<DongTheoNgay>($@"
+                SELECT (occurred_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS ""Ngay"", event_type AS ""Loai"", COUNT(*)::int AS ""So"",
+                       COALESCE(SUM((payload->>'amountVnd')::bigint), 0)::bigint AS ""Tien""
+                FROM audit_events
+                WHERE occurred_at >= {batDau} AND occurred_at < {ketThuc}
+                  AND event_type IN ('user.registered', 'annotation.submitted', 'annotation.approved', 'deposit.confirmed')
+                GROUP BY 1, 2").ToListAsync(ct);
+
+            List<StatsDay> ngay = new List<StatsDay>();
+            for (DateOnly d = tu; d <= den; d = d.AddDays(1))
+            {
+                DateOnly hom = d;
+                ngay.Add(new StatsDay
+                {
+                    Date = hom,
+                    NewUsers = DemNgay(theoNgay, hom, "user.registered"),
+                    AnnotationsSubmitted = DemNgay(theoNgay, hom, "annotation.submitted"),
+                    AnnotationsApproved = DemNgay(theoNgay, hom, "annotation.approved"),
+                    DepositsVnd = theoNgay.Where(x => x.Ngay == hom && x.Loai == "deposit.confirmed").Sum(x => x.Tien),
+                });
+            }
+
+            DateTimeOffset? batDauGhi = await _db.AuditEvents.AsNoTracking()
+                .OrderBy(x => x.OccurredAt).Select(x => (DateTimeOffset?)x.OccurredAt).FirstOrDefaultAsync(ct);
+
+            return new StatsOverviewResponse
+            {
+                From = tu,
+                To = den,
+                AuditSince = batDauGhi,
+                NewUsers = So(loai, "user.registered"),
+                BusinessesVerified = So(loai, "business.verified"),
+                ProjectsPublished = So(loai, "project.published"),
+                AnnotationsSubmitted = So(loai, "annotation.submitted"),
+                AnnotationsApproved = So(loai, "annotation.approved"),
+                AnnotationsRejected = So(loai, "annotation.rejected"),
+                DepositsVnd = Tien(loai, "deposit.confirmed"),
+                LabelerPayoutsVnd = Tien(loai, "annotation.approved"),
+                PlatformFeeVnd = Phi(loai, "annotation.approved"),
+                WithdrawalsVnd = Tien(loai, "payout.requested"),
+                DisputesOpened = So(loai, "dispute.opened"),
+                AccountsBlocked = So(loai, "user.blocked"),
+                FraudCasesConfirmed = So(loai, "fraud.case_confirmed"),
+                Daily = ngay,
+            };
+        }
+
+        private static int So(Dictionary<string, DongTheoLoai> loai, string ten)
+        {
+            DongTheoLoai? d;
+            return loai.TryGetValue(ten, out d) ? d.So : 0;
+        }
+
+        private static long Tien(Dictionary<string, DongTheoLoai> loai, string ten)
+        {
+            DongTheoLoai? d;
+            return loai.TryGetValue(ten, out d) ? d.Tien : 0;
+        }
+
+        private static long Phi(Dictionary<string, DongTheoLoai> loai, string ten)
+        {
+            DongTheoLoai? d;
+            return loai.TryGetValue(ten, out d) ? d.Phi : 0;
+        }
+
+        private static int DemNgay(List<DongTheoNgay> ds, DateOnly ngay, string loai)
+        {
+            return ds.Where(x => x.Ngay == ngay && x.Loai == loai).Sum(x => x.So);
+        }
+
+        private sealed class DongTheoLoai
+        {
+            public string Loai { get; set; } = string.Empty;
+
+            public int So { get; set; }
+
+            public long Tien { get; set; }
+
+            public long Phi { get; set; }
+        }
+
+        private sealed class DongTheoNgay
+        {
+            public DateOnly Ngay { get; set; }
+
+            public string Loai { get; set; } = string.Empty;
+
+            public int So { get; set; }
+
+            public long Tien { get; set; }
+        }
+    }
+}

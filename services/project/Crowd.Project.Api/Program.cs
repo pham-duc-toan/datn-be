@@ -48,6 +48,11 @@ builder.Services.AddEventConsumer<ProjectDbContext, EscrowRejected, EscrowReject
 // KYB: doanh nghiep da xac minh moi publish duoc (FB-02).
 builder.Services.AddEventConsumer<ProjectDbContext, BusinessVerified, BusinessVerifiedProcessor>(
     builder.Configuration, "project-svc.business-verified");
+// Xac thuc email (FC-01): chu du an chua xac thuc thi chua publish duoc.
+builder.Services.AddEventConsumer<ProjectDbContext, UserRegistered, UserRegisteredEmailProcessor>(
+    builder.Configuration, "project-svc.user-registered");
+builder.Services.AddEventConsumer<ProjectDbContext, UserEmailVerified, UserEmailVerifiedProcessor>(
+    builder.Configuration, "project-svc.user-email-verified");
 
 // ---- Kho anh MinIO ----
 builder.Services.Configure<ObjectStorageOptions>(builder.Configuration.GetSection(ObjectStorageOptions.SectionName));

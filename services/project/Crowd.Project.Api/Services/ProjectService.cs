@@ -442,6 +442,14 @@ namespace Crowd.Project.Api.Services
                     "Doanh nghiep chua duoc xac minh (KYB). Nop ho so tai /kyb/me va cho admin duyet truoc khi publish.");
             }
 
+            // FC-01: chu du an phai xac thuc email (ban sao tu user.registered / user.email_verified).
+            if (await _db.EmailStatuses.AnyAsync(e => e.UserId == duAn.OwnerId && !e.Verified, ct))
+            {
+                throw new RuleViolationException(
+                    "chua_xac_thuc_email",
+                    "Chua xac thuc email — bam link trong email truoc khi publish du an.");
+            }
+
             int soMau = await DemMauAsync(id, ct);
             int soVangTest = await DemVangTestAsync(id, ct);
 

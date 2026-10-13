@@ -44,6 +44,66 @@ namespace Crowd.Tasking.Api.Dtos
 
         /// <summary>Thu lao neu nhan duoc duyet, so nguyen dong.</summary>
         public required long UnitPriceVnd { get; init; }
+
+        /// <summary>Ban nhap da luu cua luot nay (FL-05) — cung hinh dang payload khi nop; null = chua luu.</summary>
+        public RawJson? Draft { get; init; }
+
+        public DateTimeOffset? DraftSavedAt { get; init; }
+    }
+
+    /// <summary>PUT /tasks/assignments/{id}/draft</summary>
+    public sealed class DraftRequest
+    {
+        /// <summary>Nhan dang lam do (JSON object) — chua kiem luat, kiem day du khi nop.</summary>
+        public JsonElement? Payload { get; init; }
+    }
+
+    public sealed class DraftResponse
+    {
+        public required Guid AssignmentId { get; init; }
+
+        public required DateTimeOffset DraftSavedAt { get; init; }
+    }
+
+    /// <summary>POST /tasks/assignments/{id}/report</summary>
+    public sealed class ReportTaskRequest
+    {
+        /// <summary>broken | inappropriate | unclear | other</summary>
+        public string? Reason { get; init; }
+
+        public string? Note { get; init; }
+    }
+
+    public sealed class TaskReportResponse
+    {
+        public required Guid Id { get; init; }
+
+        public required Guid TaskId { get; init; }
+
+        public required Guid SampleId { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        public required string Reason { get; init; }
+
+        public string? Note { get; init; }
+
+        /// <summary>open | dismissed | excluded</summary>
+        public required string State { get; init; }
+
+        public required DateTimeOffset CreatedAt { get; init; }
+
+        public DateTimeOffset? ResolvedAt { get; init; }
+
+        /// <summary>So labeler khac nhau da bao loi cung task (de chu du an thay muc do).</summary>
+        public required int ReportsOnTask { get; init; }
+    }
+
+    /// <summary>POST /tasks/reports/{id}/resolve</summary>
+    public sealed class ResolveReportRequest
+    {
+        /// <summary>dismiss (mau khong sao) | exclude (loai mau khoi du an)</summary>
+        public string? Action { get; init; }
     }
 
     public sealed class SubmitRequest
@@ -81,8 +141,17 @@ namespace Crowd.Tasking.Api.Dtos
 
         public required int Submissions { get; init; }
 
-        /// <summary>Tong so luot can = so task (tru vang) x redundancy.</summary>
+        /// <summary>Tong so luot can = so task (tru vang) x redundancy; task da huy chi tinh so da nop.</summary>
         public required int RequiredSubmissions { get; init; }
+
+        /// <summary>Task bi huy (du an huy, hoac mau bi loai vi bao loi FL-07).</summary>
+        public required int CancelledTasks { get; init; }
+
+        /// <summary>So luot nop trong 24 gio qua — toc do hien tai.</summary>
+        public required int SubmissionsLast24h { get; init; }
+
+        /// <summary>Uoc tinh xong (theo toc do 24 gio qua); null khi chua co luot nop nao trong 24 gio.</summary>
+        public DateTimeOffset? EstimatedCompletionAt { get; init; }
     }
 
     /// <summary>

@@ -18,6 +18,15 @@
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8101 }]
     },
     {
+      // identity-svc: ho so, ky nang, anh dai dien, doi mat khau, xac thuc email, cap do (/me/...).
+      "UpstreamPathTemplate": "/me/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post", "Put"],
+      "DownstreamPathTemplate": "/me/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8101 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
       // project-svc. Kiểm token NGAY Ở GATEWAY (lớp 1): token rác bị chặn ở biên,
       // không đi sâu vào trong. project-svc VẪN tự kiểm lại (lớp 2, VD-S-06).
       "UpstreamPathTemplate": "/projects",
@@ -38,11 +47,13 @@
     {
       // task-svc: mọi endpoint nằm dưới /tasks nên chỉ cần MỘT route.
       "UpstreamPathTemplate": "/tasks/{everything}",
-      "UpstreamHttpMethod": ["Get", "Post"],
+      "UpstreamHttpMethod": ["Get", "Post", "Put"],
       "DownstreamPathTemplate": "/tasks/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8103 }],
-      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] },
+      // IP that cua labeler (chong gian lan FM-07: nhieu tai khoan chung IP). X-Device-Id tu frontend di thang.
+      "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
     },
     {
       // link-svc: link rút gọn của người chia sẻ. KHÔNG chặn token ở gateway: API key (FS-05),
@@ -109,7 +120,7 @@
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {
-      // identity-svc: admin quản lý tài khoản — danh sách, khoá / mở khoá (FM-01).
+      // identity-svc: admin quản lý tài khoản (FM-01); hồ sơ công khai, bảng xếp hạng (FL-12).
       "UpstreamPathTemplate": "/users/{everything}",
       "UpstreamHttpMethod": ["Get", "Post"],
       "DownstreamPathTemplate": "/users/{everything}",

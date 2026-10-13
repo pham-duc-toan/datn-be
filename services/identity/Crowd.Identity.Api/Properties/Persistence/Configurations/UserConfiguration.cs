@@ -40,6 +40,18 @@ namespace Crowd.Identity.Api.Persistence.Configurations
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
             builder.Property(x => x.BlockedAt).HasColumnName("blocked_at");
             builder.Property(x => x.BlockedReason).HasColumnName("blocked_reason").HasMaxLength(1000);
+            builder.Property(x => x.EmailVerifiedAt).HasColumnName("email_verified_at");
+            builder.Property(x => x.Bio).HasColumnName("bio").HasMaxLength(500);
+            builder.Property(x => x.AvatarKey).HasColumnName("avatar_key").HasMaxLength(300);
+
+            // Ky nang (FL-01): ba mang text[] giong roles.
+            builder.Ignore(x => x.Domains);
+            builder.Ignore(x => x.Languages);
+            builder.Ignore(x => x.Modalities);
+            builder.Ignore(x => x.DaXacThucEmail);
+            builder.Property<List<string>>("_domains").HasColumnName("skill_domains").IsRequired();
+            builder.Property<List<string>>("_languages").HasColumnName("skill_languages").IsRequired();
+            builder.Property<List<string>>("_modalities").HasColumnName("skill_modalities").IsRequired();
 
             // Roles la thuoc tinh CHI DOC; thu that su luu xuong database la
             // truong private _roles. Postgres luu thanh mang text[].

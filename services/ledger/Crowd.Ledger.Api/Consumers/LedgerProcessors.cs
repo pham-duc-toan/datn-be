@@ -236,22 +236,15 @@ namespace Crowd.Ledger.Api.Consumers
     public sealed class UserBlockedProcessor : IEventProcessor<UserBlocked>
     {
         private readonly LedgerDbContext _db;
-        private readonly TimeProvider _clock;
 
-        public UserBlockedProcessor(LedgerDbContext db, TimeProvider clock)
+        public UserBlockedProcessor(LedgerDbContext db)
         {
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
             }
 
-            if (clock == null)
-            {
-                throw new ArgumentNullException(nameof(clock));
-            }
-
             _db = db;
-            _clock = clock;
         }
 
         public async Task XuLyAsync(EventEnvelope<UserBlocked> envelope, CancellationToken ct)
@@ -261,11 +254,117 @@ namespace Crowd.Ledger.Api.Consumers
                 throw new ArgumentNullException(nameof(envelope));
             }
 
-            Guid uid = envelope.Payload.UserId;
-            if (!await _db.BlockedUsers.AnyAsync(b => b.UserId == uid, ct))
+            BlockedUser b = await TrangThaiNguoiDung.LayKhoaAsync(_db, envelope.Payload.UserId, ct);
+            b.Khoa(envelope.OccurredAt);
+        }
+    }
+
+    /// <summary>user.unblocked (identity): rut tien lai duoc.</summary>
+    public sealed class UserUnblockedProcessor : IEventProcessor<UserUnblocked>
+    {
+        private readonly LedgerDbContext _db;
+
+        public UserUnblockedProcessor(LedgerDbContext db)
+        {
+            if (db == null)
             {
-                _db.BlockedUsers.Add(BlockedUser.Tao(uid, _clock.GetUtcNow()));
+                throw new ArgumentNullException(nameof(db));
             }
+
+            _db = db;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<UserUnblocked> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            BlockedUser b = await TrangThaiNguoiDung.LayKhoaAsync(_db, envelope.Payload.UserId, ct);
+            b.MoKhoa(envelope.OccurredAt);
+        }
+    }
+
+    /// <summary>
+    /// user.registered (identity): tai khoan moi CHUA xac thuc email → chua rut tien duoc (FC-01).
+    /// Da co dong (vd user.email_verified den truoc) thi giu nguyen.
+    /// </summary>
+    public sealed class UserRegisteredEmailProcessor : IEventProcessor<UserRegistered>
+    {
+        private readonly LedgerDbContext _db;
+
+        public UserRegisteredEmailProcessor(LedgerDbContext db)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            _db = db;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<UserRegistered> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            Guid uid = envelope.Payload.UserId;
+            if (!await _db.EmailStatuses.AnyAsync(e => e.UserId == uid, ct))
+            {
+                _db.EmailStatuses.Add(EmailStatus.ChuaXacThuc(uid));
+            }
+        }
+    }
+
+    /// <summary>user.email_verified (identity): da xac thuc → rut tien duoc.</summary>
+    public sealed class UserEmailVerifiedProcessor : IEventProcessor<UserEmailVerified>
+    {
+        private readonly LedgerDbContext _db;
+
+        public UserEmailVerifiedProcessor(LedgerDbContext db)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            _db = db;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<UserEmailVerified> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            Guid uid = envelope.Payload.UserId;
+            EmailStatus? e = await _db.EmailStatuses.FirstOrDefaultAsync(x => x.UserId == uid, ct);
+            if (e == null)
+            {
+                e = EmailStatus.ChuaXacThuc(uid);
+                _db.EmailStatuses.Add(e);
+            }
+
+            e.XacThuc();
+        }
+    }
+
+    internal static class TrangThaiNguoiDung
+    {
+        public static async Task<BlockedUser> LayKhoaAsync(LedgerDbContext db, Guid userId, CancellationToken ct)
+        {
+            BlockedUser? b = await db.BlockedUsers.FirstOrDefaultAsync(x => x.UserId == userId, ct);
+            if (b == null)
+            {
+                b = BlockedUser.Tao(userId);
+                db.BlockedUsers.Add(b);
+            }
+
+            return b;
         }
     }
 

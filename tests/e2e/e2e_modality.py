@@ -62,12 +62,17 @@ def tha(h, aid):
 
 
 def du_an_seed(ten_chua):
-    r = requests.get(G + "/projects?mine=true&pageSize=100", headers=biz1).json()
-    items = r["items"] if isinstance(r, dict) else r
-    for p in items:
-        if p["name"].startswith("[Seed]") and ten_chua in p["name"]:
-            return p
-    raise Exception("khong thay du an " + ten_chua)
+    # Duyet het cac trang: E2E chay nhieu lan → doanh nghiep seed co hon 100 du an, du an seed (cu nhat) o trang sau.
+    trang = 1
+    while True:
+        r = requests.get(G + "/projects?mine=true&pageSize=100&page=%d" % trang, headers=biz1).json()
+        items = r["items"] if isinstance(r, dict) else r
+        for p in items:
+            if p["name"].startswith("[Seed]") and ten_chua in p["name"]:
+                return p
+        if len(items) < 100:
+            raise Exception("khong thay du an " + ten_chua)
+        trang += 1
 
 
 # =====================================================================

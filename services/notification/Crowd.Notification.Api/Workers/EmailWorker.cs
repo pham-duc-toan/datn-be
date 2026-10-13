@@ -73,7 +73,14 @@ namespace Crowd.Notification.Api.Workers
                 {
                     if (_settings.DungSai(SettingKeys.NotificationEmailEnabled))
                     {
+                        // Email giao dich (link xac thuc / dat lai mat khau) truoc: nguoi dung dang doi.
                         int so;
+                        do
+                        {
+                            so = await MotLoGiaoDichAsync(stoppingToken);
+                        }
+                        while (so >= _settings.SoNguyen(SettingKeys.NotificationEmailBatchSize));
+
                         do
                         {
                             so = await MotLoAsync(stoppingToken);
@@ -128,6 +135,54 @@ namespace Crowd.Notification.Api.Workers
                         foreach (ThongBao t in lo)
                         {
                             await GuiMotAsync(t, lienHe, tu, toiDa, ct);
+                        }
+                    }
+
+                    await db.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
+                    return lo.Count;
+                }
+                finally
+                {
+                    await tx.DisposeAsync();
+                }
+            }
+        }
+
+        /// <summary>Mot lo email giao dich — cung cach khoa (SKIP LOCKED) va thu lai nhu thong bao.</summary>
+        private async Task<int> MotLoGiaoDichAsync(CancellationToken ct)
+        {
+            using (IServiceScope scope = _scopeFactory.CreateScope())
+            {
+                NotificationDbContext db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+                var tx = await db.Database.BeginTransactionAsync(ct);
+                try
+                {
+                    DateTimeOffset bayGio = _clock.GetUtcNow();
+                    List<EmailGiaoDich> lo = await db.EmailGiaoDichs
+                        .FromSqlRaw(
+                            "SELECT * FROM transactional_emails WHERE state = 'Pending' AND next_at <= {0} " +
+                            "ORDER BY next_at LIMIT {1} FOR UPDATE SKIP LOCKED",
+                            bayGio, _settings.SoNguyen(SettingKeys.NotificationEmailBatchSize))
+                        .ToListAsync(ct);
+
+                    string tu = _settings.Chuoi(SettingKeys.NotificationEmailFrom);
+                    int toiDa = _settings.SoNguyen(SettingKeys.NotificationEmailMaxAttempts);
+                    foreach (EmailGiaoDich e in lo)
+                    {
+                        try
+                        {
+                            await _email.GuiAsync(tu, e.ToEmail, e.DisplayName, e.Subject, e.Body, ct);
+                            e.DaGui(_clock.GetUtcNow());
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            e.GuiLoi(ex.GetType().Name + ": " + ex.Message, toiDa, _clock.GetUtcNow());
+                            _logger.LogWarning("Gui email giao dich {Id} loi lan {Lan}: {Loi}", e.Id, e.Attempts, ex.Message);
                         }
                     }
 

@@ -1,6 +1,9 @@
 using System;
+using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.Gateway.Api.Middlewares;
+using Crowd.Gateway.Api.RateLimiting;
+using Crowd.Gateway.Api.Sessions;
 using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -41,6 +44,17 @@ builder.Services.AddCrowdJwtAuthentication(builder.Configuration);
 // bo nho, nghe setting.changed qua mot queue tam (vd tran upload dataset.zip_max_bytes).
 builder.Services.AddCrowdSettingsInMemory(builder.Configuration, "gateway");
 
+// Thu hoi phien tuc thi (VD-S-11): moc thu hoi trong bo nho, nap tu identity + nghe user.sessions_revoked.
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.Configure<ThuHoiPhienOptions>(builder.Configuration.GetSection(ThuHoiPhienOptions.SectionName));
+builder.Services.AddCrowdInternalApi(builder.Configuration);
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<ThuHoiPhienStore>();
+builder.Services.AddHostedService<ThuHoiPhienListener>();
+
+// Gioi han tan suat (VD-S-12), han muc la setting he thong.
+builder.Services.AddGioiHanTanSuat();
+
 builder.Services.AddOcelot(builder.Configuration);
 
 WebApplication app = builder.Build();
@@ -50,6 +64,10 @@ app.UseCors("frontend");
 
 // Chay TRUOC Ocelot: gan correlationId roi moi chuyen tiep.
 app.UseMiddleware<CorrelationIdMiddleware>();
+
+// Gioi han tan suat roi chan token da thu hoi — ca hai truoc khi request toi bat ky service nao.
+app.UseRateLimiter();
+app.UseMiddleware<ThuHoiPhienMiddleware>();
 
 // Nang tran body chi cho endpoint upload dataset.
 app.UseMiddleware<UploadLimitMiddleware>();

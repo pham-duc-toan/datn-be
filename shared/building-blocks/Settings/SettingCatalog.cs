@@ -71,6 +71,7 @@ namespace Crowd.BuildingBlocks.Settings
         // ---- Gan nhan, duyet ----
         public const string TaskLeaseDuration = "task.lease_duration";
         public const string TaskReaperInterval = "task.reaper_interval";
+        public const string TaskReportAutoExclude = "task.report_auto_exclude";
         public const string TaskReaperBatchSize = "task.reaper_batch_size";
         public const string TaskLeaseRetryCount = "task.lease_retry_count";
         public const string TaskLeaseRetryDelay = "task.lease_retry_delay";
@@ -78,10 +79,22 @@ namespace Crowd.BuildingBlocks.Settings
         public const string AnnotationAppealWindow = "annotation.appeal_window";
         public const string AnnotationReasonMaxLength = "annotation.reason_max_length";
         public const string AnnotationBulkApproveMax = "annotation.bulk_approve_max";
+        public const string AnnotationImbalanceThresholdPercent = "annotation.imbalance_threshold_percent";
+        public const string AnnotationImbalanceMinLabels = "annotation.imbalance_min_labels";
         public const string AnnotationAutoApproveAgreed = "annotation.auto_approve_agreed";
 
         // ---- Chat luong ----
         public const string QualityDsInterval = "quality.ds_interval";
+        public const string QualityFraudEnabled = "quality.fraud_enabled";
+        public const string QualityFraudMinSeconds = "quality.fraud_min_seconds";
+        public const string QualityFraudFastRatio = "quality.fraud_fast_ratio";
+        public const string QualityFraudFastWindow = "quality.fraud_fast_window";
+        public const string QualityFraudFastFraction = "quality.fraud_fast_fraction";
+        public const string QualityFraudSameLabelStreak = "quality.fraud_same_label_streak";
+        public const string QualityFraudSharedAccounts = "quality.fraud_shared_accounts";
+        public const string QualityFraudSharedWindow = "quality.fraud_shared_window";
+        public const string QualityFraudIgnorePrivateIps = "quality.fraud_ignore_private_ips";
+        public const string QualityFraudReopenCooldown = "quality.fraud_reopen_cooldown";
         public const string QualityDsMinLabels = "quality.ds_min_labels";
         public const string QualityReputationGoldWeight = "quality.reputation_gold_weight";
         public const string QualityReputationPrior = "quality.reputation_prior";
@@ -102,6 +115,20 @@ namespace Crowd.BuildingBlocks.Settings
         public const string IdentityPasswordMaxLength = "identity.password_max_length";
         public const string IdentityKybFileMaxBytes = "identity.kyb_file_max_bytes";
         public const string IdentityRefreshTokenCleanupInterval = "identity.refresh_token_cleanup_interval";
+        public const string IdentityFrontendUrl = "identity.frontend_url";
+        public const string IdentityEmailVerifyTtl = "identity.email_verify_ttl";
+        public const string IdentityPasswordResetTtl = "identity.password_reset_ttl";
+        public const string IdentityAvatarMaxBytes = "identity.avatar_max_bytes";
+        public const string IdentityLevelRules = "identity.level_rules";
+
+        // ---- Admin: nhat ky audit (FP-06 / VD-S-10), thong ke (FM-09) ----
+        public const string AdminAuditExcludedTypes = "admin.audit_excluded_types";
+        public const string AdminAuditRetentionDays = "admin.audit_retention_days";
+
+        // ---- Gateway: gioi han tan suat (VD-S-12) ----
+        public const string GatewayRateLimitPerMinute = "gateway.rate_limit_per_minute";
+        public const string GatewayRateLimitAuthPerMinute = "gateway.rate_limit_auth_per_minute";
+        public const string GatewayRateLimitMoneyPerMinute = "gateway.rate_limit_money_per_minute";
 
         // ---- Thong bao (notification-svc, FC-06) ----
         public const string NotificationEmailEnabled = "notification.email_enabled";
@@ -312,6 +339,8 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Seconds(SettingKeys.TaskLeaseDuration, NhomGanNhan, 15 * 60, 30, Ngay,
                 "Labeler giu mot task bao lau; qua han task ve hang doi cho nguoi khac."));
             ds.Add(Seconds(SettingKeys.TaskReaperInterval, NhomKyThuat, 30, 1, 3600, "Chu ky quet lease qua han."));
+            ds.Add(Int(SettingKeys.TaskReportAutoExclude, NhomDuAn, 3, 1, 100, "nguoi",
+                "Bao nhieu labeler khac nhau bao loi cung mot mau thi tu loai mau do khoi du an (FL-07)."));
             ds.Add(Int(SettingKeys.TaskReaperBatchSize, NhomKyThuat, 200, 1, 10000, "lease", "So lease qua han reaper khoa va tra ve pool moi lo."));
             ds.Add(Int(SettingKeys.TaskLeaseRetryCount, NhomKyThuat, 5, 0, 100, "lan",
                 "So lan thu lai khi khong khoa duoc task nao trong luc van con ung vien."));
@@ -325,9 +354,34 @@ namespace Crowd.BuildingBlocks.Settings
                 "Do dai ly do tu choi / khieu nai (cot DB toi da 1000)."));
             ds.Add(Int(SettingKeys.AnnotationBulkApproveMax, NhomGanNhan, 500, 1, 100000, "nhan",
                 "So nhan toi da moi lan duyet hang loat."));
+            ds.Add(Int(SettingKeys.AnnotationImbalanceThresholdPercent, NhomGanNhan, 80, 50, 99, "%",
+                "Canh bao lech phan bo (FB-24) khi mot lop chiem tren bay nhieu phan tram so nhan cua cong cu."));
+            ds.Add(Int(SettingKeys.AnnotationImbalanceMinLabels, NhomGanNhan, 20, 1, 100000, "nhan",
+                "Cong cu can it nhat bay nhieu nhan moi bat dau canh bao lech phan bo."));
 
             // ================= CHAT LUONG =================
             ds.Add(Seconds(SettingKeys.QualityDsInterval, NhomChatLuong, 900, 10, 7 * Ngay, "Chu ky chay lo Dawid-Skene."));
+
+            // Chong gian lan (FM-07) — quality-svc mo ho so nghi van, admin quyet dinh.
+            ds.Add(Bool(SettingKeys.QualityFraudEnabled, NhomChatLuong, true, "Bat phat hien gian lan (tat thi khong mo ho so moi)."));
+            ds.Add(Double(SettingKeys.QualityFraudMinSeconds, NhomChatLuong, 2, 0, 600, "giay",
+                "Lam mot task duoi bay nhieu giay luon bi coi la qua nhanh."));
+            ds.Add(Double(SettingKeys.QualityFraudFastRatio, NhomChatLuong, 0.25, 0, 1, "lan",
+                "Hoac nhanh hon ti le nay nhan voi thoi gian trung vi cua du an."));
+            ds.Add(Int(SettingKeys.QualityFraudFastWindow, NhomChatLuong, 20, 3, 1000, "luot",
+                "So luot nop gan nhat cua labeler trong du an de xet lam qua nhanh."));
+            ds.Add(Double(SettingKeys.QualityFraudFastFraction, NhomChatLuong, 0.5, 0.1, 1, "ti le",
+                "Ti le luot qua nhanh trong cua so tren de mo ho so."));
+            ds.Add(Int(SettingKeys.QualityFraudSameLabelStreak, NhomChatLuong, 30, 3, 10000, "luot",
+                "Chon cung mot lop bay nhieu luot lien tiep (trong khi nguoi khac chon da dang) thi mo ho so."));
+            ds.Add(Int(SettingKeys.QualityFraudSharedAccounts, NhomChatLuong, 3, 2, 1000, "tai khoan",
+                "Bay nhieu tai khoan khac nhau nop tu cung IP / thiet bi trong khoang thoi gian duoi thi mo ho so."));
+            ds.Add(Seconds(SettingKeys.QualityFraudSharedWindow, NhomChatLuong, Ngay, 60, 30 * Ngay,
+                "Khoang thoi gian xet chung IP / thiet bi."));
+            ds.Add(Bool(SettingKeys.QualityFraudIgnorePrivateIps, NhomChatLuong, true,
+                "Bo qua IP noi bo / loopback khi xet chung IP (moi truong dev, mang cong ty dung chung NAT)."));
+            ds.Add(Seconds(SettingKeys.QualityFraudReopenCooldown, NhomChatLuong, 7 * Ngay, 0, 365 * Ngay,
+                "Ho so da xu ly (bo qua / xac nhan) thi khong mo lai cung khoa trong khoang nay."));
             ds.Add(Int(SettingKeys.QualityDsMinLabels, NhomChatLuong, 5, 1, 10000, "nhan",
                 "Labeler can toi thieu bao nhieu nhan trong du an thi moi cham do tin cay Dawid-Skene."));
             ds.Add(Double(SettingKeys.QualityReputationGoldWeight, NhomChatLuong, 0.6, 0, 1, "",
@@ -363,6 +417,27 @@ namespace Crowd.BuildingBlocks.Settings
                 "Kich thuoc toi da file giay phep kinh doanh (KYB)."));
             ds.Add(Seconds(SettingKeys.IdentityRefreshTokenCleanupInterval, NhomKyThuat, 120, 60, 7 * Ngay,
                 "Chu ky xoa refresh token da het han."));
+            ds.Add(Text(SettingKeys.IdentityFrontendUrl, NhomTaiKhoan, "http://localhost:5173", 300,
+                "Dia chi frontend — dung de dung link trong email xac thuc / dat lai mat khau."));
+            ds.Add(Seconds(SettingKeys.IdentityEmailVerifyTtl, NhomTaiKhoan, Ngay, 600, 30 * Ngay, "Link xac thuc email song bao lau."));
+            ds.Add(Seconds(SettingKeys.IdentityPasswordResetTtl, NhomTaiKhoan, 30 * 60, 300, Ngay, "Link dat lai mat khau song bao lau."));
+            ds.Add(Long(SettingKeys.IdentityAvatarMaxBytes, NhomTaiKhoan, 2 * MB, 50 * 1024, 20 * MB, "byte", "Kich thuoc toi da anh dai dien."));
+            ds.Add(Text(SettingKeys.IdentityLevelRules, NhomTaiKhoan, "2=50/50;3=200/65;4=1000/75;5=5000/85", 200,
+                "Dieu kien len cap: cap=so nhan duoc duyet/uy tin toi thieu, ngan cach bang ';'. Sai dinh dang thi dung mac dinh."));
+
+            // ================= ADMIN =================
+            ds.Add(Text(SettingKeys.AdminAuditExcludedTypes, NhomKyThuat, "gate.solved,click.validated,settings.snapshot", 1000,
+                "Loai event KHONG ghi vao nhat ky audit (luu luong lon, khong phai thao tac quan tri), ngan cach bang dau phay."));
+            ds.Add(Int(SettingKeys.AdminAuditRetentionDays, NhomKyThuat, 365, 7, 3650, "ngay",
+                "Giu nhat ky audit bao nhieu ngay."));
+
+            // ================= GATEWAY =================
+            ds.Add(Int(SettingKeys.GatewayRateLimitPerMinute, NhomKyThuat, 600, 10, 1000000, "request/phut",
+                "Moi nguoi dung (hoac moi IP neu chua dang nhap) duoc goi toi da bay nhieu request moi phut."));
+            ds.Add(Int(SettingKeys.GatewayRateLimitAuthPerMinute, NhomKyThuat, 20, 1, 1000000, "request/phut",
+                "Moi IP: dang nhap / dang ky / quen mat khau / dat lai mat khau / xac thuc email toi da bay nhieu lan moi phut."));
+            ds.Add(Int(SettingKeys.GatewayRateLimitMoneyPerMinute, NhomKyThuat, 30, 1, 1000000, "request/phut",
+                "Moi nguoi dung: tao lenh nap tien / rut tien toi da bay nhieu lan moi phut."));
 
             // ================= THONG BAO =================
             ds.Add(Bool(SettingKeys.NotificationEmailEnabled, NhomThongBao, true,

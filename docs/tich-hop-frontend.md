@@ -22,6 +22,7 @@ Mục lục:
 12. [Cổng link: người chia sẻ và trang vượt link](#12-cổng-link-người-chia-sẻ-và-trang-vượt-link)
 13. [Xác minh doanh nghiệp (KYB)](#13-xác-minh-doanh-nghiệp-kyb)
 14. [Thông báo trong ứng dụng và email](#14-thông-báo-trong-ứng-dụng-và-email)
+15. [Hồ sơ, kỹ năng, cấp độ, bảng xếp hạng](#15-hồ-sơ-kỹ-năng-cấp-độ-bảng-xếp-hạng)
 
 ---
 
@@ -39,6 +40,8 @@ Mục lục:
 | Phân trang | Query `page` (từ 1) và `pageSize` (1–100, mặc định 20). Response: `{ "items": [...], "page", "pageSize", "total" }` |
 | Xác thực | Header `Authorization: Bearer <accessToken>` cho mọi API trừ `/auth/*` |
 | Idempotency | Hai API tiền bắt buộc header `Idempotency-Key` (mục 4.1, 5.7) |
+| Mã thiết bị | Workspace gán nhãn nên gửi header `X-Device-Id: <uuid>` khi nộp nhãn — sinh một lần, lưu `localStorage`. Dùng cho chống gian lận (nhiều tài khoản một máy); không gửi vẫn nộp được |
+| Giới hạn tần suất | Gateway đếm theo phút: mọi API 600 lần / người dùng (chưa đăng nhập: theo IP); đăng nhập / đăng ký / quên – đặt lại mật khẩu / xác thực email 20 lần / IP; tạo lệnh nạp / rút 30 lần. Vượt → **429** (mục bảng mã HTTP) |
 
 **Lỗi** trả dạng ProblemDetails, luôn có trường `code` ổn định để frontend dịch sang câu thông báo:
 
@@ -67,6 +70,8 @@ Mục lục:
 | 403 | **Sai vai trò** (ví dụ labeler gọi API của admin) hoặc chưa đủ điều kiện (mục 5.2) | Hiện lý do theo `code` |
 | 404 | Không tồn tại **hoặc không có quyền với tài nguyên đó** | Hiện "không tìm thấy". Backend cố ý không phân biệt hai trường hợp để không lộ tài nguyên của người khác |
 | 409 | Trạng thái không cho phép (ví dụ publish dự án đang chạy, duyệt nhãn đã duyệt) hoặc hai người sửa cùng lúc (`xung_dot_dong_thoi`) | Tải lại dữ liệu rồi cho người dùng thao tác lại |
+| 401 `phien_da_bi_thu_hoi` | Phiên đã bị thu hồi: đổi / đặt lại mật khẩu, "đăng xuất mọi nơi", hoặc bị khoá (mục 2.6) | **Không** refresh (refresh token cũng đã bị thu hồi) — xoá token, về trang đăng nhập |
+| 429 `qua_nhieu_yeu_cau` | Vượt giới hạn tần suất | Đọc header `Retry-After` (giây), khoá nút và thử lại sau từng ấy giây. Không thử lại liên tục |
 
 ---
 
@@ -78,9 +83,11 @@ Mục lục:
 POST /auth/register
 { "email": "a@b.com", "password": "toi-thieu-8-ky-tu", "displayName": "Nguyen Van A", "roles": ["labeler"] }
 → 201 { "userId": "..." }
-→ 409 { "error": "Email da duoc dang ky." }
-→ 400 ValidationProblemDetails
+→ 409 email_da_ton_tai
+→ 400 ValidationProblemDetails (code du_lieu_khong_hop_le)
 ```
+
+Đăng ký xong hệ thống gửi **email xác thực** (mục 2.4). Chưa xác thực vẫn đăng nhập và dùng bình thường, chỉ **chưa rút tiền và chưa publish dự án được**.
 
 - `roles`: một hoặc nhiều trong `business`, `labeler`, `sharer`. Không tự đăng ký được `admin`.
 - Mật khẩu 8–128 ký tự. Tên hiển thị tối đa 100 ký tự.
@@ -89,8 +96,8 @@ POST /auth/register
 POST /auth/login
 { "email": "a@b.com", "password": "..." }
 → 200 { "accessToken": "...", "refreshToken": "...", "tokenType": "Bearer", "expiresIn": 900 }
-→ 401 (sai email hoặc mật khẩu — thông báo chung, không nói sai cái nào)
-→ 403 tài khoản bị khóa (admin khoá, mục 7.4) — hiện "Tài khoản đã bị khoá, liên hệ quản trị viên"
+→ 401 sai_thong_tin (sai email hoặc mật khẩu — thông báo chung, không nói sai cái nào)
+→ 403 tai_khoan_bi_khoa (admin khoá, mục 7.4) — hiện "Tài khoản đã bị khoá, liên hệ quản trị viên"
 ```
 
 ### 2.2 Người dùng hiện tại
@@ -110,7 +117,7 @@ Dùng `roles` để chọn giao diện. Một tài khoản có thể có nhiều
 | `refreshToken` | 14 ngày | **Dùng một lần**: mỗi lần làm mới trả cặp token mới, token cũ hết hiệu lực |
 
 ```http
-POST /auth/refresh   { "refreshToken": "..." }   → 200 cặp token mới | 401 (kể cả khi tài khoản vừa bị khoá)
+POST /auth/refresh   { "refreshToken": "..." }   → 200 cặp token mới | 401 phien_khong_hop_le (kể cả khi tài khoản vừa bị khoá)
 POST /auth/logout    { "refreshToken": "..." }   → 204 (luôn 204)
 ```
 
@@ -118,6 +125,54 @@ Cách làm khuyến nghị:
 
 - Gặp 401 thì gọi `/auth/refresh` **một lần duy nhất** (khóa lại để nhiều request song song không cùng làm mới), lưu cặp mới, rồi gọi lại request cũ. Refresh cũng 401 thì đưa về trang đăng nhập.
 - **Không dùng lại refresh token cũ.** Backend coi việc dùng lại một token đã xoay là dấu hiệu bị đánh cắp và thu hồi **cả họ token**: mọi tab/thiết bị đang dùng họ đó phải đăng nhập lại. Hai tab cùng làm mới bằng một token cũng gây ra chuyện này, nên đồng bộ token giữa các tab (ví dụ BroadcastChannel).
+- 401 có `code: "phien_da_bi_thu_hoi"` thì **bỏ qua bước refresh**, đưa thẳng về trang đăng nhập (mục 2.6).
+
+### 2.4 Xác thực email
+
+Email chứa link `{frontend}/xac-thuc-email?token=...` (sống 1 ngày). Trang này đọc `token` trên URL rồi gọi:
+
+```http
+POST /auth/verify-email   { "token": "..." }      (không cần đăng nhập)
+→ 200 { "emailVerified": true }
+→ 400 ma_khong_hop_le   (sai / đã dùng / hết hạn — cho nút "Gửi lại email")
+
+POST /me/verify-email/resend                     (đã đăng nhập)
+→ 202 | 409 da_xac_thuc | 409 gui_qua_nhanh (cách lần trước < 60 giây)
+```
+
+- `GET /me/profile` có `emailVerified` — hiện thanh nhắc "Xác thực email để rút tiền / publish dự án" khi `false`.
+- Sau khi xác thực, rút tiền / publish hết trả 409 `chua_xac_thuc_email` sau khoảng 1 giây (mục 8).
+- Domain trang frontend lấy từ setting `identity.frontend_url` (mặc định `http://localhost:5173`).
+
+### 2.5 Quên, đặt lại, đổi mật khẩu
+
+```http
+POST /auth/forgot-password   { "email": "a@b.com" }                      → 202 (LUÔN 202, kể cả email không tồn tại)
+POST /auth/reset-password    { "token": "...", "newPassword": "..." }    → 204 | 400 ma_khong_hop_le | 400 mat_khau_khong_hop_le
+POST /me/password            { "currentPassword": "...", "newPassword": "..." }
+→ 200 cặp token mới (giống đăng nhập) | 400 mat_khau_hien_tai_sai | 400 mat_khau_khong_hop_le
+```
+
+- Link trong email: `{frontend}/dat-lai-mat-khau?token=...`, sống 30 phút, dùng một lần. Đặt lại xong → về trang đăng nhập. Đặt lại qua email cũng coi như đã xác thực email.
+- Quên mật khẩu luôn 202: hiện "Nếu email có tài khoản, bạn sẽ nhận được link" — không báo email có tồn tại hay không.
+- Đặt lại / đổi mật khẩu **đăng xuất mọi thiết bị khác** (mục 2.6). Đổi mật khẩu trả cặp token mới cho chính thiết bị đang dùng: **thay token ngay**, token cũ bị chặn.
+
+### 2.6 Đăng xuất mọi nơi và thu hồi phiên
+
+```http
+POST /me/logout-all   → 204
+```
+
+Sau các sự kiện dưới đây, **mọi access token cấp trước đó** bị gateway trả 401 `phien_da_bi_thu_hoi` (chậm nhất vài trăm ms), và mọi refresh token bị thu hồi:
+
+| Sự kiện | Thiết bị đang dùng |
+|---|---|
+| `POST /me/logout-all` | Cũng bị đăng xuất |
+| `POST /me/password` | Dùng cặp token mới trong response |
+| `POST /auth/reset-password` | Đăng nhập lại |
+| Admin khoá tài khoản (mục 7.4) | Đăng nhập trả 403 `tai_khoan_bi_khoa` |
+
+Lưu ý: mốc thu hồi tính theo **giây** — token cấp trong cùng giây với mốc cũng bị chặn; gặp trường hợp này thì đăng nhập lại là xong.
 
 ---
 
@@ -125,7 +180,9 @@ Cách làm khuyến nghị:
 
 | Vai trò | Màn hình | API chính |
 |---|---|---|
-| Mọi vai trò | Chuông thông báo, tuỳ chọn email | `GET /notifications/me/unread-count`, `GET /notifications/me`, `POST /notifications/me/{id}/read`, `POST /notifications/me/read-all`, `GET/PUT /notifications/me/preferences` (mục 14) |
+| Mọi vai trò | Xác thực email, quên / đổi mật khẩu, đăng xuất mọi nơi | `POST /auth/verify-email`, `POST /me/verify-email/resend`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `POST /me/password`, `POST /me/logout-all` (mục 2.4–2.6) |
+| | Hồ sơ, ảnh đại diện, kỹ năng | `GET/PUT /me/profile`, `POST /me/avatar/upload-url`, `PUT /me/avatar`, `PUT /me/skills`, `GET /users/public?ids=` (mục 15) |
+| | Chuông thông báo, tuỳ chọn email | `GET /notifications/me/unread-count`, `GET /notifications/me`, `POST /notifications/me/{id}/read`, `POST /notifications/me/read-all`, `GET/PUT /notifications/me/preferences` (mục 14) |
 | Doanh nghiệp | Hồ sơ doanh nghiệp (KYB) — **phải được duyệt mới publish được** | `GET/PUT /kyb/me`, `POST /kyb/me/license`, `POST /kyb/me/submit` (mục 13) |
 | | Ví, nạp tiền | `GET /ledger/me/balance`, `POST /payments/deposits`, `GET /payments/deposits/{id}` |
 | | Danh sách dự án của tôi | `GET /projects?mine=true` |
@@ -134,15 +191,18 @@ Cách làm khuyến nghị:
 | | Câu hỏi vàng | `GET/POST /projects/{id}/gold-items`, `DELETE /projects/{id}/gold-items/{goldItemId}` |
 | | Checklist + publish | `GET /projects/{id}/readiness`, `POST /projects/{id}/publish` |
 | | Kiểm soát chất lượng | `PUT /projects/{id}/quality-control`, `GET /quality/projects/{id}/summary`, `GET /quality/projects/{id}/labelers` |
-| | Theo dõi dự án | `GET /projects/{id}`, `GET /tasks/projects/{id}/progress`, `POST /projects/{id}/pause` / `resume` / `complete` / `cancel` |
+| | Theo dõi dự án, chi phí, ETA | `GET /projects/{id}`, `GET /tasks/projects/{id}/progress`, `GET /ledger/projects/{id}/cost`, `POST /projects/{id}/pause` / `resume` / `complete` / `cancel` |
+| | Task bị labeler báo lỗi | `GET /tasks/projects/{id}/reports`, `POST /tasks/reports/{id}/resolve` (mục 4.13) |
+| | Tranh chấp nhãn đã duyệt | `POST /ledger/disputes`, `GET /ledger/disputes/mine` (mục 4.14) |
 | | Thành viên | `GET/POST /projects/{id}/members`, `.../block`, `.../unblock`, `DELETE .../members/{userId}` |
 | | Duyệt nhãn | `GET /annotations/projects/{id}?status=pendingReview`, `POST /annotations/{id}/approve` / `reject`, `POST /annotations/projects/{id}/approve-agreed`, `GET /annotations/{id}/history` |
-| | Kết quả, tải về | `GET /annotations/projects/{id}/results`, `GET /annotations/projects/{id}/export?format=json\|csv\|coco` |
+| | Kết quả, phân bố nhãn, tải về | `GET /annotations/projects/{id}/results`, `GET /annotations/projects/{id}/distribution`, `GET /annotations/projects/{id}/export?format=json\|csv\|coco\|yolo\|voc` |
 | Labeler | Chợ dự án | `GET /projects`, `GET /projects/{id}` |
 | | Tham gia, bài test | `POST /projects/{id}/join`, `POST /projects/{id}/entrance-test/attempts`, `.../attempts/{attemptId}/submit`, `GET .../attempts` |
-| | Workspace gán nhãn | `POST /tasks/projects/{id}/next`, `POST /tasks/assignments/{id}/submit`, `POST /tasks/assignments/{id}/release`, `GET /tasks/assignments/mine` |
+| | Workspace gán nhãn | `POST /tasks/projects/{id}/next`, `POST /tasks/assignments/{id}/submit`, `PUT /tasks/assignments/{id}/draft`, `POST /tasks/assignments/{id}/report`, `POST /tasks/assignments/{id}/release`, `GET /tasks/assignments/mine` |
 | | Lịch sử, khiếu nại, uy tín | `GET /annotations/mine`, `POST /annotations/{id}/appeal`, `GET /quality/me` |
-| | Ví, rút tiền | `GET /ledger/me/balance`, `GET /ledger/me/transactions`, `POST /ledger/withdrawals`, `GET /ledger/withdrawals/mine` |
+| | Ví, rút tiền, thống kê thu nhập | `GET /ledger/me/balance`, `GET /ledger/me/transactions`, `GET /ledger/me/earnings`, `POST /ledger/withdrawals`, `GET /ledger/withdrawals/mine` |
+| | Cấp độ, huy hiệu, bảng xếp hạng | `GET /me/level`, `GET /users/leaderboard` (mục 15) |
 | Reviewer (trong dự án) | Duyệt nhãn của dự án được giao | Giống phần duyệt nhãn của doanh nghiệp |
 | Người chia sẻ (sharer) | Quản lý link, chiến dịch | `POST /links`, `POST /links/bulk`, `GET /links`, `GET/PUT/DELETE /links/{id}`, `GET/POST /links/campaigns` |
 | | API key, Quick Link | `POST/GET /links/api-key`, `GET /links/quick?api=&url=` |
@@ -158,6 +218,10 @@ Cách làm khuyến nghị:
 | | Duyệt rút tiền | `GET /ledger/admin/withdrawals`, `POST /ledger/admin/withdrawals/{id}/approve` / `reject` |
 | | Đối chiếu nạp chuyển khoản | `GET /payments/admin/deposits`, `POST /payments/admin/deposits/{id}/approve` / `reject` |
 | | Kiểm duyệt link | `GET /links/admin/review-queue`, `POST /links/admin/{id}/disable` / `dismiss-reports`, `GET/POST/DELETE /links/admin/blocked-domains` |
+| | Phân xử tranh chấp | `GET /ledger/admin/disputes`, `POST /ledger/admin/disputes/{id}/resolve` (mục 7.5) |
+| | Hồ sơ nghi gian lận | `GET /quality/admin/fraud-cases`, `GET /quality/admin/fraud-cases/{id}`, `POST /quality/admin/fraud-cases/{id}/resolve` (mục 7.6) |
+| | Nhật ký hệ thống, báo cáo tổng quan | `GET /admin/audit`, `GET /admin/stats/overview` (mục 7.7) |
+| | Thông báo toàn hệ thống | `POST /admin/announcements`, `GET /admin/announcements` (mục 7.8) |
 
 ---
 
@@ -462,8 +526,34 @@ Sau đó hỏi lại `GET /projects/{id}` mỗi 1–2 giây trong tối đa ~30 
 ```http
 GET /tasks/projects/{id}/progress
 → { "projectId", "totalTasks": 120, "openTasks": 80, "completedTasks": 35, "excludedTasks": 5,
-    "activeLeases": 3, "submissions": 82, "requiredSubmissions": 230 }
+    "activeLeases": 3, "submissions": 82, "requiredSubmissions": 230,
+    "cancelledTasks": 2, "submissionsLast24h": 40, "estimatedCompletionAt": "2026-10-16T09:00:00+00:00" }
+```
 
+- `excludedTasks`: câu hỏi vàng (không tính vào việc phải làm). `cancelledTasks`: task bị huỷ (dự án huỷ, hoặc mẫu bị loại vì báo lỗi — mục 4.13).
+- `estimatedCompletionAt` (FB-20): ngoại suy từ tốc độ nộp 24 giờ qua; `null` khi 24 giờ qua không ai nộp ("chưa ước tính được").
+
+**Chi phí dự án** (FB-20) — số liệu từ sổ cái:
+
+```http
+GET /ledger/projects/{id}/cost      (chủ dự án / admin)
+→ { "projectId", "escrowState": "active", "reservedVnd": 1000000, "balanceVnd": 640000,
+    "spentAnnotationsVnd": 336000, "spentGateVnd": 24000, "disputeRefundsVnd": 0, "returnedVnd": 0,
+    "paidAnnotations": 12, "heldVnd": 140000, "disputedVnd": 0 }
+```
+
+| Trường | Ý nghĩa |
+|---|---|
+| `reservedVnd` / `balanceVnd` | Đã ký quỹ lúc publish / còn lại trong ký quỹ |
+| `spentAnnotationsVnd` | Đã chi cho nhãn được duyệt (thù lao labeler + phí nền tảng) |
+| `spentGateVnd` | Đã chi cho cổng vượt link |
+| `disputeRefundsVnd` | Tiền thắng tranh chấp đã về lại (mục 4.14) |
+| `returnedVnd` | Ký quỹ còn dư đã trả về ví khi kết thúc |
+| `heldVnd` / `disputedVnd` | Thù lao labeler đang treo (còn tranh chấp được) / đang bị đóng băng do tranh chấp |
+
+`escrowState`: `active` / `closing` / `closed`. Dự án chưa publish → 404.
+
+```http
 POST /projects/{id}/pause | /resume | /complete
 POST /projects/{id}/cancel   { "reason": "..." }
 ```
@@ -574,15 +664,32 @@ GET /annotations/projects/{id}/results
   - `classification`, `pairwise`: `method: "majority"`. Một lựa chọn thắng khi được **hơn một nửa** số người chọn. Không lựa chọn nào quá bán thì `final: null`, `disputed: true` (tranh chấp, nên làm nổi bật cho doanh nghiệp xem lại).
   - Các công cụ còn lại (khung, đa giác, đoạn văn bản, chép lời, đoạn thời gian): `method: "none"`, **chưa gộp tự động**. Kết quả là `labels` (mỗi người một phần tử).
 - `labelDistribution`: số lần mỗi lớp xuất hiện, theo từng công cụ. Dùng cho biểu đồ cảnh báo lệch lớp.
+- `imbalanceWarnings` (FB-24): cảnh báo lệch lớp, cùng hình dạng với API `distribution` dưới đây.
 - `samples[].consensusStatus` (`agreed` | `disputed` | `notApplicable` | `null`) và `consensusFinal`: kết quả đồng thuận của quality-svc tính trên **mọi** nhãn đã nộp (kể cả chưa duyệt), khác với `tools` chỉ tính trên nhãn đã duyệt.
 
+Phân bố nhãn (nhẹ hơn `results`, dùng cho biểu đồ trên trang dự án):
+
 ```http
-GET /annotations/projects/{id}/export?format=json|csv|coco     → file tải về (Content-Disposition)
+GET /annotations/projects/{id}/distribution
+→ { "projectId", "sampleCount": 40,
+    "labelDistribution": { "loai": { "meo": 35, "cho": 5 } },
+    "imbalanceWarnings": [
+      { "code": "lop_ap_dao", "tool": "loai", "label": "meo", "count": 35, "total": 40, "percent": 88 },
+      { "code": "lop_chua_co_nhan", "tool": "loai", "label": "chim", "count": 0, "total": 40, "percent": 0 } ],
+    "thresholdPercent": 80 }
+```
+
+- Chỉ xét công cụ **phân loại** có ≥ 2 lớp và ≥ 20 nhãn đã duyệt (`annotation.imbalance_min_labels`). `lop_ap_dao`: một lớp chiếm **hơn** `thresholdPercent`; `lop_chua_co_nhan`: lớp chưa ai chọn.
+- Chỉ là **cảnh báo** — dữ liệu có thể lệch thật. Gợi ý hiển thị: dải vàng "Lớp *meo* chiếm 88 % — kiểm tra dữ liệu hoặc hướng dẫn".
+
+```http
+GET /annotations/projects/{id}/export?format=json|csv|coco|yolo|voc     → file tải về (Content-Disposition)
 ```
 
 - `json`: giống `results`.
 - `csv`: một dòng một mẫu, một cột một công cụ (UTF-8 có BOM, mở bằng Excel được).
 - `coco`: chỉ dự án ảnh có công cụ `bbox` / `polygon`; dự án khác → 400 `coco_chi_cho_khung_anh`.
+- `yolo` / `voc` (FB-25): file **zip**, chỉ dự án ảnh có công cụ `bbox` (đa giác không xuất); dự án khác → 400 `khung_chi_cho_anh`. YOLO: `labels/{sampleId}.txt` (mỗi dòng `lớp tâm_x tâm_y rộng cao`, chuẩn hoá 0–1), `classes.txt`, `data.yaml`. VOC: `Annotations/{sampleId}.xml` (toạ độ pixel), `ImageSets/Main/default.txt`. Zip **không** chứa ảnh (ảnh đã có ở doanh nghiệp): `images.txt` ánh xạ `sampleId` → khoá file lưu trữ. Giống COCO, **chưa gộp khung** giữa người gán: mỗi khung của mỗi nhãn đã duyệt là một dòng. Ảnh thiếu kích thước bị bỏ qua và được đếm trong `README.txt`.
 
 Gọi bằng `fetch` có header Authorization rồi tạo blob để tải (thẻ `<a href>` không gửi được token).
 
@@ -616,6 +723,40 @@ GET /quality/projects/{id}/labelers
 ```
 
 `dawidSkeneSkill` theo từng công cụ (0–1); rỗng khi labeler có dưới 5 nhãn trong dự án. Admin chạy lô Dawid–Skene ngay bằng `POST /quality/admin/dawid-skene/run` → `{ "computed": 3, "full": false }`: chỉ tính lại dự án **có nhãn mới** từ lần trước (nhanh). `?full=true` tính lại mọi dự án — chậm (~1 giây / dự án), chỉ dùng sau khi đổi `quality.ds_min_labels`.
+
+### 4.13 Task bị labeler báo lỗi (FL-07)
+
+Labeler báo một mẫu hỏng / không phù hợp / khó hiểu (mục 5.4). Đủ 3 người báo (`task.report_auto_exclude`) thì task **tự huỷ** nếu không ai đang làm; còn lại chủ dự án tự quyết.
+
+```http
+GET  /tasks/projects/{id}/reports?status=open|dismissed|excluded|all       (mặc định open)
+→ [ { "id", "taskId", "sampleId", "labelerId", "reason": "broken", "note": "Anh den thui",
+      "state": "open", "createdAt", "resolvedAt": null, "reportsOnTask": 2 } ]
+
+POST /tasks/reports/{reportId}/resolve   { "action": "dismiss" | "exclude" }   → báo cáo sau khi xử lý
+```
+
+- `dismiss`: mẫu không sao (chỉ đóng báo cáo này; người báo vẫn không được giao lại mẫu đó).
+- `exclude`: loại mẫu — task bị huỷ, **mọi** báo cáo của task thành `excluded`, task tính vào `cancelledTasks`. Đang có người giữ task → 409 `con_nguoi_dang_lam`, thử lại sau (tối đa 15 phút).
+- `reason`: `broken` (hỏng, không mở được), `inappropriate` (nội dung không phù hợp), `unclear` (không rõ cách gán), `other` (bắt buộc kèm `note`).
+
+### 4.14 Tranh chấp nhãn đã duyệt (FM-06)
+
+Doanh nghiệp phát hiện một nhãn **đã duyệt** là sai (ví dụ sau khi kiểm tra lại) và đòi lại tiền. Chỉ mở được khi thù lao của nhãn **còn đang treo** (chưa về ví khả dụng của labeler — mặc định 3 ngày sau khi duyệt). Mỗi nhãn một tranh chấp.
+
+```http
+POST /ledger/disputes   { "annotationId": "...", "reason": "Khung lech han doi tuong" }
+→ 200 { "id", "annotationId", "projectId", "labelerId", "businessId", "amountVnd": 20000,
+        "reason", "state": "open", "openedAt", "resolvedAt": null, "resolutionNote": null }
+→ 409 khong_con_treo (tiền đã về ví labeler) | 409 da_tranh_chap | 400 thieu_ly_do
+→ 404 (không phải nhãn đã duyệt thuộc dự án của mình)
+
+GET /ledger/disputes/mine?status=open|refundedBusiness|paidLabeler&page=1&pageSize=20
+```
+
+- Mở tranh chấp thì khoản treo **đóng băng** (labeler nhận thông báo; tiền không về khả dụng tới khi admin xử).
+- Admin phân xử (mục 7.5): `refundedBusiness` → thù lao **và phí nền tảng** của nhãn đó về lại ký quỹ (dự án đã đóng thì về ví), nhãn bị đánh dấu loại khỏi kết quả; `paidLabeler` → tiền chạy tiếp cho labeler.
+- Nút "Tranh chấp" nên hiện trên nhãn `approved` trong màn hình duyệt / kết quả; gặp 409 `khong_con_treo` thì ẩn nút.
 
 ---
 
@@ -682,7 +823,29 @@ POST /tasks/assignments/{assignmentId}/release   → 204 (trả task về hàng 
 GET  /tasks/assignments/mine                     → [ LeaseResponse ] các task đang giữ (để khôi phục sau khi tải lại trang)
 ```
 
-Nộp xong thì gọi `next` để lấy task tiếp theo.
+Nộp xong thì gọi `next` để lấy task tiếp theo. Khi nộp, gửi kèm header `X-Device-Id` (mục 1).
+
+**Lưu nháp (FL-05):**
+
+```http
+PUT /tasks/assignments/{assignmentId}/draft   { "payload": { ...dạng giống khi nộp, CHƯA cần hợp lệ... } }
+→ 200 { "assignmentId", "draftSavedAt" }
+→ 400 nhap_khong_hop_le (không phải JSON object) | 400 nhap_qua_lon (> 256 KB) | 409 lease_het_han | lease_khong_con
+```
+
+- Gợi ý: tự lưu sau mỗi thay đổi (debounce 2–3 giây) và khi rời trang. Hiện "Đã lưu nháp lúc …".
+- `next` / `assignments/mine` trả lại task đang giữ kèm `draft` và `draftSavedAt` → dựng lại màn hình từ `draft` nếu có.
+- Nháp gắn với **lượt giữ**: hết 15 phút hoặc bỏ qua task thì nháp mất theo.
+
+**Báo lỗi task (FL-07):**
+
+```http
+POST /tasks/assignments/{assignmentId}/report   { "reason": "broken|inappropriate|unclear|other", "note": "..." }
+→ 200 báo cáo (giống mục 4.13) — task được trả lại, bạn sẽ không được giao lại mẫu này
+→ 400 ly_do_khong_hop_le | thieu_ghi_chu (reason other) | ghi_chu_qua_dai   |   409 lease_khong_con
+```
+
+Báo lỗi xong gọi `next` để lấy task khác. Không bị trừ uy tín.
 
 ### 5.5 Lịch sử và khiếu nại
 
@@ -734,6 +897,21 @@ GET /ledger/withdrawals/mine
 | `rejected` | Admin từ chối — tiền hoàn lại ví, lý do ở `failureReason` | |
 
 Response có thêm `reviewedAt` (lúc duyệt / từ chối). Hỏi lại `GET /ledger/withdrawals/mine` để cập nhật.
+
+Rút tiền khi **chưa xác thực email** → 409 `chua_xac_thuc_email` (mục 2.4).
+
+**Thống kê thu nhập (FL-11):**
+
+```http
+GET /ledger/me/earnings?from=2026-10-01&to=2026-10-31&groupBy=day|project
+→ { "from": "2026-10-01", "to": "2026-10-31", "groupBy": "day", "totalVnd": 340000,
+    "byKindVnd": { "annotation": 300000, "gateClick": 30000, "referral": 10000 },
+    "items": [ { "key": "2026-10-05", "amountVnd": 60000, "count": 3 } ] }
+```
+
+- Ngày tính theo **giờ Việt Nam**. Mặc định 30 ngày gần nhất; tối đa 366 ngày (`khoang_ngay_khong_hop_le`).
+- `groupBy=project` thì `key` là `projectId`. Ngày không có thu nhập thì **không có** trong `items` — biểu đồ tự điền 0.
+- Tính mọi khoản thu kể cả đang treo; **không** tính khoản bị giữ lại (link vi phạm) và khoản đã hoàn cho doanh nghiệp do thua tranh chấp.
 
 ---
 
@@ -1268,8 +1446,83 @@ POST /users/admin/{userId}/unblock                                 → AdminUser
 
 - `search`: tìm trong email và tên hiển thị (không phân biệt hoa thường). `role`: `business` / `labeler` / `sharer` / `admin`. `status`: `active` / `blocked`.
 - `kybStatus` chỉ có ở tài khoản doanh nghiệp: `draft` / `submitted` / `verified` / `rejected`, `null` nếu chưa mở hồ sơ.
-- Khoá có hiệu lực **ngay**: đăng nhập trả 403, refresh token bị thu hồi (401). Access token đang còn hạn (tối đa 15 phút) vẫn đọc được dữ liệu, nhưng **nhận task bị chặn** sau vài giây (`tai_khoan_bi_khoa`). Người bị khoá nhận thông báo + email có lý do.
+- Khoá có hiệu lực **ngay**: đăng nhập trả 403, refresh token bị thu hồi, access token đang dùng bị gateway trả 401 `phien_da_bi_thu_hoi` (mục 2.6); nhận task và rút tiền bị chặn. Người bị khoá nhận email có lý do (thông báo trong ứng dụng thấy khi được mở khoá).
 - Khoá / mở khoá lại tài khoản đã ở trạng thái đó: trả 200, không làm gì. Không ghi lý do → **400** `thieu_ly_do`. Khoá admin → **409** `khong_khoa_admin`.
+- Tài khoản cũng có thể bị khoá khi admin xác nhận hồ sơ gian lận kèm khoá (mục 7.6).
+
+### 7.5 Phân xử tranh chấp (FM-06)
+
+```http
+GET  /ledger/admin/disputes?status=open&page=1&pageSize=20     (cũ nhất trước)
+→ { "items": [ DisputeResponse (mục 4.14) ], "page", "pageSize", "total" }
+POST /ledger/admin/disputes/{id}/resolve   { "outcome": "refundBusiness" | "payLabeler", "note": "Khung sai ro rang" }
+→ DisputeResponse (state refundedBusiness | paidLabeler)
+→ 400 ket_cuc_khong_hop_le | thieu_ghi_chu   |   409 tranh_chap_da_xu
+```
+
+Màn hình phân xử nên hiện nhãn (`GET /annotations/{annotationId}` + lịch sử `.../history`), lý do của doanh nghiệp, số tiền. Cả hai bên nhận thông báo kết quả (`tranh_chap`, email bắt buộc).
+
+### 7.6 Hồ sơ nghi gian lận (FM-07)
+
+Hệ thống **không tự khoá ai** — chỉ mở hồ sơ để admin xem.
+
+| `type` | Khi nào mở | `evidence` (ví dụ) |
+|---|---|---|
+| `qua_nhanh` | Trong 20 lượt gần nhất ở một dự án, ≥ 50 % làm nhanh hơn max(2 giây, 25 % trung vị thời gian làm của dự án) | `fastCount`, `windowSize`, `thresholdSeconds`, `projectMedianSeconds`, `recentWorkSeconds` |
+| `mot_nhan_lien_tuc` | 30 câu phân loại liên tiếp cùng một lớp, trong khi người khác ở dự án chọn đa dạng | `answer`, `streak`, `otherLabelersDistinctAnswers` |
+| `chung_ip` / `chung_thiet_bi` | ≥ 3 tài khoản nộp từ cùng IP công khai / cùng `X-Device-Id` trong 1 ngày | `client_ip` / `device_id`, `accounts`, `windowSeconds` |
+
+Ngưỡng là setting `quality.fraud_*` (mục 7.1).
+
+```http
+GET  /quality/admin/fraud-cases?status=open|dismissed|confirmed&type=&page=1&pageSize=20   (mới cập nhật trước)
+→ { "items": [ { "id", "type", "projectId", "userIds": ["..."], "evidence": { ... },
+                 "status": "open", "createdAt", "updatedAt", "resolvedAt": null, "note": null, "blocked": false } ], ... }
+GET  /quality/admin/fraud-cases/{id}
+→ như trên + "users": [ { "userId", "submissions": 120, "medianWorkSeconds": 1.4, "reputation": 35 } ]
+POST /quality/admin/fraud-cases/{id}/resolve   { "action": "dismiss" | "confirm", "note": "...", "blockAccounts": true }
+→ hồ sơ sau khi xử lý   |   400 hanh_dong_khong_hop_le | thieu_ghi_chu   |   409 ho_so_da_xu_ly
+```
+
+- `confirm` + `blockAccounts: true` → mọi tài khoản trong `userIds` bị khoá (như mục 7.4, lý do = `note`).
+- Hồ sơ cùng đối tượng (cùng người + dự án, cùng IP…) **cộng dồn** vào hồ sơ đang mở, không mở trùng. Hồ sơ vừa xử lý thì 7 ngày sau mới mở lại (`quality.fraud_reopen_cooldown`).
+
+### 7.7 Nhật ký hệ thống và báo cáo (FP-06, FM-09)
+
+admin-svc ghi lại **mọi sự kiện nghiệp vụ** (ai làm gì, lúc nào) — giữ 365 ngày (`admin.audit_retention_days`).
+
+```http
+GET /admin/audit?actorId=&eventType=project.published&correlationId=&from=2026-10-01T00:00:00Z&to=&page=1&pageSize=50
+→ { "items": [ { "eventId", "eventType", "producer": "project-svc", "occurredAt", "correlationId", "causationId",
+                 "actorId", "actorRole": "business", "payload": { ... } } ], "page", "pageSize", "total" }
+```
+
+- Mới nhất trước. `correlationId`: mọi sự kiện sinh ra từ cùng một thao tác của người dùng (ví dụ publish → ký quỹ → sinh task) — dùng để xem "thao tác này kéo theo những gì".
+- Payload lớn hơn 64 KB bị cắt (`payload` = `{ "_truncated": true, "bytes": 81234 }`). Một số loại phát sinh rất nhiều không được ghi (`admin.audit_excluded_types`).
+
+```http
+GET /admin/stats/overview?from=2026-10-01&to=2026-10-31          (ngày giờ Việt Nam, mặc định 30 ngày)
+→ { "from", "to", "auditSince": "2026-10-12T...",
+    "newUsers", "businessesVerified", "projectsPublished",
+    "annotationsSubmitted", "annotationsApproved", "annotationsRejected",
+    "depositsVnd", "labelerPayoutsVnd", "platformFeeVnd", "withdrawalsVnd",
+    "disputesOpened", "accountsBlocked", "fraudCasesConfirmed",
+    "daily": [ { "date": "2026-10-05", "newUsers", "annotationsSubmitted", "annotationsApproved", "depositsVnd" } ] }
+```
+
+Số liệu đếm từ nhật ký nên **chỉ có từ `auditSince`** (lúc bắt đầu ghi nhật ký) — hiện ghi chú "số liệu từ ngày …" khi `from` sớm hơn.
+
+### 7.8 Thông báo toàn hệ thống (FM-09)
+
+```http
+POST /admin/announcements   { "title": "Bảo trì 22h", "body": "Hệ thống bảo trì 22h–23h tối nay.", "audience": "all", "sendEmail": false }
+→ 200 { "id", "title", "body", "audience", "sendEmail", "createdBy", "createdAt" }
+→ 400 tieu_de_khong_hop_le | noi_dung_khong_hop_le | doi_tuong_khong_hop_le
+GET  /admin/announcements?limit=20      (mới nhất trước)
+```
+
+- `audience`: `all` / `business` / `labeler` / `sharer`. Người nhận thấy thông báo loại `he_thong` (mục 14) sau vài giây.
+- `sendEmail: true` thì gửi thêm email cho người **không tắt** email loại `he_thong`. Dùng tiết kiệm.
 
 ---
 
@@ -1291,6 +1544,9 @@ Các service trao đổi với nhau qua hàng đợi sự kiện, nên một s�
 | Admin duyệt rút / nạp chuyển khoản | Số dư người dùng đổi | Vài giây |
 | Admin đổi setting | Mọi service áp dụng | Thường < 1 giây; service đang tắt sẽ nhận khi bật lại |
 | Admin duyệt KYB | `POST /projects/{id}/publish` hết trả 409 `chua_xac_minh_doanh_nghiep` | Thường < 1 giây. Gặp 409 ngay sau khi nhận thông báo "đã xác minh" thì thử lại sau 1–2 giây |
+| Xác thực email | Rút tiền / publish hết trả 409 `chua_xac_thuc_email` | Thường < 1 giây |
+| Nhãn được duyệt | `GET /me/level` tăng `approvedCount`, có thể lên cấp / có huy hiệu | Vài giây |
+| Đổi mật khẩu, đăng xuất mọi nơi, bị khoá | Token cũ bị 401 `phien_da_bi_thu_hoi` | Vài trăm ms |
 | Bất kỳ sự kiện nào ở trên | Thông báo mới ở `GET /notifications/me/unread-count` | Hỏi mỗi 30 giây khi tab đang mở (mục 14) |
 
 ---
@@ -1352,6 +1608,30 @@ Danh sách các `code` thường gặp để frontend dịch. Mã không có tro
 | `khong_khoa_admin` | 409 | (admin) Khoá tài khoản admin |
 | `trang_thai_khong_hop_le` | 400 | (admin) Tham số `status` sai |
 | `loai_bat_buoc`, `loai_khong_hop_le`, `thieu_tuy_chon` | 400 | Tắt email loại bắt buộc / loại không tồn tại / thiếu `items` |
+| `email_da_ton_tai` | 409 | Đăng ký email đã có |
+| `sai_thong_tin` | 401 | Đăng nhập sai email hoặc mật khẩu |
+| `tai_khoan_bi_khoa` | 403 | Đăng nhập / nhận task khi tài khoản bị khoá |
+| `phien_khong_hop_le` | 401 | Refresh token sai / hết hạn / đã thu hồi — về trang đăng nhập |
+| `phien_da_bi_thu_hoi` | 401 | Access token bị thu hồi (mục 2.6) — về trang đăng nhập, không refresh |
+| `qua_nhieu_yeu_cau` | 429 | Vượt giới hạn tần suất, chờ `Retry-After` giây |
+| `du_lieu_khong_hop_le` | 400 | Đăng ký sai dữ liệu (`errors` theo trường) |
+| `ma_khong_hop_le` | 400 | Link xác thực email / đặt lại mật khẩu sai, đã dùng hoặc hết hạn |
+| `da_xac_thuc`, `gui_qua_nhanh` | 409 | Gửi lại email xác thực khi đã xác thực / chưa đủ 60 giây |
+| `mat_khau_hien_tai_sai`, `mat_khau_khong_hop_le` | 400 | Đổi mật khẩu sai mật khẩu cũ / mật khẩu mới sai độ dài |
+| `chua_xac_thuc_email` | 409 | Rút tiền / publish khi chưa xác thực email |
+| `ten_khong_hop_le`, `gioi_thieu_qua_dai` | 400 | Sửa hồ sơ sai (tên 1–100 ký tự, giới thiệu ≤ 500) |
+| `file_khong_hop_le`, `file_qua_lon`, `key_khong_hop_le`, `chua_tai_anh` | 400 / 409 | Ảnh đại diện sai loại / quá lớn / key không phải của mình / chưa tải lên |
+| `linh_vuc_khong_hop_le`, `ngon_ngu_khong_hop_le`, `loai_du_lieu_khong_hop_le` | 400 | Kỹ năng sai |
+| `ky_khong_hop_le`, `id_khong_hop_le`, `qua_nhieu_id` | 400 | Bảng xếp hạng / hồ sơ công khai sai tham số |
+| `nhap_khong_hop_le`, `nhap_qua_lon` | 400 | Lưu nháp sai |
+| `ly_do_khong_hop_le`, `thieu_ghi_chu`, `ghi_chu_qua_dai` | 400 | Báo lỗi task / phân xử thiếu ghi chú |
+| `hanh_dong_khong_hop_le`, `con_nguoi_dang_lam` | 400 / 409 | Xử lý báo lỗi task / hồ sơ gian lận sai hành động; loại task đang có người làm |
+| `khung_chi_cho_anh` | 400 | Xuất YOLO / VOC cho dự án không phải ảnh có khung |
+| `khong_con_treo`, `da_tranh_chap` | 409 | Tranh chấp khi tiền đã về ví labeler / nhãn đã có tranh chấp |
+| `ket_cuc_khong_hop_le`, `tranh_chap_da_xu` | 400 / 409 | (admin) Phân xử sai kết cục / đã phân xử |
+| `nhom_khong_hop_le`, `khoang_ngay_khong_hop_le` | 400 | Thống kê sai `groupBy` / khoảng ngày (tối đa 366 ngày) |
+| `ho_so_da_xu_ly` | 409 | (admin) Hồ sơ gian lận đã xử lý |
+| `tieu_de_khong_hop_le`, `noi_dung_khong_hop_le`, `doi_tuong_khong_hop_le` | 400 | (admin) Thông báo toàn hệ thống sai |
 
 ---
 
@@ -1383,6 +1663,13 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 | Câu vàng | ≤ 2.000 mỗi dự án (`project.gold_items_max`) |
 | Giấy phép kinh doanh (KYB) | `.pdf` / `.png` / `.jpg`, ≤ 10 MB (`identity.kyb_file_max_bytes`) |
 | Phân trang | `pageSize` ≤ 100 |
+| Giới hạn tần suất (gateway, mỗi phút) | Mọi API 600 / người dùng; xác thực 20 / IP; tạo lệnh nạp / rút 30 (`gateway.rate_limit_per_minute`, `..._auth_per_minute`, `..._money_per_minute`) |
+| Link xác thực email / đặt lại mật khẩu | 1 ngày / 30 phút, dùng một lần (`identity.email_verify_ttl`, `identity.password_reset_ttl`); gửi lại email xác thực cách nhau ≥ 60 giây |
+| Ảnh đại diện | `.png` / `.jpg` / `.webp`, ≤ 2 MB (`identity.avatar_max_bytes`) |
+| Hồ sơ | Tên hiển thị ≤ 100 ký tự; giới thiệu ≤ 500 ký tự; mỗi nhóm kỹ năng ≤ 20 mục, mỗi mục ≤ 50 ký tự |
+| Bản nháp | ≤ 256 KB mỗi lượt giữ task |
+| Báo lỗi task | 3 người báo → task tự huỷ (`task.report_auto_exclude`) |
+| Bảng xếp hạng / hồ sơ công khai | ≤ 100 người mỗi lần |
 
 ---
 
@@ -1395,7 +1682,8 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 | Chưa xác minh tự động với cơ quan thuế | Admin tự đối chiếu giấy phép và mã số thuế (mục 13.2). Hồ sơ đã xác minh không sửa được qua API |
 | Chưa gộp tự động khung, đa giác, đoạn văn bản, chép lời, đoạn thời gian | Màn hình kết quả hiện danh sách nhãn đã duyệt của từng người (`labels`) |
 | Chưa có: khung trên video, điểm mốc (keypoint), đường gấp khúc, mặt nạ pixel, OCR, trả lời tự do cho văn bản / ảnh, thuộc tính cho từng đối tượng, quan hệ giữa thực thể, xếp hạng > 2 câu trả lời | Không làm UI cho các dạng này; thang điểm 1–5 tạm dùng `classification` với các lớp `"1"`…`"5"` |
-| Chưa có API hồ sơ người dùng (tên người gán, cấp độ, uy tín) | Màn hình duyệt chỉ có `labelerId` |
+| Hồ sơ người gán trên màn hình duyệt | Gom các `labelerId` trên trang rồi gọi **một lần** `GET /users/public?ids=...` (mục 15) để hiện tên, ảnh, cấp độ |
+| Rate limit đếm theo từng instance gateway | Chạy nhiều gateway thì hạn mức thực tế cao hơn — không ảnh hưởng FE |
 
 ---
 
@@ -1602,12 +1890,15 @@ Cách làm khuyến nghị:
 | `nhan_tu_choi` | Nhãn bị từ chối, khiếu nại bị bác | Labeler | Bật (tắt được) |
 | `nhan_duyet` | Nhãn được duyệt (chỉ kênh chuyên nghiệp — kênh cổng link không báo từng nhãn). **Gộp** theo dự án | Labeler | Tắt (bật được) |
 | `tien_kha_dung` | Tiền treo chuyển sang khả dụng (với sharer: mỗi lượt click / mỗi lô). **Gộp** | Labeler, sharer | Tắt (bật được) |
+| `tranh_chap` | Doanh nghiệp mở tranh chấp nhãn của bạn / admin phân xử xong | Labeler, doanh nghiệp | **Bắt buộc** |
+| `he_thong` | Thông báo từ quản trị viên (mục 7.8) | Theo đối tượng admin chọn | Bật (tắt được); chỉ gửi khi admin chọn gửi email |
+| `cap_do` | Lên / xuống cấp, nhận huy hiệu (mục 15) | Labeler | Tắt (bật được) |
 
 **Gộp:** hai loại phát sinh nhiều (`nhan_duyet`, `tien_kha_dung`) không tạo một dòng cho mỗi sự kiện. Sự kiện mới được **cộng dồn** vào thông báo cùng loại (và cùng dự án) còn **chưa đọc**, chưa gửi email, có sự kiện gần nhất trong 24 giờ. Thông báo đó được viết lại ("3 nhãn được duyệt, tổng +60.000 đ…", "60.000 đ (3 khoản) đã chuyển…") và `createdAt` chuyển thành thời điểm sự kiện mới nhất, nên dòng này nổi lên đầu danh sách (`unread-count` không tăng thêm). Người dùng đọc rồi thì sự kiện sau mở dòng mới.
 
 ```http
 GET /notifications/me/preferences
-→ [ { "type": "rut_tien", "label": "Kết quả rút tiền", "mandatory": true, "emailEnabled": true }, ... ]   (8 mục)
+→ [ { "type": "rut_tien", "label": "Kết quả rút tiền", "mandatory": true, "emailEnabled": true }, ... ]   (11 mục)
 PUT /notifications/me/preferences   { "items": [ { "type": "du_an", "emailEnabled": false } ] }
 → danh sách đầy đủ sau khi lưu
 ```
@@ -1615,3 +1906,55 @@ PUT /notifications/me/preferences   { "items": [ { "type": "du_an", "emailEnable
 - Màn hình cài đặt: mỗi loại một công tắc "Gửi email", dùng `label` làm nhãn. `mandatory: true` thì hiện công tắc bật và **khoá** (gửi tắt → **400** `loai_bat_buoc`).
 - Chỉ cần gửi các loại thay đổi. Tắt email không ảnh hưởng thông báo trong ứng dụng.
 - Email đi trễ vài giây (gửi nền, tự thử lại khi máy chủ mail lỗi). Ở dev xem email tại Mailpit `http://localhost:8025` (stack demo: `http://localhost:18025`).
+
+---
+
+## 15. Hồ sơ, kỹ năng, cấp độ, bảng xếp hạng
+
+### 15.1 Hồ sơ của tôi (FC-05)
+
+```http
+GET /me/profile
+→ { "userId", "email", "emailVerified": true, "displayName": "Nguyen Van A", "bio": null,
+    "avatarUrl": "http://.../avatars/...?X-Amz-...", "roles": ["labeler"],
+    "skills": { "domains": ["Y te"], "languages": ["vi", "en"], "modalities": ["image", "text"] }, "createdAt" }
+PUT /me/profile   { "displayName": "...", "bio": "..." }      → hồ sơ sau khi lưu (ghi đè cả hai: luôn gửi displayName; bio null = xoá)
+PUT /me/skills    { "domains": [...], "languages": [...], "modalities": [...] }   → hồ sơ sau khi lưu (ghi đè cả ba)
+```
+
+- `avatarUrl` là link ký **có hạn** — đừng lưu lại lâu, lấy lại khi tải trang.
+- Kỹ năng (FL-01): `modalities` ∈ `image`, `text`, `audio`, `video`, `pair`; `domains` / `languages` là chữ tự do (trùng nhau không phân biệt hoa thường thì gộp). Đổi tên hiển thị có hiệu lực trong token **từ lần đăng nhập / refresh sau**.
+
+**Ảnh đại diện** — tải thẳng lên kho file như KYB:
+
+```http
+POST /me/avatar/upload-url   { "fileName": "a.png", "sizeBytes": 120000 }
+→ { "key", "uploadUrl", "method": "PUT", "expiresAt" }
+PUT  <uploadUrl>  (body = file)
+PUT  /me/avatar   { "key": "..." }     → hồ sơ có avatarUrl mới
+```
+
+### 15.2 Hồ sơ công khai
+
+```http
+GET /users/public?ids=uuid1,uuid2,...     (đăng nhập bất kỳ vai trò; ≤ 100 id; id không tồn tại bị bỏ qua)
+→ [ { "userId", "displayName", "avatarUrl", "level": 3, "badges": [ { "code": "moc_100", "name": "100 nhãn được duyệt", "awardedAt" } ] } ]
+```
+
+Không trả email. Dùng cho màn hình duyệt nhãn, bảng thành viên, bảng xếp hạng.
+
+### 15.3 Cấp độ, huy hiệu, bảng xếp hạng (FL-12)
+
+```http
+GET /me/level
+→ { "level": 2, "approvedCount": 73, "reputation": 68,
+    "nextLevel": { "level": 3, "minApproved": 200, "minReputation": 65 },
+    "badges": [ { "code": "moc_100", "name": "...", "awardedAt" } ] }
+GET /users/leaderboard?period=all|month|week&limit=20
+→ [ { "rank": 1, "userId", "displayName", "avatarUrl", "level": 4, "approvedCount": 1250 } ]
+```
+
+- Cấp tính từ **số nhãn được duyệt** (chỉ kênh chuyên nghiệp) **và** uy tín: mặc định cấp 2 = 50 nhãn / uy tín 50, cấp 3 = 200 / 65, cấp 4 = 1.000 / 75, cấp 5 = 5.000 / 85 (`identity.level_rules`). Uy tín giảm có thể **xuống cấp**. `nextLevel: null` khi đã cao nhất — hiện thanh tiến độ tới cấp sau.
+- Huy hiệu: `moc_100`, `moc_1000`, `moc_10000` (số nhãn được duyệt), `uy_tin_cao`. Nhận rồi thì giữ.
+- Bảng xếp hạng theo số nhãn được duyệt trong kỳ: `all` (từ trước tới nay), `month` (30 ngày gần nhất), `week` (7 ngày gần nhất), tính theo ngày giờ Việt Nam. `limit` 1–100, mặc định 20. `period` sai → 400 `ky_khong_hop_le`.
+- Dự án có thể đặt `minLevel` (mục 4.5): dưới mức đó `next` trả 403 `chua_du_cap_do`.

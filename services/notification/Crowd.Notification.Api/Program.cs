@@ -3,6 +3,7 @@ using System.Threading;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.Contracts.Admin;
 using Crowd.Contracts.Annotation;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
@@ -63,6 +64,14 @@ builder.Services.AddEventConsumer<NotificationDbContext, HoldExpired, HoldExpire
 builder.Services.AddEventConsumer<NotificationDbContext, PayoutCompleted, PayoutCompletedProcessor>(cfg, "notification-svc.payout-completed");
 builder.Services.AddEventConsumer<NotificationDbContext, PayoutFailed, PayoutFailedProcessor>(cfg, "notification-svc.payout-failed");
 builder.Services.AddEventConsumer<NotificationDbContext, WithdrawalRejected, WithdrawalRejectedProcessor>(cfg, "notification-svc.withdrawal-rejected");
+// Email giao dich, tranh chap, cap do / huy hieu, thong bao toan he thong.
+builder.Services.AddEventConsumer<NotificationDbContext, EmailVerificationRequested, EmailVerificationRequestedProcessor>(cfg, "notification-svc.email-verification-requested");
+builder.Services.AddEventConsumer<NotificationDbContext, PasswordResetRequested, PasswordResetRequestedProcessor>(cfg, "notification-svc.password-reset-requested");
+builder.Services.AddEventConsumer<NotificationDbContext, DisputeOpened, DisputeOpenedProcessor>(cfg, "notification-svc.dispute-opened");
+builder.Services.AddEventConsumer<NotificationDbContext, DisputeResolved, DisputeResolvedProcessor>(cfg, "notification-svc.dispute-resolved");
+builder.Services.AddEventConsumer<NotificationDbContext, LevelChanged, LevelChangedProcessor>(cfg, "notification-svc.level-changed");
+builder.Services.AddEventConsumer<NotificationDbContext, BadgeAwarded, BadgeAwardedProcessor>(cfg, "notification-svc.badge-awarded");
+builder.Services.AddEventConsumer<NotificationDbContext, SystemAnnouncement, SystemAnnouncementProcessor>(cfg, "notification-svc.system-announcement");
 
 // ---- Gui email ----
 builder.Services.Configure<SmtpOptions>(cfg.GetSection(SmtpOptions.SectionName));

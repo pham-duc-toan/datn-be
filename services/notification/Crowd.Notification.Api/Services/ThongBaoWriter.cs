@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Notification.Api.Entities;
@@ -42,6 +43,40 @@ namespace Crowd.Notification.Api.Services
             LoaiThongBao l = TimLoai(loai);
             bool guiEmail = l.GuiEmail(await TuyChonAsync(userId, loai, ct));
             _db.ThongBaos.Add(ThongBao.Tao(userId, loai, noiDung, guiEmail, _clock.GetUtcNow()));
+        }
+
+        /// <summary>
+        /// Mot thong bao cho NHIEU nguoi (thong bao toan he thong, FM-09). Email chi khi
+        /// <paramref name="choPhepEmail"/> (admin chon) VA tuy chon cua tung nguoi cho phep — tuy chon doc
+        /// mot lan cho ca danh sach. Tra ve so thong bao da tao.
+        /// </summary>
+        public async Task<int> GhiHangLoatAsync(IReadOnlyList<Guid> userIds, string loai, NoiDung noiDung, bool choPhepEmail, CancellationToken ct)
+        {
+            if (userIds == null)
+            {
+                throw new ArgumentNullException(nameof(userIds));
+            }
+
+            LoaiThongBao l = TimLoai(loai);
+            Dictionary<Guid, bool> tuyChon = await _db.TuyChonEmails.AsNoTracking()
+                .Where(x => x.Type == loai && userIds.Contains(x.UserId))
+                .ToDictionaryAsync(x => x.UserId, x => x.EmailEnabled, ct);
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+
+            foreach (Guid u in userIds)
+            {
+                bool rieng;
+                bool? chon = tuyChon.TryGetValue(u, out rieng) ? rieng : null;
+                _db.ThongBaos.Add(ThongBao.Tao(u, loai, noiDung, choPhepEmail && l.GuiEmail(chon), bayGio));
+            }
+
+            return userIds.Count;
+        }
+
+        /// <summary>Email giao dich (xac thuc email, dat lai mat khau) — khong thanh thong bao trong ung dung.</summary>
+        public void GhiEmailGiaoDich(Guid userId, string toEmail, string ten, string tieuDe, string noiDung)
+        {
+            _db.EmailGiaoDichs.Add(EmailGiaoDich.Tao(userId, toEmail, ten, tieuDe, noiDung, _clock.GetUtcNow()));
         }
 
         /// <summary>

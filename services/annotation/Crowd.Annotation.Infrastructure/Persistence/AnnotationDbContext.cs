@@ -87,6 +87,7 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.Property(x => x.AppealMessage).HasColumnName("appeal_message").HasMaxLength(LabelAnnotation.CotDbLyDo);
                 b.Property(x => x.AppealedAt).HasColumnName("appealed_at");
                 b.Property(x => x.AppealResolvedAt).HasColumnName("appeal_resolved_at");
+                b.Property(x => x.DisputedAt).HasColumnName("disputed_at");
                 b.Property(x => x.ConsensusAgrees).HasColumnName("consensus_agrees");
                 b.Property(x => x.ConsensusAt).HasColumnName("consensus_at");
 

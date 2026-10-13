@@ -90,7 +90,14 @@ namespace Crowd.Annotation.Api.Controllers
             return Ok(await _service.KetQuaAsync(projectId, NguoiDuyet(), ct));
         }
 
-        /// <summary>GET /annotations/projects/{projectId}/export?format=json|csv|coco (FB-25)</summary>
+        /// <summary>GET /annotations/projects/{projectId}/distribution — phan bo nhan + canh bao lech (FB-24).</summary>
+        [HttpGet("projects/{projectId:guid}/distribution")]
+        public async Task<IActionResult> PhanBo(Guid projectId, CancellationToken ct)
+        {
+            return Ok(await _service.PhanBoAsync(projectId, NguoiDuyet(), ct));
+        }
+
+        /// <summary>GET /annotations/projects/{projectId}/export?format=json|csv|coco|yolo|voc (FB-25)</summary>
         [HttpGet("projects/{projectId:guid}/export")]
         public async Task<IActionResult> Xuat(Guid projectId, [FromQuery] string? format, CancellationToken ct)
         {

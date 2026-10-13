@@ -136,6 +136,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTimeOffset?>("DraftSavedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("draft_saved_at");
+
                     b.Property<DateTimeOffset?>("EndedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ended_at");
@@ -179,6 +183,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TaskId")
                         .HasColumnType("uuid")
                         .HasColumnName("task_id");
+
+                    b.Property<string>("_draftJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("draft");
 
                     b.Property<string>("_payloadJson")
                         .HasColumnType("jsonb")
@@ -362,6 +370,79 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                     b.HasKey("ProjectId");
 
                     b.ToTable("project_snapshots", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Tasking.Domain.Reports.TaskReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("LabelerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("labeler_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid?>("ResolvedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolved_by");
+
+                    b.Property<Guid>("SampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sample_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignmentId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_task_reports_assignment");
+
+                    b.HasIndex("TaskId")
+                        .HasDatabaseName("ix_task_reports_task");
+
+                    b.HasIndex("LabelerId", "TaskId")
+                        .HasDatabaseName("ix_task_reports_labeler_task");
+
+                    b.HasIndex("ProjectId", "State", "CreatedAt")
+                        .HasDatabaseName("ix_task_reports_du_an");
+
+                    b.ToTable("task_reports", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Tasking.Domain.Tasks.GoldSample", b =>

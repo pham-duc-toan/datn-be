@@ -186,9 +186,14 @@ namespace Crowd.Ledger.Api.Services
                 return TaoResponse(cu);
             }
 
-            if (await _db.BlockedUsers.AnyAsync(b => b.UserId == uid, ct))
+            if (await _db.BlockedUsers.AnyAsync(b => b.UserId == uid && b.Blocked, ct))
             {
                 throw new ForbiddenException("tai_khoan_bi_khoa", "Tai khoan dang bi khoa, khong rut duoc tien.");
+            }
+
+            if (await _db.EmailStatuses.AnyAsync(e => e.UserId == uid && !e.Verified, ct))
+            {
+                throw new RuleViolationException("chua_xac_thuc_email", "Chua xac thuc email — bam link trong email truoc khi rut tien.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();

@@ -178,4 +178,60 @@ namespace Crowd.Notification.Tests
             Assert.Equal("/projects/" + p, cuoi.DuongDan);
         }
     }
+
+    public sealed class EmailGiaoDichTests
+    {
+        private static readonly DateTimeOffset T = new DateTimeOffset(2026, 10, 12, 8, 0, 0, TimeSpan.Zero);
+
+        [Fact]
+        public void Gui_xong_thi_xoa_noi_dung_chua_link()
+        {
+            EmailGiaoDich e = EmailGiaoDich.Tao(Guid.NewGuid(), "a@b.com", "A", "Xac thuc", "link bi mat", T);
+            e.DaGui(T);
+
+            Assert.Equal(EmailState.Sent, e.State);
+            Assert.Equal(string.Empty, e.Body);
+        }
+
+        [Fact]
+        public void Loi_qua_so_lan_thi_bo_va_xoa_noi_dung()
+        {
+            EmailGiaoDich e = EmailGiaoDich.Tao(Guid.NewGuid(), "a@b.com", "A", "Xac thuc", "link bi mat", T);
+            e.GuiLoi("SMTP", 2, T);
+            Assert.Equal(EmailState.Pending, e.State);
+            Assert.Equal("link bi mat", e.Body);
+
+            e.GuiLoi("SMTP", 2, T);
+            Assert.Equal(EmailState.Failed, e.State);
+            Assert.Equal(string.Empty, e.Body);
+        }
+
+        [Fact]
+        public void Email_xac_thuc_co_link_va_gio_viet_nam()
+        {
+            string noiDung = NoiDungThongBao.EmailXacThuc("An", "http://fe/xac-thuc-email?token=abc", T);
+
+            Assert.Contains("http://fe/xac-thuc-email?token=abc", noiDung, StringComparison.Ordinal);
+            Assert.Contains("15:00 12/10/2026 (giờ Việt Nam)", noiDung, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Ket_qua_tranh_chap_khac_nhau_cho_hai_ben()
+        {
+            Guid p = Guid.NewGuid();
+            NoiDung choLabeler = NoiDungThongBao.TranhChapKetQua(p, 20000, true, true, "Nhan sai");
+            NoiDung choDoanhNghiep = NoiDungThongBao.TranhChapKetQua(p, 20000, false, true, "Nhan sai");
+
+            Assert.Contains("không được trả", choLabeler.NoiDungChinh, StringComparison.Ordinal);
+            Assert.Contains("được hoàn lại", choDoanhNghiep.NoiDungChinh, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Loai_tranh_chap_bat_buoc_email_cap_do_mac_dinh_tat()
+        {
+            Assert.True(LoaiThongBao.Tim(LoaiThongBao.TranhChap)!.BatBuoc);
+            Assert.False(LoaiThongBao.Tim(LoaiThongBao.CapDo)!.GuiEmail(null));
+            Assert.Equal(11, LoaiThongBao.TatCa.Count);
+        }
+    }
 }

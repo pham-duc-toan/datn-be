@@ -35,6 +35,9 @@ namespace Crowd.Tasking.Api.Services
     /// </summary>
     public sealed class LeaseService
     {
+        /// <summary>Ban nhap toi da 256 KB — du cho hang tram khung / doan, chan nhoi rac vao DB.</summary>
+        public const int KichThuocNhapToiDa = 256 * 1024;
+
         private readonly TaskDbContext _db;
         private readonly TaskEventPublisher _events;
         private readonly LeaseRevoker _revoker;
@@ -221,8 +224,12 @@ namespace Crowd.Tasking.Api.Services
         /// Nop nhan (VD-T-01). Khoa DONG assignment truoc: reaper dang quet cung
         /// dong phai cho — nen "het han" va "nop" khong the cung thanh cong.
         /// </summary>
+        /// <summary>
+        /// Nop nhan. clientIp / deviceId (tu gateway va header X-Device-Id) di kem assignment.submitted
+        /// de quality-svc phat hien nhieu tai khoan chung IP / thiet bi (FM-07).
+        /// </summary>
         public async Task<SubmitResponse> NopAsync(
-            Guid assignmentId, JsonElement? duLieuNhan, Caller caller, CancellationToken ct)
+            Guid assignmentId, JsonElement? duLieuNhan, string? clientIp, string? deviceId, Caller caller, CancellationToken ct)
         {
             Guid labelerId = caller.LayUserId();
 
@@ -298,6 +305,8 @@ namespace Crowd.Tasking.Api.Services
                     LabelPayload = nhan,
                     LeasedAt = a.LeasedAt,
                     SubmittedAt = bayGio,
+                    ClientIp = clientIp,
+                    DeviceId = deviceId,
                 });
 
                 if (vuaDu)
@@ -315,6 +324,41 @@ namespace Crowd.Tasking.Api.Services
                 await tx.CommitAsync(ct);
 
                 return new SubmitResponse { AssignmentId = a.Id, TaskCompleted = vuaDu };
+            }
+            finally
+            {
+                await tx.DisposeAsync();
+            }
+        }
+
+        /// <summary>
+        /// Luu nhap (FL-05): JSON object toi da KichThuocNhapToiDa byte, chi khi con giu task. Khong
+        /// kiem luat nhan — nhap la do dang; kiem day du khi nop.
+        /// </summary>
+        public async Task<DraftResponse> LuuNhapAsync(Guid assignmentId, JsonElement? duLieu, Caller caller, CancellationToken ct)
+        {
+            if (!duLieu.HasValue || duLieu.Value.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidValueException("nhap_khong_hop_le", "Ban nhap phai la mot JSON object (cung hinh dang payload khi nop).");
+            }
+
+            string json = duLieu.Value.GetRawText();
+            if (System.Text.Encoding.UTF8.GetByteCount(json) > KichThuocNhapToiDa)
+            {
+                throw new InvalidValueException("nhap_qua_lon", "Ban nhap toi da " + KichThuocNhapToiDa + " byte.");
+            }
+
+            Guid labelerId = caller.LayUserId();
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                Assignment a = await KhoaCuaMinhAsync(assignmentId, labelerId, ct);
+                DateTimeOffset bayGio = _clock.GetUtcNow();
+                a.LuuNhap(json, bayGio);
+
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return new DraftResponse { AssignmentId = a.Id, DraftSavedAt = bayGio };
             }
             finally
             {
@@ -415,11 +459,23 @@ namespace Crowd.Tasking.Api.Services
             int canNop = 0;
             foreach (LabelingTask t in tasks)
             {
-                if (t.State != TaskState.Excluded)
+                if (t.State == TaskState.Cancelled)
+                {
+                    // Task da huy khong can them ai: chi tinh so luot da nop.
+                    canNop = canNop + t.SubmittedCount;
+                }
+                else if (t.State != TaskState.Excluded)
                 {
                     canNop = canNop + t.RedundancyTarget;
                 }
             }
+
+            int daNop = tasks.Sum(t => t.SubmittedCount);
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            DateTimeOffset tu = bayGio - TimeSpan.FromHours(24);
+            int nop24h = await _db.Assignments.AsNoTracking().CountAsync(
+                a => a.ProjectId == projectId && !a.IsGold && a.State == AssignmentState.Submitted && a.EndedAt >= tu,
+                ct);
 
             return new ProgressResponse
             {
@@ -429,9 +485,28 @@ namespace Crowd.Tasking.Api.Services
                 CompletedTasks = tasks.Count(t => t.State == TaskState.Completed),
                 ExcludedTasks = tasks.Count(t => t.State == TaskState.Excluded),
                 ActiveLeases = tasks.Sum(t => t.ActiveLeaseCount),
-                Submissions = tasks.Sum(t => t.SubmittedCount),
+                Submissions = daNop,
                 RequiredSubmissions = canNop,
+                CancelledTasks = tasks.Count(t => t.State == TaskState.Cancelled),
+                SubmissionsLast24h = nop24h,
+                EstimatedCompletionAt = UocTinhXong(canNop - daNop, nop24h, bayGio),
             };
+        }
+
+        /// <summary>Con <paramref name="conLai"/> luot, toc do <paramref name="nop24h"/> luot / 24 gio → luc xong.</summary>
+        public static DateTimeOffset? UocTinhXong(int conLai, int nop24h, DateTimeOffset bayGio)
+        {
+            if (conLai <= 0)
+            {
+                return bayGio;
+            }
+
+            if (nop24h <= 0)
+            {
+                return null;
+            }
+
+            return bayGio + TimeSpan.FromHours(24.0 * conLai / nop24h);
         }
 
         // =====================================================================
@@ -539,6 +614,8 @@ namespace Crowd.Tasking.Api.Services
                 SchemaVersion = LabelPayload.PhienBanHienTai,
                 ExpiresAt = a.ExpiresAt,
                 UnitPriceVnd = p.UnitPriceVnd,
+                Draft = a.DraftJson == null ? null : RawJson.Tu(a.DraftJson),
+                DraftSavedAt = a.DraftSavedAt,
             };
         }
     }

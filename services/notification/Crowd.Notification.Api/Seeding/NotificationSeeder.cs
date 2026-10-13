@@ -39,9 +39,16 @@ namespace Crowd.Notification.Api.Seeding
             int so = 0;
             foreach (SeedUser su in KichBanSeed.Users)
             {
-                if (!await _db.LienHes.AnyAsync(x => x.UserId == su.Id, ct))
+                LienHe? lh = await _db.LienHes.FirstOrDefaultAsync(x => x.UserId == su.Id, ct);
+                if (lh == null)
                 {
-                    _db.LienHes.Add(LienHe.Tao(su.Id, su.Email.Trim().ToLowerInvariant(), su.DisplayName));
+                    _db.LienHes.Add(LienHe.Tao(su.Id, su.Email.Trim().ToLowerInvariant(), su.DisplayName, su.Roles));
+                    so = so + 1;
+                }
+                else if (lh.Roles.Count == 0)
+                {
+                    // DB cu (truoc khi luu vai tro): bo sung de thong bao theo doi tuong toi duoc.
+                    lh.DatVaiTro(su.Roles);
                     so = so + 1;
                 }
             }

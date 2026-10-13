@@ -87,11 +87,13 @@ namespace Crowd.Identity.Api.Workers
             using (IServiceScope scope = _scopeFactory.CreateScope())
             {
                 RefreshTokenCleanupService don = scope.ServiceProvider.GetRequiredService<RefreshTokenCleanupService>();
-                int soDong = await don.XoaHetHanAsync(_clock.GetUtcNow(), ct);
+                DateTimeOffset bayGio = _clock.GetUtcNow();
+                int soToken = await don.XoaHetHanAsync(bayGio, ct);
+                int soMa = await don.XoaMaTaiKhoanHetHanAsync(bayGio, ct);
 
-                if (soDong > 0)
+                if (soToken > 0 || soMa > 0)
                 {
-                    _logger.LogInformation("Da xoa {SoDong} refresh token het han", soDong);
+                    _logger.LogInformation("Da xoa {SoToken} refresh token het han, {SoMa} ma xac thuc / dat lai mat khau het han", soToken, soMa);
                 }
             }
         }

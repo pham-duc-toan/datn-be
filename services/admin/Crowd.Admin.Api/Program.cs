@@ -40,6 +40,13 @@ builder.Services.AddEventConsumer<AdminDbContext, SettingsSnapshotRequested, Sna
     builder.Configuration, "admin-svc.settings-snapshot-requested");
 
 builder.Services.AddScoped<SettingService>();
+
+// Nhat ky audit (moi event tren bus), thong ke, thong bao toan he thong (FP-06, FM-09).
+builder.Services.Configure<EventConsumerOptions>(builder.Configuration.GetSection(EventConsumerOptions.SectionName));
+builder.Services.AddScoped<AuditService>();
+builder.Services.AddScoped<AnnouncementService>();
+builder.Services.AddHostedService<AuditConsumer>();
+builder.Services.AddHostedService<AuditRetentionWorker>();
 builder.Services.AddHostedService<SnapshotWorker>();
 
 builder.Services.AddCrowdJwtAuthentication(builder.Configuration);

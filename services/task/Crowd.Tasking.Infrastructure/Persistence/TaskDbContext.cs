@@ -7,6 +7,7 @@ using Crowd.Tasking.Domain.Assignments;
 using Crowd.Tasking.Domain.Labelers;
 using Crowd.Tasking.Domain.Members;
 using Crowd.Tasking.Domain.Projects;
+using Crowd.Tasking.Domain.Reports;
 using Crowd.Tasking.Domain.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -49,6 +50,8 @@ namespace Crowd.Tasking.Infrastructure.Persistence
 
         public DbSet<GoldSample> GoldSamples => Set<GoldSample>();
 
+        public DbSet<TaskReport> TaskReports => Set<TaskReport>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -65,6 +68,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence
             CauHinhTasks(modelBuilder);
             CauHinhAssignments(modelBuilder);
             CauHinhBanSao(modelBuilder);
+            CauHinhBaoLoi(modelBuilder);
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
@@ -133,6 +137,11 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property<int?>("_payloadSchemaVersion").HasColumnName("schema_version");
                 b.Property<string?>("_payloadJson").HasColumnName("payload").HasColumnType("jsonb");
 
+                // Ban nhap (FL-05): JSON tho, chua kiem luat.
+                b.Ignore(x => x.DraftJson);
+                b.Property<string?>("_draftJson").HasColumnName("draft").HasColumnType("jsonb");
+                b.Property(x => x.DraftSavedAt).HasColumnName("draft_saved_at");
+
                 // Khoa lac quan: reaper va nguoi nop cham cung mot dong — ben den sau
                 // nhan 0 dong thay vi ghi de (VD-D-11).
                 b.Property<uint>("RowVersion").IsRowVersion();
@@ -164,6 +173,35 @@ namespace Crowd.Tasking.Infrastructure.Persistence
 
                 // Reaper tim lease qua han.
                 b.HasIndex(x => x.ExpiresAt).HasFilter("state = 'Leased'").HasDatabaseName("ix_assignments_reaper");
+            });
+        }
+
+        private static void CauHinhBaoLoi(ModelBuilder mb)
+        {
+            mb.Entity<TaskReport>(b =>
+            {
+                b.ToTable("task_reports");
+                b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+                b.HasKey(x => x.Id);
+                b.Property(x => x.AssignmentId).HasColumnName("assignment_id").IsRequired();
+                b.Property(x => x.TaskId).HasColumnName("task_id").IsRequired();
+                b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
+                b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
+                b.Property(x => x.LabelerId).HasColumnName("labeler_id").IsRequired();
+                b.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(20).IsRequired();
+                b.Property(x => x.Note).HasColumnName("note").HasMaxLength(TaskReport.DoDaiGhiChuToiDa);
+                b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
+                b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+                b.Property(x => x.ResolvedAt).HasColumnName("resolved_at");
+                b.Property(x => x.ResolvedBy).HasColumnName("resolved_by");
+
+                // Mot luot lease bao loi mot lan.
+                b.HasIndex(x => x.AssignmentId).IsUnique().HasDatabaseName("ux_task_reports_assignment");
+                // NOT EXISTS trong cau lay task: "labeler nay da bao loi task nay chua".
+                b.HasIndex(x => new { x.LabelerId, x.TaskId }).HasDatabaseName("ix_task_reports_labeler_task");
+                // Chu du an xem bao loi cua du an; dem so nguoi bao moi task.
+                b.HasIndex(x => new { x.ProjectId, x.State, x.CreatedAt }).HasDatabaseName("ix_task_reports_du_an");
+                b.HasIndex(x => x.TaskId).HasDatabaseName("ix_task_reports_task");
             });
         }
 

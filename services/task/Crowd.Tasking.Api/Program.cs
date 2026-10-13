@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
@@ -18,6 +19,7 @@ using Crowd.Tasking.Api.Services;
 using Crowd.Tasking.Api.Workers;
 using Crowd.Tasking.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,6 +53,7 @@ builder.Services.AddEventConsumer<TaskDbContext, MemberBlocked, MemberBlockedPro
 builder.Services.AddEventConsumer<TaskDbContext, MemberUnblocked, MemberUnblockedProcessor>(cfg, "task-svc.member-unblocked");
 builder.Services.AddEventConsumer<TaskDbContext, MemberRemoved, MemberRemovedProcessor>(cfg, "task-svc.member-removed");
 builder.Services.AddEventConsumer<TaskDbContext, UserBlocked, UserBlockedProcessor>(cfg, "task-svc.user-blocked");
+builder.Services.AddEventConsumer<TaskDbContext, UserUnblocked, UserUnblockedProcessor>(cfg, "task-svc.user-unblocked");
 builder.Services.AddEventConsumer<TaskDbContext, ReputationChanged, ReputationChangedProcessor>(cfg, "task-svc.reputation-changed");
 builder.Services.AddEventConsumer<TaskDbContext, LevelChanged, LevelChangedProcessor>(cfg, "task-svc.level-changed");
 builder.Services.AddEventConsumer<TaskDbContext, RedundancyIncreaseRequested, RedundancyIncreaseRequestedProcessor>(cfg, "task-svc.redundancy-increase-requested");
@@ -63,6 +66,10 @@ builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
 builder.Services.AddScoped<TaskEventPublisher>();
 builder.Services.AddScoped<LeaseRevoker>();
 builder.Services.AddScoped<LeaseService>();
+builder.Services.AddScoped<BaoLoiService>();
+
+// IP that cua labeler qua X-Forwarded-For cua gateway (chi tin mang noi bo cau hinh) — FM-07.
+builder.Services.Configure<ForwardedHeadersOptions>(o => ProxyTinCay.CauHinh(o, builder.Configuration));
 builder.Services.AddHostedService<LeaseReaper>();
 builder.Services.AddScoped<TaskSeeder>();
 
@@ -95,6 +102,7 @@ using (IServiceScope scope = app.Services.CreateScope())
 }
 
 app.UseExceptionHandler();
+app.UseForwardedHeaders();
 app.UseAuthentication();
 app.UseAuthorization();
 

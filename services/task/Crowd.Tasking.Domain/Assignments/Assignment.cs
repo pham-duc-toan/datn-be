@@ -43,6 +43,9 @@ namespace Crowd.Tasking.Domain.Assignments
         private int? _payloadSchemaVersion;
         private string? _payloadJson;
 
+        // Ban nhap (FL-05): JSON tho cua nhan dang lam do — chua kiem luat, chi luu tam.
+        private string? _draftJson;
+
         private Assignment()
         {
         }
@@ -137,6 +140,29 @@ namespace Crowd.Tasking.Domain.Assignments
             a.LeasedAt = luc;
             a.ExpiresAt = luc + thoiHan;
             return a;
+        }
+
+        /// <summary>Ban nhap da luu (JSON object), null = chua luu.</summary>
+        public string? DraftJson
+        {
+            get { return _draftJson; }
+        }
+
+        public DateTimeOffset? DraftSavedAt { get; private set; }
+
+        /// <summary>
+        /// Luu nhap nhan dang lam (FL-05) — chi khi CON GIU task. Khong kiem luat nhan (nhap la do
+        /// dang): kiem day du khi nop.
+        /// </summary>
+        public void LuuNhap(string jsonObject, DateTimeOffset luc)
+        {
+            if (!DangGiu(luc))
+            {
+                throw new RuleViolationException("lease_khong_con", "Khong con giu task nay — khong luu nhap duoc.");
+            }
+
+            _draftJson = jsonObject;
+            DraftSavedAt = luc;
         }
 
         public bool DangGiu(DateTimeOffset luc)

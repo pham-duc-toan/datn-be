@@ -60,6 +60,27 @@ class AnnotationSubmitted(Payload):
     source: Literal["professional", "linkGateway", "collaborative"]
 
 
+class AssignmentSubmitted(Payload):
+    """task-svc → annotation-svc (va quality-svc nghe them de chong gian lan, FM-07): co LeasedAt /
+    SubmittedAt de do toc do lam bai, ClientIp / DeviceId de phat hien nhieu tai khoan chung may."""
+
+    EVENT_TYPE = "assignment.submitted"
+
+    assignment_id: uuid.UUID
+    task_id: uuid.UUID
+    project_id: uuid.UUID
+    sample_id: uuid.UUID
+    storage_key: str | None
+    sample_content: Any | None
+    sample_metadata: Any
+    labeler_id: uuid.UUID
+    label_payload: LabelPayload
+    leased_at: datetime
+    submitted_at: datetime
+    client_ip: str | None
+    device_id: str | None
+
+
 class TaskRedundancyReached(Payload):
     EVENT_TYPE = "task.redundancy_reached"
 
@@ -110,6 +131,17 @@ class ConsensusReached(Payload):
     status: Literal["agreed", "disputed", "notApplicable"]
     final: dict[str, Any] | None
     votes: list[ConsensusVote]
+
+
+class FraudCaseConfirmed(Payload):
+    """Admin xac nhan ho so gian lan (FM-07); block_accounts → identity khoa cac tai khoan."""
+
+    EVENT_TYPE = "fraud.case_confirmed"
+
+    case_id: uuid.UUID
+    user_ids: list[uuid.UUID]
+    reason: str
+    block_accounts: bool
 
 
 class ReputationChanged(Payload):

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Notification.Api.Entities;
@@ -25,6 +26,8 @@ namespace Crowd.Notification.Api.Persistence
         public DbSet<TuyChonEmail> TuyChonEmails => Set<TuyChonEmail>();
 
         public DbSet<ChuDuAn> ChuDuAns => Set<ChuDuAn>();
+
+        public DbSet<EmailGiaoDich> EmailGiaoDichs => Set<EmailGiaoDich>();
 
         public DbSet<ChuLenhRut> ChuLenhRuts => Set<ChuLenhRut>();
 
@@ -75,6 +78,27 @@ namespace Crowd.Notification.Api.Persistence
                 b.HasKey(x => x.UserId);
                 b.Property(x => x.Email).HasColumnName("email").HasMaxLength(320).IsRequired();
                 b.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(100).IsRequired();
+                b.Ignore(x => x.Roles);
+                b.Property<List<string>>("_roles").HasColumnName("roles").IsRequired();
+            });
+
+            modelBuilder.Entity<EmailGiaoDich>(b =>
+            {
+                b.ToTable("transactional_emails");
+                b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+                b.HasKey(x => x.Id);
+                b.Property(x => x.UserId).HasColumnName("user_id").IsRequired();
+                b.Property(x => x.ToEmail).HasColumnName("to_email").HasMaxLength(320).IsRequired();
+                b.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(100).IsRequired();
+                b.Property(x => x.Subject).HasColumnName("subject").HasMaxLength(200).IsRequired();
+                b.Property(x => x.Body).HasColumnName("body").HasMaxLength(4000).IsRequired();
+                b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
+                b.Property(x => x.Attempts).HasColumnName("attempts").IsRequired();
+                b.Property(x => x.NextAt).HasColumnName("next_at");
+                b.Property(x => x.SentAt).HasColumnName("sent_at");
+                b.Property(x => x.Error).HasColumnName("error").HasMaxLength(500);
+                b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+                b.HasIndex(x => x.NextAt).HasFilter("state = 'Pending'").HasDatabaseName("ix_transactional_emails_cho");
             });
 
             modelBuilder.Entity<TuyChonEmail>(b =>

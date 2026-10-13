@@ -20,6 +20,9 @@ namespace Crowd.Notification.Api.Services
         public const string NhanTuChoi = "nhan_tu_choi";
         public const string NhanDuyet = "nhan_duyet";
         public const string TienKhaDung = "tien_kha_dung";
+        public const string TranhChap = "tranh_chap";
+        public const string HeThong = "he_thong";
+        public const string CapDo = "cap_do";
 
         public static readonly IReadOnlyList<LoaiThongBao> TatCa = new List<LoaiThongBao>
         {
@@ -31,6 +34,9 @@ namespace Crowd.Notification.Api.Services
             new LoaiThongBao(NhanTuChoi, "Nhãn bị từ chối / kết quả khiếu nại", false, true, false),
             new LoaiThongBao(NhanDuyet, "Nhãn được duyệt", false, false, true),
             new LoaiThongBao(TienKhaDung, "Tiền treo chuyển sang khả dụng", false, false, true),
+            new LoaiThongBao(TranhChap, "Tranh chấp nhãn đã duyệt", true, true, false),
+            new LoaiThongBao(HeThong, "Thông báo từ quản trị viên", false, true, false),
+            new LoaiThongBao(CapDo, "Cấp độ và huy hiệu", false, false, false),
         };
 
         private LoaiThongBao(string ma, string ten, bool batBuoc, bool macDinhEmail, bool gop)
@@ -179,6 +185,77 @@ namespace Crowd.Notification.Api.Services
         {
             return new NoiDung("Lệnh rút bị từ chối",
                 "Lệnh rút " + Tien(vnd) + " bị quản trị viên từ chối. Lý do: " + lyDo + ". Tiền đã về lại ví.", "/ledger/withdrawals");
+        }
+
+        // ---- tranh chap (FM-06) ----
+
+        public static NoiDung TranhChapMo(Guid projectId, long vnd, string lyDo)
+        {
+            return new NoiDung("Nhãn đã duyệt bị tranh chấp",
+                "Doanh nghiệp phản đối một nhãn đã duyệt của bạn. Khoản " + Tien(vnd) + " đang được giữ lại chờ quản trị viên phân xử. Lý do: " + lyDo + ".",
+                "/projects/" + projectId);
+        }
+
+        public static NoiDung TranhChapKetQua(Guid projectId, long vnd, bool laLabeler, bool doanhNghiepThang, string ghiChu)
+        {
+            string ketCuc;
+            if (doanhNghiepThang)
+            {
+                ketCuc = laLabeler
+                    ? "Quản trị viên xử doanh nghiệp đúng: nhãn bị loại, khoản " + Tien(vnd) + " không được trả."
+                    : "Quản trị viên xử bạn đúng: nhãn bị loại, " + Tien(vnd) + " cùng phí nền tảng được hoàn lại.";
+            }
+            else
+            {
+                ketCuc = laLabeler
+                    ? "Quản trị viên xử bạn đúng: khoản " + Tien(vnd) + " tiếp tục được trả như bình thường."
+                    : "Quản trị viên giữ nguyên nhãn: khoản " + Tien(vnd) + " vẫn trả cho labeler.";
+            }
+
+            return new NoiDung("Kết quả tranh chấp", ketCuc + " Ghi chú: " + ghiChu + ".", "/projects/" + projectId);
+        }
+
+        // ---- cap do, huy hieu (FL-12) ----
+
+        public static NoiDung CapDoMoi(int cap)
+        {
+            return new NoiDung("Cấp độ mới: " + cap, "Cấp độ của bạn giờ là " + cap + ". Một số dự án yêu cầu cấp độ tối thiểu để nhận việc.", "/me/level");
+        }
+
+        public static NoiDung HuyHieuMoi(string ten)
+        {
+            return new NoiDung("Huy hiệu mới", "Bạn vừa đạt huy hiệu “" + ten + "”.", "/me/level");
+        }
+
+        // ---- thong bao toan he thong (FM-09) ----
+
+        public static NoiDung ThongBaoHeThong(string tieuDe, string noiDung)
+        {
+            return new NoiDung(tieuDe, noiDung, null);
+        }
+
+        // ---- email giao dich (FC-01, FC-03) ----
+
+        public static string EmailXacThuc(string ten, string link, DateTimeOffset hetHan)
+        {
+            return "Xin chào " + ten + ",\n\n"
+                + "Bấm vào link dưới đây để xác thực email tài khoản Crowd Label:\n" + link + "\n\n"
+                + "Link hết hạn lúc " + GioVietNam(hetHan) + ". Nếu bạn không đăng ký, hãy bỏ qua email này.\n\n"
+                + "— Crowd Label";
+        }
+
+        public static string EmailDatLaiMatKhau(string ten, string link, DateTimeOffset hetHan)
+        {
+            return "Xin chào " + ten + ",\n\n"
+                + "Bấm vào link dưới đây để đặt mật khẩu mới:\n" + link + "\n\n"
+                + "Link dùng một lần, hết hạn lúc " + GioVietNam(hetHan) + ". Đặt lại mật khẩu sẽ đăng xuất mọi thiết bị.\n"
+                + "Nếu bạn không yêu cầu, hãy bỏ qua email này — mật khẩu hiện tại vẫn giữ nguyên.\n\n"
+                + "— Crowd Label";
+        }
+
+        public static string GioVietNam(DateTimeOffset luc)
+        {
+            return luc.ToOffset(TimeSpan.FromHours(7)).ToString("HH:mm dd/MM/yyyy", CultureInfo.InvariantCulture) + " (giờ Việt Nam)";
         }
     }
 }

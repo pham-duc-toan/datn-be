@@ -168,6 +168,9 @@ namespace Crowd.Annotation.Api.Dtos
         /// <summary>Phan bo nhan theo tung cong cu: {"ten cong cu":{"lop":so}} — nen cua canh bao lech lop (FB-24).</summary>
         public required IReadOnlyDictionary<string, SortedDictionary<string, int>> LabelDistribution { get; init; }
 
+        /// <summary>Canh bao lech phan bo (FB-24); rong = binh thuong.</summary>
+        public required IReadOnlyList<ImbalanceWarningDto> ImbalanceWarnings { get; init; }
+
         public required IReadOnlyList<SampleResultResponse> Samples { get; init; }
     }
 
@@ -208,5 +211,37 @@ namespace Crowd.Annotation.Api.Dtos
 
         /// <summary>Luc han khieu nai cuoi cung het (null neu khong con nhan nao trong han).</summary>
         public required DateTimeOffset? AppealWindowEndsAt { get; init; }
+    }
+
+    /// <summary>Mot canh bao lech phan bo nhan (FB-24).</summary>
+    public sealed class ImbalanceWarningDto
+    {
+        /// <summary>lop_ap_dao (mot lop chiem qua nguong) | lop_chua_co_nhan (lop khai ma chua ai chon)</summary>
+        public required string Code { get; init; }
+
+        public required string Tool { get; init; }
+
+        public required string Label { get; init; }
+
+        public required int Count { get; init; }
+
+        public required int Total { get; init; }
+
+        public required int Percent { get; init; }
+    }
+
+    /// <summary>GET /annotations/projects/{id}/distribution — phan bo + canh bao, khong kem tung mau.</summary>
+    public sealed class DistributionResponse
+    {
+        public required Guid ProjectId { get; init; }
+
+        public required int SampleCount { get; init; }
+
+        public required IReadOnlyDictionary<string, SortedDictionary<string, int>> LabelDistribution { get; init; }
+
+        public required IReadOnlyList<ImbalanceWarningDto> ImbalanceWarnings { get; init; }
+
+        /// <summary>Nguong dang ap dung (setting annotation.imbalance_threshold_percent).</summary>
+        public required int ThresholdPercent { get; init; }
     }
 }

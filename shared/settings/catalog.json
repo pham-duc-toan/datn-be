@@ -642,6 +642,17 @@
     "description": "Chu ky quet lease qua han."
   },
   {
+    "key": "task.report_auto_exclude",
+    "group": "Du an",
+    "type": "int",
+    "default": 3,
+    "min": 1,
+    "max": 100,
+    "unit": "nguoi",
+    "effect": "newOperations",
+    "description": "Bao nhieu labeler khac nhau bao loi cung mot mau thi tu loai mau do khoi du an (FL-07)."
+  },
+  {
     "key": "task.reaper_batch_size",
     "group": "Ky thuat",
     "type": "int",
@@ -719,6 +730,28 @@
     "description": "So nhan toi da moi lan duyet hang loat."
   },
   {
+    "key": "annotation.imbalance_threshold_percent",
+    "group": "Gan nhan va duyet nhan",
+    "type": "int",
+    "default": 80,
+    "min": 50,
+    "max": 99,
+    "unit": "%",
+    "effect": "newOperations",
+    "description": "Canh bao lech phan bo (FB-24) khi mot lop chiem tren bay nhieu phan tram so nhan cua cong cu."
+  },
+  {
+    "key": "annotation.imbalance_min_labels",
+    "group": "Gan nhan va duyet nhan",
+    "type": "int",
+    "default": 20,
+    "min": 1,
+    "max": 100000,
+    "unit": "nhan",
+    "effect": "newOperations",
+    "description": "Cong cu can it nhat bay nhieu nhan moi bat dau canh bao lech phan bo."
+  },
+  {
     "key": "quality.ds_interval",
     "group": "Chat luong",
     "type": "durationSeconds",
@@ -728,6 +761,116 @@
     "unit": "giay",
     "effect": "newOperations",
     "description": "Chu ky chay lo Dawid-Skene."
+  },
+  {
+    "key": "quality.fraud_enabled",
+    "group": "Chat luong",
+    "type": "bool",
+    "default": true,
+    "min": null,
+    "max": null,
+    "unit": "",
+    "effect": "newOperations",
+    "description": "Bat phat hien gian lan (tat thi khong mo ho so moi)."
+  },
+  {
+    "key": "quality.fraud_min_seconds",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 2,
+    "min": 0,
+    "max": 600,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Lam mot task duoi bay nhieu giay luon bi coi la qua nhanh."
+  },
+  {
+    "key": "quality.fraud_fast_ratio",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.25,
+    "min": 0,
+    "max": 1,
+    "unit": "lan",
+    "effect": "newOperations",
+    "description": "Hoac nhanh hon ti le nay nhan voi thoi gian trung vi cua du an."
+  },
+  {
+    "key": "quality.fraud_fast_window",
+    "group": "Chat luong",
+    "type": "int",
+    "default": 20,
+    "min": 3,
+    "max": 1000,
+    "unit": "luot",
+    "effect": "newOperations",
+    "description": "So luot nop gan nhat cua labeler trong du an de xet lam qua nhanh."
+  },
+  {
+    "key": "quality.fraud_fast_fraction",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.5,
+    "min": 0.1,
+    "max": 1,
+    "unit": "ti le",
+    "effect": "newOperations",
+    "description": "Ti le luot qua nhanh trong cua so tren de mo ho so."
+  },
+  {
+    "key": "quality.fraud_same_label_streak",
+    "group": "Chat luong",
+    "type": "int",
+    "default": 30,
+    "min": 3,
+    "max": 10000,
+    "unit": "luot",
+    "effect": "newOperations",
+    "description": "Chon cung mot lop bay nhieu luot lien tiep (trong khi nguoi khac chon da dang) thi mo ho so."
+  },
+  {
+    "key": "quality.fraud_shared_accounts",
+    "group": "Chat luong",
+    "type": "int",
+    "default": 3,
+    "min": 2,
+    "max": 1000,
+    "unit": "tai khoan",
+    "effect": "newOperations",
+    "description": "Bay nhieu tai khoan khac nhau nop tu cung IP / thiet bi trong khoang thoi gian duoi thi mo ho so."
+  },
+  {
+    "key": "quality.fraud_shared_window",
+    "group": "Chat luong",
+    "type": "durationSeconds",
+    "default": 86400,
+    "min": 60,
+    "max": 2592000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Khoang thoi gian xet chung IP / thiet bi."
+  },
+  {
+    "key": "quality.fraud_ignore_private_ips",
+    "group": "Chat luong",
+    "type": "bool",
+    "default": true,
+    "min": null,
+    "max": null,
+    "unit": "",
+    "effect": "newOperations",
+    "description": "Bo qua IP noi bo / loopback khi xet chung IP (moi truong dev, mang cong ty dung chung NAT)."
+  },
+  {
+    "key": "quality.fraud_reopen_cooldown",
+    "group": "Chat luong",
+    "type": "durationSeconds",
+    "default": 604800,
+    "min": 0,
+    "max": 31536000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Ho so da xu ly (bo qua / xac nhan) thi khong mo lai cung khoa trong khoang nay."
   },
   {
     "key": "quality.ds_min_labels",
@@ -931,6 +1074,116 @@
     "unit": "giay",
     "effect": "newOperations",
     "description": "Chu ky xoa refresh token da het han."
+  },
+  {
+    "key": "identity.frontend_url",
+    "group": "Tai khoan",
+    "type": "text",
+    "default": "http://localhost:5173",
+    "min": null,
+    "max": 300,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Dia chi frontend — dung de dung link trong email xac thuc / dat lai mat khau."
+  },
+  {
+    "key": "identity.email_verify_ttl",
+    "group": "Tai khoan",
+    "type": "durationSeconds",
+    "default": 86400,
+    "min": 600,
+    "max": 2592000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Link xac thuc email song bao lau."
+  },
+  {
+    "key": "identity.password_reset_ttl",
+    "group": "Tai khoan",
+    "type": "durationSeconds",
+    "default": 1800,
+    "min": 300,
+    "max": 86400,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Link dat lai mat khau song bao lau."
+  },
+  {
+    "key": "identity.avatar_max_bytes",
+    "group": "Tai khoan",
+    "type": "long",
+    "default": 2097152,
+    "min": 51200,
+    "max": 20971520,
+    "unit": "byte",
+    "effect": "newOperations",
+    "description": "Kich thuoc toi da anh dai dien."
+  },
+  {
+    "key": "identity.level_rules",
+    "group": "Tai khoan",
+    "type": "text",
+    "default": "2=50/50;3=200/65;4=1000/75;5=5000/85",
+    "min": null,
+    "max": 200,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Dieu kien len cap: cap=so nhan duoc duyet/uy tin toi thieu, ngan cach bang ';'. Sai dinh dang thi dung mac dinh."
+  },
+  {
+    "key": "admin.audit_excluded_types",
+    "group": "Ky thuat",
+    "type": "text",
+    "default": "gate.solved,click.validated,settings.snapshot",
+    "min": null,
+    "max": 1000,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Loai event KHONG ghi vao nhat ky audit (luu luong lon, khong phai thao tac quan tri), ngan cach bang dau phay."
+  },
+  {
+    "key": "admin.audit_retention_days",
+    "group": "Ky thuat",
+    "type": "int",
+    "default": 365,
+    "min": 7,
+    "max": 3650,
+    "unit": "ngay",
+    "effect": "newOperations",
+    "description": "Giu nhat ky audit bao nhieu ngay."
+  },
+  {
+    "key": "gateway.rate_limit_per_minute",
+    "group": "Ky thuat",
+    "type": "int",
+    "default": 600,
+    "min": 10,
+    "max": 1000000,
+    "unit": "request/phut",
+    "effect": "newOperations",
+    "description": "Moi nguoi dung (hoac moi IP neu chua dang nhap) duoc goi toi da bay nhieu request moi phut."
+  },
+  {
+    "key": "gateway.rate_limit_auth_per_minute",
+    "group": "Ky thuat",
+    "type": "int",
+    "default": 20,
+    "min": 1,
+    "max": 1000000,
+    "unit": "request/phut",
+    "effect": "newOperations",
+    "description": "Moi IP: dang nhap / dang ky / quen mat khau / dat lai mat khau / xac thuc email toi da bay nhieu lan moi phut."
+  },
+  {
+    "key": "gateway.rate_limit_money_per_minute",
+    "group": "Ky thuat",
+    "type": "int",
+    "default": 30,
+    "min": 1,
+    "max": 1000000,
+    "unit": "request/phut",
+    "effect": "newOperations",
+    "description": "Moi nguoi dung: tao lenh nap tien / rut tien toi da bay nhieu lan moi phut."
   },
   {
     "key": "notification.email_enabled",

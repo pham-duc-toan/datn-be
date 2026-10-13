@@ -57,12 +57,7 @@ namespace Crowd.Identity.Api.Dtos
         public string? Email { get; init; }
 
         public required IReadOnlyList<string> Roles { get; init; }
-        public string? Name { get; init; }
-    }
 
-    /// <summary>Loi nghiep vu don gian, vd 409 email da ton tai.</summary>
-    public sealed class ErrorResponse
-    {
-        public required string Error { get; init; }
+        public string? Name { get; init; }
     }
 }

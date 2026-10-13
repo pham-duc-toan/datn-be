@@ -2,9 +2,16 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
+using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.Contracts.Annotation;
+using Crowd.Contracts.Identity;
+using Crowd.Contracts.Ledger;
+using Crowd.Contracts.Quality;
+using Crowd.Identity.Api.Consumers;
 using Crowd.Identity.Api.Entities;
 using Crowd.Identity.Api.Exceptions;
 using Crowd.Identity.Api.Persistence;
@@ -17,6 +24,7 @@ using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -69,6 +77,16 @@ namespace Crowd.Identity.Api
             // Nghiep vu dang ky/dang nhap. Scoped vi dung IdentityDbContext.
             builder.Services.AddScoped<AuthService>();
 
+            // Tai khoan: xac thuc email, quen / doi mat khau, thu hoi phien (FC-01, FC-03, VD-S-11).
+            builder.Services.AddScoped<MaTaiKhoanService>();
+            builder.Services.AddScoped<PhienService>();
+            builder.Services.AddScoped<TaiKhoanService>();
+
+            // Ho so, anh dai dien (bucket rieng "avatars"), cap do / huy hieu / xep hang (FC-05, FL-01, FL-12).
+            builder.Services.AddSingleton<KhoAnhDaiDien>();
+            builder.Services.AddScoped<HoSoService>();
+            builder.Services.AddScoped<CapDoService>();
+
             // Don refresh token het han (chay nen, chu ky theo setting).
             builder.Services.AddScoped<RefreshTokenCleanupService>();
             builder.Services.AddHostedService<RefreshTokenCleanupWorker>();
@@ -80,6 +98,15 @@ namespace Crowd.Identity.Api
             builder.Services.AddScoped<TaiKhoanAdminService>();
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+            builder.Services.AddCrowdInternalApi(builder.Configuration);
+
+            // Event identity nghe: so lieu cap do (annotation.approved, reputation.changed, dispute.resolved),
+            // khoa tai khoan khi admin xac nhan gian lan (fraud.case_confirmed).
+            IConfiguration cfg = builder.Configuration;
+            builder.Services.AddEventConsumer<IdentityDbContext, AnnotationApproved, AnnotationApprovedProcessor>(cfg, "identity-svc.annotation-approved");
+            builder.Services.AddEventConsumer<IdentityDbContext, ReputationChanged, ReputationChangedProcessor>(cfg, "identity-svc.reputation-changed");
+            builder.Services.AddEventConsumer<IdentityDbContext, DisputeResolved, DisputeResolvedProcessor>(cfg, "identity-svc.dispute-resolved");
+            builder.Services.AddEventConsumer<IdentityDbContext, FraudCaseConfirmed, FraudCaseConfirmedProcessor>(cfg, "identity-svc.fraud-case-confirmed");
             builder.Services.AddScoped<IdentitySeeder>();
 
             // Controller nam o thu muc Controllers/, tu duoc tim thay qua

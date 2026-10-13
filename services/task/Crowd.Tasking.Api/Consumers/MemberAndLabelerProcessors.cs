@@ -233,6 +233,33 @@ namespace Crowd.Tasking.Api.Consumers
         }
     }
 
+    /// <summary>user.unblocked: nhan task lai duoc (truoc day khong ai nghe — mo khoa xong van bi chan).</summary>
+    public sealed class UserUnblockedProcessor : IEventProcessor<UserUnblocked>
+    {
+        private readonly TaskDbContext _db;
+
+        public UserUnblockedProcessor(TaskDbContext db)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            _db = db;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<UserUnblocked> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            LabelerProfile p = await LabelerCacheWriter.LayHoacTaoAsync(_db, envelope.Payload.UserId, ct);
+            p.MoKhoa(envelope.OccurredAt);
+        }
+    }
+
     public sealed class ReputationChangedProcessor : IEventProcessor<ReputationChanged>
     {
         private readonly TaskDbContext _db;

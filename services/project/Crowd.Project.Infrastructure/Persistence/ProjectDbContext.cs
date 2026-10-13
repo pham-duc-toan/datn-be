@@ -35,6 +35,8 @@ namespace Crowd.Project.Infrastructure.Persistence
 
         public DbSet<VerifiedBusiness> VerifiedBusinesses => Set<VerifiedBusiness>();
 
+        public DbSet<EmailStatus> EmailStatuses => Set<EmailStatus>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -55,6 +57,7 @@ namespace Crowd.Project.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new GoldItemConfiguration());
             modelBuilder.ApplyConfiguration(new EntranceAttemptConfiguration());
             modelBuilder.ApplyConfiguration(new VerifiedBusinessConfiguration());
+            modelBuilder.ApplyConfiguration(new EmailStatusConfiguration());
             modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
 
             // Ha tang dung chung: outbox (gui event) + processed_events (nhan event).

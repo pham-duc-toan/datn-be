@@ -2,6 +2,7 @@ using System;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Ledger.Domain.Accounts;
+using Crowd.Ledger.Domain.Disputes;
 using Crowd.Ledger.Domain.Escrows;
 using Crowd.Ledger.Domain.Holds;
 using Crowd.Ledger.Domain.Journal;
@@ -37,6 +38,10 @@ namespace Crowd.Ledger.Infrastructure.Persistence
         public DbSet<ProjectEscrow> Escrows => Set<ProjectEscrow>();
 
         public DbSet<BlockedUser> BlockedUsers => Set<BlockedUser>();
+
+        public DbSet<EmailStatus> EmailStatuses => Set<EmailStatus>();
+
+        public DbSet<Dispute> Disputes => Set<Dispute>();
 
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
@@ -108,6 +113,9 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.HasIndex(x => new { x.AnnotationId, x.Kind }).IsUnique().HasDatabaseName("ux_holds_source");
                 b.HasIndex(x => x.LinkId).HasFilter("link_id IS NOT NULL AND state = 'Held'").HasDatabaseName("ix_holds_link_dang_treo");
                 b.HasIndex(x => x.ReleaseAt).HasFilter("state = 'Held'").HasDatabaseName("ix_holds_den_han");
+
+                // Thong ke thu nhap theo nguoi nhan + khoang thoi gian (FL-11).
+                b.HasIndex(x => new { x.LabelerId, x.HeldAt }).HasDatabaseName("ix_holds_thu_nhap");
                 b.HasIndex(x => x.TaskId).HasDatabaseName("ix_holds_task");
             });
 
@@ -188,7 +196,40 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.ToTable("blocked_users");
                 b.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
                 b.HasKey(x => x.UserId);
-                b.Property(x => x.BlockedAt).HasColumnName("blocked_at").IsRequired();
+                b.Property(x => x.Blocked).HasColumnName("blocked").IsRequired();
+                b.Property(x => x.ChangedAt).HasColumnName("changed_at").IsRequired();
+            });
+
+            modelBuilder.Entity<EmailStatus>(b =>
+            {
+                b.ToTable("email_status");
+                b.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
+                b.HasKey(x => x.UserId);
+                b.Property(x => x.Verified).HasColumnName("verified").IsRequired();
+            });
+
+            modelBuilder.Entity<Dispute>(b =>
+            {
+                b.ToTable("disputes");
+                b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+                b.HasKey(x => x.Id);
+                b.Property(x => x.HoldId).HasColumnName("hold_id").IsRequired();
+                b.Property(x => x.AnnotationId).HasColumnName("annotation_id").IsRequired();
+                b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
+                b.Property(x => x.LabelerId).HasColumnName("labeler_id").IsRequired();
+                b.Property(x => x.BusinessId).HasColumnName("business_id").IsRequired();
+                b.Property(x => x.AmountVnd).HasColumnName("amount_vnd").IsRequired();
+                b.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(Dispute.DoDaiLyDoToiDa).IsRequired();
+                b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
+                b.Property(x => x.OpenedAt).HasColumnName("opened_at").IsRequired();
+                b.Property(x => x.ResolvedAt).HasColumnName("resolved_at");
+                b.Property(x => x.ResolvedBy).HasColumnName("resolved_by");
+                b.Property(x => x.ResolutionNote).HasColumnName("resolution_note").HasMaxLength(Dispute.DoDaiLyDoToiDa);
+
+                // Moi nhan toi da mot tranh chap; hang doi admin theo trang thai; doanh nghiep xem cua minh.
+                b.HasIndex(x => x.AnnotationId).IsUnique().HasDatabaseName("ux_disputes_annotation");
+                b.HasIndex(x => new { x.State, x.OpenedAt }).HasDatabaseName("ix_disputes_hang_doi");
+                b.HasIndex(x => x.BusinessId).HasDatabaseName("ix_disputes_business");
             });
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
@@ -198,8 +239,11 @@ namespace Crowd.Ledger.Infrastructure.Persistence
     }
 
     /// <summary>
-    /// Tai khoan bi khoa (user.blocked tu identity) — khong duoc rut tien. Tien van
-    /// nam nguyen trong so, chi chan dong ra.
+    /// Trang thai khoa tai khoan (ban sao tu user.blocked / user.unblocked cua identity) — dang khoa
+    /// thi khong rut duoc tien. Tien van nam nguyen trong so, chi chan dong ra.
+    ///
+    /// Ghi theo MOC THOI GIAN SU KIEN: blocked va unblocked di hai queue khac nhau, co the den lech
+    /// thu tu — su kien cu hon moc da ap dung thi bo qua (cung luat voi labeler_cache cua task-svc).
     /// </summary>
     public sealed class BlockedUser
     {
@@ -209,14 +253,67 @@ namespace Crowd.Ledger.Infrastructure.Persistence
 
         public Guid UserId { get; private set; }
 
-        public DateTimeOffset BlockedAt { get; private set; }
+        public bool Blocked { get; private set; }
 
-        public static BlockedUser Tao(Guid userId, DateTimeOffset luc)
+        /// <summary>Moc cua su kien khoa / mo khoa da ap dung gan nhat.</summary>
+        public DateTimeOffset ChangedAt { get; private set; }
+
+        public static BlockedUser Tao(Guid userId)
         {
             BlockedUser b = new BlockedUser();
             b.UserId = userId;
-            b.BlockedAt = luc;
+            b.ChangedAt = DateTimeOffset.MinValue;
             return b;
+        }
+
+        public bool Khoa(DateTimeOffset occurredAt)
+        {
+            return Doi(true, occurredAt);
+        }
+
+        public bool MoKhoa(DateTimeOffset occurredAt)
+        {
+            return Doi(false, occurredAt);
+        }
+
+        private bool Doi(bool khoa, DateTimeOffset occurredAt)
+        {
+            if (occurredAt < ChangedAt)
+            {
+                return false;
+            }
+
+            Blocked = khoa;
+            ChangedAt = occurredAt;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Ban sao trang thai xac thuc email (FC-01): user.registered → chua xac thuc, user.email_verified
+    /// → da xac thuc. Chua xac thuc thi khong rut duoc tien. Khong co dong = tai khoan co tu truoc
+    /// tinh nang nay hoac tai khoan seed → coi nhu da xac thuc.
+    /// </summary>
+    public sealed class EmailStatus
+    {
+        private EmailStatus()
+        {
+        }
+
+        public Guid UserId { get; private set; }
+
+        public bool Verified { get; private set; }
+
+        public static EmailStatus ChuaXacThuc(Guid userId)
+        {
+            EmailStatus e = new EmailStatus();
+            e.UserId = userId;
+            return e;
+        }
+
+        public void XacThuc()
+        {
+            Verified = true;
         }
     }
 }

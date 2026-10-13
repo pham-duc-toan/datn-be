@@ -11,11 +11,12 @@ import aio_pika
 import uvicorn
 from fastapi import FastAPI
 
-from app import db, ds_batch, processors, seeding, settings_store, settings_sync
+from app import db, ds_batch, fraud, processors, seeding, settings_store, settings_sync
 from app.api import router
 from app.config import settings
 from app.contracts import (
-    AnnotationSubmitted, GoldAnswered, ProjectPublished, SettingChanged, SettingsSnapshot, TaskRedundancyReached,
+    AnnotationSubmitted, AssignmentSubmitted, GoldAnswered, ProjectPublished, SettingChanged, SettingsSnapshot,
+    TaskRedundancyReached,
 )
 from app.errors import LoiApi, xu_ly_loi_api
 from app.messaging.consumer import Consumer
@@ -30,6 +31,8 @@ CONSUMERS = [
     Consumer("quality-svc.annotation-submitted", AnnotationSubmitted, processors.annotation_submitted),
     Consumer("quality-svc.task-redundancy-reached", TaskRedundancyReached, processors.task_redundancy_reached),
     Consumer("quality-svc.gold-answered", GoldAnswered, processors.gold_answered),
+    # Chong gian lan (FM-07): toc do lam bai, IP / thiet bi.
+    Consumer("quality-svc.assignment-submitted", AssignmentSubmitted, fraud.assignment_submitted),
 ]
 
 # Setting dong (admin-svc) — bat dau TRUOC cac consumer nghiep vu.

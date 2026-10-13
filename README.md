@@ -1,12 +1,13 @@
 # Hệ thống gán nhãn dữ liệu cộng đồng — backend
 
-Microservice (.NET 10 + một service Python) cho nền tảng gán nhãn: doanh nghiệp ký quỹ và đăng dự án, labeler nhận task và được trả tiền qua sổ cái ghi kép, kiểm soát chất lượng bằng đồng thuận / câu vàng / redundancy thích ứng, kênh thu thập qua cổng vượt link, xác minh doanh nghiệp (KYB) và thông báo trong ứng dụng + email.
+Microservice (.NET 10 + một service Python) cho nền tảng gán nhãn: doanh nghiệp ký quỹ và đăng dự án, labeler nhận task và được trả tiền qua sổ cái ghi kép, kiểm soát chất lượng bằng đồng thuận / câu vàng / redundancy thích ứng, kênh thu thập qua cổng vượt link, xác minh doanh nghiệp (KYB), tài khoản đầy đủ (xác thực email, quên mật khẩu, hồ sơ, cấp độ / huy hiệu / xếp hạng), tranh chấp nhãn, chống gian lận, nhật ký hệ thống, thông báo trong ứng dụng + email, giới hạn tần suất và thu hồi phiên ở gateway.
 
 ## Chạy thử bằng một lệnh
 
 Chỉ cần Docker:
 
 ```bash
+python deploy/tao_env.py                                       # lần đầu: sinh .env (mật khẩu ngẫu nhiên, không commit)
 docker compose -f docker-compose.demo.yml up -d --build
 pip install requests && python tests/e2e/cho_san_sang.py     # chờ migrate + seed xong
 ```
@@ -37,5 +38,6 @@ contracts/     JSON Schema tập nhãn + danh mục event
 tests/e2e/     kiểm thử đầu-cuối qua API thật
 spec/tla/      đặc tả TLA+ dòng tiền + đóng dự án, chạy bằng TLC (python spec/tla/chay_tlc.py)
 experiments/   mã thí nghiệm
-deploy/docker/ Dockerfile; docker-compose.demo.yml (cả hệ thống), docker-compose.infra.yml (hạ tầng cho dev)
+deploy/        Dockerfile (deploy/docker/), tao_env.py sinh .env cho stack demo;
+               docker-compose.demo.yml (cả hệ thống), docker-compose.infra.yml (hạ tầng cho dev)
 ```

@@ -160,6 +160,35 @@ namespace Crowd.Ledger.Domain.Journal
                 });
         }
 
+        /// <summary>
+        /// Doanh nghiep thang tranh chap (FM-06): DAO but toan chi tra nhan — labeler treo −thu lao,
+        /// phi nen tang −phi, tien ve (thu lao + phi). Ve KY QUY du an neu ky quy con mo (ngan sach
+        /// dung tiep cho nhan khac), ve VI doanh nghiep neu ky quy da dong.
+        /// </summary>
+        public static JournalEntry HoanTranhChap(
+            Guid disputeId, Guid projectId, Guid businessId, Guid labelerId, long amount, long fee, bool veKyQuy, DateTimeOffset luc)
+        {
+            BatBuocDuong(amount);
+            if (fee < 0)
+            {
+                throw new InvalidValueException("phi_am", "Phi khong duoc am.");
+            }
+
+            string dich = veKyQuy ? AccountCodes.ProjectEscrow(projectId) : AccountCodes.BusinessAvailable(businessId);
+            List<JournalLine> dong = new List<JournalLine>
+            {
+                new JournalLine(AccountCodes.LabelerPending(labelerId), -amount),
+                new JournalLine(dich, checked(amount + fee)),
+            };
+
+            if (fee > 0)
+            {
+                dong.Add(new JournalLine(AccountCodes.PlatformFee, -fee));
+            }
+
+            return JournalEntry.Tao(JournalEntryType.DisputeRefund, "dispute:" + disputeId, "Hoan tien tranh chap nhan da duyet", luc, dong);
+        }
+
         /// <summary>Het thoi gian treo: labeler treo → labeler kha dung.</summary>
         public static JournalEntry GiaiPhongTreo(Guid holdId, Guid labelerId, long amount, DateTimeOffset luc)
         {

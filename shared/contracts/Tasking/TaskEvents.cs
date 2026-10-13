@@ -55,6 +55,12 @@ namespace Crowd.Contracts.Tasking
         public required DateTimeOffset LeasedAt { get; init; }
 
         public required DateTimeOffset SubmittedAt { get; init; }
+
+        /// <summary>IP cua nguoi nop (gateway chuyen qua X-Forwarded-For). quality-svc phat hien nhieu tai khoan chung IP (FM-07).</summary>
+        public string? ClientIp { get; init; }
+
+        /// <summary>Ma thiet bi frontend gui o header X-Device-Id (tuy chon). Dung nhu ClientIp.</summary>
+        public string? DeviceId { get; init; }
     }
 
     /// <summary>

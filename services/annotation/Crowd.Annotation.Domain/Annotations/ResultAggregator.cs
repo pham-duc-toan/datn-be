@@ -96,6 +96,63 @@ namespace Crowd.Annotation.Domain.Annotations
         }
 
         /// <summary>
+        /// Canh bao lech phan bo nhan (FB-24) tren ket qua PhanBo — ham thuan:
+        ///   - lop_ap_dao: mot lop chiem tren nguongPhanTram % so nhan cua cong cu;
+        ///   - lop_chua_co_nhan: lop khai trong tap nhan ma chua co nhan nao.
+        /// Cong cu chua du toiThieu nhan thi chua canh bao (it du lieu, ty le chua co nghia).
+        /// </summary>
+        public static List<CanhBaoLech> CanhBaoLech(
+            LabelSchema tapNhan, IReadOnlyDictionary<string, SortedDictionary<string, int>> phanBo, int nguongPhanTram, int toiThieu)
+        {
+            if (tapNhan == null)
+            {
+                throw new ArgumentNullException(nameof(tapNhan));
+            }
+
+            if (phanBo == null)
+            {
+                throw new ArgumentNullException(nameof(phanBo));
+            }
+
+            List<CanhBaoLech> ra = new List<CanhBaoLech>();
+            foreach (ToolDefinition t in tapNhan.Tools)
+            {
+                SortedDictionary<string, int>? dem;
+                if (t.Classes.Count < 2 || !phanBo.TryGetValue(t.Name, out dem))
+                {
+                    continue;
+                }
+
+                int tong = dem.Values.Sum();
+                if (tong < toiThieu)
+                {
+                    continue;
+                }
+
+                foreach (string lop in t.Classes)
+                {
+                    int so;
+                    if (!dem.TryGetValue(lop, out so))
+                    {
+                        so = 0;
+                    }
+
+                    int phanTram = (int)Math.Round(100.0 * so / tong);
+                    if (so == 0)
+                    {
+                        ra.Add(new CanhBaoLech("lop_chua_co_nhan", t.Name, lop, so, tong, phanTram));
+                    }
+                    else if (phanTram > nguongPhanTram)
+                    {
+                        ra.Add(new CanhBaoLech("lop_ap_dao", t.Name, lop, so, tong, phanTram));
+                    }
+                }
+            }
+
+            return ra;
+        }
+
+        /// <summary>
         /// Phan bo nhan theo tung cong cu co lop — nen cua canh bao lech lop (FB-24):
         ///   gop theo da so (classification / pairwise): dem ket qua CHOT;
         ///   cong cu danh sach (bbox, span...): dem tung muc trong cac nhan da duyet.
@@ -176,5 +233,32 @@ namespace Crowd.Annotation.Domain.Annotations
             dem.TryGetValue(khoa, out cu);
             dem[khoa] = cu + 1;
         }
+    }
+
+    /// <summary>Mot canh bao lech phan bo nhan (FB-24).</summary>
+    public sealed class CanhBaoLech
+    {
+        public CanhBaoLech(string code, string tool, string label, int count, int total, int percent)
+        {
+            Code = code;
+            Tool = tool;
+            Label = label;
+            Count = count;
+            Total = total;
+            Percent = percent;
+        }
+
+        /// <summary>lop_ap_dao | lop_chua_co_nhan</summary>
+        public string Code { get; }
+
+        public string Tool { get; }
+
+        public string Label { get; }
+
+        public int Count { get; }
+
+        public int Total { get; }
+
+        public int Percent { get; }
     }
 }

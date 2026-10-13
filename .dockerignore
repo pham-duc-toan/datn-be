@@ -18,3 +18,6 @@ tests/
 !services/**/README.md
 **/*.user
 **/appsettings.*.local.json
+# Bi mat khong vao ngu canh build (khoa ky dev, .env cua stack demo).
+**/secrets/
+.env

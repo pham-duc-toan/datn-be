@@ -49,6 +49,7 @@ curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/j
 Không cần cài .NET hay Python, chỉ cần Docker. Toàn bộ 11 service, hạ tầng và dữ liệu seed chạy trong container, **tách hẳn khỏi môi trường dev**: tên `datn-demo-*`, volume riêng, cổng lệch +10000, nên chạy song song với dev được.
 
 ```bash
+python deploy/tao_env.py                                      # lần đầu: sinh .env (mật khẩu ngẫu nhiên, không commit)
 docker compose -f docker-compose.demo.yml up -d --build      # lần đầu build khoảng 5–10 phút
 python tests/e2e/cho_san_sang.py                              # chờ migrate + seed xong (pip install requests)
 
@@ -62,17 +63,28 @@ docker compose -f docker-compose.demo.yml down -v             # tắt và XOÁ d
 |---|---|
 | http://localhost:18080 | Gateway: mọi API ở mục 6, thay `8080` bằng `18080` |
 | http://localhost:18025 | Mailpit (email) |
-| http://localhost:19001 | MinIO console (`datn` / `dev_minio_pw`) |
-| http://localhost:25672 | RabbitMQ management (`datn` / `dev_rabbit_pw`) |
+| http://localhost:19001 | MinIO console (`datn` / `MINIO_PASSWORD` trong `.env`) |
+| http://localhost:25672 | RabbitMQ management (`datn` / `RABBIT_PASSWORD` trong `.env`) |
 | 18103 / 18104 / 18107 / 18108 | task / annotation / link / gate gọi thẳng (cho E2E) |
 
 Khác với chạy trên máy:
 - Link xem / tải file ký bằng `ObjectStorage:PublicUrl` = `http://localhost:19000`, vì trong mạng compose các service gọi MinIO qua `minio:9000`, còn trình duyệt chỉ tới được cổng publish.
 - Gateway ghi đè host của `ocelot.json` bằng `DownstreamHosts__<cổng>=<service>`.
 - gate-svc và link-svc tin `X-Forwarded-For` từ mạng nội bộ `10.88.0.0/24` (`ForwardedHeaders:TrustedNetworks`); nếu không, mọi khách sẽ mang IP của gateway.
-- Khoá nội bộ lấy từ biến `INTERNAL_API_KEY` (mặc định `demo_internal_key`).
+- task-svc tin `X-Forwarded-For` từ cùng mạng đó (IP người nộp nhãn cho chống gian lận).
+- Gateway nạp mốc thu hồi phiên từ `http://identity:8101` (`SessionRevocation__IdentityUrl`).
 
-Mọi giá trị bí mật trong file này là **giá trị dev**, không dùng cho production.
+**Bí mật (S-08).** `docker-compose.demo.yml` không chứa mật khẩu nào: mật khẩu 11 database, RabbitMQ, MinIO và khoá API nội bộ đọc từ `.env` ở gốc repo (danh sách biến: [.env.example](../.env.example)). Thiếu `.env` thì compose dừng với thông báo `chay python deploy/tao_env.py`. Khoá ký JWT do identity tự sinh lần đầu và giữ trong volume `identity-keys` (không nằm trong image). `.env` và mọi thư mục `secrets/` bị loại khỏi git và khỏi ngữ cảnh build Docker.
+
+| Tình huống | Lệnh |
+|---|---|
+| Máy mới / CI | `python deploy/tao_env.py` — mật khẩu ngẫu nhiên |
+| Stack demo đã chạy **trước** khi có `.env` (volume cũ vẫn giữ mật khẩu dev) | `python deploy/tao_env.py --dev` — dùng lại `dev_<tên>_pw`, không phải xoá dữ liệu |
+| Muốn đổi sang mật khẩu ngẫu nhiên cho stack cũ | `docker compose -f docker-compose.demo.yml down -v` (**xoá dữ liệu demo**) rồi `python deploy/tao_env.py --ghi-de` |
+
+Postgres / RabbitMQ chỉ đặt mật khẩu **lúc tạo volume**: đổi `.env` mà giữ volume thì service không đăng nhập được DB.
+
+Chế độ chạy service trên máy (mục 0, `docker-compose.infra.yml` + `appsettings.Development.json`) vẫn dùng mật khẩu dev cố định — chỉ cho máy dev.
 
 ## 0.2 Bộ test E2E và CI
 
@@ -95,14 +107,19 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `ep_race_quality.py` | Ép race: hai người nộp đồng thời nhãn cuối của cùng task |
 | `e2e_kyb_thong_bao.py` | KYB doanh nghiệp (khai hồ sơ, giấy phép, từ chối → nộp lại → duyệt, chặn publish khi chưa xác minh), thông báo trong ứng dụng + **email thật qua Mailpit**, tuỳ chọn email, gộp thông báo, khoá / mở khoá tài khoản |
 | `e2e_dong_cho_chi.py` | Kịch bản TLA+ tìm ra (NC-B-01): dừng container ledger, duyệt và đóng dự án, bật lại. Nhãn đã duyệt phải được trả dù `completed` tới trước `approved` (chỉ chạy với `E2E_PROFILE=demo`) |
+| `e2e_hoan_thien.py` | Xác thực email (bấm link thật trong Mailpit), quên / đặt lại / đổi mật khẩu, thu hồi phiên ở gateway, hồ sơ + avatar + kỹ năng, cấp độ / huy hiệu / xếp hạng, nháp + báo lỗi task, chi phí / ETA, cảnh báo lệch, xuất YOLO sai loại dự án (nội dung zip YOLO / VOC kiểm ở unit test `HoanThienTests`), thu nhập, tranh chấp (cả hai kết cục, kiểm sổ cái), hồ sơ gian lận + khoá, audit + báo cáo + thông báo toàn hệ thống, rate limit 429 |
 
-Tài khoản doanh nghiệp do E2E tự tạo được **xác minh KYB tự động** (`tro_giup.dang_ky(..., xac_minh=True)`, mặc định) để các bộ cũ publish được như trước.
+Tài khoản doanh nghiệp do E2E tự tạo được **xác minh KYB tự động** (`tro_giup.dang_ky(..., xac_minh=True)`, mặc định) để các bộ cũ publish được như trước. Tương tự, mọi tài khoản E2E tự tạo được **xác thực email** bằng link thật trong Mailpit (`xac_thuc=True`, mặc định) — chưa xác thực thì không rút tiền / publish được.
+
+**Giới hạn tần suất khi chạy E2E.** E2E đăng nhập / đăng ký hàng trăm lần từ một IP, vượt hạn mức mặc định của gateway (20 lần xác thực / phút / IP). `cho_san_sang.py`, `chay_hoi_quy.py` và `tro_giup.py` tự **nâng** các setting `gateway.rate_limit_*` lên rất lớn lúc bắt đầu; `chay_hoi_quy.py` trả về mặc định lúc kết thúc. Chạy lẻ một bộ rồi dừng giữa chừng thì hạn mức có thể còn ở mức cao — đặt lại ở màn hình setting admin nếu cần.
+
+Mật khẩu RabbitMQ (để kiểm DLQ) E2E đọc từ biến `E2E_RABBIT_PASSWORD`, hoặc từ `.env` khi `E2E_PROFILE=demo`, mặc định `dev_rabbit_pw` (máy dev).
 
 Kết quả từng bộ ghi vào `tests/e2e/ket-qua/`. Địa chỉ và tên container đọc từ `moi_truong.py` (`E2E_PROFILE`, `E2E_GATEWAY`...).
 
 **CI** (`.github/workflows/ci.yml`, mỗi push và pull request):
 1. `unit`: `dotnet test -c Release` và `pytest` của quality-svc.
-2. `e2e`: `docker compose -f docker-compose.demo.yml up --build` trên máy sạch → `cho_san_sang.py` → `chay_hoi_quy.py`. Lỗi thì tải log mọi container về dạng artifact.
+2. `e2e`: `python deploy/tao_env.py` (mật khẩu ngẫu nhiên) → `docker compose -f docker-compose.demo.yml up --build` trên máy sạch → `cho_san_sang.py` → `chay_hoi_quy.py`. Lỗi thì tải log mọi container về dạng artifact.
 
 ---
 
@@ -898,7 +915,7 @@ curl -s -X PUT http://localhost:8080/admin/settings/quality.redundancy_policy -H
 
 ### 6.16 Setting hệ thống (admin): phí, tự duyệt, hạn mức
 
-Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (115 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
+Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (138 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
 
 ```bash
 # Toàn bộ setting: key, group, type, value, defaultValue, min, max, unit, effect, description, version

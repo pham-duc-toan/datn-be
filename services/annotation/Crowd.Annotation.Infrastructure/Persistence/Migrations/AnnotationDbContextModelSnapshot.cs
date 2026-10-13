@@ -53,6 +53,10 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("consensus_at");
 
+                    b.Property<DateTimeOffset?>("DisputedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("disputed_at");
+
                     b.Property<Guid?>("LabelerId")
                         .HasColumnType("uuid")
                         .HasColumnName("labeler_id");

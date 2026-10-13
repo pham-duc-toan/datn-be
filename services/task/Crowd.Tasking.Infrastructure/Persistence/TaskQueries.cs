@@ -28,7 +28,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence
             "   AND t.active_lease_count + t.submitted_count < t.redundancy_target " +
             "   AND NOT EXISTS (SELECT 1 FROM assignments a " +
             "                    WHERE a.task_id = t.id AND a.labeler_id = {1} " +
-            "                      AND a.state IN ('Leased','Submitted')) ";
+            "                      AND a.state IN ('Leased','Submitted')) " +
+            // Da bao loi task nay (FL-07) thi khong giao lai cho chinh nguoi bao.
+            "   AND NOT EXISTS (SELECT 1 FROM task_reports r " +
+            "                    WHERE r.task_id = t.id AND r.labeler_id = {1}) ";
 
         /// <summary>
         /// Chon MOT task con cho va KHOA no (VD-T-06): NGAU NHIEN trong `cuaSo` task con cho

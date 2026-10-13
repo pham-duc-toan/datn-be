@@ -33,6 +33,24 @@ TIEN_TO_CONTAINER = os.environ.get("E2E_CONTAINER_PREFIX", _TIEN_TO)
 PW = "Matkhau@123"
 
 
+def _doc_env(ten: str) -> str | None:
+    """Doc mot bien trong .env o goc repo (stack demo, S-08: mat khau khong nam trong repo)."""
+    duong = os.path.join(GOC_REPO, ".env")
+    if not os.path.exists(duong):
+        return None
+    with open(duong, encoding="utf-8") as f:
+        for dong in f:
+            if dong.startswith(ten + "="):
+                return dong.strip().split("=", 1)[1]
+    return None
+
+
+# Tai khoan quan tri RabbitMQ (kiem DLQ). Dev: gia tri dev; stack demo: lay tu .env.
+RABBIT_USER = "datn"
+RABBIT_PASSWORD = os.environ.get("E2E_RABBIT_PASSWORD") or (
+    (_doc_env("RABBIT_PASSWORD") if _PROFILE == "demo" else None) or "dev_rabbit_pw")
+
+
 def sql_container(db: str) -> str:
     """Ten container Postgres cua service `db` (identity, task, ...)."""
     return f"{TIEN_TO_CONTAINER}db-{db}"

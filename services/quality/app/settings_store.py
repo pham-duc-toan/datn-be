@@ -41,6 +41,16 @@ SETTINGS_RELOAD_INTERVAL = "settings.reload_interval"
 REDUNDANCY_POLICY = "quality.redundancy_policy"
 POSTERIOR_TARGET = "quality.posterior_target"
 VOI_VALUE_RATIO = "quality.voi_value_ratio"
+FRAUD_ENABLED = "quality.fraud_enabled"
+FRAUD_MIN_SECONDS = "quality.fraud_min_seconds"
+FRAUD_FAST_RATIO = "quality.fraud_fast_ratio"
+FRAUD_FAST_WINDOW = "quality.fraud_fast_window"
+FRAUD_FAST_FRACTION = "quality.fraud_fast_fraction"
+FRAUD_SAME_LABEL_STREAK = "quality.fraud_same_label_streak"
+FRAUD_SHARED_ACCOUNTS = "quality.fraud_shared_accounts"
+FRAUD_SHARED_WINDOW = "quality.fraud_shared_window"
+FRAUD_IGNORE_PRIVATE_IPS = "quality.fraud_ignore_private_ips"
+FRAUD_REOPEN_COOLDOWN = "quality.fraud_reopen_cooldown"
 
 
 def _nap_catalog() -> dict[str, dict[str, Any]]:

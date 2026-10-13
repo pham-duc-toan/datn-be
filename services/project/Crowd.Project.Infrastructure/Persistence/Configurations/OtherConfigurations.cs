@@ -198,4 +198,20 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.VerifiedAt).HasColumnName("verified_at").IsRequired();
         }
     }
+
+    public sealed class EmailStatusConfiguration : IEntityTypeConfiguration<EmailStatus>
+    {
+        public void Configure(EntityTypeBuilder<EmailStatus> builder)
+        {
+            if (builder == null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
+            builder.ToTable("email_status");
+            builder.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
+            builder.HasKey(x => x.UserId);
+            builder.Property(x => x.Verified).HasColumnName("verified").IsRequired();
+        }
+    }
 }

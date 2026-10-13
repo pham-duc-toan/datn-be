@@ -458,6 +458,7 @@ namespace Crowd.Annotation.Api.Services
                 });
             }
 
+            SortedDictionary<string, SortedDictionary<string, int>> phanBo = ResultAggregator.PhanBo(tapNhan, ketQua);
             return new ProjectResultsResponse
             {
                 ProjectId = projectId,
@@ -465,12 +466,46 @@ namespace Crowd.Annotation.Api.Services
                 LabelSchema = tapNhan.ToRawJson(),
                 SampleCount = mau.Count,
                 DisputedCount = mau.Count(x => x.Disputed),
-                LabelDistribution = ResultAggregator.PhanBo(tapNhan, ketQua),
+                LabelDistribution = phanBo,
+                ImbalanceWarnings = CanhBaoLech(tapNhan, phanBo),
                 Samples = mau,
             };
         }
 
-        /// <summary>Xuat ket qua (FB-25): "json" (mac dinh), "csv", "coco" (anh co khung).</summary>
+        /// <summary>Phan bo nhan + canh bao lech (FB-24) — nhu ket qua nhung khong kem tung mau.</summary>
+        public async Task<DistributionResponse> PhanBoAsync(Guid projectId, Caller caller, CancellationToken ct)
+        {
+            ProjectResultsResponse kq = await KetQuaAsync(projectId, caller, ct);
+            return new DistributionResponse
+            {
+                ProjectId = projectId,
+                SampleCount = kq.SampleCount,
+                LabelDistribution = kq.LabelDistribution,
+                ImbalanceWarnings = kq.ImbalanceWarnings,
+                ThresholdPercent = _settings.SoNguyen(SettingKeys.AnnotationImbalanceThresholdPercent),
+            };
+        }
+
+        private List<ImbalanceWarningDto> CanhBaoLech(LabelSchema tapNhan, SortedDictionary<string, SortedDictionary<string, int>> phanBo)
+        {
+            return ResultAggregator.CanhBaoLech(
+                    tapNhan,
+                    phanBo,
+                    _settings.SoNguyen(SettingKeys.AnnotationImbalanceThresholdPercent),
+                    _settings.SoNguyen(SettingKeys.AnnotationImbalanceMinLabels))
+                .Select(c => new ImbalanceWarningDto
+                {
+                    Code = c.Code,
+                    Tool = c.Tool,
+                    Label = c.Label,
+                    Count = c.Count,
+                    Total = c.Total,
+                    Percent = c.Percent,
+                })
+                .ToList();
+        }
+
+        /// <summary>Xuat ket qua (FB-25): "json" (mac dinh), "csv", "coco" / "yolo" / "voc" (anh co khung).</summary>
         public async Task<ExportFile> XuatAsync(
             Guid projectId, string? dinhDang, Caller caller, CancellationToken ct)
         {
@@ -488,9 +523,19 @@ namespace Crowd.Annotation.Api.Services
                 return new ExportFile(ResultExporter.Coco(kq, tapNhan), "application/json", ten + ".coco.json");
             }
 
+            if (string.Equals(dinhDang, "yolo", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ExportFile(KhungAnhExporter.Yolo(kq, tapNhan), "application/zip", ten + ".yolo.zip");
+            }
+
+            if (string.Equals(dinhDang, "voc", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ExportFile(KhungAnhExporter.PascalVoc(kq, tapNhan), "application/zip", ten + ".voc.zip");
+            }
+
             if (dinhDang != null && !string.Equals(dinhDang, "json", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidValueException("dinh_dang_chua_ho_tro", "Ho tro json, csv, coco.");
+                throw new InvalidValueException("dinh_dang_chua_ho_tro", "Ho tro json, csv, coco, yolo, voc.");
             }
 
             return new ExportFile(JsonSerializer.SerializeToUtf8Bytes(kq, JsonXuat), "application/json", ten + ".json");

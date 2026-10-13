@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence;
 using Crowd.BuildingBlocks.Persistence.Outbox;
@@ -31,6 +32,7 @@ namespace Crowd.Identity.Api.Services
         private readonly IOutboxWriter _outbox;
         private readonly MatKhauService _matKhau;
         private readonly TokenIssuer _tokenIssuer;
+        private readonly MaTaiKhoanService _maTaiKhoan;
         private readonly TimeProvider _clock;
         private readonly ILogger<AuthService> _logger;
 
@@ -39,9 +41,17 @@ namespace Crowd.Identity.Api.Services
             IOutboxWriter outbox,
             MatKhauService matKhau,
             TokenIssuer tokenIssuer,
+            MaTaiKhoanService maTaiKhoan,
             TimeProvider clock,
             ILogger<AuthService> logger)
         {
+            if (maTaiKhoan == null)
+            {
+                throw new ArgumentNullException(nameof(maTaiKhoan));
+            }
+
+            _maTaiKhoan = maTaiKhoan;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -129,6 +139,10 @@ namespace Crowd.Identity.Api.Services
                 producer: "identity-svc",
                 correlationId: correlationId,
                 payload: ruot));
+
+            // Gui link xac thuc email (FC-01) cung transaction. Chua co danh tinh nen dung Caller he thong
+            // chi de mang correlationId.
+            await _maTaiKhoan.GuiXacThucEmailAsync(user, Caller.HeThong(correlationId, null), ct);
 
             try
             {
@@ -322,6 +336,21 @@ namespace Crowd.Identity.Api.Services
             {
                 await ThuHoiCaHoAsync(token.FamilyId, _clock.GetUtcNow(), ct);
             }
+        }
+
+        /// <summary>
+        /// Mo mot ho token moi cho user (vd vua doi mat khau: moi phien cu da bi thu hoi, tra lai phien
+        /// moi cho chinh thiet bi dang doi). Khong SaveChanges.
+        /// </summary>
+        public TokenResponse TaoPhienMoi(User user)
+        {
+            if (user == null)
+            {
+                throw new ArgumentNullException(nameof(user));
+            }
+
+            Guid khongDung;
+            return PhatCapToken(user, Guid.CreateVersion7(), out khongDung);
         }
 
         // =====================================================================

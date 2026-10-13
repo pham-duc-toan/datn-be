@@ -13,7 +13,7 @@ import os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import TIEN_TO_CONTAINER  # noqa: E402
+from moi_truong import RABBIT_PASSWORD, RABBIT_USER, TIEN_TO_CONTAINER  # noqa: E402
 import tro_giup as L  # noqa: E402
 
 SO_VONG = int(os.environ.get("E2E_SO_VONG", "3"))
@@ -68,7 +68,7 @@ finally:
     for key, v in L.GOC.items():
         requests.put(L.G + f"/admin/settings/{key}", headers=L.admin, json={"value": v, "reason": "e2e dong cho chi: tra lai"})
 
-dlq = requests.get(f"{L.RABBIT_MGMT}/api/queues/%2F", auth=("datn", "dev_rabbit_pw")).json()
+dlq = requests.get(f"{L.RABBIT_MGMT}/api/queues/%2F", auth=(RABBIT_USER, RABBIT_PASSWORD)).json()
 co = [(q["name"], q["messages"]) for q in dlq if q["name"].endswith(".dlq") and q.get("messages", 0)]
 L.kiem("khong event nao vao DLQ", not co, co)
 print(f"\nKET QUA: {L.KQ['pass']} pass, {L.KQ['fail']} fail")

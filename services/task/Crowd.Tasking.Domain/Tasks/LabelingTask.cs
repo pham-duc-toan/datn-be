@@ -198,6 +198,22 @@ namespace Crowd.Tasking.Domain.Tasks
             return cu;
         }
 
+        /// <summary>
+        /// Loai mau hong khoi pool (FL-07: nhieu labeler bao loi, hoac chu du an xac nhan) — CHI khi
+        /// task con mo va khong ai dang giu. Dang co nguoi lam thi tra false, de lan sau.
+        /// </summary>
+        public bool HuyNeuKhongAiGiu(DateTimeOffset luc)
+        {
+            if (State != TaskState.Open || ActiveLeaseCount > 0)
+            {
+                return false;
+            }
+
+            State = TaskState.Cancelled;
+            CompletedAt = luc;
+            return true;
+        }
+
         /// <summary>Mau thanh cau hoi vang: bo khoi pool neu chua ai dung toi.</summary>
         public void LoaiTruVi(bool laCauVang)
         {

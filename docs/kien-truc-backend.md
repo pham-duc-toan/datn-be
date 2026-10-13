@@ -92,21 +92,21 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 
 | Service | Mã chức năng |
 |---|---|
-| identity | FC-01→08, FB-01, FB-02, FM-01 (dữ liệu + API duyệt KYB, khoá / mở tài khoản — mục 3.11), FL-01, FL-12 |
+| identity | FC-01→08, FB-01, FB-02, FM-01 (dữ liệu + API duyệt KYB, khoá / mở tài khoản — mục 3.11), FL-01, FL-12 (cấp độ, huy hiệu, xếp hạng — mục 3.12) |
 | project | FB-10→18, FB-24, FL-02, FL-03 |
-| task | FL-06, FB-15, FQ-03 |
-| annotation | FL-04, FL-05, FL-07, FL-08, FL-09, FB-21, FB-25 |
-| ledger | FB-04, FB-05, FL-10, mục 2.11 |
-| payment | FB-03, FL-11, FS-09, FM-05 |
+| task | FL-05 (nháp), FL-06, FL-07 (báo lỗi task), FB-15, FB-20 (ETA), FQ-03 |
+| annotation | FL-04, FL-08, FL-09, FB-21, FB-24 (cảnh báo lệch), FB-25 (COCO / YOLO / VOC) |
+| ledger | FB-04, FB-05, FB-20 (chi phí), FL-10, FL-11 (thống kê thu nhập), FM-06 (tranh chấp — mục 3.12), mục 2.11 |
+| payment | FB-03, FS-09, FM-05 |
 | link | FS-01→08, mục "Kiểm duyệt link đích" |
 | gate | Toàn bộ luồng "Trang vượt link", công thức CPM, chống lạm dụng |
-| quality | FQ-01→04, FB-22, FA-04 |
+| quality | FQ-01→04, FB-22, FA-04, FM-07 (chống gian lận — gộp thay fraud-svc, mục 3.12) |
 | ml | FA-01→05 |
 | collab | FR-01→09 |
-| media | FP-02→04, FP-06 |
+| media | FP-02→04, FP-06 (lượt xem mẫu) |
 | notification | FC-06 |
-| admin | FM-02→09, FP-01, FP-05, mục 2.9 (màn hình FM-01 gọi API của identity) |
-| fraud | FM-07, chống farm và lạm dụng referral |
+| admin | FM-02→05, FM-08, FM-09 (báo cáo, thông báo toàn hệ thống), FP-01, FP-05, FP-06 (nhật ký sự kiện), mục 2.9 (màn hình FM-01 gọi API của identity) |
+| fraud | *(không tách — FM-07 nằm ở quality)*; chống lạm dụng referral để sau |
 
 ---
 
@@ -505,7 +505,7 @@ assignments / annotations / gold_items:  task_type = modality,
 | # | Câu hỏi | Chọn | Lý do |
 |---|---|---|---|
 | S1 | Lưu ở đâu | **Một bảng chung `settings` trong `admin_db`**, mỗi dòng một khóa (`key`, `value jsonb`, `version`, `updated_at`, `updated_by`) + `setting_history` (cũ → mới, ai, lý do) | Một chỗ cho admin xem và sửa; lịch sử để truy "ai hạ phí lúc nào" |
-| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 115 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
+| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 138 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
 | S3 | Service đọc thế nào | **Bản sao `settings_replica` trong DB của chính mỗi service** + bộ nhớ (`SettingsStore`). Nhận `setting.changed`; lúc khởi động nạp bản sao rồi xin `settings.snapshot_requested`, admin-svc phát `settings.snapshot` (cả lúc khởi động và định kỳ) | Đúng luật 1–2 mục 4: không gọi HTTP sang admin-svc trong đường nóng; admin-svc chết thì mọi service vẫn chạy với giá trị đã có. Mỗi khóa có `version` riêng — event đến sai thứ tự không ghi đè giá trị mới |
 | S4 | Đổi có hiệu lực khi nào | **Chỉ cho thao tác mới.** Chu kỳ worker (giải phóng tiền treo, reaper, quét link…) đọc lại mỗi giây qua `ChoTheoSetting`, nên rút ngắn chu kỳ có hiệu lực ngay, không phải chờ hết chu kỳ cũ. Giá trị đọc lại mỗi lần dùng; thứ đã chốt thì giữ: dự án đã publish giữ phí lúc publish, lease đang chạy giữ hạn cũ, lệnh rút đã tạo giữ thuế đã tính | Không ai bị đổi luật giữa chừng. `consumers.prefetch_count` là ngoại lệ (`restart`) vì chỉ đặt được lúc mở kênh |
 | S5 | Domain có đọc setting không | **Không.** Tầng Api đọc setting, dựng **đối tượng quy định** (`QuyDinhDuAn`, `QuyDinhDuLieu`, `QuyDinhBaiTest`, `QuyDinhDuyetNhan`, `QuyDinhRut`, `QuyDinhNap`, `NguongKhop`) truyền vào domain | Domain vẫn thuần, test không cần hạ tầng. Độ rộng cột DB (`CotDb.*`) vẫn là hằng số của schema — setting độ dài bị chặn trần ở đó |
@@ -546,12 +546,54 @@ admin-svc: nhận → phát settings.snapshot (toàn bộ); cũng phát lúc kh�
 | K3 | project-svc biết "đã xác minh" thế nào | **Bản sao** `verified_businesses` từ event `business.verified` | Không gọi đồng bộ identity lúc publish (luật dữ liệu chéo, mục 4). `verified` là trạng thái cuối, không thu hồi, nên bản sao chỉ INSERT, idempotent. Đánh đổi: vài trăm ms sau khi duyệt mới publish được |
 | K4 | Giấy phép | Link ký `PUT` thẳng lên bucket riêng `kyb-docs` (không công khai); nộp thì kiểm file **thật sự tồn tại** + kích thước thật; admin xem bằng link ký 5 phút | Không đi qua service (file lớn). Xin link mà không tải lên → nộp 409 `thieu_giay_phep` |
 | K4b | Dọn refresh token | `RefreshTokenCleanupWorker` (identity) mỗi `identity.refresh_token_cleanup_interval` (mặc định 2 phút) xoá dòng **hết hạn quá 1 giờ**, lô 1.000, `FOR UPDATE SKIP LOCKED`; index `expires_at`. Refresh / đăng xuất / khoá tài khoản chỉ ghi vào dòng **còn hạn** | Hai tập dòng tách rời nên job không tranh khoá với request người dùng; dòng đang bị giữ thì bỏ qua, vòng sau xoá. Thử tải: 27.077 refresh đồng thời trong lúc xoá 100.000 dòng, 100% trả 200, không deadlock. Dòng đã thu hồi mà chưa hết hạn vẫn giữ để còn phát hiện token cũ bị dùng lại |
-| K5 | Khoá tài khoản | Đổi trạng thái + **thu hồi mọi refresh token** trong cùng transaction + outbox `user.blocked`; task-svc nghe event và chặn nhận task | Không có danh sách đen JWT: access token đang sống (≤ 15 phút) vẫn đọc được dữ liệu, nhưng không nhận được task mới và không làm mới được. Không khoá được admin (409) |
+| K5 | Khoá tài khoản | Đổi trạng thái + **thu hồi mọi refresh token** trong cùng transaction + outbox `user.blocked`; task-svc nghe event và chặn nhận task | Kèm mốc thu hồi phiên (mục 3.12, B1): gateway chặn access token đang sống ngay, không phải chờ hết 15 phút. task / ledger nghe `user.blocked` / `user.unblocked` để chặn / mở nhận task và rút tiền. Không khoá được admin (409) |
 | K6 | Gửi email ở đâu | Consumer **chỉ ghi dòng** `notifications` (email `Pending`); `EmailWorker` gửi theo lô `FOR UPDATE SKIP LOCKED`, lỗi thì backoff 10 s × 2ⁿ (≤ 30 phút), tối đa `notification.email_max_attempts` lần | SMTP chậm / sập không làm nghẽn consumer, không đẩy message vào DLQ; chạy nhiều instance không gửi trùng. Thông báo trong ứng dụng luôn có, kể cả khi email hỏng |
 | K7 | Biết gửi cho ai | **Bản sao** địa chỉ (`user.registered`), chủ dự án (`project.publish_requested`), chủ lệnh rút (`payout.requested`) | Event tiền / dự án không mang email hay chủ sở hữu; notification không gọi ngược service khác |
 | K8 | Tuỳ chọn email | Theo **loại**; 3 loại **bắt buộc** (KYB, tài khoản, rút tiền — ảnh hưởng tài khoản hoặc tiền đã rời ví) không tắt được | Loại bán nhiều (`nhan_duyet`, `tien_kha_dung`) mặc định tắt email |
 | K9 | Loại bán nhiều | **Gộp**: sự kiện mới cộng dồn vào dòng cùng loại (và cùng đường dẫn) còn chưa đọc, chưa gửi email, sự kiện gần nhất trong 24 giờ; khoá dòng `FOR UPDATE` | Với sharer, **mỗi lượt click** sinh một khoản treo → không gộp thì nghìn thông báo / ngày. Khoá dòng: hai instance không cộng mất nhau; `EmailWorker` đang gửi dòng đó thì consumer chờ, Postgres kiểm lại điều kiện → dòng đã gửi không còn khớp → mở dòng mới |
 | K10 | Đẩy hay hỏi | Frontend **hỏi** `unread-count` mỗi 30 giây khi tab đang mở | Truy vấn rẻ (index một phần `read_at IS NULL`). WebSocket để sau khi có nhu cầu thời gian thực thật |
+
+### 3.12. Tài khoản, tranh chấp, chống gian lận, audit, bảo mật phiên
+
+**Tài khoản (identity-svc).**
+
+| # | Quyết định | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| T1 | Mã xác thực email / đặt lại mật khẩu | Bảng `account_tokens` (chỉ lưu **SHA-256** của mã, mục đích, hạn, `used_at`); hạn `identity.email_verify_ttl` (1 ngày) / `identity.password_reset_ttl` (30 phút); link `{identity.frontend_url}/xac-thuc-email?token=` | Lộ DB không lộ mã dùng được. Dùng một lần. Gửi lại email xác thực tối thiểu cách 60 giây (409 `gui_qua_nhanh`). Quên mật khẩu **luôn 202** — không cho dò email nào đã đăng ký |
+| T2 | Chưa xác thực email thì chặn gì | **Chỉ rút tiền (ledger) và publish dự án (project)** — 409 `chua_xac_thuc_email` | Như KYB (K2): không chặn onboarding, chỉ chặn chỗ tiền rời hệ thống. ledger / project giữ bản sao `email_status` (`user.registered` → chưa, `user.email_verified` → rồi). Tài khoản có trước tính năng được migration coi là đã xác thực |
+| T3 | Đổi / đặt lại mật khẩu | Thu hồi **mọi phiên** (refresh token + mốc thu hồi access token, xem B1). Đổi mật khẩu trả cặp token mới cho chính thiết bị đang dùng; đặt lại mật khẩu qua email cũng xác thực luôn email | Chiếm tài khoản rồi giữ phiên cũ là kịch bản kinh điển |
+| T4 | Ảnh đại diện | Bucket riêng `avatars`, link ký `PUT` (≤ `identity.avatar_max_bytes`), xác nhận thì kiểm object có thật + kích thước + loại ảnh | Giống KYB (K4): file không đi qua service |
+| T5 | Kỹ năng (FL-01) | Ba mảng `text[]` trên `users` (lĩnh vực / ngôn ngữ / loại dữ liệu), giá trị trong danh sách đóng | Đủ cho lọc và hiển thị; chưa cần bảng quan hệ |
+| T6 | Cấp độ, huy hiệu, xếp hạng (FL-12) | identity đếm nhãn **đã duyệt kênh chuyên nghiệp** (`annotation.approved`) + uy tín (`reputation.changed`) vào `labeler_stats` + `labeler_daily_stats` (theo ngày giờ Việt Nam). Luật cấp là setting `identity.level_rules` (`2=50/50;3=200/65;...` = cấp=số nhãn/uy tín tối thiểu). Lên / xuống cấp → `level.changed`; huy hiệu mới → `badge.awarded` | Cấp chỉ là hàm thuần của (số nhãn, uy tín) nên test không cần DB, đổi luật không cần migration. Bảng xếp hạng all / month / week đọc thẳng bảng thống kê. Tranh chấp xử cho doanh nghiệp → trừ 1 nhãn đã duyệt |
+
+**Bảo mật phiên và tần suất (gateway).**
+
+| # | Quyết định | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| B1 | Thu hồi access token (S-11) | **Mốc theo user** thay vì danh sách đen từng token: identity ghi `session_revocations(user_id, revoked_at)` (làm tròn xuống giây, vì `iat` của JWT tính bằng giây) + phát `user.sessions_revoked`. Gateway giữ mốc trong bộ nhớ (queue tạm), chặn token có `iat < mốc` → 401 `phien_da_bi_thu_hoi`. Gateway khởi động lại thì nạp toàn bộ mốc còn hiệu lực qua `GET /internal/session-revocations` (khoá `X-Internal-Key`), thử lại mỗi 10 giây tới khi được | Một dòng mỗi user thay vì một dòng mỗi token; không cần Redis. Mốc quá TTL access token (15 phút) thì vô nghĩa nên chỉ giữ chừng ấy. Đánh đổi: token **mới** cấp trong cùng giây với mốc vẫn bị chặn — client đăng nhập lại là xong. Gọi thẳng service (không qua gateway) thì không bị chặn — đã có S-06 (chỉ gateway public) |
+| B2 | Rate limit (S-12) | `PartitionedRateLimiter` chuỗi ba tầng, cửa sổ cố định 1 phút: **chung** (`gateway.rate_limit_per_minute`, 600, theo user hoặc IP), **xác thực** (`..._auth_per_minute`, 20, theo IP: login / register / forgot / reset / verify), **tạo lệnh tiền** (`..._money_per_minute`, 30: nạp, rút). Vượt → 429 `qua_nhieu_yeu_cau` + `Retry-After` | Hạn mức là setting, đổi lúc chạy (khoá phân vùng có kèm hạn mức nên đổi là có bộ đếm mới). Giới hạn đã biết: tầng chung / tiền đọc `sub` của token **chưa kiểm chữ ký** (rate limit chạy trước xác thực) — giả `sub` lách được hạn mức chung, nhưng request đó vẫn bị 401 ở Ocelot. Đếm trong bộ nhớ từng instance gateway: chạy N instance thì hạn mức thực ≈ N lần |
+| B3 | Secret (S-08) | Stack demo đọc mật khẩu DB / RabbitMQ / MinIO / khoá nội bộ từ `.env` (`deploy/tao_env.py` sinh ngẫu nhiên, không commit; thiếu biến thì compose báo lỗi). Khoá ký JWT identity tự sinh lần đầu, giữ trong volume | Không còn mật khẩu nào trong `docker-compose.demo.yml`. **Còn lại**: `appsettings.Development.json` vẫn giữ mật khẩu dev cho chế độ chạy service trên máy (`docker-compose.infra.yml`) — chỉ dùng cho dev; production cần secret manager (A-08) |
+
+**Doanh nghiệp và labeler.**
+
+| # | Quyết định | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| D1 | Chi phí / ETA (FB-20) | Chi phí: ledger tổng hợp dòng sổ cái theo loại cho tài khoản ký quỹ của dự án. ETA: task-svc lấy tốc độ nộp 24 giờ gần nhất, ngoại suy phần nhãn còn thiếu | Số tiền lấy từ sổ cái (nguồn sự thật), không tự tính lại. ETA là `null` khi 24 giờ qua không ai nộp |
+| D2 | Cảnh báo lệch (FB-24) | Với mỗi công cụ phân loại có ≥ `annotation.imbalance_min_labels` (20) nhãn: lớp chiếm **>** `annotation.imbalance_threshold_percent` (80 %) → `lop_ap_dao`; lớp chưa có nhãn nào → `lop_chua_co_nhan`. Trả trong `imbalanceWarnings` của kết quả; `GET projects/{id}/distribution` cho biểu đồ | Cảnh báo, không chặn — dữ liệu có thể lệch thật |
+| D3 | YOLO / Pascal VOC (FB-25) | Xuất zip từ nhãn **khung (bbox)** của dự án ảnh; dự án không phải ảnh → 400 `khung_chi_cho_anh` | Hai định dạng phổ biến nhất cho detection; polygon / segment để sau |
+| D4 | Nháp (FL-05) | `assignments.draft_json` (≤ 256 KB), `PUT assignments/{id}/draft`, trả lại khi lease lại cùng assignment | Gắn với lượt lease nên tự hết khi lease hết; không cần bảng riêng |
+| D5 | Báo lỗi task (FL-07) | `task_reports` (broken / inappropriate / unclear / other). Người báo không bị giao lại task đó; đủ `task.report_auto_exclude` (3) người báo → task tự huỷ nếu không ai đang giữ; doanh nghiệp xem và xử lý (bỏ qua / loại task) | Không phạt labeler vì gặp dữ liệu hỏng |
+| D6 | Thu nhập (FL-11) | ledger tổng hợp khoản thu của labeler / sharer theo ngày (giờ Việt Nam) hoặc theo dự án, tách theo nguồn (nhãn / vượt link / hoa hồng); bỏ khoản bị giữ lại (vi phạm) và khoản đã hoàn do thua tranh chấp | Đọc thẳng `holds` (index `ix_holds_thu_nhap`) |
+
+**Tranh chấp (FM-06, ledger-svc).** Doanh nghiệp mở tranh chấp cho **một nhãn đã duyệt** khi khoản treo của labeler **chưa giải phóng** (đã về ví khả dụng thì không đòi lại được). Mở → khoản treo `Disputed` (worker giải phóng bỏ qua), `dispute.opened`. Admin phân xử:
+- `PayLabeler` → mở băng, khoản treo chạy tiếp như cũ;
+- `RefundBusiness` → bút toán `DisputeRefund` đảo dòng pending của labeler **và** phí nền tảng (lấy đúng từ bút toán gốc, không tính lại theo phí hiện tại), tiền về ký quỹ nếu ký quỹ còn mở, không thì về ví doanh nghiệp. `dispute.resolved` → annotation đánh dấu nhãn bị loại (`LoaiDoTranhChap`), identity trừ 1 nhãn đã duyệt, notification báo hai bên.
+
+Khoá `FOR UPDATE` trên khoản treo khi mở / phân xử: không chạy song song được với worker giải phóng.
+
+**Chống gian lận (FM-07) — gộp vào quality-svc** (không tách fraud-svc: cùng đọc luồng nộp bài). Nghe `assignment.submitted` (thêm `ClientIp` / `DeviceId`, ngoại lệ hợp đồng thứ năm), ghi `fraud_submissions`, xét 3 tín hiệu — làm quá nhanh so với trung vị dự án, một nhãn liên tục khi người khác chọn đa dạng, nhiều tài khoản chung IP công khai / mã thiết bị — ngưỡng là setting `quality.fraud_*`. **Hệ thống không tự khoá ai:** mở / cập nhật hồ sơ (mỗi khoá tối đa một hồ sơ đang mở; vừa xử lý thì chờ `fraud_reopen_cooldown` mới mở lại); admin xem bằng chứng rồi bỏ qua hoặc xác nhận — xác nhận kèm khoá → `fraud.case_confirmed` → identity khoá tài khoản (`user.blocked`). IP lấy từ `X-Forwarded-For` mà task-svc chỉ tin khi đến từ mạng proxy (`ForwardedHeaders:TrustedNetworks`).
+
+**Audit và báo cáo (FP-06 một phần, FM-09, admin-svc).** Queue quorum `admin-svc.audit` bind `#` nhận **mọi** event, ghi `audit_events` (payload > 64 KB thì cắt, `ON CONFLICT DO NOTHING` theo `event_id`); bỏ các loại ồn `admin.audit_excluded_types`; worker xoá bản ghi quá `admin.audit_retention_days`. Tra cứu theo loại / user / khoảng thời gian; báo cáo tổng quan đếm từ audit theo ngày. Thông báo toàn hệ thống: admin tạo → `system.announcement` → notification ghi hàng loạt theo vai trò (bản sao `contacts.roles`). **Chưa có**: audit lượt xem mẫu dữ liệu (cần media-svc, nhóm bảo vệ dữ liệu) và chống admin sửa bảng audit (append-only ở mức quyền DB).
 
 ## 4. Dữ liệu chéo — ba luật cứng
 

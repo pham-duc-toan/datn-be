@@ -102,8 +102,8 @@ try:
     kiem("khong token → 401", requests.get(G + "/notifications/me").status_code == 401)
 
     tc = requests.get(G + "/notifications/me/preferences", headers=biz["h"]).json()
-    kiem("8 loai, rut_tien bat buoc, nhan_duyet mac dinh tat email",
-         len(tc) == 8 and next(x for x in tc if x["type"] == "rut_tien")["mandatory"]
+    kiem("11 loai, rut_tien bat buoc, nhan_duyet mac dinh tat email",
+         len(tc) == 11 and next(x for x in tc if x["type"] == "rut_tien")["mandatory"]
          and not next(x for x in tc if x["type"] == "nhan_duyet")["emailEnabled"], tc)
     r = requests.put(G + "/notifications/me/preferences", headers=biz["h"], json={"items": [{"type": "rut_tien", "emailEnabled": False}]})
     kiem("tat email loai bat buoc → 400", r.status_code == 400 and "loai_bat_buoc" in r.text, r.text)
@@ -188,19 +188,23 @@ try:
     kiem("admin khoa labeler", r.status_code == 200 and r.json()["status"] == "blocked", r.text)
     kiem("dang nhap khi bi khoa → 403", login_raw(lab["email"]).status_code == 403)
     kiem("refresh token cu bi thu hoi → 401", requests.post(G + "/auth/refresh", json={"refreshToken": lab["refresh"]}).status_code == 401)
-    kiem("access token con han nhung task-svc chan nhan task (user.blocked)",
-         cho(lambda: requests.post(G + f"/tasks/projects/{P}/next", headers=lab["h"]).status_code == 403, 20))
-    kiem("thong bao + email 'Tai khoan bi khoa' (bat buoc)",
-         co_tb(lab, "Tài khoản bị khoá") and co_thu(lab, "Tài khoản bị khoá"), thu_cua(lab["email"]))
+    kiem("access token con han bi gateway chan ngay (401 phien_da_bi_thu_hoi, VD-S-11)",
+         cho(lambda: requests.post(G + f"/tasks/projects/{P}/next", headers=lab["h"]).status_code == 401, 20))
+    # Token cua lab da bi thu hoi → khong doc thong bao trong ung dung duoc luc nay; kiem email,
+    # thong bao trong ung dung kiem sau khi mo khoa + dang nhap lai.
+    kiem("email 'Tai khoan bi khoa' (bat buoc)", co_thu(lab, "Tài khoản bị khoá"), thu_cua(lab["email"]))
     ds = requests.get(G + "/users/admin", headers=admin, params={"search": lab["email"], "status": "blocked"}).json()
     kiem("admin tim thay tai khoan bi khoa (kem ly do)",
          ds["total"] == 1 and ds["items"][0]["blockedReason"] == "Gian lan nhan", ds)
     ds = requests.get(G + "/users/admin", headers=admin, params={"search": biz["email"]}).json()
     kiem("danh sach co trang thai KYB cua doanh nghiep", ds["items"][0]["kybStatus"] == "verified", ds)
-    kiem("labeler vao danh sach tai khoan → 403", requests.get(G + "/users/admin", headers=lab["h"]).status_code == 403)
+    kiem("doanh nghiep vao danh sach tai khoan → 403", requests.get(G + "/users/admin", headers=biz["h"]).status_code == 403)
     r = requests.post(G + f"/users/admin/{lab['id']}/unblock", headers=admin)
     kiem("mo khoa", r.status_code == 200 and r.json()["status"] == "active", r.text)
-    kiem("dang nhap lai duoc", login_raw(lab["email"]).status_code == 200)
+    r = login_raw(lab["email"])
+    kiem("dang nhap lai duoc", r.status_code == 200)
+    lab["h"] = hdr(r.json()["accessToken"])
+    kiem("dang nhap lai thay thong bao 'Tai khoan bi khoa'", co_tb(lab, "Tài khoản bị khoá"))
     kiem("email 'Tai khoan da duoc mo khoa'", co_thu(lab, "Tài khoản đã được mở khoá"), thu_cua(lab["email"]))
 
 finally:

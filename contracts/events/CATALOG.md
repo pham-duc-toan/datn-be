@@ -12,12 +12,15 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `user.registered` | notification | Ban sao dia chi lien lac (`contacts`) de gui email thong bao |
-| `user.email_verified` | notification | Kich hoat tai khoan |
-| `user.blocked` | task, ledger, notification (du kien: gate, link) | Chan nhan task, khoa rut tien, bao + email (bat buoc) kem ly do. Phat khi admin khoa (FM-01) |
-| `user.unblocked` | notification (du kien: task, ledger) | Bao + email "da mo khoa" |
-| `reputation.changed` | task | Cap nhat `task_svc.labeler_cache` phuc vu loc eligibility. **Hien do quality-svc phat** (identity-svc chua luu diem uy tin) |
-| `level.changed` | task, notification | |
+| `user.registered` | notification, ledger, project, link | notification: ban sao lien lac + vai tro (`contacts.roles`, dung cho thong bao toan he thong). ledger / project: ban sao `email_status` (chua xac thuc) |
+| `user.email_verification_requested` | notification | FC-01: gui email chua link `{frontend_url}/xac-thuc-email?token=...` (email giao dich, khong qua tuy chon) |
+| `user.password_reset_requested` | notification | FC-03: gui link `{frontend_url}/dat-lai-mat-khau?token=...` |
+| `user.email_verified` | ledger, project | FC-01: mo khoa rut tien (ledger) va publish du an (project) |
+| `user.sessions_revoked` | gateway | S-11: `{userId, revokedAt, reason}` — gateway chan moi access token cua user co `iat < revokedAt` (doi / dat lai mat khau, dang xuat moi noi, bi khoa). Gateway mat event (khoi dong lai) thi nap lai qua `GET /internal/session-revocations` cua identity |
+| `user.blocked` | task, ledger, notification (du kien: gate, link) | Chan nhan task, khoa rut tien, bao + email (bat buoc) kem ly do. Phat khi admin khoa (FM-01) hoac khi admin xac nhan ho so gian lan co khoa tai khoan (FM-07) |
+| `user.unblocked` | notification, task, ledger | Bao + email "da mo khoa"; task / ledger mo lai nhan task / rut tien |
+| `level.changed` | task, notification | FL-12: identity tinh lai cap tu so nhan da duyet + uy tin (`identity.level_rules`) |
+| `badge.awarded` | notification | FL-12: huy hieu moi (moc 100 / 1000 / 10000 nhan, uy tin cao) |
 | `business.kyb_submitted` | — (du kien: admin) | Ho so cho duyet. Hien admin doc hang doi qua `GET /kyb/admin` cua identity |
 | `business.verified` | project, notification | project: ban sao `verified_businesses` → cho phep publish (KYB chi chan publish, khong chan nap tien) |
 | `business.kyb_rejected` | notification | Bao + email (bat buoc) kem ly do; doanh nghiep sua va nop lai |
@@ -40,7 +43,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | Event | Consumer | Muc dich |
 |---|---|---|
 | `task.leased` | fraud | Do toc do lam bai (FM-07) |
-| `assignment.submitted` | annotation | Labeler nop nhan cho mot luot lease HOP LE — annotation-svc luu nhan roi phat `annotation.submitted`. Nop di qua task-svc vi kiem lease va danh dau da nop phai nguyen tu tren du lieu cua task-svc (VD-T-01) |
+| `assignment.submitted` | annotation, quality | quality: dau vao chong gian lan (FM-07: lam qua nhanh, mot nhan lien tuc, nhieu tai khoan mot IP / thiet bi). Labeler nop nhan cho mot luot lease HOP LE — annotation-svc luu nhan roi phat `annotation.submitted`. Nop di qua task-svc vi kiem lease va danh dau da nop phai nguyen tu tren du lieu cua task-svc (VD-T-01) |
 | `task.lease_expired` | — | Metric |
 | `task.redundancy_reached` | quality | Du n ban nhan -> tinh dong thuan |
 | `task.redundancy_changed` | — | Audit cho redundancy thich ung (FQ-03): task vua doi redundancy theo yeu cau cua quality |
@@ -51,8 +54,8 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | Event | Consumer | Muc dich |
 |---|---|---|
 | `annotation.submitted` | quality, fraud | Dau vao dong thuan va Dawid-Skene; phat hien gian lan |
-| `annotation.approved` | ledger, notification (du kien: identity) | **Chi tra**; notification: chi nhan kenh chuyen nghiep, thong bao GOP theo du an |
-| `annotation.rejected` | notification, identity | Thong bao + tru uy tin |
+| `annotation.approved` | ledger, notification, identity | **Chi tra**; notification: chi nhan kenh chuyen nghiep, thong bao GOP theo du an; identity: dem nhan da duyet (cap do, huy hieu, bang xep hang) |
+| `annotation.rejected` | notification | Thong bao |
 | `appeal.opened` | admin | Hang doi khieu nai (FL-09) |
 
 ## quality-svc  *(Python)*
@@ -61,9 +64,12 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 |---|---|---|
 | `consensus.reached` | annotation | Ket qua dong thuan cua MOT task (agreed / disputed / notApplicable) + tung nhan khop hay lech. **Chi la goi y** cho nguoi duyet — khong tu duyet, khong tu chi tien |
 | `redundancy.increase_requested` | task | **Vong lap thich ung**: tranh chap ma chua cham tran → xin them MOT nguoi (`NewRedundancy` tuyet doi) |
-| `reputation.changed` | task | Uy tin 0-100 = cau vang + muc khop dong thuan / do tin cay Dawid-Skene |
+| `reputation.changed` | task, identity | Uy tin 0-100 = cau vang + muc khop dong thuan / do tin cay Dawid-Skene |
 | `dispute.detected` | task, admin | *(chua lam)* Day len reviewer cap cao |
 | `gold_failed` | task, fraud | *(chua lam)* Truot cau vang lien tuc -> nghi ngo |
+| `fraud.case_confirmed` | identity | FM-07: admin xac nhan ho so gian lan; `BlockAccounts = true` → identity khoa cac tai khoan (phat tiep `user.blocked`) |
+
+Chong gian lan (FM-07) gop vao quality-svc thay cho fraud-svc rieng: cung doc luong nop bai, tranh them mot service.
 
 quality-svc viet bang Python: hop dong o [services/quality/app/contracts.py](../../services/quality/app/contracts.py)
 phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload la → DLQ.
@@ -88,6 +94,8 @@ phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload 
 | `payout.requested` | payment, notification | Lenh rut DA DUYET (tu duyet theo nguong hoac admin duyet) -> chuyen sang tich hop ngoai. Lenh cho duyet KHONG phat. notification: ban sao chu lenh rut (`withdrawal_owners`) |
 | `withdrawal.rejected` | notification | Admin tu choi lenh rut cho duyet; tien da ve vi kha dung. Bao + email (bat buoc) kem ly do |
 | `refund.issued` | notification | Hoan ky quy (huy / dong du an) |
+| `dispute.opened` | notification | FM-06: doanh nghiep tranh chap mot nhan da duyet — khoan treo cua labeler bi dong bang; bao labeler |
+| `dispute.resolved` | annotation, identity, notification | FM-06: admin phan xu. `RefundBusiness`: hoan tien cho doanh nghiep, annotation danh dau nhan bi loai, identity tru 1 nhan da duyet. `PayLabeler`: mo bang khoan treo |
 | `gate.budget_changed` | gate | Ngan sach cong link con lai cua du an (phan ky quy vuot muc danh cho labeler); `sequence` tang dan |
 
 ## payment-svc
@@ -137,7 +145,7 @@ phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload 
 | `project.approved` / `project.rejected` | project | FM-02 |
 | `business.kyb_approved` / `.rejected` | identity | FM-01 |
 | `link.banned` | link, gate, ledger | FM-08 |
-| `dispute.resolved` | ledger, annotation | FM-06 |
+| `system.announcement` | notification | FM-09: thong bao toan he thong theo doi tuong (`all` / `labeler` / `business`), tuy chon gui email |
 | `setting.changed` | moi service (+ gateway, quality) | Admin doi mot setting: `{key, value, settingVersion, changedBy, changedAt}`. Ban sao chi ghi khi version MOI hon |
 | `settings.snapshot` | moi service | Toan bo setting (`items[]`). Phat luc khoi dong, dinh ky, va khi co service xin |
 | `settings.snapshot_requested` *(nguoc chieu: moi service -> admin)* | admin | Service vua khoi dong xin phat lai toan bo |
@@ -146,8 +154,11 @@ phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload 
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `fraud.flagged` | admin, task, gate | Tam khoa cap task / chan gate |
-| `farm.detected` | admin | Nhieu tai khoan cung thiet bi / cung phuong thuc rut |
+| `fraud.flagged` | admin, task, gate | *(khong lam — da gop vao quality-svc, xem `fraud.case_confirmed`)* |
+| `farm.detected` | admin | *(khong lam — quality-svc mo ho so `shared_ip` / `shared_device`)* |
+
+**Audit (FP-06):** admin-svc co queue `admin-svc.audit` bind `#` — ghi MOI event (tru cac loai trong
+`admin.audit_excluded_types`) vao bang `audit_events`, giu `admin.audit_retention_days` ngay.
 
 ---
 
@@ -185,6 +196,10 @@ phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload 
    `ApprovedAnnotationCount` (`int?`) ngay tren v1 — so nhan da duyet luc dong so, de ledger
    chi hoan ky quy khi da chi du (annotation.approved di queue khac, co the toi sau; TLA+
    `NC-B-01` tim ra). `null` = event cu: ledger hoan ngay nhu truoc.
+
+   *Ngoai le thu nam (2026-10-12, cung ly do):* `assignment.submitted` them `ClientIp` va
+   `DeviceId` (`string?`) ngay tren v1 — dau vao chong gian lan cua quality-svc (FM-07).
+   `null` = event cu hoac client khong gui header `X-Device-Id`: bo qua tieu chi IP / thiet bi.
 
 ## Dinh dang nhan: tap nhan (`LabelSchema`) + nhan (`LabelPayload`)
 

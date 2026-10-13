@@ -36,6 +36,8 @@ appeal.opened v1  (AppealOpened)
 
 assignment.submitted v1  (AssignmentSubmitted)
     AssignmentId             Guid                 required
+    ClientIp                 String?              nullable
+    DeviceId                 String?              nullable
     LabelPayload             LabelPayload         required
     LabelerId                Guid                 required
     LeasedAt                 DateTimeOffset       required
@@ -46,6 +48,11 @@ assignment.submitted v1  (AssignmentSubmitted)
     StorageKey               String?              nullable
     SubmittedAt              DateTimeOffset       required
     TaskId                   Guid                 required
+
+badge.awarded v1  (BadgeAwarded)
+    Badge                    String               required
+    Name                     String               required
+    UserId                   Guid                 required
 
 business.kyb_rejected v1  (BusinessKybRejected)
     BusinessId               Guid                 required
@@ -91,6 +98,25 @@ deposit.confirmed v1  (DepositConfirmed)
     Provider                 String               required
     ProviderTxnId            String               required
 
+dispute.opened v1  (DisputeOpened)
+    AmountVnd                Int64                required
+    AnnotationId             Guid                 required
+    BusinessId               Guid                 required
+    DisputeId                Guid                 required
+    LabelerId                Guid                 required
+    ProjectId                Guid                 required
+    Reason                   String               required
+
+dispute.resolved v1  (DisputeResolved)
+    AmountVnd                Int64                required
+    AnnotationId             Guid                 required
+    BusinessId               Guid                 required
+    DisputeId                Guid                 required
+    LabelerId                Guid                 required
+    Note                     String               required
+    Outcome                  DisputeOutcome       required
+    ProjectId                Guid                 required
+
 escrow.rejected v1  (EscrowRejected)
     ProjectId                Guid                 required
     Reason                   String               required
@@ -103,6 +129,12 @@ escrow.released v1  (EscrowReleased)
 escrow.reserved v1  (EscrowReserved)
     AmountVnd                Int64                required
     ProjectId                Guid                 required
+
+fraud.case_confirmed v1  (FraudCaseConfirmed)
+    BlockAccounts            Boolean              required
+    CaseId                   Guid                 required
+    Reason                   String               required
+    UserIds                  IReadOnlyList<Guid>  required
 
 funds.held v1  (FundsHeld)
     AmountVnd                Int64                required
@@ -269,6 +301,13 @@ settings.snapshot v1  (SettingsSnapshot)
 settings.snapshot_requested v1  (SettingsSnapshotRequested)
     Service                  String               required
 
+system.announcement v1  (SystemAnnouncement)
+    AnnouncementId           Guid                 required
+    Audience                 String               required
+    Body                     String               required
+    SendEmail                Boolean              required
+    Title                    String               required
+
 task.leased v1  (TaskLeased)
     AssignmentId             Guid                 required
     ExpiresAt                DateTimeOffset       required
@@ -293,10 +332,32 @@ user.blocked v1  (UserBlocked)
     Reason                   String?              nullable
     UserId                   Guid                 required
 
+user.email_verification_requested v1  (EmailVerificationRequested)
+    DisplayName              String               required
+    Email                    String               required
+    ExpiresAt                DateTimeOffset       required
+    UserId                   Guid                 required
+    VerifyUrl                String               required
+
+user.email_verified v1  (UserEmailVerified)
+    UserId                   Guid                 required
+
+user.password_reset_requested v1  (PasswordResetRequested)
+    DisplayName              String               required
+    Email                    String               required
+    ExpiresAt                DateTimeOffset       required
+    ResetUrl                 String               required
+    UserId                   Guid                 required
+
 user.registered v1  (UserRegistered)
     DisplayName              String               required
     Email                    String               required
     Roles                    IReadOnlyList<String> required
+    UserId                   Guid                 required
+
+user.sessions_revoked v1  (SessionsRevoked)
+    Reason                   String               required
+    RevokedAt                DateTimeOffset       required
     UserId                   Guid                 required
 
 user.unblocked v1  (UserUnblocked)

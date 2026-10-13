@@ -1,5 +1,6 @@
 # ============================================================================
 # DEMO / CI — CA HE THONG BANG MOT LENH:
+#     python deploy/tao_env.py          # lan dau: sinh .env (mat khau ngau nhien, khong commit)
 #     docker compose -f docker-compose.demo.yml up -d --build
 #
 # Tach han khoi moi truong dev (docker-compose.infra.yml + chay service tren may):
@@ -12,7 +13,8 @@
 #   - lan dau tu migrate + seed du lieu mau (tai khoan @crowd.local, mat khau Matkhau@123).
 #
 # Xoa sach du lieu demo: docker compose -f docker-compose.demo.yml down -v
-# Moi bi mat o day la gia tri DEV — khong dung file nay cho production.
+# Mat khau DB / RabbitMQ / MinIO / khoa noi bo doc tu .env (S-08) — khong con trong repo.
+# Khoa ky JWT: identity tu sinh lan dau, giu trong volume identity-keys (khong nam trong image).
 # ============================================================================
 name: datn-demo
 
@@ -23,7 +25,10 @@ x-dotnet-env: &dotnet-env
   ObjectStorage__ServiceUrl: http://minio:9000
   # Link xem / tai file ky bang dia chi trinh duyet toi duoc (xem ObjectStorageOptions.PublicUrl).
   ObjectStorage__PublicUrl: http://localhost:19000
-  InternalApi__Key: ${INTERNAL_API_KEY:-demo_internal_key}
+  InternalApi__Key: ${INTERNAL_API_KEY:?chay python deploy/tao_env.py}
+  # Mat khau ha tang lay tu .env (S-08) — ghi de gia tri dev trong appsettings.Development.json.
+  RabbitMq__Password: ${RABBIT_PASSWORD:?chay python deploy/tao_env.py}
+  ObjectStorage__SecretKey: ${MINIO_PASSWORD:?chay python deploy/tao_env.py}
 
 x-dotnet-service: &dotnet-service
   restart: unless-stopped
@@ -47,7 +52,7 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: datn-demo-rabbitmq
-    environment: { RABBITMQ_DEFAULT_USER: datn, RABBITMQ_DEFAULT_PASS: dev_rabbit_pw }
+    environment: { RABBITMQ_DEFAULT_USER: datn, RABBITMQ_DEFAULT_PASS: "${RABBIT_PASSWORD:?chay python deploy/tao_env.py}" }
     ports: ["25672:15672"]
     volumes: [rabbitdata:/var/lib/rabbitmq]
     healthcheck: { test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"], interval: 10s, timeout: 5s, retries: 30 }
@@ -56,7 +61,7 @@ services:
     image: quay.io/minio/minio:latest
     container_name: datn-demo-minio
     command: server /data --console-address ":9001"
-    environment: { MINIO_ROOT_USER: datn, MINIO_ROOT_PASSWORD: dev_minio_pw }
+    environment: { MINIO_ROOT_USER: datn, MINIO_ROOT_PASSWORD: "${MINIO_PASSWORD:?chay python deploy/tao_env.py}" }
     ports: ["19000:9000", "19001:9001"]
     volumes: [miniodata:/data]
     healthcheck: { test: ["CMD", "mc", "ready", "local"], interval: 10s, timeout: 5s, retries: 30 }
@@ -65,9 +70,10 @@ services:
     image: quay.io/minio/minio:latest
     container_name: datn-demo-minio-init
     depends_on: { minio: { condition: service_healthy } }
+    environment: { MINIO_PASSWORD: "${MINIO_PASSWORD:?chay python deploy/tao_env.py}" }
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set local http://minio:9000 datn dev_minio_pw &&
+      /usr/bin/mc alias set local http://minio:9000 datn $${MINIO_PASSWORD} &&
       /usr/bin/mc mb -p local/datasets local/media local/exports local/kyb-docs local/avatars local/ml-models &&
       /usr/bin/mc anonymous set none local/datasets &&
       /usr/bin/mc anonymous set none local/media
@@ -90,7 +96,7 @@ services:
     container_name: datn-demo-ch-gate
     environment:
       CLICKHOUSE_USER: gate_user
-      CLICKHOUSE_PASSWORD: dev_gate_pw
+      CLICKHOUSE_PASSWORD: ${DB_GATE_PASSWORD:?chay python deploy/tao_env.py}
       CLICKHOUSE_DB: gate_db
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     ulimits: { nofile: { soft: 262144, hard: 262144 } }
@@ -100,14 +106,14 @@ services:
   db-identity:
     <<: *postgres
     container_name: datn-demo-db-identity
-    environment: { POSTGRES_USER: identity_user, POSTGRES_PASSWORD: dev_identity_pw, POSTGRES_DB: identity_db }
+    environment: { POSTGRES_USER: identity_user, POSTGRES_PASSWORD: "${DB_IDENTITY_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: identity_db }
     volumes: [pgdata-identity:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U identity_user -d identity_db"], interval: 5s, timeout: 3s, retries: 30 }
 
   db-project:
     <<: *postgres
     container_name: datn-demo-db-project
-    environment: { POSTGRES_USER: project_user, POSTGRES_PASSWORD: dev_project_pw, POSTGRES_DB: project_db }
+    environment: { POSTGRES_USER: project_user, POSTGRES_PASSWORD: "${DB_PROJECT_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: project_db }
     volumes: [pgdata-project:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U project_user -d project_db"], interval: 5s, timeout: 3s, retries: 30 }
 
@@ -115,7 +121,7 @@ services:
     <<: *postgres
     container_name: datn-demo-db-task
     command: ["postgres", "-c", "max_connections=60", "-c", "shared_buffers=128MB"]
-    environment: { POSTGRES_USER: task_user, POSTGRES_PASSWORD: dev_task_pw, POSTGRES_DB: task_db }
+    environment: { POSTGRES_USER: task_user, POSTGRES_PASSWORD: "${DB_TASK_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: task_db }
     volumes: [pgdata-task:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U task_user -d task_db"], interval: 5s, timeout: 3s, retries: 30 }
 
@@ -123,56 +129,56 @@ services:
     <<: *postgres
     container_name: datn-demo-db-annotation
     command: ["postgres", "-c", "max_connections=60", "-c", "shared_buffers=128MB"]
-    environment: { POSTGRES_USER: annotation_user, POSTGRES_PASSWORD: dev_annotation_pw, POSTGRES_DB: annotation_db }
+    environment: { POSTGRES_USER: annotation_user, POSTGRES_PASSWORD: "${DB_ANNOTATION_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: annotation_db }
     volumes: [pgdata-annotation:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U annotation_user -d annotation_db"], interval: 5s, timeout: 3s, retries: 30 }
 
   db-ledger:
     <<: *postgres
     container_name: datn-demo-db-ledger
-    environment: { POSTGRES_USER: ledger_user, POSTGRES_PASSWORD: dev_ledger_pw, POSTGRES_DB: ledger_db }
+    environment: { POSTGRES_USER: ledger_user, POSTGRES_PASSWORD: "${DB_LEDGER_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: ledger_db }
     volumes: [pgdata-ledger:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U ledger_user -d ledger_db"], interval: 5s, timeout: 3s, retries: 30 }
 
   db-payment:
     <<: *postgres
     container_name: datn-demo-db-payment
-    environment: { POSTGRES_USER: payment_user, POSTGRES_PASSWORD: dev_payment_pw, POSTGRES_DB: payment_db }
+    environment: { POSTGRES_USER: payment_user, POSTGRES_PASSWORD: "${DB_PAYMENT_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: payment_db }
     volumes: [pgdata-payment:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U payment_user -d payment_db"], interval: 5s, timeout: 3s, retries: 30 }
 
   db-link:
     <<: *postgres
     container_name: datn-demo-db-link
-    environment: { POSTGRES_USER: link_user, POSTGRES_PASSWORD: dev_link_pw, POSTGRES_DB: link_db }
+    environment: { POSTGRES_USER: link_user, POSTGRES_PASSWORD: "${DB_LINK_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: link_db }
     volumes: [pgdata-link:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U link_user -d link_db"], interval: 5s, timeout: 3s, retries: 30 }
 
   db-gate:
     <<: *postgres
     container_name: datn-demo-db-gate
-    environment: { POSTGRES_USER: gate_user, POSTGRES_PASSWORD: dev_gate_pw, POSTGRES_DB: gate_db }
+    environment: { POSTGRES_USER: gate_user, POSTGRES_PASSWORD: "${DB_GATE_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: gate_db }
     volumes: [pgdata-gate:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U gate_user -d gate_db"], interval: 5s, timeout: 3s, retries: 30 }
 
   db-quality:
     <<: *postgres
     container_name: datn-demo-db-quality
-    environment: { POSTGRES_USER: quality_user, POSTGRES_PASSWORD: dev_quality_pw, POSTGRES_DB: quality_db }
+    environment: { POSTGRES_USER: quality_user, POSTGRES_PASSWORD: "${DB_QUALITY_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: quality_db }
     volumes: [pgdata-quality:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U quality_user -d quality_db"], interval: 5s, timeout: 3s, retries: 30 }
 
   db-admin:
     <<: *postgres
     container_name: datn-demo-db-admin
-    environment: { POSTGRES_USER: admin_user, POSTGRES_PASSWORD: dev_admin_pw, POSTGRES_DB: admin_db }
+    environment: { POSTGRES_USER: admin_user, POSTGRES_PASSWORD: "${DB_ADMIN_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: admin_db }
     volumes: [pgdata-admin:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U admin_user -d admin_db"], interval: 5s, timeout: 3s, retries: 30 }
 
   db-notification:
     <<: *postgres
     container_name: datn-demo-db-notification
-    environment: { POSTGRES_USER: notification_user, POSTGRES_PASSWORD: dev_notification_pw, POSTGRES_DB: notification_db }
+    environment: { POSTGRES_USER: notification_user, POSTGRES_PASSWORD: "${DB_NOTIFICATION_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: notification_db }
     volumes: [pgdata-notification:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U notification_user -d notification_db"], interval: 5s, timeout: 3s, retries: 30 }
 
@@ -188,7 +194,7 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8111
-      ConnectionStrings__AdminDb: Host=db-admin;Port=5432;Database=admin_db;Username=admin_user;Password=dev_admin_pw;Maximum Pool Size=10
+      ConnectionStrings__AdminDb: Host=db-admin;Port=5432;Database=admin_db;Username=admin_user;Password=${DB_ADMIN_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
 
   identity:
     <<: *dotnet-service
@@ -200,10 +206,13 @@ services:
       # Giay phep kinh doanh (KYB) luu o bucket kyb-docs do minio-init tao.
       minio-init: { condition: service_completed_successfully }
       db-identity: { condition: service_healthy }
+    # Khoa ky token nam o volume rieng: tao lai container (up --build) KHONG doi khoa → nguoi dang
+    # dang nhap khong bi da ra. Xoa sach (down -v) moi sinh khoa moi.
+    volumes: [identity-keys:/app/secrets]
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8101
-      ConnectionStrings__IdentityDb: Host=db-identity;Port=5432;Database=identity_db;Username=identity_user;Password=dev_identity_pw;Maximum Pool Size=10
+      ConnectionStrings__IdentityDb: Host=db-identity;Port=5432;Database=identity_db;Username=identity_user;Password=${DB_IDENTITY_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
 
   notification:
     <<: *dotnet-service
@@ -217,7 +226,7 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8110
-      ConnectionStrings__NotificationDb: Host=db-notification;Port=5432;Database=notification_db;Username=notification_user;Password=dev_notification_pw;Maximum Pool Size=10
+      ConnectionStrings__NotificationDb: Host=db-notification;Port=5432;Database=notification_db;Username=notification_user;Password=${DB_NOTIFICATION_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       # Email thong bao gui qua Mailpit (xem tai http://localhost:18025).
       Smtp__Host: mailpit
       Smtp__Port: "1025"
@@ -234,7 +243,7 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8102
-      ConnectionStrings__ProjectDb: Host=db-project;Port=5432;Database=project_db;Username=project_user;Password=dev_project_pw;Maximum Pool Size=10
+      ConnectionStrings__ProjectDb: Host=db-project;Port=5432;Database=project_db;Username=project_user;Password=${DB_PROJECT_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       InternalApi__TaskUrl: http://task:8103
       InternalApi__AnnotationUrl: http://annotation:8104
 
@@ -251,7 +260,9 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8103
-      ConnectionStrings__TaskDb: Host=db-task;Port=5432;Database=task_db;Username=task_user;Password=dev_task_pw;Maximum Pool Size=20
+      ConnectionStrings__TaskDb: Host=db-task;Port=5432;Database=task_db;Username=task_user;Password=${DB_TASK_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=20
+      # IP that cua labeler qua gateway (chong gian lan: nhieu tai khoan chung IP).
+      ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
 
   annotation:
     <<: *dotnet-service
@@ -266,7 +277,7 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8104
-      ConnectionStrings__AnnotationDb: Host=db-annotation;Port=5432;Database=annotation_db;Username=annotation_user;Password=dev_annotation_pw;Maximum Pool Size=10
+      ConnectionStrings__AnnotationDb: Host=db-annotation;Port=5432;Database=annotation_db;Username=annotation_user;Password=${DB_ANNOTATION_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
 
   ledger:
     <<: *dotnet-service
@@ -279,7 +290,7 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8105
-      ConnectionStrings__LedgerDb: Host=db-ledger;Port=5432;Database=ledger_db;Username=ledger_user;Password=dev_ledger_pw;Maximum Pool Size=20
+      ConnectionStrings__LedgerDb: Host=db-ledger;Port=5432;Database=ledger_db;Username=ledger_user;Password=${DB_LEDGER_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=20
 
   payment:
     <<: *dotnet-service
@@ -292,7 +303,7 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8106
-      ConnectionStrings__PaymentDb: Host=db-payment;Port=5432;Database=payment_db;Username=payment_user;Password=dev_payment_pw;Maximum Pool Size=10
+      ConnectionStrings__PaymentDb: Host=db-payment;Port=5432;Database=payment_db;Username=payment_user;Password=${DB_PAYMENT_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       PaymentProviders__Sandbox__CheckoutBaseUrl: http://localhost:18080/payments/sandbox/checkout/
 
   link:
@@ -307,7 +318,7 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8107
-      ConnectionStrings__LinkDb: Host=db-link;Port=5432;Database=link_db;Username=link_user;Password=dev_link_pw;Maximum Pool Size=10
+      ConnectionStrings__LinkDb: Host=db-link;Port=5432;Database=link_db;Username=link_user;Password=${DB_LINK_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       Links__ShortBaseUrl: http://localhost:18080/g/
       ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
 
@@ -326,9 +337,9 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8108
-      ConnectionStrings__GateDb: Host=db-gate;Port=5432;Database=gate_db;Username=gate_user;Password=dev_gate_pw;Maximum Pool Size=10
+      ConnectionStrings__GateDb: Host=db-gate;Port=5432;Database=gate_db;Username=gate_user;Password=${DB_GATE_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       Gate__Redis: redis-gate:6379
-      Gate__ClickHouse: Host=ch-gate;Port=8123;Username=gate_user;Password=dev_gate_pw;Database=gate_db
+      Gate__ClickHouse: Host=ch-gate;Port=8123;Username=gate_user;Password=${DB_GATE_PASSWORD:?chay python deploy/tao_env.py};Database=gate_db
       ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
 
   quality:
@@ -340,7 +351,8 @@ services:
       rabbitmq: { condition: service_healthy }
       db-quality: { condition: service_healthy }
     environment:
-      QUALITY_DATABASE_URL: postgresql+asyncpg://quality_user:dev_quality_pw@db-quality:5432/quality_db
+      QUALITY_DATABASE_URL: postgresql+asyncpg://quality_user:${DB_QUALITY_PASSWORD:?chay python deploy/tao_env.py}@db-quality:5432/quality_db
+      QUALITY_RABBIT_PASSWORD: ${RABBIT_PASSWORD:?chay python deploy/tao_env.py}
       QUALITY_RABBIT_HOST: rabbitmq
       QUALITY_JWKS_URL: http://identity:8101/.well-known/jwks.json
 
@@ -356,6 +368,8 @@ services:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8080
       # ocelot.json ghi localhost:<cong>; trong compose moi cong la mot host (xem DownstreamHosts).
+      # Nap lai moc thu hoi phien luc khoi dong (VD-S-11).
+      SessionRevocation__IdentityUrl: http://identity:8101
       DownstreamHosts__8101: identity
       DownstreamHosts__8102: project
       DownstreamHosts__8103: task
@@ -386,3 +400,4 @@ volumes:
   pgdata-quality:
   pgdata-admin:
   pgdata-notification:
+  identity-keys:

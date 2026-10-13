@@ -42,4 +42,68 @@ namespace Crowd.Project.Api.Consumers
             }
         }
     }
+
+    /// <summary>user.registered → tai khoan moi CHUA xac thuc email (chua publish duoc). Da co dong thi giu nguyen.</summary>
+    public sealed class UserRegisteredEmailProcessor : IEventProcessor<UserRegistered>
+    {
+        private readonly ProjectDbContext _db;
+
+        public UserRegisteredEmailProcessor(ProjectDbContext db)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            _db = db;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<UserRegistered> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            Guid uid = envelope.Payload.UserId;
+            if (!await _db.EmailStatuses.AnyAsync(e => e.UserId == uid, ct))
+            {
+                _db.EmailStatuses.Add(EmailStatus.ChuaXacThuc(uid));
+            }
+        }
+    }
+
+    /// <summary>user.email_verified → publish duoc (neu da KYB).</summary>
+    public sealed class UserEmailVerifiedProcessor : IEventProcessor<UserEmailVerified>
+    {
+        private readonly ProjectDbContext _db;
+
+        public UserEmailVerifiedProcessor(ProjectDbContext db)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            _db = db;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<UserEmailVerified> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            Guid uid = envelope.Payload.UserId;
+            EmailStatus? e = await _db.EmailStatuses.FirstOrDefaultAsync(x => x.UserId == uid, ct);
+            if (e == null)
+            {
+                e = EmailStatus.ChuaXacThuc(uid);
+                _db.EmailStatuses.Add(e);
+            }
+
+            e.XacThuc();
+        }
+    }
 }

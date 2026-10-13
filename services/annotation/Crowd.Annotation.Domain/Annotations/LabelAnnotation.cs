@@ -321,6 +321,7 @@ namespace Crowd.Annotation.Domain.Annotations
         {
             return Status == AnnotationStatus.Rejected
                    && AppealMessage == null
+                   && DisputedAt == null
                    && ReviewedAt.HasValue
                    && luc - ReviewedAt.Value <= hanKhieuNai;
         }
@@ -385,10 +386,35 @@ namespace Crowd.Annotation.Domain.Annotations
             return false;
         }
 
-        /// <summary>Tu choi CUOI CUNG: da khieu nai va bi bac, khong con duong nao nua.</summary>
+        /// <summary>Tu choi CUOI CUNG: da khieu nai va bi bac, hoac bi loai do thua tranh chap — khong con duong nao nua.</summary>
         public bool LaTuChoiCuoiCung()
         {
-            return Status == AnnotationStatus.Rejected && AppealResolvedAt.HasValue;
+            return Status == AnnotationStatus.Rejected && (AppealResolvedAt.HasValue || DisputedAt.HasValue);
+        }
+
+        // =====================================================================
+        // TRANH CHAP (FM-06) — ledger la chu; o day chi ghi ket cuc
+        // =====================================================================
+
+        /// <summary>Luc nhan bi loai vi doanh nghiep thang tranh chap; null = khong.</summary>
+        public DateTimeOffset? DisputedAt { get; private set; }
+
+        /// <summary>
+        /// Admin xu doanh nghiep thang tranh chap (dispute.resolved): nhan da duyet bi loai — khong
+        /// vao ket qua, khong khieu nai lai duoc (tien da tra doanh nghiep). Giao lai → khong lam gi.
+        /// </summary>
+        public bool LoaiDoTranhChap(string ghiChu, DateTimeOffset luc)
+        {
+            if (Status != AnnotationStatus.Approved || DisputedAt.HasValue)
+            {
+                return false;
+            }
+
+            Status = AnnotationStatus.Rejected;
+            RejectReason = "Tranh chap: " + ghiChu;
+            DisputedAt = luc;
+            _history.Add(new AnnotationHistoryEntry("dispute_refunded", null, ghiChu, luc));
+            return true;
         }
 
         // =====================================================================

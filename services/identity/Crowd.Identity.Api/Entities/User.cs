@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Crowd.Identity.Api.Exceptions;
 
 namespace Crowd.Identity.Api.Entities
 {
@@ -16,6 +17,11 @@ namespace Crowd.Identity.Api.Entities
         /// </summary>
         private List<string> _roles;
 
+        // Ho so ky nang (FL-01) — private, chi doi qua CapNhatKyNang (co kiem gioi han).
+        private List<string> _domains;
+        private List<string> _languages;
+        private List<string> _modalities;
+
         /// <summary>EF Core can constructor khong tham so de dung lai tu database.</summary>
         private User()
         {
@@ -23,6 +29,9 @@ namespace Crowd.Identity.Api.Entities
             PasswordHash = string.Empty;
             DisplayName = string.Empty;
             _roles = new List<string>();
+            _domains = new List<string>();
+            _languages = new List<string>();
+            _modalities = new List<string>();
         }
 
         public Guid Id { get; private set; }
@@ -55,6 +64,35 @@ namespace Crowd.Identity.Api.Entities
         public string? BlockedReason { get; private set; }
 
         public DateTimeOffset CreatedAt { get; private set; }
+
+        /// <summary>Luc xac thuc email (FC-01); null = chua xac thuc → chua rut tien, chua publish duoc.</summary>
+        public DateTimeOffset? EmailVerifiedAt { get; private set; }
+
+        /// <summary>Gioi thieu ngan tren ho so (FC-05).</summary>
+        public string? Bio { get; private set; }
+
+        /// <summary>Khoa anh dai dien trong bucket avatars; null = chua co.</summary>
+        public string? AvatarKey { get; private set; }
+
+        public IReadOnlyList<string> Domains
+        {
+            get { return _domains; }
+        }
+
+        public IReadOnlyList<string> Languages
+        {
+            get { return _languages; }
+        }
+
+        public IReadOnlyList<string> Modalities
+        {
+            get { return _modalities; }
+        }
+
+        public bool DaXacThucEmail
+        {
+            get { return EmailVerifiedAt.HasValue; }
+        }
 
         public static User Tao(
             string emailDaChuanHoa,
@@ -110,6 +148,48 @@ namespace Crowd.Identity.Api.Entities
             BlockedAt = null;
             BlockedReason = null;
             return true;
+        }
+
+        /// <summary>Xac thuc email. Tra ve false neu da xac thuc tu truoc (khong phat event lan hai).</summary>
+        public bool XacThucEmail(DateTimeOffset luc)
+        {
+            if (EmailVerifiedAt.HasValue)
+            {
+                return false;
+            }
+
+            EmailVerifiedAt = luc;
+            return true;
+        }
+
+        public void CapNhatHoSo(string displayName, string? bio)
+        {
+            string ten = (displayName ?? string.Empty).Trim();
+            if (ten.Length == 0 || ten.Length > 100)
+            {
+                throw new InvalidValueException("ten_khong_hop_le", "Ten hien thi tu 1 den 100 ky tu.");
+            }
+
+            string? gioiThieu = bio == null ? null : bio.Trim();
+            if (gioiThieu != null && gioiThieu.Length > 500)
+            {
+                throw new InvalidValueException("gioi_thieu_qua_dai", "Gioi thieu toi da 500 ky tu.");
+            }
+
+            DisplayName = ten;
+            Bio = string.IsNullOrEmpty(gioiThieu) ? null : gioiThieu;
+        }
+
+        public void CapNhatKyNang(IReadOnlyList<string> linhVuc, IReadOnlyList<string> ngonNgu, IReadOnlyList<string> loaiDuLieu)
+        {
+            _domains = KyNang.ChuanHoa(linhVuc, "linh_vuc_khong_hop_le", "Linh vuc");
+            _languages = KyNang.ChuanHoa(ngonNgu, "ngon_ngu_khong_hop_le", "Ngon ngu");
+            _modalities = KyNang.ChuanHoaLoaiDuLieu(loaiDuLieu);
+        }
+
+        public void DatAvatar(string? key)
+        {
+            AvatarKey = key;
         }
 
         public bool LaDoanhNghiep()

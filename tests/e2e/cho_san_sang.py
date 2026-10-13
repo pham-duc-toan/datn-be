@@ -12,15 +12,24 @@ import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import G, PW  # noqa: E402
+from tai_khoan_e2e import mo_rong_gioi_han  # noqa: E402
 
 HAN = int(sys.argv[1]) if len(sys.argv) > 1 else 600
 
 
+TOKEN: dict[str, dict] = {}
+
+
 def dang_nhap(email: str) -> dict | None:
+    """Dang nhap MOT lan roi nho token: gateway gioi han 20 lan dang nhap / phut / IP (truoc khi E2E
+    nang han muc) — hoi lai moi 5 giay ma dang nhap lai moi lan thi tu chan minh."""
+    if email in TOKEN:
+        return TOKEN[email]
     try:
         r = requests.post(G + "/auth/login", json={"email": email, "password": PW}, timeout=5)
         if r.status_code == 200:
-            return {"Authorization": "Bearer " + r.json()["accessToken"]}
+            TOKEN[email] = {"Authorization": "Bearer " + r.json()["accessToken"]}
+            return TOKEN[email]
     except requests.RequestException:
         pass
     return None
@@ -33,7 +42,13 @@ def kiem() -> list[str]:
     if biz is None or dang_nhap("admin@crowd.local") is None:
         return ["dang nhap (identity + seed tai khoan)"]
     try:
-        ds = requests.get(G + "/projects?mine=true&pageSize=50", headers=biz, timeout=5).json()["items"]
+        # Duyet het cac trang: may dev da chay E2E nhieu lan co hang tram du an, du an seed o trang sau.
+        ds = []
+        for trang in range(1, 20):
+            mot = requests.get(G + f"/projects?mine=true&pageSize=100&page={trang}", headers=biz, timeout=5).json()["items"]
+            ds.extend(mot)
+            if len(mot) < 100:
+                break
         if sum(1 for p in ds if p["name"].startswith("[Seed]")) < 4:
             chua.append("du an seed (project-svc)")
         lab = dang_nhap("labeler1@crowd.local")
@@ -60,6 +75,8 @@ while time.time() - bat_dau < HAN:
     if not chua:
         # Them vai giay de cac event seed (dataset.ingested → task, project.published → quality...) di het.
         time.sleep(15)
+        # Moi truong chay E2E (CI / demo): nang gioi han tan suat cua gateway — E2E dang nhap hang tram lan tu mot IP.
+        mo_rong_gioi_han(dang_nhap("admin@crowd.local"))
         print(f"san sang sau {time.time() - bat_dau:.0f} giay", flush=True)
         sys.exit(0)
     if chua != cuoi:

@@ -78,9 +78,14 @@ namespace Crowd.Notification.Api.Consumers
 
         protected override async Task XuLyPayloadAsync(UserRegistered p, CancellationToken ct)
         {
-            if (!await Db.LienHes.AnyAsync(x => x.UserId == p.UserId, ct))
+            LienHe? lh = await Db.LienHes.FirstOrDefaultAsync(x => x.UserId == p.UserId, ct);
+            if (lh == null)
             {
-                Db.LienHes.Add(LienHe.Tao(p.UserId, p.Email, p.DisplayName));
+                Db.LienHes.Add(LienHe.Tao(p.UserId, p.Email, p.DisplayName, p.Roles));
+            }
+            else
+            {
+                lh.DatVaiTro(p.Roles);
             }
         }
     }

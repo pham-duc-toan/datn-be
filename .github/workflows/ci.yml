@@ -85,6 +85,9 @@ jobs:
       - name: Cai ffmpeg (e2e_modality sinh anh / am thanh / video mau)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
+      - name: Sinh bi mat ngau nhien (.env)
+        run: python deploy/tao_env.py
+
       - name: Dung ca he thong (docker compose)
         run: docker compose -f docker-compose.demo.yml up -d --build
 

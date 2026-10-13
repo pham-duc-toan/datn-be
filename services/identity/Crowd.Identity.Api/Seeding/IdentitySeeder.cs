@@ -83,6 +83,8 @@ namespace Crowd.Identity.Api.Seeding
                 User user = User.Tao(email, su.DisplayName, su.Roles, lucTao);
                 SeedIds.GanId(user, su.Id);
                 user.DatPasswordHash(_matKhau.Bam(user, KichBanSeed.MatKhauChung));
+                // Tai khoan seed da xac thuc email san (FC-01): kich ban demo rut tien / publish duoc ngay.
+                user.XacThucEmail(lucTao);
 
                 _db.Users.Add(user);
                 soTao = soTao + 1;

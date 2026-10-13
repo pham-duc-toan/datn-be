@@ -27,6 +27,16 @@ namespace Crowd.Identity.Api.Persistence
 
         public DbSet<BusinessProfile> BusinessProfiles => Set<BusinessProfile>();
 
+        public DbSet<MaTaiKhoan> MaTaiKhoans => Set<MaTaiKhoan>();
+
+        public DbSet<ThongKeLabeler> ThongKeLabelers => Set<ThongKeLabeler>();
+
+        public DbSet<ThongKeNgay> ThongKeNgays => Set<ThongKeNgay>();
+
+        public DbSet<HuyHieuDaDat> HuyHieuDaDats => Set<HuyHieuDaDat>();
+
+        public DbSet<MocThuHoiPhien> MocThuHoiPhiens => Set<MocThuHoiPhien>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -44,6 +54,11 @@ namespace Crowd.Identity.Api.Persistence
             modelBuilder.ApplyConfiguration(new UserConfiguration());
             modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
             modelBuilder.ApplyConfiguration(new BusinessProfileConfiguration());
+            modelBuilder.ApplyConfiguration(new MaTaiKhoanConfiguration());
+            modelBuilder.ApplyConfiguration(new ThongKeLabelerConfiguration());
+            modelBuilder.ApplyConfiguration(new ThongKeNgayConfiguration());
+            modelBuilder.ApplyConfiguration(new HuyHieuDaDatConfiguration());
+            modelBuilder.ApplyConfiguration(new MocThuHoiPhienConfiguration());
 
             // Ha tang dung chung — giong het annotation-svc
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());

@@ -10,6 +10,12 @@ namespace Crowd.Ledger.Domain.Holds
 
         /// <summary>Giu lai vi vi pham (link bi vo hieu hoa) — tien sang platform:withheld, khong tra.</summary>
         Withheld,
+
+        /// <summary>Doanh nghiep dang tranh chap (FM-06): dong bang, worker khong giai phong.</summary>
+        Disputed,
+
+        /// <summary>Admin xu doanh nghiep thang tranh chap: tien tra lai doanh nghiep.</summary>
+        Refunded,
     }
 
     /// <summary>Khoan treo sinh ra tu dau.</summary>
@@ -105,6 +111,40 @@ namespace Crowd.Ledger.Domain.Holds
             }
 
             State = HoldState.Withheld;
+            ReleasedAt = luc;
+        }
+
+        /// <summary>Mo tranh chap: chi khi tien CON TREO (da giai phong thi labeler co the rut roi).</summary>
+        public void DongBang()
+        {
+            if (State != HoldState.Held)
+            {
+                throw new RuleViolationException("khong_con_treo", "Tien cua nhan nay da het thoi gian treo — khong tranh chap duoc nua.");
+            }
+
+            State = HoldState.Disputed;
+        }
+
+        /// <summary>Admin xu labeler thang: tro lai treo (qua han thi worker giai phong ngay vong sau).</summary>
+        public void MoBang()
+        {
+            if (State != HoldState.Disputed)
+            {
+                throw new RuleViolationException("khong_dang_tranh_chap", "Khoan treo khong dang bi dong bang.");
+            }
+
+            State = HoldState.Held;
+        }
+
+        /// <summary>Admin xu doanh nghiep thang: tien khong bao gio toi labeler.</summary>
+        public void HoanChoDoanhNghiep(DateTimeOffset luc)
+        {
+            if (State != HoldState.Disputed)
+            {
+                throw new RuleViolationException("khong_dang_tranh_chap", "Khoan treo khong dang bi dong bang.");
+            }
+
+            State = HoldState.Refunded;
             ReleasedAt = luc;
         }
 

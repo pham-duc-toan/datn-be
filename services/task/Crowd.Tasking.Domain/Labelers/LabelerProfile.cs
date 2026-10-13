@@ -76,5 +76,21 @@ namespace Crowd.Tasking.Domain.Labelers
             BlockedAt = occurredAt;
             return true;
         }
+
+        /// <summary>
+        /// user.unblocked. BlockedAt la moc cua su kien khoa / mo khoa gan nhat: su kien cu hon (vd
+        /// user.blocked den tre sau khi da mo khoa) bi bo qua.
+        /// </summary>
+        public bool MoKhoa(DateTimeOffset occurredAt)
+        {
+            if (occurredAt < BlockedAt)
+            {
+                return false;
+            }
+
+            Blocked = false;
+            BlockedAt = occurredAt;
+            return true;
+        }
     }
 }

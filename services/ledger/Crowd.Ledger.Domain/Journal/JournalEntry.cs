@@ -45,6 +45,9 @@ namespace Crowd.Ledger.Domain.Journal
 
         /// <summary>Link vi pham: doanh thu dang treo → platform:withheld.</summary>
         RevenueWithheld,
+
+        /// <summary>Doanh nghiep thang tranh chap: labeler treo + phi nen tang → tra lai doanh nghiep.</summary>
+        DisputeRefund,
     }
 
     /// <summary>Mot dong cua but toan: tai khoan va so tien CO DAU (am = ra, duong = vao).</summary>

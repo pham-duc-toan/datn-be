@@ -125,6 +125,80 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                     b.ToTable("accounts", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Ledger.Domain.Disputes.Dispute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("AmountVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_vnd");
+
+                    b.Property<Guid>("AnnotationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("annotation_id");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("business_id");
+
+                    b.Property<Guid>("HoldId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hold_id");
+
+                    b.Property<Guid>("LabelerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("labeler_id");
+
+                    b.Property<DateTimeOffset>("OpenedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("opened_at");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("resolution_note");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid?>("ResolvedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolved_by");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnnotationId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_disputes_annotation");
+
+                    b.HasIndex("BusinessId")
+                        .HasDatabaseName("ix_disputes_business");
+
+                    b.HasIndex("State", "OpenedAt")
+                        .HasDatabaseName("ix_disputes_hang_doi");
+
+                    b.ToTable("disputes", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Ledger.Domain.Escrows.ProjectEscrow", b =>
                 {
                     b.Property<Guid>("ProjectId")
@@ -269,6 +343,9 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                     b.HasIndex("AnnotationId", "Kind")
                         .IsUnique()
                         .HasDatabaseName("ux_holds_source");
+
+                    b.HasIndex("LabelerId", "HeldAt")
+                        .HasDatabaseName("ix_holds_thu_nhap");
 
                     b.ToTable("holds", (string)null);
                 });
@@ -495,13 +572,32 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
-                    b.Property<DateTimeOffset>("BlockedAt")
+                    b.Property<bool>("Blocked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("blocked");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("blocked_at");
+                        .HasColumnName("changed_at");
 
                     b.HasKey("UserId");
 
                     b.ToTable("blocked_users", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Ledger.Infrastructure.Persistence.EmailStatus", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<bool>("Verified")
+                        .HasColumnType("boolean")
+                        .HasColumnName("verified");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("email_status", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>

@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_ANNOTATION, URL_GATE, URL_LINK, URL_TASK, rabbit_container, sql_container  # noqa: E402,F401
 sys.path.insert(0, os.path.join(GOC_REPO, "services", "quality"))
 from app import redundancy as rd  # noqa: E402  — CHINH ham quality-svc dung, de tinh dap an mong doi
+from tai_khoan_e2e import mo_rong_gioi_han, xac_thuc_email  # noqa: E402
 
 
 PW = "Matkhau@123"
@@ -49,12 +50,14 @@ def hdr(tok):
     return {"Authorization": "Bearer " + tok}
 
 
-def dang_ky(vai, ten, xac_minh=True):
-    """Tao tai khoan moi. Doanh nghiep: mac dinh tu lam KYB + admin duyet (chua xac minh thi
-    khong publish duoc du an). xac_minh=False de test chinh luong KYB."""
+def dang_ky(vai, ten, xac_minh=True, xac_thuc=True):
+    """Tao tai khoan moi. Mac dinh bam link xac thuc email (chua xac thuc thi chua rut tien / publish
+    duoc); doanh nghiep: tu lam KYB + admin duyet. xac_minh / xac_thuc = False de test chinh cac luong do."""
     email = f"e2e-{TAG}-{ten}@crowd.local"
     r = requests.post(G + "/auth/register", json={"email": email, "password": PW, "displayName": ten, "roles": vai})
     assert r.status_code in (200, 201), r.text
+    if xac_thuc:
+        xac_thuc_email(email)
     t = login_raw(email).json()
     h = hdr(t["accessToken"])
     uid = requests.get(G + "/me", headers=h).json()["userId"]
@@ -85,6 +88,7 @@ def xac_minh_kyb(u):
 
 
 admin = hdr(login_raw("admin@crowd.local").json()["accessToken"])
+GOC.update(mo_rong_gioi_han(admin))  # cac bo goi tra GOC luc ket thuc → han muc ve nhu cu
 
 
 def dat(key, value):

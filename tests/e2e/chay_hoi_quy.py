@@ -3,7 +3,8 @@ import os, re, subprocess, sys, time
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_ANNOTATION, URL_GATE, URL_LINK, URL_TASK, rabbit_container, sql_container  # noqa: E402,F401
+from moi_truong import G, GOC_REPO, RABBIT_MGMT, RABBIT_PASSWORD, RABBIT_USER, URL_ANNOTATION, URL_GATE, URL_LINK, URL_TASK, rabbit_container, sql_container  # noqa: E402,F401
+from tai_khoan_e2e import mo_rong_gioi_han, tra_gioi_han  # noqa: E402
 
 S = os.path.dirname(os.path.abspath(__file__))
 KET_QUA = os.path.join(S, "ket-qua")
@@ -37,6 +38,9 @@ def chay(ten, file):
     return len(loi) == 0 and not tb
 
 
+# Gateway gioi han tan suat; E2E dang ky / dang nhap hang tram lan tu MOT IP → nang han muc, xong tra lai.
+HAN_MUC_CU = mo_rong_gioi_han(admin())
+
 ok = True
 ok &= chay("tong_the", "e2e_tong_the.py")
 ok &= chay("settings", "e2e_settings.py")
@@ -46,6 +50,7 @@ ok &= chay("modality", "e2e_modality.py")
 ok &= chay("ep_race_quality", "ep_race_quality.py")
 ok &= chay("dong_cho_chi", "e2e_dong_cho_chi.py")
 ok &= chay("kyb_thong_bao", "e2e_kyb_thong_bao.py")
+ok &= chay("hoan_thien", "e2e_hoan_thien.py")
 
 dat("ledger.gate_batch_interval", 2)
 dat("ledger.gate_payout_mode", "batched")
@@ -57,7 +62,7 @@ finally:
     dat("ledger.gate_batch_interval", 60)
 print("\n== Kiem tra tong sau hoi quy")
 time.sleep(10)
-q = requests.get(f"{RABBIT_MGMT}/api/queues/%2F", auth=("datn", "dev_rabbit_pw")).json()
+q = requests.get(f"{RABBIT_MGMT}/api/queues/%2F", auth=(RABBIT_USER, RABBIT_PASSWORD)).json()
 dlq = [(x["name"], x.get("messages", 0)) for x in q if x["name"].endswith(".dlq") and x.get("messages", 0) > 0]
 print(f"  DLQ co tin: {dlq if dlq else 'khong (0 / ' + str(sum(1 for x in q if x['name'].endswith('.dlq'))) + ' hang DLQ)'}")
 ok &= not dlq
@@ -75,4 +80,5 @@ ok &= r.stdout.strip() == "0"
 rec = requests.get(G + "/ledger/admin/reconciliation", headers=admin()).json()
 print("  doi soat so cai:", "LANH" if rec.get("healthy") else rec)
 ok &= rec.get("healthy") is True
+tra_gioi_han(admin(), HAN_MUC_CU)
 print("TAT CA DAT" if ok else "CO LOI")

@@ -28,9 +28,17 @@ namespace Crowd.Identity.Api.Services
         private readonly IdentityDbContext _db;
         private readonly IOutboxWriter _outbox;
         private readonly TimeProvider _clock;
+        private readonly PhienService _phien;
 
-        public TaiKhoanAdminService(IdentityDbContext db, IOutboxWriter outbox, TimeProvider clock)
+        public TaiKhoanAdminService(IdentityDbContext db, IOutboxWriter outbox, TimeProvider clock, PhienService phien)
         {
+            if (phien == null)
+            {
+                throw new ArgumentNullException(nameof(phien));
+            }
+
+            _phien = phien;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -114,19 +122,52 @@ namespace Crowd.Identity.Api.Services
                 throw new RuleViolationException("khong_khoa_admin", "Khong khoa duoc tai khoan admin.");
             }
 
-            DateTimeOffset bayGio = _clock.GetUtcNow();
-            if (u.Khoa(ly, bayGio))
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
             {
-                // Thu hoi moi phien dang nhap CON HAN (dong het han de job don xoa — xem RefreshTokenCleanupService).
-                await _db.RefreshTokens
-                    .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > bayGio)
-                    .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, bayGio), ct);
-
-                Phat(caller, new UserBlocked { UserId = userId, Reason = ly });
-                await _db.SaveChangesAsync(ct);
+                if (await KhoaKhongLuuAsync(u, ly, caller, ct))
+                {
+                    await _db.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
+                }
+            }
+            finally
+            {
+                await tx.DisposeAsync();
             }
 
             return await TaoResponseAsync(u, ct);
+        }
+
+        /// <summary>
+        /// He thong tu khoa (vd admin xac nhan ho so gian lan o quality-svc → fraud.case_confirmed).
+        /// Goi tu consumer nen KHONG SaveChanges. Tai khoan admin / khong ton tai: bo qua (khong nem loi
+        /// — nem loi thi message quay vong vao DLQ ma khong sua duoc gi).
+        /// </summary>
+        public async Task KhoaTuHeThongAsync(Guid userId, string lyDo, Caller caller, CancellationToken ct)
+        {
+            User? u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (u == null || u.Roles.Contains("admin"))
+            {
+                return;
+            }
+
+            string ly = lyDo.Length > 1000 ? lyDo.Substring(0, 1000) : lyDo;
+            await KhoaKhongLuuAsync(u, ly, caller, ct);
+        }
+
+        /// <summary>Khoa + thu hoi moi phien (gateway chan ca access token dang song) + phat user.blocked. Khong luu.</summary>
+        private async Task<bool> KhoaKhongLuuAsync(User u, string lyDo, Caller caller, CancellationToken ct)
+        {
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            if (!u.Khoa(lyDo, bayGio))
+            {
+                return false;
+            }
+
+            await _phien.ThuHoiTatCaAsync(u.Id, "blocked", caller, bayGio, ct);
+            Phat(caller, new UserBlocked { UserId = u.Id, Reason = lyDo });
+            return true;
         }
 
         public async Task<AdminUserResponse> MoKhoaAsync(Guid userId, Caller caller, CancellationToken ct)
