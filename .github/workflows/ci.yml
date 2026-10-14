@@ -33,10 +33,18 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: services/quality/requirements.txt
+          cache-dependency-path: |
+            services/quality/requirements.txt
+            services/media/requirements.txt
 
       - name: Unit test quality-svc (Python)
         working-directory: services/quality
+        run: |
+          pip install -r requirements.txt
+          python -m pytest -q
+
+      - name: Unit test media-svc (Python)
+        working-directory: services/media
         run: |
           pip install -r requirements.txt
           python -m pytest -q

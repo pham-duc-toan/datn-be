@@ -95,6 +95,13 @@ ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(event_date)
 ORDER BY (owner_id, event_date, link_id, click_id)";
 
+        /// <summary>
+        /// Giu 13 thang (thong ke FS-07 xem toi da theo nam + so voi cung ky): partition theo thang nen het
+        /// han la bo ca partition, khong ton cong. Khong co TTL thi bang lon mai theo luu luong cong link
+        /// (~100 lan phan con lai cua he thong). ALTER nay chay lai nhieu lan khong sao.
+        /// </summary>
+        private const string DatThoiHan = "ALTER TABLE click_events MODIFY TTL event_date + INTERVAL 13 MONTH";
+
         private static readonly string[] Cot = new string[]
         {
             "click_id", "event_time", "kind", "outcome", "link_id", "owner_id", "campaign_id",
@@ -119,6 +126,7 @@ ORDER BY (owner_id, event_date, link_id, click_id)";
             {
                 await c.OpenAsync(ct);
                 await c.ExecuteStatementAsync(TaoBang);
+                await c.ExecuteStatementAsync(DatThoiHan);
             }
         }
 

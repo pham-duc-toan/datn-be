@@ -25,9 +25,17 @@ namespace Crowd.Tasking.Api.Controllers
 
         private readonly LeaseService _service;
         private readonly BaoLoiService _baoLoi;
+        private readonly DonDuAnDaDongService _don;
 
-        public TasksController(LeaseService service, BaoLoiService baoLoi)
+        public TasksController(LeaseService service, BaoLoiService baoLoi, DonDuAnDaDongService don)
         {
+            if (don == null)
+            {
+                throw new ArgumentNullException(nameof(don));
+            }
+
+            _don = don;
+
             if (service == null)
             {
                 throw new ArgumentNullException(nameof(service));
@@ -121,6 +129,17 @@ namespace Crowd.Tasking.Api.Controllers
         public async Task<IActionResult> TienDo(Guid projectId, CancellationToken ct)
         {
             return Ok(await _service.TienDoAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
+        }
+
+        /// <summary>
+        /// POST /tasks/admin/projects/{projectId}/purge — admin don NGAY du lieu van hanh (task, luot giu, bao loi,
+        /// cau vang) cua mot du an DA DONG, khong doi het project.closed_data_retention. 409 neu du an chua dong.
+        /// </summary>
+        [HttpPost("admin/projects/{projectId:guid}/purge")]
+        [Authorize(Roles = CrowdRoles.Admin)]
+        public async Task<IActionResult> DonDuAn(Guid projectId, CancellationToken ct)
+        {
+            return Ok(await _don.DonAsync(projectId, ct));
         }
 
         private Caller Labeler()

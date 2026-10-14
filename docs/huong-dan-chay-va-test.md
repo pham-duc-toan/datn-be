@@ -38,6 +38,7 @@ dotnet run --project services/gate/Crowd.Gate.Api            # cổng link: tran
 dotnet run --project services/notification/Crowd.Notification.Api   # thông báo + email (Mailpit)
 dotnet run --project services/gateway/Crowd.Gateway.Api
 cd services/quality && .venv/Scripts/python -m app.main     # quality-svc (Python) — tạo .venv lần đầu: mục 3
+cd services/media && .venv/Scripts/python -m app.main       # media-svc (Python): link xem file + watermark — mục 3
 
 # 4. Đăng nhập thử bằng tài khoản seed (mật khẩu chung: Matkhau@123)
 curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/json" \
@@ -74,11 +75,11 @@ Khác với chạy trên máy:
 - task-svc tin `X-Forwarded-For` từ cùng mạng đó (IP người nộp nhãn cho chống gian lận).
 - Gateway nạp mốc thu hồi phiên từ `http://identity:8101` (`SessionRevocation__IdentityUrl`).
 
-**Bí mật (S-08).** `docker-compose.demo.yml` không chứa mật khẩu nào: mật khẩu 11 database, RabbitMQ, MinIO và khoá API nội bộ đọc từ `.env` ở gốc repo (danh sách biến: [.env.example](../.env.example)). Thiếu `.env` thì compose dừng với thông báo `chay python deploy/tao_env.py`. Khoá ký JWT do identity tự sinh lần đầu và giữ trong volume `identity-keys` (không nằm trong image). `.env` và mọi thư mục `secrets/` bị loại khỏi git và khỏi ngữ cảnh build Docker.
+**Bí mật (S-08).** `docker-compose.demo.yml` không chứa mật khẩu nào: mật khẩu 11 database, RabbitMQ, MinIO, khoá API nội bộ, khoá link xem file (`MEDIA_GRANT_KEY`) và khoá watermark (`MEDIA_WATERMARK_KEY`) đọc từ `.env` ở gốc repo (danh sách biến: [.env.example](../.env.example)). Thiếu `.env` thì compose dừng với thông báo `chay python deploy/tao_env.py`. Khoá ký JWT do identity tự sinh lần đầu và giữ trong volume `identity-keys` (không nằm trong image). `.env` và mọi thư mục `secrets/` bị loại khỏi git và khỏi ngữ cảnh build Docker.
 
 | Tình huống | Lệnh |
 |---|---|
-| Máy mới / CI | `python deploy/tao_env.py` — mật khẩu ngẫu nhiên |
+| Máy mới / CI | `python deploy/tao_env.py` — mật khẩu ngẫu nhiên. `.env` đã có (bản cũ thiếu biến mới) thì script chỉ **bổ sung** biến còn thiếu, không đổi giá trị cũ |
 | Stack demo đã chạy **trước** khi có `.env` (volume cũ vẫn giữ mật khẩu dev) | `python deploy/tao_env.py --dev` — dùng lại `dev_<tên>_pw`, không phải xoá dữ liệu |
 | Muốn đổi sang mật khẩu ngẫu nhiên cho stack cũ | `docker compose -f docker-compose.demo.yml down -v` (**xoá dữ liệu demo**) rồi `python deploy/tao_env.py --ghi-de` |
 
@@ -105,9 +106,12 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_p2.py` | Cổng link: rút gọn, vượt link, Turnstile, chống trùng IP, hoa hồng, kiểm duyệt (`chay_hoi_quy` chạy hai lần: chi `perClick` và `batched`) |
 | `e2e_modality.py` | Ảnh, văn bản, âm thanh, video, cặp, khung ảnh; media sinh bằng ffmpeg (`tao_media.py`) |
 | `ep_race_quality.py` | Ép race: hai người nộp đồng thời nhãn cuối của cùng task |
+| `ep_race_uy_tin.py` | Ép race: một labeler nộp 8 lượt ở 8 dự án **cùng lúc** → quality-svc quyết định 8 task song song; số lần khớp trong `reputations` phải bằng đúng số dòng `label_agreements` (trước khi có khoá theo labeler, 2/3 lần chạy bị đếm thiếu 1) |
 | `e2e_kyb_thong_bao.py` | KYB doanh nghiệp (khai hồ sơ, giấy phép, từ chối → nộp lại → duyệt, chặn publish khi chưa xác minh), thông báo trong ứng dụng + **email thật qua Mailpit**, tuỳ chọn email, gộp thông báo, khoá / mở khoá tài khoản |
 | `e2e_dong_cho_chi.py` | Kịch bản TLA+ tìm ra (NC-B-01): dừng container ledger, duyệt và đóng dự án, bật lại. Nhãn đã duyệt phải được trả dù `completed` tới trước `approved` (chỉ chạy với `E2E_PROFILE=demo`) |
+| `e2e_bao_ve_du_lieu.py` | Link file qua media-svc (không lộ MinIO), chủ dự án nhận bản gốc, labeler / reviewer nhận ảnh có watermark, admin giải mã ảnh "bị lộ" ra đúng người (labeler 1 ≠ labeler 2, ảnh khác của cùng người vẫn ra người đó), token bị sửa → 403, hết hạn → 410, tắt watermark bằng setting |
 | `e2e_hoan_thien.py` | Xác thực email (bấm link thật trong Mailpit), quên / đặt lại / đổi mật khẩu, thu hồi phiên ở gateway, hồ sơ + avatar + kỹ năng, cấp độ / huy hiệu / xếp hạng, nháp + báo lỗi task, chi phí / ETA, cảnh báo lệch, xuất YOLO sai loại dự án (nội dung zip YOLO / VOC kiểm ở unit test `HoanThienTests`), thu nhập, tranh chấp (cả hai kết cục, kiểm sổ cái), hồ sơ gian lận + khoá, audit + báo cáo + thông báo toàn hệ thống, rate limit 429 |
+| `e2e_luu_tru.py` | Lưu trữ & dọn dẹp: một dòng mỗi phiên đăng nhập (làm mới 5 lần vẫn một dòng, dùng lại token cũ → thu hồi phiên), claim `email_verified` / `kyb_verified`, không còn `task.leased`, audit không lưu chi tiết `annotation.submitted` nhưng báo cáo vẫn đếm, mẫu lưu một lần (`annotation_samples`), gate không giữ mẫu dự án không bật cổng link, **dọn outbox đã gửi ở cả 11 service** (hạ `outbox.retention` xuống 1 giờ), dọn dự án đã đóng ở task-svc + quality-svc (tiến độ, báo cáo chất lượng, nhãn và uy tín giữ nguyên) |
 
 Tài khoản doanh nghiệp do E2E tự tạo được **xác minh KYB tự động** (`tro_giup.dang_ky(..., xac_minh=True)`, mặc định) để các bộ cũ publish được như trước. Tương tự, mọi tài khoản E2E tự tạo được **xác thực email** bằng link thật trong Mailpit (`xac_thuc=True`, mặc định) — chưa xác thực thì không rút tiền / publish được.
 
@@ -179,6 +183,7 @@ Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledge
 | gate-svc | 8108 | `dotnet run --project services/gate/Crowd.Gate.Api` |
 | notification-svc | 8110 | `dotnet run --project services/notification/Crowd.Notification.Api` |
 | quality-svc (Python) | 8201 | `cd services/quality && .venv/Scripts/python -m app.main` |
+| media-svc (Python) | 8109 | `cd services/media && .venv/Scripts/python -m app.main` |
 
 **quality-svc lần đầu** cần tạo môi trường Python (một lần):
 
@@ -188,6 +193,17 @@ python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt      # Linux/macOS: .venv/bin/pip
 .venv/Scripts/python -m pytest -q                   # 32 test logic: đồng thuận, uy tín, Dawid-Skene, hợp đồng envelope, setting
 ```
+
+**media-svc lần đầu** (phát file mẫu qua token + watermark chìm — **không có database**, chỉ cần RabbitMQ + MinIO):
+
+```bash
+cd services/media
+python -m venv .venv
+.venv/Scripts/pip install -r requirements.txt
+.venv/Scripts/python -m pytest -q                   # 25 test: token chéo C#/Python, độ bền watermark, Range
+```
+
+Biến `MEDIA_*` chỉ giữ hạ tầng ([app/config.py](../services/media/app/config.py)): RabbitMQ, MinIO, `MEDIA_GRANT_KEY` (phải **trùng** `MediaLinks:GrantKey` của project / task / annotation / gate), `MEDIA_WATERMARK_KEY` (giữ nguyên mãi — đổi thì ảnh đã phát không giải mã được nữa).
 
 Biến môi trường tiền tố `QUALITY_` chỉ còn giữ phần hạ tầng (chuỗi kết nối, RabbitMQ, JWKS, môi trường — xem [app/config.py](../services/quality/app/config.py)). Production phải đặt `QUALITY_ENVIRONMENT=Production` (tắt seed). Chu kỳ Dawid–Skene, trọng số uy tín… là **setting hệ thống**: muốn DS chạy mỗi phút thì `PUT /admin/settings/quality.ds_interval {"value":60}` (mục 6.16).
 
@@ -915,7 +931,7 @@ curl -s -X PUT http://localhost:8080/admin/settings/quality.redundancy_policy -H
 
 ### 6.16 Setting hệ thống (admin): phí, tự duyệt, hạn mức
 
-Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (138 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
+Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (145 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
 
 ```bash
 # Toàn bộ setting: key, group, type, value, defaultValue, min, max, unit, effect, description, version
@@ -1084,7 +1100,8 @@ curl -s -X POST http://localhost:8080/kyb/admin/<businessId>/reject -H "Authoriz
   -H "Content-Type: application/json" -d '{"reason":"Giay phep bi mo"}'
 #   → doanh nghiệp sửa + nộp lại (2 lệnh trên), admin duyệt:
 curl -s -X POST http://localhost:8080/kyb/admin/<businessId>/approve -H "Authorization: Bearer <token-admin>"
-#   → project-svc nhận business.verified (bảng verified_businesses) → publish được
+#   → doanh nghiệp LÀM MỚI TOKEN (POST /auth/refresh) để token mang claim kyb_verified = true → publish được
+#     (token cũ vẫn 409 chua_xac_minh_doanh_nghiep cho tới khi hết hạn 15 phút)
 
 # Thông báo (mọi vai trò): số chưa đọc, danh sách, đọc, tuỳ chọn email
 curl -s http://localhost:8080/notifications/me/unread-count -H "Authorization: Bearer <token-biz-moi>"
@@ -1112,6 +1129,55 @@ docker exec datn-db-notification psql -U notification_user -d notification_db -c
 ```
 
 Thông báo loại phát sinh nhiều (`nhan_duyet`, `tien_kha_dung`) được **gộp**: sự kiện mới cộng dồn vào dòng cùng loại còn chưa đọc (`merged_count` tăng), nên sharer có nghìn click / ngày chỉ thấy một dòng "Tiền đã khả dụng".
+
+### 6.19 Lưu trữ và dọn dẹp (kiến trúc mục 3.14)
+
+Mọi hạn giữ là setting (nhóm hạ tầng / dự án), đổi lúc đang chạy:
+
+| Setting | Mặc định | Dọn cái gì |
+|---|---|---|
+| `outbox.retention` | 7 ngày (tối thiểu 1 giờ) | Event **đã gửi** trong bảng `outbox` của mọi service |
+| `consumers.processed_retention` | 14 ngày (tối thiểu 1 ngày) | Dấu vết chống xử lý trùng `processed_events` |
+| `outbox.cleanup_interval` | 5 phút | Chu kỳ của các worker dọn (kể cả dọn dự án đã đóng) |
+| `quality.fraud_submission_retention` | 7 ngày | Lượt nộp dùng xét gian lận |
+| `admin.audit_retention_days` | 365 ngày | Nhật ký chi tiết `audit_events` |
+| `project.closed_data_retention` | 90 ngày (0 = không dọn) | Task, lượt giữ, nhãn thô của dự án đã hoàn thành / huỷ |
+
+```bash
+# Xem worker dọn chạy: hạ hạn giữ outbox xuống 1 giờ, chu kỳ 10 giây
+curl -s -X PUT http://localhost:8080/admin/settings/outbox.retention -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"value":3600,"reason":"thu don dep"}'
+curl -s -X PUT http://localhost:8080/admin/settings/outbox.cleanup_interval -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"value":10,"reason":"thu don dep"}'
+# ~10 giây sau, log mỗi service có dòng "Don ha tang su kien: xoa N event da gui truoc ..."
+docker exec datn-db-task psql -U task_user -d task_db -c \
+  "select count(*) from outbox where published_at < now() - interval '65 minutes'"      # → 0
+# Xong thì đặt lại 604800 và 300.
+
+# Dọn NGAY một dự án đã hoàn thành / huỷ (không đợi 90 ngày) — admin
+curl -s -X POST http://localhost:8080/tasks/admin/projects/<projectId>/purge -H "Authorization: Bearer <token-admin>"
+#   → {"purgedNow":true,"deletedTasks":3,"deletedAssignments":6,...}; dự án chưa đóng → 409 du_an_chua_dong
+curl -s -X POST http://localhost:8080/quality/admin/projects/<projectId>/archive -H "Authorization: Bearer <token-admin>"
+#   → {"purgedNow":true,"deleted":{"labels":6,"consensus_rounds":3,"task_targets":3,"ds_state":1}}
+# Sau đó tiến độ và báo cáo chất lượng vẫn xem được (bản chụp), nhãn đã duyệt và uy tín labeler không đổi:
+curl -s http://localhost:8080/tasks/projects/<projectId>/progress -H "Authorization: Bearer <token-biz1>"       # frozenAt có giá trị
+curl -s http://localhost:8080/quality/projects/<projectId>/summary -H "Authorization: Bearer <token-biz1>"     # archivedAt có giá trị
+
+# Phiên đăng nhập: một dòng mỗi phiên dù làm mới bao nhiêu lần
+docker exec datn-db-identity psql -U identity_user -d identity_db -c \
+  "select user_id, generation, last_rotated_at, expires_at, revoked_at from login_sessions order by last_rotated_at desc limit 5"
+```
+
+**Nâng cấp từ bản trước đợt tối ưu này.** Migration tự chạy lúc khởi động service (identity bỏ `refresh_tokens` → mọi người đăng nhập lại một lần; annotation tách `annotation_samples`; admin dựng `stats_daily` từ nhật ký đang có). Còn hai việc cần dữ liệu của service khác nên nằm trong một script chạy tay **một lần**:
+
+```bash
+python deploy/don_du_lieu_cu.py                 # xem trước (không ghi gì)
+python deploy/don_du_lieu_cu.py --thuc-hien     # dev;  stack demo: thêm --demo
+```
+
+Script xoá mẫu mà gate-svc giữ cho dự án đã publish nhưng không bật cổng link (hoặc cổng đã đóng), và điền mốc đóng (`closed_at`) ở quality-svc cho dự án đã đóng từ trước. Dung lượng file của Postgres chỉ giảm sau `VACUUM FULL` (autovacuum chỉ trả chỗ cho chính bảng đó dùng lại).
+
+---
 
 ## 7. Kiểm tra tổng sau khi test
 

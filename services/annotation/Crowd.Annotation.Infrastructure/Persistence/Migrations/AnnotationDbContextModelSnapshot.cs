@@ -22,6 +22,38 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Crowd.Annotation.Domain.Annotations.AnnotationSample", b =>
+                {
+                    b.Property<Guid>("SampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sample_id");
+
+                    b.Property<string>("Content")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content");
+
+                    b.Property<string>("Metadata")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("StorageKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("storage_key");
+
+                    b.HasKey("SampleId");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_annotation_samples_du_an");
+
+                    b.ToTable("annotation_samples", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Annotation.Domain.Annotations.LabelAnnotation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -84,18 +116,9 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
 
-                    b.Property<string>("SampleContent")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("sample_content");
-
                     b.Property<Guid>("SampleId")
                         .HasColumnType("uuid")
                         .HasColumnName("sample_id");
-
-                    b.Property<string>("SampleMetadata")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("sample_metadata");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -108,11 +131,6 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
-
-                    b.Property<string>("StorageKey")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("storage_key");
 
                     b.Property<DateTimeOffset>("SubmittedAt")
                         .HasColumnType("timestamp with time zone")

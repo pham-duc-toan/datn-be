@@ -434,20 +434,22 @@ namespace Crowd.Project.Api.Services
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
             DateTimeOffset bayGio = _clock.GetUtcNow();
 
-            // KYB (FB-02): chi doanh nghiep da xac minh moi publish duoc. Ban sao tu business.verified.
-            if (!await _db.VerifiedBusinesses.AnyAsync(v => v.BusinessId == duAn.OwnerId, ct))
+            // KYB (FB-02) + xac thuc email (FC-01): doc claim cua access token (identity cap) — khong giu ban
+            // sao. Chi kiem khi CHU DU AN tu publish; admin publish ho thi bo qua (admin la nguoi duyet KYB).
+            // Vua duoc duyet / vua xac thuc ma token cu chua co claim: client lam moi token roi goi lai.
+            bool chuTuPublish = caller.UserId != null && caller.UserId.Value == duAn.OwnerId;
+            if (chuTuPublish && !caller.DaXacMinhDoanhNghiep)
             {
                 throw new RuleViolationException(
                     "chua_xac_minh_doanh_nghiep",
-                    "Doanh nghiep chua duoc xac minh (KYB). Nop ho so tai /kyb/me va cho admin duyet truoc khi publish.");
+                    "Doanh nghiep chua duoc xac minh (KYB). Nop ho so tai /kyb/me va cho admin duyet truoc khi publish. Vua duoc duyet thi lam moi token (dang nhap lai).");
             }
 
-            // FC-01: chu du an phai xac thuc email (ban sao tu user.registered / user.email_verified).
-            if (await _db.EmailStatuses.AnyAsync(e => e.UserId == duAn.OwnerId && !e.Verified, ct))
+            if (chuTuPublish && !caller.DaXacThucEmail)
             {
                 throw new RuleViolationException(
                     "chua_xac_thuc_email",
-                    "Chua xac thuc email — bam link trong email truoc khi publish du an.");
+                    "Chua xac thuc email — bam link trong email truoc khi publish du an. Vua xac thuc xong thi lam moi token (dang nhap lai).");
             }
 
             int soMau = await DemMauAsync(id, ct);

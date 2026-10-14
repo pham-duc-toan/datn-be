@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../building-blocks/Crowd.BuildingBlocks.csproj" />
+    <ProjectReference Include="../../storage/Crowd.BuildingBlocks.Storage.csproj" />
   </ItemGroup>
 
   <!-- Schema gốc được copy ra thư mục build để test đối chiếu trực tiếp với nó.

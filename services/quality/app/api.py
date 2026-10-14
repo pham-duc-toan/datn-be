@@ -14,12 +14,13 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
 
-from app import ds_batch
+from app import archive, ds_batch, reports
 from app.contracts import FraudCaseConfirmed
 from app.messaging import outbox
 from app.auth import NguoiGoi, can_vai_tro, nguoi_goi
 from app.db import session_factory
 from app.errors import LoiApi
+from app.reports import phan_tram
 
 router = APIRouter(prefix="/quality")
 
@@ -31,49 +32,13 @@ async def _kiem_chu_du_an(project_id: uuid.UUID, ng: NguoiGoi) -> None:
         raise LoiApi(404, "khong_tim_thay", "Khong tim thay du an.")
 
 
-def _phan_tram(dung: int, tong: int) -> int | None:
-    return round(100 * dung / tong) if tong else None
-
-
 @router.get("/projects/{project_id}/summary")
 async def tong_quan(project_id: uuid.UUID, ng: NguoiGoi = Depends(nguoi_goi)) -> dict:
-    """Dong thuan + redundancy thich ung + cau vang + Krippendorff alpha theo cong cu."""
+    """Dong thuan + redundancy thich ung + cau vang + Krippendorff alpha theo cong cu.
+    Du an da luu tru (archivedAt co gia tri): so lieu la ban chup, khong con doi."""
     await _kiem_chu_du_an(project_id, ng)
     async with session_factory()() as s:
-        # Trang thai CUOI moi task = vong co target lon nhat.
-        vong = (await s.execute(text(
-            "SELECT status, COUNT(*) AS n FROM ("
-            "  SELECT DISTINCT ON (task_id) task_id, status FROM consensus_rounds WHERE project_id = :p "
-            "  ORDER BY task_id, target DESC) x GROUP BY status"), {"p": project_id})).all()
-        xin_them = (await s.execute(text(
-            "SELECT COUNT(*) FROM consensus_rounds WHERE project_id = :p AND status = 'moreRequested'"),
-            {"p": project_id})).scalar_one()
-        so_nhan = (await s.execute(text("SELECT COUNT(*) FROM labels WHERE project_id = :p"), {"p": project_id})).scalar_one()
-        gold = (await s.execute(text(
-            "SELECT COUNT(*) AS tong, COUNT(*) FILTER (WHERE correct) AS dung FROM gold_answers WHERE project_id = :p"),
-            {"p": project_id})).one()
-        chi_so = (await s.execute(text(
-            "SELECT tool, alpha, item_count, label_count, computed_at FROM project_metrics WHERE project_id = :p ORDER BY tool"),
-            {"p": project_id})).all()
-
-    dem = {r.status: r.n for r in vong}
-    return {
-        "projectId": str(project_id),
-        "labelCount": so_nhan,
-        "tasksEvaluated": sum(dem.values()),
-        "agreed": dem.get("agreed", 0),
-        "disputed": dem.get("disputed", 0),
-        "notApplicable": dem.get("notApplicable", 0),
-        "waitingMoreLabels": dem.get("moreRequested", 0),
-        "redundancyIncreases": xin_them,
-        "goldAnswers": gold.tong,
-        "goldAccuracyPercent": _phan_tram(gold.dung, gold.tong),
-        "tools": [
-            {"tool": r.tool, "krippendorffAlpha": r.alpha, "itemCount": r.item_count, "labelCount": r.label_count,
-             "computedAt": r.computed_at.isoformat()}
-            for r in chi_so
-        ],
-    }
+        return await reports.tong_quan(s, project_id)
 
 
 @router.get("/projects/{project_id}/labelers")
@@ -81,35 +46,14 @@ async def labeler_trong_du_an(project_id: uuid.UUID, ng: NguoiGoi = Depends(nguo
     """Tung labeler trong du an: so nhan, ti le khop dong thuan, cau vang, do tin cay DS, uy tin."""
     await _kiem_chu_du_an(project_id, ng)
     async with session_factory()() as s:
-        dong = (await s.execute(text(
-            "SELECT l.labeler_id, COUNT(*) AS so_nhan, "
-            "  (SELECT COUNT(*) FROM label_agreements a WHERE a.labeler_id = l.labeler_id AND a.project_id = :p) AS khop_tong, "
-            "  (SELECT COUNT(*) FROM label_agreements a WHERE a.labeler_id = l.labeler_id AND a.project_id = :p AND a.agrees) AS khop, "
-            "  (SELECT COUNT(*) FROM gold_answers g WHERE g.labeler_id = l.labeler_id AND g.project_id = :p) AS gold_tong, "
-            "  (SELECT COUNT(*) FROM gold_answers g WHERE g.labeler_id = l.labeler_id AND g.project_id = :p AND g.correct) AS gold_dung, "
-            "  (SELECT reputation FROM reputations r WHERE r.labeler_id = l.labeler_id) AS uy_tin "
-            "FROM labels l WHERE l.project_id = :p AND l.labeler_id IS NOT NULL GROUP BY l.labeler_id ORDER BY so_nhan DESC"),
-            {"p": project_id})).all()
-        ky_nang = (await s.execute(text(
-            "SELECT labeler_id, tool, skill, label_count FROM ds_skills WHERE project_id = :p"), {"p": project_id})).all()
+        return await reports.labelers(s, project_id)
 
-    ds: dict[uuid.UUID, dict] = {}
-    for k in ky_nang:
-        ds.setdefault(k.labeler_id, {})[k.tool] = round(k.skill, 3)
 
-    return [
-        {
-            "labelerId": str(d.labeler_id),
-            "labelCount": d.so_nhan,
-            "agreementPercent": _phan_tram(d.khop, d.khop_tong),
-            "agreementSampleCount": d.khop_tong,
-            "goldAnswers": d.gold_tong,
-            "goldAccuracyPercent": _phan_tram(d.gold_dung, d.gold_tong),
-            "dawidSkeneSkill": ds.get(d.labeler_id, {}),
-            "reputation": d.uy_tin,
-        }
-        for d in dong
-    ]
+@router.post("/admin/projects/{project_id}/archive")
+async def luu_tru_du_an(project_id: uuid.UUID, ng: NguoiGoi = Depends(can_vai_tro("admin"))) -> dict:
+    """Admin luu tru NGAY du lieu chat luong cua mot du an DA DONG (chup bao cao, xoa nhan tho), khong doi
+    het project.closed_data_retention. 409 neu du an chua dong."""
+    return await archive.luu_tru(project_id)
 
 
 @router.get("/me")
@@ -124,7 +68,7 @@ async def cua_toi(ng: NguoiGoi = Depends(can_vai_tro("labeler"))) -> dict:
         return {"reputation": None, "agreementPercent": None, "updatedAt": None}
     return {
         "reputation": r.reputation,
-        "agreementPercent": _phan_tram(r.agree_count, r.agree_total),
+        "agreementPercent": phan_tram(r.agree_count, r.agree_total),
         "updatedAt": r.updated_at.isoformat(),
     }
 

@@ -39,8 +39,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
 
         public DbSet<BlockedUser> BlockedUsers => Set<BlockedUser>();
 
-        public DbSet<EmailStatus> EmailStatuses => Set<EmailStatus>();
-
         public DbSet<Dispute> Disputes => Set<Dispute>();
 
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
@@ -200,14 +198,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.ChangedAt).HasColumnName("changed_at").IsRequired();
             });
 
-            modelBuilder.Entity<EmailStatus>(b =>
-            {
-                b.ToTable("email_status");
-                b.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
-                b.HasKey(x => x.UserId);
-                b.Property(x => x.Verified).HasColumnName("verified").IsRequired();
-            });
-
             modelBuilder.Entity<Dispute>(b =>
             {
                 b.ToTable("disputes");
@@ -286,34 +276,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
             Blocked = khoa;
             ChangedAt = occurredAt;
             return true;
-        }
-    }
-
-    /// <summary>
-    /// Ban sao trang thai xac thuc email (FC-01): user.registered → chua xac thuc, user.email_verified
-    /// → da xac thuc. Chua xac thuc thi khong rut duoc tien. Khong co dong = tai khoan co tu truoc
-    /// tinh nang nay hoac tai khoan seed → coi nhu da xac thuc.
-    /// </summary>
-    public sealed class EmailStatus
-    {
-        private EmailStatus()
-        {
-        }
-
-        public Guid UserId { get; private set; }
-
-        public bool Verified { get; private set; }
-
-        public static EmailStatus ChuaXacThuc(Guid userId)
-        {
-            EmailStatus e = new EmailStatus();
-            e.UserId = userId;
-            return e;
-        }
-
-        public void XacThuc()
-        {
-            Verified = true;
         }
     }
 }

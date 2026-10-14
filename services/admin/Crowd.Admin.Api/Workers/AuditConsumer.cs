@@ -174,11 +174,7 @@ namespace Crowd.Admin.Api.Workers
 
             try
             {
-                if (!BiLoaiTru(dong.EventType))
-                {
-                    await GhiAsync(dong, ct);
-                }
-
+                await GhiAsync(dong, !BiLoaiTru(dong.EventType), ct);
                 await kenh.BasicAckAsync(ea.DeliveryTag, false, ct);
             }
             catch (Exception ex)
@@ -188,17 +184,62 @@ namespace Crowd.Admin.Api.Workers
             }
         }
 
-        private async Task GhiAsync(DongAudit d, CancellationToken ct)
+        /// <summary>
+        /// MOI event deu duoc DEM vao stats_daily (bao cao tong quan); chi event KHONG bi loai tru moi luu
+        /// chi tiet vao audit_events. Mot transaction: message giao lai (event da thay) thi khong dem lan hai —
+        /// event luu chi tiet nhan ra nho khoa chinh audit_events, event chi dem nhan ra nho audit_counted.
+        /// </summary>
+        private async Task GhiAsync(DongAudit d, bool luuChiTiet, CancellationToken ct)
         {
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            DateOnly ngay = NgayVietNam(d.OccurredAt);
+
             using (IServiceScope scope = _scopeFactory.CreateScope())
             {
                 AdminDbContext db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
-                await db.Database.ExecuteSqlInterpolatedAsync($@"
-                    INSERT INTO audit_events (event_id, event_type, producer, occurred_at, correlation_id, causation_id, actor_id, actor_role, payload, received_at)
-                    VALUES ({d.EventId}, {d.EventType}, {d.Producer}, {d.OccurredAt}, {d.CorrelationId}, {d.CausationId},
-                            {d.ActorId}, {d.ActorRole}, CAST({d.PayloadJson} AS jsonb), {_clock.GetUtcNow()})
-                    ON CONFLICT (event_id) DO NOTHING", ct);
+                var tx = await db.Database.BeginTransactionAsync(ct);
+                try
+                {
+                    int moi;
+                    if (luuChiTiet)
+                    {
+                        moi = await db.Database.ExecuteSqlInterpolatedAsync($@"
+                            INSERT INTO audit_events (event_id, event_type, producer, occurred_at, correlation_id, causation_id, actor_id, actor_role, payload, received_at)
+                            VALUES ({d.EventId}, {d.EventType}, {d.Producer}, {d.OccurredAt}, {d.CorrelationId}, {d.CausationId},
+                                    {d.ActorId}, {d.ActorRole}, CAST({d.PayloadJson} AS jsonb), {bayGio})
+                            ON CONFLICT (event_id) DO NOTHING", ct);
+                    }
+                    else
+                    {
+                        moi = await db.Database.ExecuteSqlInterpolatedAsync($@"
+                            INSERT INTO audit_counted (event_id, seen_at) VALUES ({d.EventId}, {bayGio})
+                            ON CONFLICT (event_id) DO NOTHING", ct);
+                    }
+
+                    if (moi == 1)
+                    {
+                        await db.Database.ExecuteSqlInterpolatedAsync($@"
+                            INSERT INTO stats_daily (day, event_type, count, amount_vnd, fee_vnd)
+                            VALUES ({ngay}, {d.EventType}, 1, {d.AmountVnd}, {d.FeeVnd})
+                            ON CONFLICT (day, event_type) DO UPDATE SET
+                                count = stats_daily.count + 1,
+                                amount_vnd = stats_daily.amount_vnd + EXCLUDED.amount_vnd,
+                                fee_vnd = stats_daily.fee_vnd + EXCLUDED.fee_vnd", ct);
+                    }
+
+                    await tx.CommitAsync(ct);
+                }
+                finally
+                {
+                    await tx.DisposeAsync();
+                }
             }
+        }
+
+        /// <summary>Ngay theo gio Viet Nam (+7) — bao cao tinh theo ngay cua nguoi dung.</summary>
+        public static DateOnly NgayVietNam(DateTimeOffset luc)
+        {
+            return DateOnly.FromDateTime(luc.ToOffset(TimeSpan.FromHours(7)).DateTime);
         }
 
         private bool BiLoaiTru(string eventType)
@@ -234,7 +275,12 @@ namespace Crowd.Admin.Api.Workers
                     ? causation.GetGuid()
                     : null;
 
-                string payload = goc.GetProperty("payload").GetRawText();
+                // So tien doc TRUOC khi cat payload: bao cao cong tien tu day (nap, thu lao, phi, rut).
+                JsonElement noiDung = goc.GetProperty("payload");
+                long tien = SoNguyen(noiDung, "amountVnd") ?? SoNguyen(noiDung, "netAmountVnd") ?? 0;
+                long phi = SoNguyen(noiDung, "platformFeeVnd") ?? 0;
+
+                string payload = noiDung.GetRawText();
                 if (Encoding.UTF8.GetByteCount(payload) > PayloadToiDa)
                 {
                     payload = "{\"_truncated\":true,\"bytes\":" + Encoding.UTF8.GetByteCount(payload) + "}";
@@ -251,8 +297,23 @@ namespace Crowd.Admin.Api.Workers
                     ActorId = actorId,
                     ActorRole = actorRole,
                     PayloadJson = payload,
+                    AmountVnd = tien,
+                    FeeVnd = phi,
                 };
             }
+        }
+
+        private static long? SoNguyen(JsonElement payload, string ten)
+        {
+            JsonElement v;
+            long so;
+            if (payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty(ten, out v)
+                && v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out so))
+            {
+                return so;
+            }
+
+            return null;
         }
 
         private async Task DongAsync()
@@ -291,5 +352,10 @@ namespace Crowd.Admin.Api.Workers
         public string? ActorRole { get; init; }
 
         public string PayloadJson { get; init; } = "{}";
+
+        /// <summary>payload.amountVnd (hoac netAmountVnd) — 0 neu event khong mang tien.</summary>
+        public long AmountVnd { get; init; }
+
+        public long FeeVnd { get; init; }
     }
 }

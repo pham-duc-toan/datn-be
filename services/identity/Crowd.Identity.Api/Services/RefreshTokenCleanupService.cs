@@ -7,17 +7,14 @@ using Microsoft.EntityFrameworkCore;
 namespace Crowd.Identity.Api.Services
 {
     /// <summary>
-    /// Xoa refresh token DA HET HAN, va ma mot lan (xac thuc email / dat lai mat khau) het han.
-    /// Moi lan dang nhap / refresh them mot dong vao refresh_tokens va khong ai xoa — khong don thi
-    /// bang chi phinh ra.
-    ///
-    /// CHI xoa dong het han. Dong da thu hoi ma CHUA het han phai giu lai: AuthService.LamMoiAsync
-    /// can no de nhan ra token cu bi dem ra dung lai (va thu hoi ca ho).
+    /// Xoa PHIEN dang nhap (login_sessions) da het han hoac da thu hoi, va ma mot lan (xac thuc email /
+    /// dat lai mat khau) het han. Moi lan dang nhap them mot phien; lam moi token xoay TAI CHO tren dong
+    /// phien (khong them dong) nen bang chi lon theo so phien dang mo.
     ///
     /// KHONG DUNG DONG VOI LUONG REFRESH / DANG XUAT / KHOA TAI KHOAN:
-    ///   - Cac luong do chi ghi vao dong CON HAN (refresh tu choi token het han truoc khi ghi;
-    ///     thu hoi chi cham dong expires_at > bay gio). Job chi xoa dong het han tu truoc
-    ///     KhoangDem — hai tap dong tach roi, khong ai phai cho khoa cua ai.
+    ///   - Cac luong do chi ghi vao phien CON DUNG (refresh tu choi phien het han / da thu hoi truoc
+    ///     khi ghi; thu hoi chi cham phien expires_at > bay gio). Job chi xoa phien het han / thu hoi
+    ///     tu truoc KhoangDem — hai tap dong tach roi, khong ai phai cho khoa cua ai.
     ///   - Them mot lop: FOR UPDATE SKIP LOCKED — dong nao dang bi transaction khac giu thi BO QUA,
     ///     vong sau xoa. Job khong bao gio dung cho, khong the deadlock voi request cua nguoi dung.
     ///   - Xoa theo lo KichThuocLo dong: moi cau DELETE ngan, khoa it dong trong thoi gian ngan.
@@ -42,18 +39,18 @@ namespace Crowd.Identity.Api.Services
             _db = db;
         }
 
-        /// <summary>Xoa refresh token het han truoc (<paramref name="bayGio"/> - KhoangDem). Tra ve so dong da xoa.</summary>
+        /// <summary>Xoa phien het han / da thu hoi truoc (<paramref name="bayGio"/> - KhoangDem). Tra ve so dong da xoa.</summary>
         public Task<int> XoaHetHanAsync(DateTimeOffset bayGio, CancellationToken ct)
         {
             DateTimeOffset moc = bayGio - KhoangDem;
 
             // LINQ khong viet duoc SKIP LOCKED nen dung SQL. Moi cau la mot transaction ngan.
+            // Phien het han, hoac da thu hoi (dang xuat / dung lai token) qua khoang dem — khong con dung de lam gi.
             return XoaTheoLoAsync(() => _db.Database.ExecuteSqlInterpolatedAsync($@"
-                DELETE FROM refresh_tokens
+                DELETE FROM login_sessions
                 WHERE id IN (
-                    SELECT id FROM refresh_tokens
-                    WHERE expires_at < {moc}
-                    ORDER BY expires_at
+                    SELECT id FROM login_sessions
+                    WHERE expires_at < {moc} OR revoked_at < {moc}
                     LIMIT {KichThuocLo}
                     FOR UPDATE SKIP LOCKED)", ct));
         }

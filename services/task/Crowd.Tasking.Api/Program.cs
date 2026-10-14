@@ -61,16 +61,20 @@ builder.Services.AddEventConsumer<TaskDbContext, RedundancyIncreaseRequested, Re
 // ---- Kho anh (chi sinh link xem) ----
 builder.Services.Configure<ObjectStorageOptions>(cfg.GetSection(ObjectStorageOptions.SectionName));
 builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
+// Link xem mau qua media-svc (FP-02/03/04).
+builder.Services.AddMediaLinks(cfg);
 
 // ---- Nghiep vu ----
 builder.Services.AddScoped<TaskEventPublisher>();
 builder.Services.AddScoped<LeaseRevoker>();
 builder.Services.AddScoped<LeaseService>();
 builder.Services.AddScoped<BaoLoiService>();
+builder.Services.AddScoped<DonDuAnDaDongService>();
 
 // IP that cua labeler qua X-Forwarded-For cua gateway (chi tin mang noi bo cau hinh) — FM-07.
 builder.Services.Configure<ForwardedHeadersOptions>(o => ProxyTinCay.CauHinh(o, builder.Configuration));
 builder.Services.AddHostedService<LeaseReaper>();
+builder.Services.AddHostedService<ClosedProjectPurgeWorker>();
 builder.Services.AddScoped<TaskSeeder>();
 
 // ---- HTTP ----

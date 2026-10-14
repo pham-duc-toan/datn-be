@@ -76,6 +76,53 @@ namespace Crowd.Admin.Tests
             Assert.Equal(vua, d.PayloadJson);
         }
 
+        [Theory]
+        [InlineData("{\"amountVnd\":50000,\"platformFeeVnd\":15000}", 50000, 15000)]
+        [InlineData("{\"netAmountVnd\":45000}", 45000, 0)]
+        [InlineData("{\"amountVnd\":70000,\"netAmountVnd\":63000}", 70000, 0)]
+        [InlineData("{\"projectId\":\"x\"}", 0, 0)]
+        [InlineData("{\"amountVnd\":\"khong phai so\"}", 0, 0)]
+        public void Doc_so_tien_cho_bao_cao(string payload, long tien, long phi)
+        {
+            DongAudit d = AuditConsumer.DocEnvelope(Envelope("null", "null", payload));
+
+            Assert.Equal(tien, d.AmountVnd);
+            Assert.Equal(phi, d.FeeVnd);
+        }
+
+        [Fact]
+        public void So_tien_doc_truoc_khi_cat_payload_qua_lon()
+        {
+            string lon = "{\"amountVnd\":1234,\"x\":\"" + new string('a', AuditConsumer.PayloadToiDa) + "\"}";
+            DongAudit d = AuditConsumer.DocEnvelope(Envelope("null", "null", lon));
+
+            Assert.Equal(1234, d.AmountVnd);
+            Assert.Contains("_truncated", d.PayloadJson, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Ngay_bao_cao_tinh_theo_gio_Viet_Nam()
+        {
+            // 17:30 UTC ngay 12 = 00:30 ngay 13 gio Viet Nam.
+            Assert.Equal(new DateOnly(2026, 10, 13), AuditConsumer.NgayVietNam(new DateTimeOffset(2026, 10, 12, 17, 30, 0, TimeSpan.Zero)));
+            Assert.Equal(new DateOnly(2026, 10, 12), AuditConsumer.NgayVietNam(new DateTimeOffset(2026, 10, 12, 16, 59, 0, TimeSpan.Zero)));
+        }
+
+        [Fact]
+        public void Mac_dinh_khong_luu_chi_tiet_event_tan_suat_cao_nhung_giu_thao_tac_quan_tri()
+        {
+            string[] loaiTru = Crowd.BuildingBlocks.Settings.SettingCatalog.AuditLoaiTruMacDinh.Split(',');
+
+            Assert.Contains("annotation.submitted", loaiTru);
+            Assert.Contains("assignment.submitted", loaiTru);
+            Assert.Contains("consensus.reached", loaiTru);
+            Assert.DoesNotContain("user.blocked", loaiTru);
+            Assert.DoesNotContain("setting.changed", loaiTru);
+            Assert.DoesNotContain("deposit.confirmed", loaiTru);
+            Assert.DoesNotContain("dispute.resolved", loaiTru);
+            Assert.True(Crowd.BuildingBlocks.Settings.SettingCatalog.AuditLoaiTruMacDinh.Length <= 1000);
+        }
+
         [Fact]
         public void Message_khong_phai_envelope_thi_nem_loi_de_vao_DLQ()
         {

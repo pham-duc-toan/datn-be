@@ -59,17 +59,13 @@ def token_trong_email(email, tieu_de, giay=45):
     return None if m is None else requests.utils.unquote(m.group(1))
 
 
-def xac_thuc_email(email, cho_ban_sao=True):
-    """Bam link xac thuc trong email. cho_ban_sao: doi ledger + project nhan user.email_verified."""
+def xac_thuc_email(email):
+    """Bam link xac thuc trong email. Trang thai nam trong claim email_verified cua access token:
+    token cap SAU buoc nay moi co claim (dang nhap / lam moi token)."""
     token = token_trong_email(email, TIEU_DE_XAC_THUC)
     assert token, f"khong thay email xac thuc cua {email}"
     r = requests.post(G + "/auth/verify-email", json={"token": token})
     assert r.status_code == 200, r.text
-    if cho_ban_sao:
-        uid = _sql("identity", f"select id from users where email=lower('{email}')")  # identity luu email chu thuong
-        for db in ("ledger", "project"):
-            ok = _cho(lambda: _sql(db, f"select count(*) from email_status where user_id='{uid}' and verified") == "1", 30)
-            assert ok, f"{db} chua nhan user.email_verified cua {email}"
 
 
 def mo_rong_gioi_han(admin_h):

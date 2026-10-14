@@ -585,21 +585,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                     b.ToTable("blocked_users", (string)null);
                 });
 
-            modelBuilder.Entity("Crowd.Ledger.Infrastructure.Persistence.EmailStatus", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<bool>("Verified")
-                        .HasColumnType("boolean")
-                        .HasColumnName("verified");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("email_status", (string)null);
-                });
-
             modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
                 {
                     b.Property<string>("Key")

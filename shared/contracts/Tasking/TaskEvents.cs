@@ -87,28 +87,4 @@ namespace Crowd.Contracts.Tasking
 
         public required int Redundancy { get; init; }
     }
-
-    /// <summary>Mot luot lease vua bat dau — fraud-svc do toc do lam bai (FM-07).</summary>
-    public sealed record TaskLeased : IEventPayload
-    {
-        public static string EventType
-        {
-            get { return "task.leased"; }
-        }
-
-        public static int Version
-        {
-            get { return 1; }
-        }
-
-        public required Guid AssignmentId { get; init; }
-
-        public required Guid TaskId { get; init; }
-
-        public required Guid ProjectId { get; init; }
-
-        public required Guid LabelerId { get; init; }
-
-        public required DateTimeOffset ExpiresAt { get; init; }
-    }
 }

@@ -82,7 +82,6 @@ try:
     kiem("email xac thuc da toi Mailpit (co link token)", "token=" in (thu_moi_nhat(chua["email"], TIEU_DE_XAC_THUC) or ""))
     r = requests.post(G + "/me/verify-email/resend", headers=chua["h"])
     kiem("gui lai ngay → 409 gui_qua_nhanh", r.status_code == 409 and code(r) == "gui_qua_nhanh", r.text)
-    cho(lambda: sql("ledger", f"select count(*) from email_status where user_id='{chua['id']}'") == "1", 30)
     r = rut(chua, 50000)
     kiem("chua xac thuc → rut tien 409 chua_xac_thuc_email", r.status_code == 409 and code(r) == "chua_xac_thuc_email", r.text)
     r = requests.post(G + "/auth/verify-email", json={"token": "khong-dung"})
@@ -92,9 +91,13 @@ try:
     kiem("bam link → 200 emailVerified", r.status_code == 200 and r.json()["emailVerified"] is True, r.text)
     kiem("dung lai link → 400", requests.post(G + "/auth/verify-email", json={"token": token}).status_code == 400)
     kiem("ho so: emailVerified = true", requests.get(G + "/me/profile", headers=chua["h"]).json()["emailVerified"] is True)
-    kiem("ledger nhan user.email_verified", cho(lambda: sql("ledger", f"select verified from email_status where user_id='{chua['id']}'") == "t", 30))
+    # Trang thai xac thuc nam trong claim cua access token: token CU (cap truoc khi xac thuc) van bi chan,
+    # lam moi token la het — khong service nao giu ban sao.
     r = rut(chua, 50000)
-    kiem("da xac thuc → het bi chan (con loi so du)", r.status_code != 409 or code(r) != "chua_xac_thuc_email", r.text)
+    kiem("token cu (cap truoc khi xac thuc) van bi chan", r.status_code == 409 and code(r) == "chua_xac_thuc_email", r.text)
+    lam_moi_token(chua)
+    r = rut(chua, 50000)
+    kiem("lam moi token → het bi chan (con loi so du)", r.status_code != 409 or code(r) != "chua_xac_thuc_email", r.text)
 
     biz2 = dang_ky(["business"], "biz2", xac_thuc=False)
     nap(biz2, 500000)
@@ -103,7 +106,8 @@ try:
     kiem("doanh nghiep da KYB nhung chua xac thuc email → publish 409 chua_xac_thuc_email",
          r.status_code == 409 and code(r) == "chua_xac_thuc_email", r.text)
     xac_thuc_email(biz2["email"])
-    kiem("xac thuc xong → publish duoc", requests.post(G + f"/projects/{P0}/publish", headers=biz2["h"]).status_code == 200)
+    lam_moi_token(biz2)
+    kiem("xac thuc xong + lam moi token → publish duoc", requests.post(G + f"/projects/{P0}/publish", headers=biz2["h"]).status_code == 200)
 
     # =================================================================================
     print("\n[2] Quen / dat lai / doi mat khau, dang xuat moi thiet bi, thu hoi phien tuc thi (FC-03, VD-S-11)")
@@ -200,9 +204,9 @@ try:
     publish_va_duyet(biz, PL)
     tham_gia(moi_vao, PL)
     tham_gia(l1, PL)
-    # Ngay sau khi duyet, task-svc co the chua nhan project.published (du_an_chua_san_sang) → cho.
-    # (Response 4xx co bool False → tra tuple de cho() dung lai.)
-    r = cho(lambda: (lambda x: (x.status_code, code(x), x.text) if code(x) != "du_an_chua_san_sang" else None)(
+    # Ngay sau khi duyet / tham gia, task-svc co the chua nhan project.published (du_an_chua_san_sang)
+    # hoac member.added (khong_phai_thanh_vien) → cho. (Response 4xx co bool False → tra tuple de cho() dung lai.)
+    r = cho(lambda: (lambda x: (x.status_code, code(x), x.text) if code(x) not in ("du_an_chua_san_sang", "khong_phai_thanh_vien") else None)(
         requests.post(G + f"/tasks/projects/{PL}/next", headers=moi_vao["h"])), 20)
     kiem("labeler cap 1 → 403 chua_du_cap_do", r is not None and r[0] == 403 and r[1] == "chua_du_cap_do", r)
     kiem("labeler cap 3 nhan duoc task (level.changed toi task-svc)",

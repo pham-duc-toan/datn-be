@@ -152,6 +152,31 @@ namespace Crowd.Tasking.Api.Dtos
 
         /// <summary>Uoc tinh xong (theo toc do 24 gio qua); null khi chua co luot nop nao trong 24 gio.</summary>
         public DateTimeOffset? EstimatedCompletionAt { get; init; }
+
+        /// <summary>
+        /// Co gia tri = so lieu la BAN CHUP luc don du lieu van hanh cua du an da dong (task / luot giu da xoa),
+        /// khong con thay doi. null = so lieu dem truc tiep.
+        /// </summary>
+        public DateTimeOffset? FrozenAt { get; init; }
+    }
+
+    /// <summary>POST /tasks/admin/projects/{id}/purge — ket qua don du lieu van hanh cua du an da dong.</summary>
+    public sealed class PurgeResponse
+    {
+        public required Guid ProjectId { get; init; }
+
+        public required DateTimeOffset PurgedAt { get; init; }
+
+        /// <summary>false = du an da duoc don tu truoc, lan goi nay khong xoa gi.</summary>
+        public required bool PurgedNow { get; init; }
+
+        public required int DeletedTasks { get; init; }
+
+        public required int DeletedAssignments { get; init; }
+
+        public required int DeletedReports { get; init; }
+
+        public required int DeletedGoldSamples { get; init; }
     }
 
     /// <summary>

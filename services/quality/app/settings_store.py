@@ -51,6 +51,11 @@ FRAUD_SHARED_ACCOUNTS = "quality.fraud_shared_accounts"
 FRAUD_SHARED_WINDOW = "quality.fraud_shared_window"
 FRAUD_IGNORE_PRIVATE_IPS = "quality.fraud_ignore_private_ips"
 FRAUD_REOPEN_COOLDOWN = "quality.fraud_reopen_cooldown"
+FRAUD_SUBMISSION_RETENTION = "quality.fraud_submission_retention"
+OUTBOX_RETENTION = "outbox.retention"
+OUTBOX_CLEANUP_INTERVAL = "outbox.cleanup_interval"
+CONSUMERS_PROCESSED_RETENTION = "consumers.processed_retention"
+PROJECT_CLOSED_DATA_RETENTION = "project.closed_data_retention"
 
 
 def _nap_catalog() -> dict[str, dict[str, Any]]:

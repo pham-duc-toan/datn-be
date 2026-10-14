@@ -207,6 +207,9 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_assignments_reaper")
                         .HasFilter("state = 'Leased'");
 
+                    b.HasIndex("TaskId")
+                        .HasDatabaseName("ix_assignments_task");
+
                     b.HasIndex("LabelerId", "TaskId")
                         .HasDatabaseName("ix_assignments_labeler_active")
                         .HasFilter("state IN ('Leased','Submitted')");
@@ -303,9 +306,17 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("allow_professional");
 
+                    b.Property<DateTimeOffset?>("DataPurgedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("data_purged_at");
+
                     b.Property<DateTimeOffset?>("Deadline")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deadline");
+
+                    b.Property<string>("FinalProgressJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("final_progress");
 
                     b.Property<int>("GoldCheckPercent")
                         .HasColumnType("integer")
@@ -368,6 +379,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasColumnName("label_schema");
 
                     b.HasKey("ProjectId");
+
+                    b.HasIndex("StatusChangedAt")
+                        .HasDatabaseName("ix_project_snapshots_cho_don")
+                        .HasFilter("status = 'Closed' AND data_purged_at IS NULL");
 
                     b.ToTable("project_snapshots", (string)null);
                 });

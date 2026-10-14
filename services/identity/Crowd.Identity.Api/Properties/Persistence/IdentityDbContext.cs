@@ -23,7 +23,7 @@ namespace Crowd.Identity.Api.Persistence
 
         public DbSet<User> Users => Set<User>();
 
-        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+        public DbSet<PhienDangNhap> PhienDangNhaps => Set<PhienDangNhap>();
 
         public DbSet<BusinessProfile> BusinessProfiles => Set<BusinessProfile>();
 
@@ -52,7 +52,7 @@ namespace Crowd.Identity.Api.Persistence
 
             // Nghiep vu cua rieng identity-svc
             modelBuilder.ApplyConfiguration(new UserConfiguration());
-            modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
+            modelBuilder.ApplyConfiguration(new PhienDangNhapConfiguration());
             modelBuilder.ApplyConfiguration(new BusinessProfileConfiguration());
             modelBuilder.ApplyConfiguration(new MaTaiKhoanConfiguration());
             modelBuilder.ApplyConfiguration(new ThongKeLabelerConfiguration());

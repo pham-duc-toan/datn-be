@@ -98,4 +98,44 @@ namespace Crowd.Admin.Api.Entities
             return a;
         }
     }
+
+    /// <summary>
+    /// Dem event theo NGAY (gio Viet Nam) va LOAI — nguon cua bao cao tong quan (FM-09). Moi (ngay, loai)
+    /// mot dong, tang dan: so dong co tran (so ngay x so loai event), khong phinh theo luu luong. Nho vay
+    /// nhat ky chi tiet (audit_events) khong can giu cac event tan suat cao chi de dem.
+    /// </summary>
+    public sealed class ThongKeNgay
+    {
+        private ThongKeNgay()
+        {
+            EventType = string.Empty;
+        }
+
+        public DateOnly Day { get; private set; }
+
+        public string EventType { get; private set; }
+
+        public long Count { get; private set; }
+
+        /// <summary>Tong amountVnd (hoac netAmountVnd) cua payload — tien nap, thu lao, rut...</summary>
+        public long AmountVnd { get; private set; }
+
+        /// <summary>Tong platformFeeVnd cua payload.</summary>
+        public long FeeVnd { get; private set; }
+    }
+
+    /// <summary>
+    /// Dau vet NGAN HAN "da dem event nay" cho cac loai KHONG luu chi tiet (admin.audit_excluded_types):
+    /// bus giao lai message thi khong dem hai lan. Xoa sau 1 gio (giao lai xay ra trong vai giay / phut).
+    /// </summary>
+    public sealed class AuditDaDem
+    {
+        private AuditDaDem()
+        {
+        }
+
+        public Guid EventId { get; private set; }
+
+        public DateTimeOffset SeenAt { get; private set; }
+    }
 }

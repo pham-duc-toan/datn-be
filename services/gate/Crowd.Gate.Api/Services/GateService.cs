@@ -60,7 +60,7 @@ namespace Crowd.Gate.Api.Services
     {
         private readonly GateCatalog _catalog;
         private readonly RedisGateStore _redis;
-        private readonly IObjectStorage _storage;
+        private readonly IMediaLinks _media;
         private readonly TurnstileVerifier _turnstile;
         private readonly GateTokenService _token;
         private readonly ISettings _settings;
@@ -70,7 +70,7 @@ namespace Crowd.Gate.Api.Services
         public GateService(
             GateCatalog catalog,
             RedisGateStore redis,
-            IObjectStorage storage,
+            IMediaLinks media,
             TurnstileVerifier turnstile,
             GateTokenService token,
             ISettings settings,
@@ -87,9 +87,9 @@ namespace Crowd.Gate.Api.Services
                 throw new ArgumentNullException(nameof(redis));
             }
 
-            if (storage == null)
+            if (media == null)
             {
-                throw new ArgumentNullException(nameof(storage));
+                throw new ArgumentNullException(nameof(media));
             }
 
             if (turnstile == null)
@@ -119,7 +119,7 @@ namespace Crowd.Gate.Api.Services
 
             _catalog = catalog;
             _redis = redis;
-            _storage = storage;
+            _media = media;
             _turnstile = turnstile;
             _token = token;
             _settings = settings;
@@ -281,7 +281,13 @@ namespace Crowd.Gate.Api.Services
                     {
                         SampleId = m.SampleId,
                         Modality = m.Modality,
-                        FileUrl = m.StorageKey == null ? null : await _storage.TaoLinkXemAsync(m.StorageKey),
+                        // Khach vang lai: anh co watermark mang ma cua PHIEN vuot link (FP-02/03).
+                        FileUrl = m.StorageKey == null
+                            ? null
+                            : _media.TaoLink(
+                                new MauCanXem { SampleId = m.SampleId, ProjectId = m.ProjectId, StorageKey = m.StorageKey, Modality = m.Modality },
+                                NguoiXem.Khach(p.SessionId),
+                                CheDoXem.Watermark),
                         Content = m.Content == null ? null : m.Content.Element(),
                         Metadata = m.Metadata.Element(),
                     });

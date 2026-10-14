@@ -116,26 +116,21 @@ namespace Crowd.Admin.Api.Services
                 throw new AdminException(400, "khoang_ngay_khong_hop_le", "from <= to, toi da " + SoNgayToiDa + " ngay.");
             }
 
-            // Npgsql chi nhan DateTimeOffset UTC (offset 0): moc ngay gio Viet Nam doi ve UTC.
-            DateTimeOffset batDau = new DateTimeOffset(tu.ToDateTime(TimeOnly.MinValue), LechVietNam).ToUniversalTime();
-            DateTimeOffset ketThuc = new DateTimeOffset(den.AddDays(1).ToDateTime(TimeOnly.MinValue), LechVietNam).ToUniversalTime();
-
+            // Doc tu bang DEM theo ngay (stats_daily, AuditConsumer cong don) — khong quet nhat ky chi tiet:
+            // event tan suat cao (nhan nop / duyet...) chi duoc dem, khong luu tung dong.
             List<DongTheoLoai> theoLoai = await _db.Database.SqlQuery<DongTheoLoai>($@"
-                SELECT event_type AS ""Loai"", COUNT(*)::int AS ""So"",
-                       COALESCE(SUM(COALESCE((payload->>'amountVnd')::bigint, (payload->>'netAmountVnd')::bigint, 0)), 0)::bigint AS ""Tien"",
-                       COALESCE(SUM((payload->>'platformFeeVnd')::bigint), 0)::bigint AS ""Phi""
-                FROM audit_events
-                WHERE occurred_at >= {batDau} AND occurred_at < {ketThuc}
+                SELECT event_type AS ""Loai"", SUM(count)::int AS ""So"",
+                       SUM(amount_vnd)::bigint AS ""Tien"", SUM(fee_vnd)::bigint AS ""Phi""
+                FROM stats_daily
+                WHERE day >= {tu} AND day <= {den}
                 GROUP BY event_type").ToListAsync(ct);
             Dictionary<string, DongTheoLoai> loai = theoLoai.ToDictionary(x => x.Loai, StringComparer.Ordinal);
 
             List<DongTheoNgay> theoNgay = await _db.Database.SqlQuery<DongTheoNgay>($@"
-                SELECT (occurred_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS ""Ngay"", event_type AS ""Loai"", COUNT(*)::int AS ""So"",
-                       COALESCE(SUM((payload->>'amountVnd')::bigint), 0)::bigint AS ""Tien""
-                FROM audit_events
-                WHERE occurred_at >= {batDau} AND occurred_at < {ketThuc}
-                  AND event_type IN ('user.registered', 'annotation.submitted', 'annotation.approved', 'deposit.confirmed')
-                GROUP BY 1, 2").ToListAsync(ct);
+                SELECT day AS ""Ngay"", event_type AS ""Loai"", count::int AS ""So"", amount_vnd AS ""Tien""
+                FROM stats_daily
+                WHERE day >= {tu} AND day <= {den}
+                  AND event_type IN ('user.registered', 'annotation.submitted', 'annotation.approved', 'deposit.confirmed')").ToListAsync(ct);
 
             List<StatsDay> ngay = new List<StatsDay>();
             for (DateOnly d = tu; d <= den; d = d.AddDays(1))
@@ -151,8 +146,14 @@ namespace Crowd.Admin.Api.Services
                 });
             }
 
-            DateTimeOffset? batDauGhi = await _db.AuditEvents.AsNoTracking()
-                .OrderBy(x => x.OccurredAt).Select(x => (DateTimeOffset?)x.OccurredAt).FirstOrDefaultAsync(ct);
+            // Co so lieu tu ngay nao (ngay dau tien co event duoc dem).
+            DateOnly? ngayDau = await _db.ThongKeNgay.AsNoTracking()
+                .OrderBy(x => x.Day).Select(x => (DateOnly?)x.Day).FirstOrDefaultAsync(ct);
+            DateTimeOffset? batDauGhi = null;
+            if (ngayDau.HasValue)
+            {
+                batDauGhi = new DateTimeOffset(ngayDau.Value.ToDateTime(TimeOnly.MinValue), LechVietNam).ToUniversalTime();
+            }
 
             return new StatsOverviewResponse
             {

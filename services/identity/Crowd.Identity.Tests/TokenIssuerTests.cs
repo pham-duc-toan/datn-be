@@ -119,6 +119,74 @@ namespace Crowd.Identity.Tests
         }
 
         [Fact]
+        public void Token_mang_claim_xac_thuc_email_va_KYB()
+        {
+            // Tai khoan moi: chua xac thuc email, chua KYB.
+            JsonWebToken chua = new JsonWebToken(_issuer.TaoAccessToken(_user));
+            ClaimsPrincipal p0 = new ClaimsPrincipal(new ClaimsIdentity(chua.Claims));
+            Assert.False(CrowdClaims.DaXacThucEmail(p0));
+            Assert.False(CrowdClaims.DaXacMinhDoanhNghiep(p0));
+
+            _user.XacThucEmail(DateTimeOffset.UtcNow);
+            JsonWebToken roi = new JsonWebToken(_issuer.TaoAccessToken(_user, true));
+            ClaimsPrincipal p1 = new ClaimsPrincipal(new ClaimsIdentity(roi.Claims));
+            Assert.True(CrowdClaims.DaXacThucEmail(p1));
+            Assert.True(CrowdClaims.DaXacMinhDoanhNghiep(p1));
+        }
+
+        [Fact]
+        public void Refresh_token_mang_ma_phien_doc_lai_duoc()
+        {
+            Guid phien = Guid.CreateVersion7();
+            string token = TokenIssuer.TaoRefreshToken(phien);
+
+            Guid doc;
+            Assert.True(TokenIssuer.DocPhien(token, out doc));
+            Assert.Equal(phien, doc);
+            // Hai token cua cung phien khac nhau (phan bi mat ngau nhien).
+            Assert.NotEqual(token, TokenIssuer.TaoRefreshToken(phien));
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("khong-co-dau-cham")]
+        [InlineData(".chi-co-bi-mat")]
+        [InlineData("AAAA.bi-mat")]
+        [InlineData("!!!!.bi-mat")]
+        public void Refresh_token_sai_dinh_dang_thi_khong_doc_duoc_phien(string? token)
+        {
+            Guid doc;
+            Assert.False(TokenIssuer.DocPhien(token, out doc));
+        }
+
+        [Fact]
+        public void Phien_xoay_tai_cho_token_cu_khong_con_la_token_hien_tai()
+        {
+            DateTimeOffset luc = new DateTimeOffset(2026, 10, 13, 8, 0, 0, TimeSpan.Zero);
+            Guid id = Guid.CreateVersion7();
+            string t0 = TokenIssuer.TaoRefreshToken(id);
+            PhienDangNhap p = PhienDangNhap.Mo(id, _user.Id, TokenIssuer.BamRefreshToken(t0), luc, TimeSpan.FromDays(14));
+
+            Assert.True(p.ConDung(luc));
+            Assert.True(p.LaTokenHienTai(TokenIssuer.BamRefreshToken(t0)));
+
+            string t1 = TokenIssuer.TaoRefreshToken(id);
+            p.Xoay(TokenIssuer.BamRefreshToken(t1), luc.AddMinutes(15), TimeSpan.FromDays(14));
+
+            // Token cu (dung ma phien, hash khac) = dau hieu dung lai; token moi la hien tai.
+            Assert.False(p.LaTokenHienTai(TokenIssuer.BamRefreshToken(t0)));
+            Assert.True(p.LaTokenHienTai(TokenIssuer.BamRefreshToken(t1)));
+            Assert.Equal(1, p.Generation);
+            // Han truot theo lan lam moi cuoi.
+            Assert.Equal(luc.AddMinutes(15).AddDays(14), p.ExpiresAt);
+
+            p.ThuHoi(luc.AddHours(1));
+            Assert.False(p.ConDung(luc.AddHours(1)));
+            Assert.False(p.ConDung(luc.AddDays(30)));
+        }
+
+        [Fact]
         public void JWKS_khong_bao_gio_chua_phan_rieng_cua_khoa()
         {
             // Modulus va Exponent la phan cong khai; neu lop nay vo tinh xuat ca

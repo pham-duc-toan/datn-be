@@ -38,6 +38,7 @@ namespace Crowd.Project.Api.Services
         private readonly ProjectAccessService _access;
         private readonly ProjectEventPublisher _events;
         private readonly IObjectStorage _storage;
+        private readonly IMediaLinks _media;
         private readonly TimeProvider _clock;
         private readonly ILogger<DatasetService> _logger;
         private readonly ISettings _settings;
@@ -47,10 +48,18 @@ namespace Crowd.Project.Api.Services
             ProjectAccessService access,
             ProjectEventPublisher events,
             IObjectStorage storage,
+            IMediaLinks media,
             TimeProvider clock,
             ILogger<DatasetService> logger,
             ISettings settings)
         {
+            if (media == null)
+            {
+                throw new ArgumentNullException(nameof(media));
+            }
+
+            _media = media;
+
             if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
@@ -255,6 +264,10 @@ namespace Crowd.Project.Api.Services
         {
             await _access.LayDeQuanLyAsync(projectId, caller, ct);
 
+            // Chu du an / admin: ban goc khong watermark (du lieu cua ho) — van qua media-svc (khong lo khoa MinIO).
+            Guid uid = caller.LayUserId();
+            NguoiXem nguoi = caller.IsAdmin ? NguoiXem.Admin(uid) : NguoiXem.ChuDuAn(uid);
+
             if (page < 1)
             {
                 page = 1;
@@ -284,7 +297,7 @@ namespace Crowd.Project.Api.Services
                     Modality = s.Modality,
                     OriginalName = s.OriginalName,
                     SizeBytes = s.SizeBytes,
-                    FileUrl = s.StorageKey == null ? null : await _storage.TaoLinkXemAsync(s.StorageKey),
+                    FileUrl = s.StorageKey == null ? null : _media.TaoLink(MauXem(s), nguoi, CheDoXem.Goc),
                     Content = s.Content,
                     Metadata = s.Metadata,
                 });
@@ -296,6 +309,23 @@ namespace Crowd.Project.Api.Services
                 Page = page,
                 PageSize = pageSize,
                 Total = tong,
+            };
+        }
+
+        /// <summary>Mau co file → thong tin de media-svc phat dung file (khoa nam trong token da ma hoa).</summary>
+        public static MauCanXem MauXem(Sample s)
+        {
+            if (s == null)
+            {
+                throw new ArgumentNullException(nameof(s));
+            }
+
+            return new MauCanXem
+            {
+                SampleId = s.Id,
+                ProjectId = s.ProjectId,
+                StorageKey = s.StorageKey ?? throw new InvalidOperationException("Mau khong co file."),
+                Modality = s.Modality,
             };
         }
 

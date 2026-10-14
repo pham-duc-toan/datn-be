@@ -48,6 +48,26 @@ class ProjectPublished(Payload):
     sample_count: int
 
 
+class ProjectCompleted(Payload):
+    """Du an xong — moc bat dau dem project.closed_data_retention."""
+
+    EVENT_TYPE = "project.completed"
+
+    project_id: uuid.UUID
+    owner_id: uuid.UUID
+    approved_annotation_count: int | None
+
+
+class ProjectCancelled(Payload):
+    EVENT_TYPE = "project.cancelled"
+
+    project_id: uuid.UUID
+    owner_id: uuid.UUID
+    reason: str | None
+    was_escrowed: bool
+    approved_annotation_count: int | None
+
+
 class AnnotationSubmitted(Payload):
     EVENT_TYPE = "annotation.submitted"
 

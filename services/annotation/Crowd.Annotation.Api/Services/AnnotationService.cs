@@ -40,14 +40,14 @@ namespace Crowd.Annotation.Api.Services
 
         private readonly AnnotationDbContext _db;
         private readonly AnnotationEventPublisher _events;
-        private readonly IObjectStorage _storage;
+        private readonly IMediaLinks _media;
         private readonly TimeProvider _clock;
         private readonly ISettings _settings;
 
         public AnnotationService(
             AnnotationDbContext db,
             AnnotationEventPublisher events,
-            IObjectStorage storage,
+            IMediaLinks media,
             TimeProvider clock,
             ISettings settings)
         {
@@ -68,9 +68,9 @@ namespace Crowd.Annotation.Api.Services
                 throw new ArgumentNullException(nameof(events));
             }
 
-            if (storage == null)
+            if (media == null)
             {
-                throw new ArgumentNullException(nameof(storage));
+                throw new ArgumentNullException(nameof(media));
             }
 
             if (clock == null)
@@ -80,7 +80,7 @@ namespace Crowd.Annotation.Api.Services
 
             _db = db;
             _events = events;
-            _storage = storage;
+            _media = media;
             _clock = clock;
         }
 
@@ -137,7 +137,8 @@ namespace Crowd.Annotation.Api.Services
                 q = q.Where(a => a.ConsensusAgrees == khop);
             }
 
-            return await TaoTrangAsync(q.OrderBy(a => a.SubmittedAt), page, pageSize, DateTimeOffset.MinValue, ct);
+            GocXem goc = await GocXemDuAnAsync(projectId, caller, ct);
+            return await TaoTrangAsync(q.OrderBy(a => a.SubmittedAt), page, pageSize, DateTimeOffset.MinValue, goc, ct);
         }
 
         /// <summary>
@@ -202,7 +203,7 @@ namespace Crowd.Annotation.Api.Services
 
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
-                return await TaoResponseAsync(a, _clock.GetUtcNow());
+                return await TaoResponseAsync(a, _clock.GetUtcNow(), await GocXemDuAnAsync(a.ProjectId, caller, ct), ct);
             }
             finally
             {
@@ -232,7 +233,7 @@ namespace Crowd.Annotation.Api.Services
 
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
-                return await TaoResponseAsync(a, _clock.GetUtcNow());
+                return await TaoResponseAsync(a, _clock.GetUtcNow(), await GocXemDuAnAsync(a.ProjectId, caller, ct), ct);
             }
             finally
             {
@@ -290,7 +291,7 @@ namespace Crowd.Annotation.Api.Services
             }
 
             PagedResponse<AnnotationResponse> trang = await TaoTrangAsync(
-                q.OrderByDescending(a => a.SubmittedAt), page, pageSize, _clock.GetUtcNow(), ct);
+                q.OrderByDescending(a => a.SubmittedAt), page, pageSize, _clock.GetUtcNow(), GocXem.CuaLabeler(uid), ct);
 
             int? tiLe = null;
             if (daDuyet + tuChoi > 0)
@@ -339,7 +340,7 @@ namespace Crowd.Annotation.Api.Services
 
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
-                return await TaoResponseAsync(a, bayGio);
+                return await TaoResponseAsync(a, bayGio, GocXem.CuaLabeler(uid), ct);
             }
             finally
             {
@@ -351,13 +352,13 @@ namespace Crowd.Annotation.Api.Services
         // ADMIN — phan xu khieu nai (FM-06)
         // =====================================================================
 
-        public async Task<PagedResponse<AnnotationResponse>> DanhSachKhieuNaiAsync(int page, int pageSize, CancellationToken ct)
+        public async Task<PagedResponse<AnnotationResponse>> DanhSachKhieuNaiAsync(int page, int pageSize, Caller caller, CancellationToken ct)
         {
             IQueryable<LabelAnnotation> q = _db.Annotations.AsNoTracking()
                 .Where(a => a.Status == AnnotationStatus.Appealed)
                 .OrderBy(a => a.AppealedAt);
 
-            return await TaoTrangAsync(q, page, pageSize, DateTimeOffset.MinValue, ct);
+            return await TaoTrangAsync(q, page, pageSize, DateTimeOffset.MinValue, GocXem.CuaAdmin(caller.LayUserId()), ct);
         }
 
         /// <summary>
@@ -406,7 +407,7 @@ namespace Crowd.Annotation.Api.Services
 
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
-                return await TaoResponseAsync(a, bayGio);
+                return await TaoResponseAsync(a, bayGio, await GocXemDuAnAsync(a.ProjectId, caller, ct), ct);
             }
             finally
             {
@@ -436,19 +437,23 @@ namespace Crowd.Annotation.Api.Services
                 dongThuan[c.SampleId] = c;
             }
 
+            Dictionary<Guid, AnnotationSample> mauGoc = await _db.Samples.AsNoTracking()
+                .Where(m => m.ProjectId == projectId).ToDictionaryAsync(m => m.SampleId, ct);
+
             List<SampleResultResponse> mau = new List<SampleResultResponse>();
             foreach (SampleResult r in ketQua)
             {
-                LabelAnnotation dau = r.Approved[0];
+                AnnotationSample? goc;
+                mauGoc.TryGetValue(r.SampleId, out goc);
                 TaskConsensus? dt;
                 dongThuan.TryGetValue(r.SampleId, out dt);
 
                 mau.Add(new SampleResultResponse
                 {
                     SampleId = r.SampleId,
-                    StorageKey = dau.StorageKey,
-                    SampleContent = dau.SampleContent,
-                    SampleMetadata = dau.SampleMetadata,
+                    StorageKey = goc == null ? null : goc.StorageKey,
+                    SampleContent = goc == null ? null : goc.Content,
+                    SampleMetadata = goc == null ? SampleMetadata.Rong.ToRawJson() : goc.Metadata,
                     ApprovedCount = r.ApprovedCount,
                     Disputed = r.Disputed,
                     Tools = RawJson.Tu(r.Tools),
@@ -593,7 +598,7 @@ namespace Crowd.Annotation.Api.Services
         }
 
         private async Task<PagedResponse<AnnotationResponse>> TaoTrangAsync(
-            IQueryable<LabelAnnotation> q, int page, int pageSize, DateTimeOffset bayGio, CancellationToken ct)
+            IQueryable<LabelAnnotation> q, int page, int pageSize, DateTimeOffset bayGio, GocXem goc, CancellationToken ct)
         {
             if (page < 1)
             {
@@ -609,16 +614,62 @@ namespace Crowd.Annotation.Api.Services
             List<LabelAnnotation> ds = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
 
             List<AnnotationResponse> items = new List<AnnotationResponse>();
+            Dictionary<Guid, AnnotationSample> mau = await MauDaGanStore.NapAsync(_db, ds.Select(a => a.SampleId), ct);
             foreach (LabelAnnotation a in ds)
             {
-                items.Add(await TaoResponseAsync(a, bayGio));
+                AnnotationSample? m;
+                mau.TryGetValue(a.SampleId, out m);
+                items.Add(TaoResponse(a, bayGio, goc, m));
             }
 
             return new PagedResponse<AnnotationResponse> { Items = items, Page = page, PageSize = pageSize, Total = tong };
         }
 
-        private async Task<AnnotationResponse> TaoResponseAsync(LabelAnnotation a, DateTimeOffset bayGio)
+        /// <summary>
+        /// Ai dang xem nhan cua du an: admin / chu du an xem ban goc; reviewer xem anh co
+        /// watermark mang ma cua chinh ho (FP-02/03).
+        /// </summary>
+        private async Task<GocXem> GocXemDuAnAsync(Guid projectId, Caller caller, CancellationToken ct)
         {
+            Guid uid = caller.LayUserId();
+            if (caller.IsAdmin)
+            {
+                return GocXem.CuaAdmin(uid);
+            }
+
+            bool laChu = await _db.Members.AnyAsync(
+                m => m.ProjectId == projectId
+                     && m.UserId == uid
+                     && m.State == CachedMemberState.Active
+                     && m.Role == CachedMemberRole.Owner,
+                ct);
+            return laChu
+                ? new GocXem(NguoiXem.ChuDuAn(uid), CheDoXem.Goc)
+                : new GocXem(NguoiXem.Reviewer(uid), CheDoXem.Watermark);
+        }
+
+        /// <summary>Response cua MOT nhan (duyet, tu choi, khieu nai...): nap thong tin mau roi dung response.</summary>
+        private async Task<AnnotationResponse> TaoResponseAsync(LabelAnnotation a, DateTimeOffset bayGio, GocXem goc, CancellationToken ct)
+        {
+            AnnotationSample? m = await _db.Samples.AsNoTracking().FirstOrDefaultAsync(x => x.SampleId == a.SampleId, ct);
+            return TaoResponse(a, bayGio, goc, m);
+        }
+
+        private AnnotationResponse TaoResponse(LabelAnnotation a, DateTimeOffset bayGio, GocXem goc, AnnotationSample? thongTinMau)
+        {
+            string? fileUrl = null;
+            if (thongTinMau != null && thongTinMau.StorageKey != null)
+            {
+                MauCanXem mau = new MauCanXem
+                {
+                    SampleId = a.SampleId,
+                    ProjectId = a.ProjectId,
+                    StorageKey = thongTinMau.StorageKey,
+                    Modality = a.Payload.TaskType,
+                };
+                fileUrl = _media.TaoLink(mau, goc.Nguoi, goc.CheDo);
+            }
+
             return new AnnotationResponse
             {
                 Id = a.Id,
@@ -626,9 +677,9 @@ namespace Crowd.Annotation.Api.Services
                 TaskId = a.TaskId == Guid.Empty ? null : a.TaskId,
                 SampleId = a.SampleId,
                 Source = a.Source,
-                FileUrl = a.StorageKey == null ? null : await _storage.TaoLinkXemAsync(a.StorageKey),
-                SampleContent = a.SampleContent,
-                SampleMetadata = a.SampleMetadata,
+                FileUrl = fileUrl,
+                SampleContent = thongTinMau == null ? null : thongTinMau.Content,
+                SampleMetadata = thongTinMau == null ? SampleMetadata.Rong.ToRawJson() : thongTinMau.Metadata,
                 LabelerId = a.LabelerId,
                 Payload = a.Payload,
                 Status = a.Status,
@@ -668,5 +719,29 @@ namespace Crowd.Annotation.Api.Services
         public string ContentType { get; }
 
         public string TenFile { get; }
+    }
+
+    /// <summary>Nguoi xem + ban duoc xem (goc / co watermark) cua file mau trong response.</summary>
+    internal sealed class GocXem
+    {
+        public GocXem(NguoiXem nguoi, CheDoXem cheDo)
+        {
+            Nguoi = nguoi;
+            CheDo = cheDo;
+        }
+
+        public NguoiXem Nguoi { get; }
+
+        public CheDoXem CheDo { get; }
+
+        public static GocXem CuaLabeler(Guid userId)
+        {
+            return new GocXem(NguoiXem.Labeler(userId), CheDoXem.Watermark);
+        }
+
+        public static GocXem CuaAdmin(Guid userId)
+        {
+            return new GocXem(NguoiXem.Admin(userId), CheDoXem.Goc);
+        }
     }
 }

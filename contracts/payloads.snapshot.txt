@@ -308,13 +308,6 @@ system.announcement v1  (SystemAnnouncement)
     SendEmail                Boolean              required
     Title                    String               required
 
-task.leased v1  (TaskLeased)
-    AssignmentId             Guid                 required
-    ExpiresAt                DateTimeOffset       required
-    LabelerId                Guid                 required
-    ProjectId                Guid                 required
-    TaskId                   Guid                 required
-
 task.redundancy_changed v1  (TaskRedundancyChanged)
     NewRedundancy            Int32                required
     OldRedundancy            Int32                required

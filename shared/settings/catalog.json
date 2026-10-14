@@ -279,6 +279,17 @@
     "description": "Ti le cau vang kiem tra mac dinh cua du an moi tao."
   },
   {
+    "key": "project.closed_data_retention",
+    "group": "Du an",
+    "type": "durationSeconds",
+    "default": 7776000,
+    "min": 0,
+    "max": 315360000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Du an da dong (hoan thanh / huy) bao lau thi xoa du lieu VAN HANH cua no: task, luot giu, bao loi (task-svc); nhan tho va vong dong thuan (quality-svc). Truoc khi xoa, tien do va bao cao chat luong duoc chup lai nen van xem duoc. Nhan da nop / da duyet, ket qua, so cai, mau du lieu va uy tin labeler KHONG bi xoa. 0 = khong bao gio xoa."
+  },
+  {
     "key": "project.gold_check_percent_max",
     "group": "Du an",
     "type": "int",
@@ -873,6 +884,17 @@
     "description": "Ho so da xu ly (bo qua / xac nhan) thi khong mo lai cung khoa trong khoang nay."
   },
   {
+    "key": "quality.fraud_submission_retention",
+    "group": "Chat luong",
+    "type": "durationSeconds",
+    "default": 604800,
+    "min": 86400,
+    "max": 31536000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Giu du lieu luot nop dung de xet gian lan (toc do, IP, thiet bi) bao lau. Thuat toan chi can vai chuc luot gan nhat va cua so chung IP — khong can giu mai."
+  },
+  {
     "key": "quality.ds_min_labels",
     "group": "Chat luong",
     "type": "int",
@@ -1134,12 +1156,12 @@
     "key": "admin.audit_excluded_types",
     "group": "Ky thuat",
     "type": "text",
-    "default": "gate.solved,click.validated,settings.snapshot",
+    "default": "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,dataset.ingested,assignment.submitted,annotation.submitted,annotation.approved,annotation.rejected,task.redundancy_reached,task.redundancy_changed,gold.answered,consensus.reached,redundancy.increase_requested,reputation.changed,funds.held,hold.expired,gate.budget_changed",
     "min": null,
     "max": 1000,
     "unit": "ky tu",
     "effect": "newOperations",
-    "description": "Loai event KHONG ghi vao nhat ky audit (luu luong lon, khong phai thao tac quan tri), ngan cach bang dau phay."
+    "description": "Loai event KHONG luu chi tiet vao nhat ky audit (tan suat cao, do he thong / luong gan nhan sinh ra — van duoc DEM cho bao cao tong quan), ngan cach bang dau phay."
   },
   {
     "key": "admin.audit_retention_days",
@@ -1151,6 +1173,28 @@
     "unit": "ngay",
     "effect": "newOperations",
     "description": "Giu nhat ky audit bao nhieu ngay."
+  },
+  {
+    "key": "media.watermark_enabled",
+    "group": "Bao ve du lieu",
+    "type": "bool",
+    "default": true,
+    "min": null,
+    "max": null,
+    "unit": "",
+    "effect": "newOperations",
+    "description": "Gan watermark chim (nhung thang nguoi xem) vao anh phat cho labeler / reviewer / khach cong link."
+  },
+  {
+    "key": "media.watermark_strength",
+    "group": "Bao ve du lieu",
+    "type": "int",
+    "default": 24,
+    "min": 6,
+    "max": 80,
+    "unit": "buoc QIM",
+    "effect": "newOperations",
+    "description": "Do manh watermark chim: lon thi ben hon voi nen JPEG nhung de lo hon. Doi gia tri thi anh da phat truoc do VAN giai ma duoc (bo giai thu moi buoc 6-80)."
   },
   {
     "key": "gateway.rate_limit_per_minute",
@@ -1294,6 +1338,39 @@
     "unit": "giay",
     "effect": "newOperations",
     "description": "Consumer chua noi duoc RabbitMQ thi thu lai sau bao lau."
+  },
+  {
+    "key": "outbox.retention",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 604800,
+    "min": 3600,
+    "max": 31536000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Event DA GUI giu trong bang outbox bao lau roi xoa (de tra soat su co). Event chua gui khong bao gio bi xoa."
+  },
+  {
+    "key": "outbox.cleanup_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 300,
+    "min": 10,
+    "max": 86400,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Chu ky don bang outbox (event da gui) va processed_events (dau vet chong xu ly trung) qua han."
+  },
+  {
+    "key": "consumers.processed_retention",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 1209600,
+    "min": 86400,
+    "max": 31536000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Dau vet 'da xu ly event nay' giu bao lau. Phai DAI hon thoi gian mot message co the bi giao lai (ke ca dua lai tu DLQ) — qua han ma message cu quay lai thi bi xu ly lan hai."
   },
   {
     "key": "consumers.prefetch_count",

@@ -208,7 +208,7 @@ namespace Crowd.Identity.Api.Services
             {
                 user.DatPasswordHash(_matKhau.Bam(user, matKhauMoi!));
                 await _phien.ThuHoiTatCaAsync(user.Id, "password_changed", caller, bayGio, ct);
-                TokenResponse capMoi = _auth.TaoPhienMoi(user);
+                TokenResponse capMoi = await _auth.MoPhienAsync(user, ct);
 
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);

@@ -56,8 +56,8 @@ namespace Crowd.Identity.Api.Services
             DateTimeOffset moc = LamTronGiay(luc);
             DateTimeOffset? thuHoiLuc = moc;
 
-            // Chi dong CON HAN — dong het han de job don xoa, khong tranh khoa (RefreshTokenCleanupService).
-            await _db.RefreshTokens
+            // Chi phien CON HAN — phien het han de job don xoa, khong tranh khoa (RefreshTokenCleanupService).
+            await _db.PhienDangNhaps
                 .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > moc)
                 .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, thuHoiLuc), ct);
 

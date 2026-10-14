@@ -17,13 +17,28 @@ namespace Crowd.BuildingBlocks.Auth.Http
     public sealed class Caller
     {
         private Caller(Guid? userId, bool isAdmin, ActorRole actorRole, Guid correlationId, Guid? causationId)
+            : this(userId, isAdmin, actorRole, correlationId, causationId, false, false)
+        {
+        }
+
+        private Caller(
+            Guid? userId, bool isAdmin, ActorRole actorRole, Guid correlationId, Guid? causationId,
+            bool daXacThucEmail, bool daXacMinhDoanhNghiep)
         {
             UserId = userId;
             IsAdmin = isAdmin;
             ActorRole = actorRole;
             CorrelationId = correlationId;
             CausationId = causationId;
+            DaXacThucEmail = daXacThucEmail;
+            DaXacMinhDoanhNghiep = daXacMinhDoanhNghiep;
         }
+
+        /// <summary>Claim email_verified cua access token (FC-01). Chi co nghia voi request HTTP bang token.</summary>
+        public bool DaXacThucEmail { get; }
+
+        /// <summary>Claim kyb_verified cua access token (FB-02).</summary>
+        public bool DaXacMinhDoanhNghiep { get; }
 
         /// <summary>null = he thong tu dong (consumer, worker).</summary>
         public Guid? UserId { get; }
@@ -52,7 +67,9 @@ namespace Crowd.BuildingBlocks.Auth.Http
             Guid userId = CrowdClaims.GetUserId(http.User);
             bool laAdmin = http.User.IsInRole(CrowdRoles.Admin);
 
-            return new Caller(userId, laAdmin, vaiTro, LayCorrelationId(http.Request), null);
+            return new Caller(
+                userId, laAdmin, vaiTro, LayCorrelationId(http.Request), null,
+                CrowdClaims.DaXacThucEmail(http.User), CrowdClaims.DaXacMinhDoanhNghiep(http.User));
         }
 
         /// <summary>

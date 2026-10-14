@@ -79,12 +79,21 @@ def nop_kyb(u, ten_cong_ty="Cong ty E2E", mst="0312345678"):
     return requests.post(G + "/kyb/me/submit", headers=u["h"])
 
 
+def lam_moi_token(u):
+    """POST /auth/refresh: lay access token moi (mang claim email_verified / kyb_verified moi nhat) va
+    cap nhat u tai cho. Frontend lam y het sau khi xac thuc email / duoc duyet KYB."""
+    r = requests.post(G + "/auth/refresh", json={"refreshToken": u["refresh"]})
+    assert r.status_code == 200, r.text
+    u["h"].update(hdr(r.json()["accessToken"]))
+    u["refresh"] = r.json()["refreshToken"]
+    return u
+
+
 def xac_minh_kyb(u):
-    """KYB tron goi: nop → admin duyet → cho project-svc nhan business.verified (moi publish duoc)."""
+    """KYB tron goi: nop → admin duyet → lam moi token (claim kyb_verified — project-svc doc claim khi publish)."""
     nop_kyb(u).raise_for_status()
     requests.post(G + f"/kyb/admin/{u['id']}/approve", headers=admin).raise_for_status()
-    ok = cho(lambda: sql("project", f"select count(*) from verified_businesses where business_id='{u['id']}'") == "1", 30)
-    assert ok, "project-svc chua nhan business.verified"
+    lam_moi_token(u)
 
 
 admin = hdr(login_raw("admin@crowd.local").json()["accessToken"])

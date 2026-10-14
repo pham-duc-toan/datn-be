@@ -171,6 +171,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                     .HasFilter("state = 'Leased'")
                     .HasDatabaseName("ux_assignments_one_lease_per_project");
 
+                // Chi muc DAY DU theo task (cac chi muc tren deu loc theo state): xoa task cua du an da dong
+                // phai tim luot giu theo task_id — thieu thi moi task bi xoa la mot lan quet ca bang (khoa ngoai).
+                b.HasIndex(x => x.TaskId).HasDatabaseName("ix_assignments_task");
+
                 // Reaper tim lease qua han.
                 b.HasIndex(x => x.ExpiresAt).HasFilter("state = 'Leased'").HasDatabaseName("ix_assignments_reaper");
             });
@@ -231,6 +235,13 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property(x => x.MinLevel).HasColumnName("min_level");
                 b.Property(x => x.MinReputation).HasColumnName("min_reputation");
                 b.Property(x => x.GoldSetAt).HasColumnName("gold_set_at").IsRequired();
+
+                // Don du lieu van hanh cua du an da dong (project.closed_data_retention).
+                b.Property(x => x.FinalProgressJson).HasColumnName("final_progress").HasColumnType("jsonb");
+                b.Property(x => x.DataPurgedAt).HasColumnName("data_purged_at");
+                b.HasIndex(x => x.StatusChangedAt)
+                    .HasFilter("status = 'Closed' AND data_purged_at IS NULL")
+                    .HasDatabaseName("ix_project_snapshots_cho_don");
             });
 
             mb.Entity<MemberCache>(b =>

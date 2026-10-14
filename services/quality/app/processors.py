@@ -42,10 +42,28 @@ async def project_published(s: AsyncSession, env: Envelope[ProjectPublished]) ->
     )
 
 
+async def project_dong(s: AsyncSession, env: Envelope) -> None:
+    """project.completed / project.cancelled: ghi moc dong (lan dau thang) — archive.py dem thoi han tu day.
+    Du an chua tung publish (huy khi con nhap) khong co ban sao o day → khong lam gi."""
+    await s.execute(
+        text("UPDATE projects SET closed_at = :at WHERE project_id = :p AND closed_at IS NULL"),
+        {"p": env.payload.project_id, "at": env.occurred_at},
+    )
+
+
+async def da_luu_tru(s: AsyncSession, project_id: uuid.UUID) -> bool:
+    """Du an da chup bao cao va (dang) xoa nhan tho — event den tre cua no khong duoc ghi lai du lieu."""
+    return (await s.execute(
+        text("SELECT 1 FROM projects WHERE project_id = :p AND archived_at IS NOT NULL"), {"p": project_id})).first() is not None
+
+
 async def annotation_submitted(s: AsyncSession, env: Envelope[AnnotationSubmitted]) -> None:
     p = env.payload
     if p.labeler_id is None:
         # Khach vang lai o cong link (P2) — khong co uy tin de cap nhat, khong tinh dong thuan.
+        return
+    if await da_luu_tru(s, p.project_id):
+        log.info("Bo qua nhan %s: du an %s da luu tru", p.annotation_id, p.project_id)
         return
 
     await s.execute(
@@ -61,6 +79,8 @@ async def annotation_submitted(s: AsyncSession, env: Envelope[AnnotationSubmitte
 
 async def task_redundancy_reached(s: AsyncSession, env: Envelope[TaskRedundancyReached]) -> None:
     p = env.payload
+    if await da_luu_tru(s, p.project_id):
+        return
     # Target chi tang (redundancy thich ung): ban giao lai / cu hon khong ha target.
     await s.execute(
         text(
@@ -226,8 +246,20 @@ async def ds_skill_cua(s: AsyncSession, labeler_id: uuid.UUID) -> float | None:
     return float(dong.skill) if dong is not None and dong.skill is not None else None
 
 
+NHOM_KHOA_UY_TIN = 7003  # pg_advisory_xact_lock theo labeler — tach khoi khoa theo task (7002)
+
+
 async def cap_nhat_uy_tin(s: AsyncSession, labeler_id: uuid.UUID, env: Envelope | None) -> int | None:
     """Tinh lai uy tin tu bang chung goc; doi thi luu va phat reputation.changed."""
+    # KHOA THEO LABELER TRUOC KHI DEM. Hai task cua cung mot labeler duoc quyet dinh song song (hai
+    # transaction): moi ben dem label_agreements chi thay dong cua minh + dong DA commit, roi ghi de
+    # len nhau — ben ghi sau co the mang so DEM THIEU (gap o E2E: 3 lan khop ma agree_total = 2, uy tin
+    # sai toi lan cap nhat ke tiep cua labeler do). Khoa truoc khi dem: ben sau cho ben truoc commit roi
+    # moi dem (READ COMMITTED → thay du). Khoa dong reputations (FOR UPDATE ben duoi) khong du: no lay SAU
+    # khi dem, va labeler moi chua co dong de khoa. Khong deadlock: noi goi nhieu labeler luon theo thu tu
+    # labeler_id tang dan (danh_gia_task), va khong ai lay khoa task trong luc giu khoa labeler.
+    await s.execute(text("SELECT pg_advisory_xact_lock(:nhom, hashtext(:l))"), {"nhom": NHOM_KHOA_UY_TIN, "l": str(labeler_id)})
+
     gold = (await s.execute(
         text("SELECT COUNT(*) AS tong, COUNT(*) FILTER (WHERE correct) AS dung FROM gold_answers WHERE labeler_id = :l"),
         {"l": labeler_id})).one()

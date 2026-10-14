@@ -20,6 +20,8 @@ namespace Crowd.Admin.Api.Persistence
 
         public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
+        public DbSet<ThongKeNgay> ThongKeNgay => Set<ThongKeNgay>();
+
         public DbSet<Announcement> Announcements => Set<Announcement>();
 
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
@@ -81,6 +83,26 @@ namespace Crowd.Admin.Api.Persistence
                 b.HasIndex(x => new { x.ActorId, x.OccurredAt }).HasDatabaseName("ix_audit_nguoi_lam");
                 b.HasIndex(x => new { x.EventType, x.OccurredAt }).HasDatabaseName("ix_audit_loai");
                 b.HasIndex(x => x.CorrelationId).HasDatabaseName("ix_audit_correlation");
+            });
+
+            modelBuilder.Entity<ThongKeNgay>(b =>
+            {
+                b.ToTable("stats_daily");
+                b.HasKey(x => new { x.Day, x.EventType });
+                b.Property(x => x.Day).HasColumnName("day");
+                b.Property(x => x.EventType).HasColumnName("event_type").HasMaxLength(100);
+                b.Property(x => x.Count).HasColumnName("count").IsRequired();
+                b.Property(x => x.AmountVnd).HasColumnName("amount_vnd").IsRequired();
+                b.Property(x => x.FeeVnd).HasColumnName("fee_vnd").IsRequired();
+            });
+
+            modelBuilder.Entity<AuditDaDem>(b =>
+            {
+                b.ToTable("audit_counted");
+                b.HasKey(x => x.EventId);
+                b.Property(x => x.EventId).HasColumnName("event_id").ValueGeneratedNever();
+                b.Property(x => x.SeenAt).HasColumnName("seen_at").IsRequired();
+                b.HasIndex(x => x.SeenAt).HasDatabaseName("ix_audit_counted_thoi_diem");
             });
 
             modelBuilder.Entity<Announcement>(b =>

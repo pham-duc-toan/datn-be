@@ -55,6 +55,8 @@ builder.Services.AddEventConsumer<AnnotationDbContext, DisputeResolved, DisputeR
 // ---- Kho anh (chi sinh link xem) ----
 builder.Services.Configure<ObjectStorageOptions>(cfg.GetSection(ObjectStorageOptions.SectionName));
 builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
+// Link xem mau qua media-svc (FP-02/03/04).
+builder.Services.AddMediaLinks(cfg);
 
 // ---- Nghiep vu ----
 builder.Services.AddScoped<AnnotationEventPublisher>();

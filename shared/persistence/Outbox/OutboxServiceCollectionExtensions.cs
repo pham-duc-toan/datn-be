@@ -64,6 +64,9 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
 
             services.AddHostedService<OutboxDispatcher<TDbContext>>();
 
+            // Don event da gui + dau vet da xu ly qua han (khong don thi hai bang nay lon hon ca du lieu nghiep vu).
+            services.AddHostedService<EventStoreCleanupWorker<TDbContext>>();
+
             // Nua NHAN: chan xu ly trung khi bus giao lai message (VD-D-02).
             // Cung SCOPED va cung DbContext voi IOutboxWriter — ca hai phai ghi
             // vao cung mot change tracker thi moi commit chung transaction duoc.

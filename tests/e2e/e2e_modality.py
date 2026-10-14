@@ -1,5 +1,5 @@
 # E2E da loai du lieu qua gateway. In PASS / FAIL tung buoc.
-import json, os, subprocess, sys, time
+import hashlib, json, os, subprocess, sys, time
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -234,6 +234,9 @@ pid = du_an_moi("[e2e] Anh khung", "image", {
         {"name": "vat", "kind": "bbox", "classes": ["xe", "nguoi"], "required": False},
         {"name": "vung", "kind": "polygon", "classes": ["duong"], "required": False},
     ]})
+# Muc nay kiem khung / da giac, khong kiem tron cau vang: tat tron (mac dinh 10% → task dau co the
+# la cau vang kiem tra, test lech ngau nhien).
+requests.put(G + "/projects/%s/quality-control" % pid, headers=biz1, json={"goldCheckPercent": 0}).raise_for_status()
 r = requests.post(G + "/projects/%s/uploads" % pid, headers=biz1, json={"files": [{"name": "virus.exe", "sizeBytes": 10}]})
 kiem("upload duoi .exe cho du an anh → 400", r.status_code == 400, r.text)
 keys = upload(pid, [os.path.join(M, "anh.png"), os.path.join(M, "anh2.png"), os.path.join(M, "gia-mao.png")])
@@ -290,7 +293,8 @@ d = nap_manifest(pid, rows=[{"file": keys[0], "name": "cuoc-goi.wav"}])
 kiem("23 giay → 3 doan (0-10, 10-20, 20-23)", d and d["sampleCount"] == 3, d)
 ms = sorted(mau(pid), key=lambda m: m["metadata"].get("segmentStart", 0))
 kiem("metadata doan dung (ffprobe that)", [(m["metadata"].get("segmentStart"), m["metadata"].get("segmentEnd")) for m in ms] == [(0, 10), (10, 20), (20, 23)], [m["metadata"] for m in ms])
-kiem("ca 3 doan dung chung mot file", len(set(m["fileUrl"].split("?")[0] for m in ms)) == 1)
+# fileUrl la link media-svc (token rieng tung link, khong lo khoa file) → so NOI DUNG tai ve.
+kiem("ca 3 doan dung chung mot file", len({hashlib.sha256(requests.get(m["fileUrl"]).content).hexdigest() for m in ms}) == 1)
 t = chay_du_an(pid, 3)
 if t:
     dai = t["metadata"]["durationSec"]

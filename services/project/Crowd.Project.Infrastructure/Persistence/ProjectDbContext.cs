@@ -1,7 +1,6 @@
 using System;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
-using Crowd.Project.Domain.Businesses;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.EntranceTests;
 using Crowd.Project.Domain.Gold;
@@ -33,10 +32,6 @@ namespace Crowd.Project.Infrastructure.Persistence
 
         public DbSet<EntranceAttempt> EntranceAttempts => Set<EntranceAttempt>();
 
-        public DbSet<VerifiedBusiness> VerifiedBusinesses => Set<VerifiedBusiness>();
-
-        public DbSet<EmailStatus> EmailStatuses => Set<EmailStatus>();
-
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -56,8 +51,6 @@ namespace Crowd.Project.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new SampleConfiguration());
             modelBuilder.ApplyConfiguration(new GoldItemConfiguration());
             modelBuilder.ApplyConfiguration(new EntranceAttemptConfiguration());
-            modelBuilder.ApplyConfiguration(new VerifiedBusinessConfiguration());
-            modelBuilder.ApplyConfiguration(new EmailStatusConfiguration());
             modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
 
             // Ha tang dung chung: outbox (gui event) + processed_events (nhan event).

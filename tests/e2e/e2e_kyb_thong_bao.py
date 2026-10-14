@@ -80,10 +80,11 @@ try:
     kiem("admin duyet → verified", r.status_code == 200 and r.json()["status"] == "verified", r.text)
     kiem("duyet lan hai → 409", requests.post(G + f"/kyb/admin/{biz['id']}/approve", headers=admin).status_code == 409)
     kiem("email: doanh nghiep da xac minh", co_thu(biz, "Doanh nghiệp đã được xác minh"), thu_cua(biz["email"]))
-    kiem("project-svc nhan business.verified",
-         cho(lambda: sql("project", f"select count(*) from verified_businesses where business_id='{biz['id']}'") == "1", 30))
     r = requests.post(G + f"/projects/{P}/publish", headers=biz["h"])
-    kiem("da xac minh → publish duoc (sang buoc ky quy)", r.status_code == 200, r.text)
+    kiem("token cu (cap truoc khi duoc duyet) van bi chan", r.status_code == 409 and "chua_xac_minh_doanh_nghiep" in r.text, r.text)
+    lam_moi_token(biz)
+    r = requests.post(G + f"/projects/{P}/publish", headers=biz["h"])
+    kiem("lam moi token (claim kyb_verified) → publish duoc (sang buoc ky quy)", r.status_code == 200, r.text)
     kiem("chua nap tien → thong bao 'Du an chua publish duoc' (escrow.rejected)",
          co_tb(biz, "Dự án chưa publish được"), [x["title"] for x in tb(biz)["items"]])
 

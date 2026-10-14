@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence;
 using Crowd.BuildingBlocks.Persistence.Outbox;
@@ -200,9 +201,8 @@ namespace Crowd.Identity.Api.Services
                 user.DatPasswordHash(_matKhau.Bam(user, body.Password!));
             }
 
-            // Moi lan dang nhap mo mot HO token moi.
-            Guid khongDung;
-            TokenResponse cap = PhatCapToken(user, Guid.CreateVersion7(), out khongDung);
+            // Moi lan dang nhap mo mot PHIEN moi (mot dong login_sessions).
+            TokenResponse cap = await MoPhienAsync(user, ct);
 
             await _db.SaveChangesAsync(ct);
 
@@ -210,13 +210,14 @@ namespace Crowd.Identity.Api.Services
         }
 
         // =====================================================================
-        // LAM MOI TOKEN — xoay vong + phat hien dung lai
+        // LAM MOI TOKEN — xoay tai cho + phat hien dung lai
         // =====================================================================
 
         /// <summary>Tra null khi token khong dung duoc (controller doi thanh 401).</summary>
         public async Task<TokenResponse?> LamMoiAsync(string refreshTokenGoc, CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(refreshTokenGoc))
+            Guid phienId;
+            if (!TokenIssuer.DocPhien(refreshTokenGoc, out phienId))
             {
                 return null;
             }
@@ -224,82 +225,51 @@ namespace Crowd.Identity.Api.Services
             DateTimeOffset bayGio = _clock.GetUtcNow();
             string hash = TokenIssuer.BamRefreshToken(refreshTokenGoc);
 
-            RefreshToken? cu = await _db.RefreshTokens
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
-
-            if (cu == null)
-            {
-                return null;
-            }
-
-            if (cu.RevokedAt != null)
-            {
-                // TOKEN DA XOAY ma van bi dem ra dung. Nghia la it nhat hai ben dang
-                // giu no — nguoi dung that va ke da danh cap. Khong phan biet duoc
-                // ai la ai, nen thu hoi CA HO: ca hai phai dang nhap lai, va ke
-                // trom mat quyen truy cap.
-                await ThuHoiCaHoAsync(cu.FamilyId, bayGio, ct);
-
-                _logger.LogWarning(
-                    "Phat hien dung lai refresh token cua user {UserId}, ho {FamilyId} — da thu hoi ca ho",
-                    cu.UserId,
-                    cu.FamilyId);
-
-                return null;
-            }
-
-            if (cu.ExpiresAt <= bayGio)
-            {
-                return null;
-            }
-
-            User? user = await _db.Users.FirstOrDefaultAsync(u => u.Id == cu.UserId, ct);
-            if (user == null || user.Status == UserStatus.Blocked)
-            {
-                return null;
-            }
-
             var tx = await _db.Database.BeginTransactionAsync(ct);
-
             try
             {
-                Guid idMoi;
-                TokenResponse cap = PhatCapToken(user, cu.FamilyId, out idMoi);
+                // KHOA DONG PHIEN: hai request lam moi cung luc cua cung mot phien xep hang o day —
+                // cai sau thay token da doi (bai hoc VD-D-11: kiem va ghi phai nguyen tu).
+                PhienDangNhap? phien = await _db.PhienDangNhaps
+                    .FromSqlInterpolated($"SELECT * FROM login_sessions WHERE id = {phienId} FOR UPDATE")
+                    .FirstOrDefaultAsync(ct);
 
-                // DANH DAU TOKEN CU DA DUNG — NGUYEN TU.
-                //
-                // Dieu kien "RevokedAt IS NULL" nam TRONG cau UPDATE, dung bai hoc
-                // VD-D-11. Hai request refresh cung luc voi cung mot token: ca hai
-                // doc thay "chua thu hoi" o tren, nhung chi MOT cai cap nhat duoc
-                // dong nay. Cai kia nhan 0 dong va roi vao nhanh dung lai.
-                DateTimeOffset? thuHoiLuc = bayGio;
-                Guid? thayBang = idMoi;
-
-                int soDong = await _db.RefreshTokens
-                    .Where(t => t.Id == cu.Id && t.RevokedAt == null)
-                    .ExecuteUpdateAsync(
-                        s => s.SetProperty(t => t.RevokedAt, thuHoiLuc)
-                              .SetProperty(t => t.ReplacedById, thayBang),
-                        ct);
-
-                if (soDong == 0)
+                if (phien == null || !phien.ConDung(bayGio))
                 {
-                    // Mot request khac vua xoay token nay truoc mot tich tac.
-                    // Chon cach NGHIEM: coi nhu dung lai, thu hoi ca ho.
-                    //
-                    // Doi lai: nguoi dung mo hai tab cung refresh cung luc se bi
-                    // dang xuat ca hai. Mot so he thong cho mot "thoi gian an han"
-                    // vai giay de tranh dieu nay; o day uu tien an toan.
-                    await tx.RollbackAsync(ct);
-                    _db.ChangeTracker.Clear();
-                    await ThuHoiCaHoAsync(cu.FamilyId, bayGio, ct);
                     return null;
                 }
 
+                if (!phien.LaTokenHienTai(hash))
+                {
+                    // Dung ma phien nhung KHONG phai token hien tai = mot token CU cua phien bi dem ra
+                    // dung. It nhat hai ben dang giu (nguoi dung that va ke da danh cap) — khong phan
+                    // biet duoc ai la ai nen thu hoi ca phien: ca hai phai dang nhap lai.
+                    //
+                    // Doi lai: hai tab cung lam moi bang mot token thi tab sau roi vao day va ca hai
+                    // bi dang xuat. Uu tien an toan (frontend dong bo token giua cac tab).
+                    phien.ThuHoi(bayGio);
+                    await _db.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
+
+                    _logger.LogWarning(
+                        "Phat hien dung lai refresh token cua user {UserId}, phien {PhienId} — da thu hoi phien",
+                        phien.UserId,
+                        phien.Id);
+                    return null;
+                }
+
+                User? user = await _db.Users.FirstOrDefaultAsync(u => u.Id == phien.UserId, ct);
+                if (user == null || user.Status == UserStatus.Blocked)
+                {
+                    return null;
+                }
+
+                string refreshMoi = TokenIssuer.TaoRefreshToken(phien.Id);
+                phien.Xoay(TokenIssuer.BamRefreshToken(refreshMoi), bayGio, _tokenIssuer.RefreshTokenLifetime);
+                TokenResponse cap = await TaoResponseAsync(user, refreshMoi, ct);
+
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
-
                 return cap;
             }
             finally
@@ -313,89 +283,66 @@ namespace Crowd.Identity.Api.Services
         // =====================================================================
 
         /// <summary>
-        /// Thu hoi ca ho cua refresh token nay. Token khong ton tai thi thoi —
-        /// dang xuat la idempotent.
+        /// Thu hoi phien cua refresh token nay. Token khong hop le / phien khong con thi thoi —
+        /// dang xuat la idempotent. Chi can dung MA PHIEN + hash khop token hien tai (token cu khong
+        /// dang xuat ho duoc nguoi khac).
         ///
-        /// Luu y: access token dang luu hanh VAN DUNG DUOC toi khi het han (toi
-        /// da 15 phut). Dang xuat chi chan viec LAM MOI.
+        /// Access token dang luu hanh con dung toi khi het han (toi da 15 phut); muon cat ngay thi
+        /// dung "dang xuat moi noi" (PhienService — moc thu hoi phien o gateway).
         /// </summary>
         public async Task DangXuatAsync(string? refreshTokenGoc, CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(refreshTokenGoc))
+            Guid phienId;
+            if (!TokenIssuer.DocPhien(refreshTokenGoc, out phienId))
             {
                 return;
             }
 
-            string hash = TokenIssuer.BamRefreshToken(refreshTokenGoc);
+            string hash = TokenIssuer.BamRefreshToken(refreshTokenGoc!);
+            DateTimeOffset? luc = _clock.GetUtcNow();
 
-            RefreshToken? token = await _db.RefreshTokens
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
-
-            if (token != null)
-            {
-                await ThuHoiCaHoAsync(token.FamilyId, _clock.GetUtcNow(), ct);
-            }
+            await _db.PhienDangNhaps
+                .Where(p => p.Id == phienId && p.TokenHash == hash && p.RevokedAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.RevokedAt, luc), ct);
         }
 
         /// <summary>
-        /// Mo mot ho token moi cho user (vd vua doi mat khau: moi phien cu da bi thu hoi, tra lai phien
-        /// moi cho chinh thiet bi dang doi). Khong SaveChanges.
+        /// Mo mot phien moi cho user (dang nhap; hoac vua doi mat khau: moi phien cu da bi thu hoi, tra
+        /// lai phien moi cho chinh thiet bi dang doi). Chi them vao change tracker, KHONG SaveChanges —
+        /// de noi goi quyet dinh transaction.
         /// </summary>
-        public TokenResponse TaoPhienMoi(User user)
+        public async Task<TokenResponse> MoPhienAsync(User user, CancellationToken ct)
         {
             if (user == null)
             {
                 throw new ArgumentNullException(nameof(user));
             }
 
-            Guid khongDung;
-            return PhatCapToken(user, Guid.CreateVersion7(), out khongDung);
+            Guid phienId = Guid.CreateVersion7();
+            string refreshGoc = TokenIssuer.TaoRefreshToken(phienId);
+            _db.PhienDangNhaps.Add(PhienDangNhap.Mo(
+                phienId, user.Id, TokenIssuer.BamRefreshToken(refreshGoc), _clock.GetUtcNow(), _tokenIssuer.RefreshTokenLifetime));
+
+            return await TaoResponseAsync(user, refreshGoc, ct);
         }
 
         // =====================================================================
         // Ham dung chung
         // =====================================================================
 
-        /// <summary>
-        /// Tao access token + refresh token moi trong ho <paramref name="hoToken"/>.
-        /// Chi them vao change tracker, KHONG SaveChanges — de noi goi quyet dinh
-        /// transaction.
-        /// </summary>
-        private TokenResponse PhatCapToken(User user, Guid hoToken, out Guid idRefreshMoi)
+        private async Task<TokenResponse> TaoResponseAsync(User user, string refreshToken, CancellationToken ct)
         {
-            string refreshGoc = TokenIssuer.TaoRefreshTokenGoc();
-
-            RefreshToken moi = RefreshToken.Tao(
-                user.Id,
-                TokenIssuer.BamRefreshToken(refreshGoc),
-                hoToken,
-                _clock.GetUtcNow(),
-                _tokenIssuer.RefreshTokenLifetime);
-
-            _db.RefreshTokens.Add(moi);
-            idRefreshMoi = moi.Id;
+            // Claim kyb_verified: project-svc kiem khi publish (khong giu ban sao). Chi tai khoan doanh nghiep moi co ho so.
+            bool kybDaDuyet = user.Roles.Contains(CrowdRoles.Business)
+                && await _db.BusinessProfiles.AnyAsync(p => p.UserId == user.Id && p.Status == KybStatus.Verified, ct);
 
             return new TokenResponse
             {
-                AccessToken = _tokenIssuer.TaoAccessToken(user),
-                RefreshToken = refreshGoc,
+                AccessToken = _tokenIssuer.TaoAccessToken(user, kybDaDuyet),
+                RefreshToken = refreshToken,
                 TokenType = "Bearer",
                 ExpiresIn = (int)_tokenIssuer.AccessTokenLifetime.TotalSeconds,
             };
-        }
-
-        /// <summary>
-        /// Thu hoi moi token CON HAN cua ho. Token het han thi bo qua: thu hoi no vo nghia, va de
-        /// RefreshTokenCleanupService xoa dong het han ma khong tranh khoa voi luong nay.
-        /// </summary>
-        private Task<int> ThuHoiCaHoAsync(Guid hoToken, DateTimeOffset luc, CancellationToken ct)
-        {
-            DateTimeOffset? thuHoiLuc = luc;
-
-            return _db.RefreshTokens
-                .Where(t => t.FamilyId == hoToken && t.RevokedAt == null && t.ExpiresAt > luc)
-                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, thuHoiLuc), ct);
         }
     }
 }

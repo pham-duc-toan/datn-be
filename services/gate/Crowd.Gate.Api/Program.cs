@@ -72,6 +72,8 @@ builder.Services.AddSingleton(new ClickStore(gate.ClickHouse));
 // ---- Anh cua cau hoi: link xem co han tu MinIO ----
 builder.Services.Configure<ObjectStorageOptions>(cfg.GetSection(ObjectStorageOptions.SectionName));
 builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
+// Link xem mau qua media-svc (FP-02/03/04).
+builder.Services.AddMediaLinks(cfg);
 
 builder.Services.AddSingleton<GateCatalog>();
 builder.Services.AddSingleton<GateTokenService>();

@@ -50,6 +50,9 @@ namespace Crowd.Gate.Api.Consumers
             ProjectPublished p = envelope.Payload;
             if (!p.AllowLinkGateway)
             {
+                // Du an KHONG bat cong link: gate khong bao gio phat mau cua no. Mau da chep tu
+                // dataset.ingested (luc do chua biet du an co bat cong link khong) → xoa.
+                await GateDonDep.XoaMauCuaDuAnAsync(_db, p.ProjectId, ct);
                 return;
             }
 
@@ -100,14 +103,16 @@ namespace Crowd.Gate.Api.Consumers
             return DatAsync(envelope.Payload.ProjectId, TrangThaiDuAnCong.Running, envelope.OccurredAt, ct);
         }
 
-        public Task XuLyAsync(EventEnvelope<ProjectCancelled> envelope, CancellationToken ct)
+        public async Task XuLyAsync(EventEnvelope<ProjectCancelled> envelope, CancellationToken ct)
         {
-            return DatAsync(envelope.Payload.ProjectId, TrangThaiDuAnCong.Closed, envelope.OccurredAt, ct);
+            await DatAsync(envelope.Payload.ProjectId, TrangThaiDuAnCong.Closed, envelope.OccurredAt, ct);
+            await GateDonDep.XoaMauCuaDuAnAsync(_db, envelope.Payload.ProjectId, ct);
         }
 
-        public Task XuLyAsync(EventEnvelope<ProjectCompleted> envelope, CancellationToken ct)
+        public async Task XuLyAsync(EventEnvelope<ProjectCompleted> envelope, CancellationToken ct)
         {
-            return DatAsync(envelope.Payload.ProjectId, TrangThaiDuAnCong.Closed, envelope.OccurredAt, ct);
+            await DatAsync(envelope.Payload.ProjectId, TrangThaiDuAnCong.Closed, envelope.OccurredAt, ct);
+            await GateDonDep.XoaMauCuaDuAnAsync(_db, envelope.Payload.ProjectId, ct);
         }
 
         private async Task DatAsync(Guid projectId, TrangThaiDuAnCong moi, DateTimeOffset luc, CancellationToken ct)
@@ -319,6 +324,24 @@ namespace Crowd.Gate.Api.Consumers
             {
                 _catalog.YeuCauNapLai();
             }
+        }
+    }
+
+    /// <summary>
+    /// gate chi can mau cua du an DANG phuc vu qua cong link. Du an publish khong bat cong link, hoac da
+    /// dong / huy → xoa ban sao mau + cau vang cua no (chay trong transaction cua consumer).
+    /// </summary>
+    public static class GateDonDep
+    {
+        public static async Task XoaMauCuaDuAnAsync(GateDbContext db, Guid projectId, CancellationToken ct)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            await db.GoldItems.Where(g => g.ProjectId == projectId).ExecuteDeleteAsync(ct);
+            await db.Samples.Where(m => m.ProjectId == projectId).ExecuteDeleteAsync(ct);
         }
     }
 }

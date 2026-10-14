@@ -34,6 +34,7 @@ namespace Crowd.BuildingBlocks.Settings
         public const string ProjectApprovalScanInterval = "project.approval_scan_interval";
         public const string ProjectRedundancyMax = "project.redundancy_max";
         public const string ProjectGoldCheckPercentDefault = "project.gold_check_percent_default";
+        public const string ProjectClosedDataRetention = "project.closed_data_retention";
         public const string ProjectGoldCheckPercentMax = "project.gold_check_percent_max";
         public const string ProjectEntranceQuestionDefault = "project.entrance_question_default";
         public const string ProjectEntrancePassPercentDefault = "project.entrance_pass_percent_default";
@@ -95,6 +96,7 @@ namespace Crowd.BuildingBlocks.Settings
         public const string QualityFraudSharedWindow = "quality.fraud_shared_window";
         public const string QualityFraudIgnorePrivateIps = "quality.fraud_ignore_private_ips";
         public const string QualityFraudReopenCooldown = "quality.fraud_reopen_cooldown";
+        public const string QualityFraudSubmissionRetention = "quality.fraud_submission_retention";
         public const string QualityDsMinLabels = "quality.ds_min_labels";
         public const string QualityReputationGoldWeight = "quality.reputation_gold_weight";
         public const string QualityReputationPrior = "quality.reputation_prior";
@@ -124,6 +126,10 @@ namespace Crowd.BuildingBlocks.Settings
         // ---- Admin: nhat ky audit (FP-06 / VD-S-10), thong ke (FM-09) ----
         public const string AdminAuditExcludedTypes = "admin.audit_excluded_types";
         public const string AdminAuditRetentionDays = "admin.audit_retention_days";
+
+        // ---- Bao ve du lieu: media-svc (FP-02, FP-03) ----
+        public const string MediaWatermarkEnabled = "media.watermark_enabled";
+        public const string MediaWatermarkStrength = "media.watermark_strength";
 
         // ---- Gateway: gioi han tan suat (VD-S-12) ----
         public const string GatewayRateLimitPerMinute = "gateway.rate_limit_per_minute";
@@ -162,6 +168,9 @@ namespace Crowd.BuildingBlocks.Settings
         public const string OutboxBatchSize = "outbox.batch_size";
         public const string OutboxPublishTimeout = "outbox.publish_timeout";
         public const string OutboxRetryMaxDelay = "outbox.retry_max_delay";
+        public const string OutboxRetention = "outbox.retention";
+        public const string OutboxCleanupInterval = "outbox.cleanup_interval";
+        public const string ConsumersProcessedRetention = "consumers.processed_retention";
         public const string ConsumersReconnectDelay = "consumers.reconnect_delay";
         public const string ConsumersPrefetchCount = "consumers.prefetch_count";
         public const string SettingsReloadInterval = "settings.reload_interval";
@@ -191,6 +200,21 @@ namespace Crowd.BuildingBlocks.Settings
 
         private static readonly string[] CheDoChiCongLink = new string[] { "perClick", "batched" };
         private const string NhomKyThuat = "Ky thuat";
+        private const string NhomBaoVeDuLieu = "Bao ve du lieu";
+
+        /// <summary>
+        /// Event tan suat cao (moi nhan / moi luot vuot link / moi lan dong bo mot event): khong luu chi tiet
+        /// vao nhat ky audit. Nhat ky giu THAO TAC CUA NGUOI VA QUAN TRI (dang ky, KYB, khoa, du an, tien nap /
+        /// rut, tranh chap, setting...). Lich su tung nhan da co o annotation_history, tien o so cai.
+        /// </summary>
+        public const string AuditLoaiTruMacDinh =
+            "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,dataset.ingested,"
+            + "assignment.submitted,annotation.submitted,annotation.approved,annotation.rejected,"
+            + "task.redundancy_reached,task.redundancy_changed,gold.answered,consensus.reached,"
+            + "redundancy.increase_requested,reputation.changed,funds.held,hold.expired,gate.budget_changed";
+
+        /// <summary>Mac dinh truoc 2026-10-13 — migration admin nang gia tri nay len mac dinh moi neu admin chua sua.</summary>
+        public const string AuditLoaiTruMacDinhCu = "gate.solved,click.validated,settings.snapshot";
 
         private const double Ngay = 86400;
         private const double MB = 1024 * 1024;
@@ -287,6 +311,8 @@ namespace Crowd.BuildingBlocks.Settings
                 "So nguoi gan / tran redundancy toi da doanh nghiep duoc dat cho moi mau."));
             ds.Add(Int(SettingKeys.ProjectGoldCheckPercentDefault, NhomDuAn, 10, 0, 100, "%",
                 "Ti le cau vang kiem tra mac dinh cua du an moi tao."));
+            ds.Add(Seconds(SettingKeys.ProjectClosedDataRetention, NhomDuAn, 90 * Ngay, 0, 3650 * Ngay,
+                "Du an da dong (hoan thanh / huy) bao lau thi xoa du lieu VAN HANH cua no: task, luot giu, bao loi (task-svc); nhan tho va vong dong thuan (quality-svc). Truoc khi xoa, tien do va bao cao chat luong duoc chup lai nen van xem duoc. Nhan da nop / da duyet, ket qua, so cai, mau du lieu va uy tin labeler KHONG bi xoa. 0 = khong bao gio xoa."));
             ds.Add(Int(SettingKeys.ProjectGoldCheckPercentMax, NhomDuAn, 50, 0, 100, "%",
                 "Ti le cau vang kiem tra toi da doanh nghiep duoc dat."));
             ds.Add(Int(SettingKeys.ProjectEntranceQuestionDefault, NhomDuAn, 10, 1, 500, "cau",
@@ -382,6 +408,8 @@ namespace Crowd.BuildingBlocks.Settings
                 "Bo qua IP noi bo / loopback khi xet chung IP (moi truong dev, mang cong ty dung chung NAT)."));
             ds.Add(Seconds(SettingKeys.QualityFraudReopenCooldown, NhomChatLuong, 7 * Ngay, 0, 365 * Ngay,
                 "Ho so da xu ly (bo qua / xac nhan) thi khong mo lai cung khoa trong khoang nay."));
+            ds.Add(Seconds(SettingKeys.QualityFraudSubmissionRetention, NhomChatLuong, 7 * Ngay, Ngay, 365 * Ngay,
+                "Giu du lieu luot nop dung de xet gian lan (toc do, IP, thiet bi) bao lau. Thuat toan chi can vai chuc luot gan nhat va cua so chung IP — khong can giu mai."));
             ds.Add(Int(SettingKeys.QualityDsMinLabels, NhomChatLuong, 5, 1, 10000, "nhan",
                 "Labeler can toi thieu bao nhieu nhan trong du an thi moi cham do tin cay Dawid-Skene."));
             ds.Add(Double(SettingKeys.QualityReputationGoldWeight, NhomChatLuong, 0.6, 0, 1, "",
@@ -426,10 +454,16 @@ namespace Crowd.BuildingBlocks.Settings
                 "Dieu kien len cap: cap=so nhan duoc duyet/uy tin toi thieu, ngan cach bang ';'. Sai dinh dang thi dung mac dinh."));
 
             // ================= ADMIN =================
-            ds.Add(Text(SettingKeys.AdminAuditExcludedTypes, NhomKyThuat, "gate.solved,click.validated,settings.snapshot", 1000,
-                "Loai event KHONG ghi vao nhat ky audit (luu luong lon, khong phai thao tac quan tri), ngan cach bang dau phay."));
+            ds.Add(Text(SettingKeys.AdminAuditExcludedTypes, NhomKyThuat, AuditLoaiTruMacDinh, 1000,
+                "Loai event KHONG luu chi tiet vao nhat ky audit (tan suat cao, do he thong / luong gan nhan sinh ra — van duoc DEM cho bao cao tong quan), ngan cach bang dau phay."));
             ds.Add(Int(SettingKeys.AdminAuditRetentionDays, NhomKyThuat, 365, 7, 3650, "ngay",
                 "Giu nhat ky audit bao nhieu ngay."));
+
+            // ================= MEDIA (bao ve du lieu) =================
+            ds.Add(Bool(SettingKeys.MediaWatermarkEnabled, NhomBaoVeDuLieu, true,
+                "Gan watermark chim (nhung thang nguoi xem) vao anh phat cho labeler / reviewer / khach cong link."));
+            ds.Add(Int(SettingKeys.MediaWatermarkStrength, NhomBaoVeDuLieu, 24, 6, 80, "buoc QIM",
+                "Do manh watermark chim: lon thi ben hon voi nen JPEG nhung de lo hon. Doi gia tri thi anh da phat truoc do VAN giai ma duoc (bo giai thu moi buoc 6-80)."));
 
             // ================= GATEWAY =================
             ds.Add(Int(SettingKeys.GatewayRateLimitPerMinute, NhomKyThuat, 600, 10, 1000000, "request/phut",
@@ -456,6 +490,12 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Seconds(SettingKeys.OutboxRetryMaxDelay, NhomKyThuat, 300, 1, Ngay,
                 "Gui event that bai thi thu lai sau 2, 4, 8... giay — khong lui qua muc nay."));
             ds.Add(Seconds(SettingKeys.ConsumersReconnectDelay, NhomKyThuat, 5, 1, 300, "Consumer chua noi duoc RabbitMQ thi thu lai sau bao lau."));
+            ds.Add(Seconds(SettingKeys.OutboxRetention, NhomKyThuat, 7 * Ngay, 3600, 365 * Ngay,
+                "Event DA GUI giu trong bang outbox bao lau roi xoa (de tra soat su co). Event chua gui khong bao gio bi xoa."));
+            ds.Add(Seconds(SettingKeys.OutboxCleanupInterval, NhomKyThuat, 300, 10, Ngay,
+                "Chu ky don bang outbox (event da gui) va processed_events (dau vet chong xu ly trung) qua han."));
+            ds.Add(Seconds(SettingKeys.ConsumersProcessedRetention, NhomKyThuat, 14 * Ngay, Ngay, 365 * Ngay,
+                "Dau vet 'da xu ly event nay' giu bao lau. Phai DAI hon thoi gian mot message co the bi giao lai (ke ca dua lai tu DLQ) — qua han ma message cu quay lai thi bi xu ly lan hai."));
             ds.Add(new SettingDefinition(SettingKeys.ConsumersPrefetchCount, NhomKyThuat, SettingType.SoNguyen, JsonValue.Create(10), 1, 1000,
                 "message", SettingEffect.Restart, "So message broker day toi moi consumer truoc khi ack. Co tac dung khi service khoi dong lai."));
             ds.Add(Seconds(SettingKeys.SettingsReloadInterval, NhomKyThuat, 5, 1, 3600,

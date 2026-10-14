@@ -61,7 +61,7 @@ Danh sách mọi rủi ro kỹ thuật, bảo mật, pháp lý và sản phẩm 
 | T-04 | Cùng một người nhận lại task đã làm qua tài khoản khác | Phá redundancy, đồng thuận giả | Fingerprint thiết bị + cụm hóa (xem Q-02) | CAO | P3 |
 | T-05 | Task khó bị bỏ qua liên tục, tồn đọng mãi | Dự án không bao giờ hoàn thành | Tăng đơn giá theo số lần bị bỏ; sau N lần đẩy lên reviewer cấp cao | TB | P3 |
 | T-06 | Nhiều labeler tranh cùng một task | Tranh chấp khóa, cấp task chậm | `FOR UPDATE SKIP LOCKED` + offset ngẫu nhiên trong tập ứng viên | TB | P0 |
-| T-07 | Hàng đợi hàng triệu task làm chậm truy vấn lọc eligibility | Cấp task chậm dần theo thời gian | Index phủ + partition theo `project_id` | TB | P2 |
+| T-07 | Hàng đợi hàng triệu task làm chậm truy vấn lọc eligibility | Cấp task chậm dần theo thời gian | Index phủ + partition theo `project_id`. **Đã làm một phần**: task / lượt giữ của dự án **đã đóng** bị xoá sau `project.closed_data_retention` (90 ngày) nên bảng chỉ lớn theo dự án đang sống (kiến trúc 3.14, L10). Partition chưa làm | TB | P2 |
 
 ---
 
@@ -78,6 +78,7 @@ Danh sách mọi rủi ro kỹ thuật, bảo mật, pháp lý và sản phẩm 
 | Q-07 | Dawid–Skene cần đủ dữ liệu mới hội tụ | Ước lượng độ tin cậy sai ở giai đoạn đầu | Dùng câu vàng làm mồi; chỉ bật DS khi mỗi labeler đủ n mẫu | CAO | P3 |
 | Q-08 | Redundancy thích ứng tăng vô hạn với mẫu thật sự mơ hồ | Đốt hết ngân sách vào vài mẫu | Trần redundancy; vượt trần thì đánh dấu "không quyết được" và trả về doanh nghiệp | CAO | P3 |
 | Q-09 | Nhãn chất lượng thấp từ cổng link trộn vào tập chính | Dữ liệu bẩn, doanh nghiệp mất niềm tin | Thuộc tính `source` trên mọi nhãn; doanh nghiệp tự chọn chấp nhận nguồn nào | TB | P2 |
+| Q-10 | **Uy tín đếm thiếu khi nhiều task của cùng một labeler được quyết định song song**: mỗi transaction đếm `label_agreements` chỉ thấy dòng của mình + dòng đã commit, rồi ghi đè lên nhau (khoá dòng `reputations` lấy **sau** khi đếm; labeler mới chưa có dòng để khoá) | `agree_total` thiếu, điểm uy tín sai cho tới lần cập nhật kế tiếp của labeler đó | **Đã làm**: `pg_advisory_xact_lock` theo labeler **trước** khi đếm (`cap_nhat_uy_tin`); bên sau chờ bên trước commit rồi mới đếm. Phát hiện bởi `e2e_luu_tru.py`, ép tái hiện bằng `ep_race_uy_tin.py` (trước sửa 2/3 vòng sai, sau sửa 5/5 đúng) | CAO | P3 |
 
 ---
 
@@ -147,8 +148,8 @@ Danh sách mọi rủi ro kỹ thuật, bảo mật, pháp lý và sản phẩm 
 
 | Mã | Vấn đề | Hậu quả | Hướng giải | Mức | Phase |
 |---|---|---|---|---|---|
-| P-01 | Rò ảnh gốc của doanh nghiệp ra ngoài | Vi phạm NDA, mất khách hàng lớn | Stream qua proxy + watermark chìm mang `labelerId`; chặn tải trực tiếp; client không bao giờ biết key trên object storage | CAO | P6 |
-| P-02 | PII trong dataset: khuôn mặt, biển số, số CCCD | Vi phạm quy định dữ liệu cá nhân | Blur tự động lúc ingest, sinh bản derived; bản gốc không ai chạm | CAO | P6 |
+| P-01 | Rò ảnh gốc của doanh nghiệp ra ngoài | Vi phạm NDA, mất khách hàng lớn | Stream qua proxy + watermark chìm mang `labelerId`; chặn tải trực tiếp; client không bao giờ biết key trên object storage. **Đã làm** ([kiến trúc 3.13](kien-truc-backend.md#313-bảo-vệ-dữ-liệu-chặn-tải-bản-gốc-watermark-chìm)): mọi link file qua media-svc bằng token AES-GCM 5 phút; labeler / reviewer / khách nhận ảnh có watermark chìm mang mã của chính họ (bền với nén JPEG 50, thu nhỏ); admin giải mã ảnh bị lộ ra người. Giới hạn: không chặn được chụp màn hình; watermark không chịu được cắt xén; âm thanh / video không watermark | CAO | P6 |
+| P-02 | PII trong dataset: khuôn mặt, biển số, số CCCD | Vi phạm quy định dữ liệu cá nhân | Blur tự động lúc ingest, sinh bản derived; bản gốc không ai chạm. **Không làm** (quyết định 2026-10-13): che tự động xung đột với dự án gán nhãn chính khuôn mặt / biển số; doanh nghiệp tự chịu trách nhiệm dữ liệu mình đưa lên (điều khoản) và tự che trước nếu cần | CAO | P6 |
 | P-03 | Không truy được ai đã xem mẫu nào | Không điều tra được khi có rò rỉ | Audit log append-only: ai, mẫu nào, lúc nào, bao lâu (FP-06). **Đã làm một phần**: admin-svc ghi mọi event nghiệp vụ vào `audit_events` (tra cứu theo loại / user / thời gian, giữ `admin.audit_retention_days`). **Chưa có** lượt *xem mẫu* (cần media-svc) và chưa chặn sửa bảng ở mức quyền DB | CAO | P6 |
 | P-04 | Nội dung nhạy cảm hiển thị cho tài khoản chưa xác minh tuổi | Rủi ro pháp lý và đạo đức | Xác minh 18+; chế độ mờ mặc định; người dùng chủ động bỏ mờ | CAO | P6 |
 | P-05 | Phơi nhiễm nội dung độc hại kéo dài | Tổn hại sức khỏe tâm lý labeler | Cảnh báo trước + đồng ý rõ ràng; giới hạn thời gian liên tục; ép nghỉ giữa phiên; cho rời bất kỳ lúc nào không bị phạt | CAO | P6 |
@@ -167,6 +168,9 @@ Danh sách mọi rủi ro kỹ thuật, bảo mật, pháp lý và sản phẩm 
 | O-05 | Log phân tán ở 17 nơi | Không tra cứu được sự cố | Log tập trung, format JSON, luôn kèm `correlationId` | CAO | P1 |
 | O-06 | Chưa từng chạy full profile trước ngày bảo vệ | Vỡ trận lúc demo | Ít nhất một lần chạy đầy đủ + kịch bản demo có sẵn dữ liệu mẫu | CAO | P6 |
 | O-07 | Khởi động chậm do phụ thuộc chéo | Dev khó chịu, CI chậm | Healthcheck + `depends_on: service_healthy` + retry kết nối có backoff | TB | P0 |
+| O-08 | **Bảng hạ tầng lớn không giới hạn**: `outbox` đã gửi, `processed_events`, nhật ký audit của event tần suất cao, refresh token đã xoay — đo trên dev chiếm hơn nửa dung lượng 11 database | Đĩa đầy, backup / vacuum chậm dần; không liên quan lượng dữ liệu có ích | **Đã làm** (kiến trúc 3.14, L1–L7): hạn giữ là setting + worker xoá theo lô ở mọi service; audit đếm theo ngày, chỉ lưu chi tiết thao tác quan trọng; một dòng mỗi phiên đăng nhập; bỏ event không ai nghe (`task.leased`). Còn lại: partition theo thời gian để xoá bằng `DROP PARTITION` | CAO | P1 |
+| O-09 | **Cùng một dữ liệu lưu nhiều nơi**: nội dung mẫu chép vào từng nhãn; trạng thái email / KYB chép sang ledger, project; gate giữ mẫu của dự án không dùng cổng link | Tốn chỗ gấp nhiều lần, thêm consumer phải giữ đồng bộ | **Đã làm** (3.14, L4, L8, L9): mẫu lưu một lần (`annotation_samples`); email / KYB đi theo claim của access token; gate chỉ giữ mẫu dự án bật cổng link. Đánh đổi: client phải làm mới token sau khi xác thực | TB | P1 |
+| O-10 | Dữ liệu vận hành của dự án đã đóng (task, lượt giữ, nhãn thô để tính đồng thuận) nằm lại mãi | Bảng nóng nhất hệ thống lớn theo tổng số dự án từng chạy | **Đã làm** (3.14, L10): chụp tiến độ + báo cáo chất lượng rồi xoá sau `project.closed_data_retention`; dữ liệu tính uy tín, nhãn đã duyệt, sổ cái giữ nguyên. Còn lại: file MinIO của dự án đã đóng, `annotation_history` | TB | P2 |
 
 ---
 

@@ -106,36 +106,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.ToTable("outbox", (string)null);
                 });
 
-            modelBuilder.Entity("Crowd.Project.Domain.Businesses.EmailStatus", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<bool>("Verified")
-                        .HasColumnType("boolean")
-                        .HasColumnName("verified");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("email_status", (string)null);
-                });
-
-            modelBuilder.Entity("Crowd.Project.Domain.Businesses.VerifiedBusiness", b =>
-                {
-                    b.Property<Guid>("BusinessId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("business_id");
-
-                    b.Property<DateTimeOffset>("VerifiedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("verified_at");
-
-                    b.HasKey("BusinessId");
-
-                    b.ToTable("verified_businesses", (string)null);
-                });
-
             modelBuilder.Entity("Crowd.Project.Domain.Datasets.Dataset", b =>
                 {
                     b.Property<Guid>("Id")

@@ -1,4 +1,5 @@
 using System;
+using Crowd.Tasking.Domain.Common;
 using Crowd.Labeling;
 
 namespace Crowd.Tasking.Domain.Projects
@@ -93,6 +94,15 @@ namespace Crowd.Tasking.Domain.Projects
         /// <summary>occurredAt cua gold_set.updated gan nhat da ap dung.</summary>
         public DateTimeOffset GoldSetAt { get; private set; }
 
+        /// <summary>
+        /// Tien do CUOI CUNG (JSON cua ProgressResponse), chup lai TRUOC khi xoa task / luot giu cua du an
+        /// da dong. Co gia tri = da bat dau don; tu do API tien do tra ban chup nay thay vi dem bang tasks.
+        /// </summary>
+        public string? FinalProgressJson { get; private set; }
+
+        /// <summary>Luc xoa XONG du lieu van hanh cua du an. null = chua don (hoac dang don do, lan sau don tiep).</summary>
+        public DateTimeOffset? DataPurgedAt { get; private set; }
+
         /// <summary>Du an vua duoc nhac toi lan dau (thuong la qua dataset.ingested).</summary>
         public static ProjectSnapshot TaoChuaPublish(Guid projectId, DateTimeOffset occurredAt)
         {
@@ -157,6 +167,38 @@ namespace Crowd.Tasking.Domain.Projects
         public bool Dong(DateTimeOffset occurredAt)
         {
             return DoiTrangThaiNeuMoiHon(SnapshotStatus.Closed, occurredAt);
+        }
+
+        /// <summary>Chup tien do cuoi — chi du an DA DONG, va chi mot lan (lan sau giu ban dau).</summary>
+        public void ChupTienDoCuoi(string tienDoJson)
+        {
+            if (string.IsNullOrWhiteSpace(tienDoJson))
+            {
+                throw new ArgumentException("Thieu tien do.", nameof(tienDoJson));
+            }
+
+            if (Status != SnapshotStatus.Closed)
+            {
+                throw new RuleViolationException("du_an_chua_dong", "Chi don du lieu van hanh cua du an da dong.");
+            }
+
+            if (FinalProgressJson == null)
+            {
+                FinalProgressJson = tienDoJson;
+            }
+        }
+
+        public void DanhDauDaDon(DateTimeOffset luc)
+        {
+            if (FinalProgressJson == null)
+            {
+                throw new InvalidOperationException("Phai chup tien do cuoi truoc khi danh dau da don.");
+            }
+
+            if (DataPurgedAt == null)
+            {
+                DataPurgedAt = luc;
+            }
         }
 
         /// <summary>

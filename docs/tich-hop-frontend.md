@@ -23,6 +23,7 @@ Mục lục:
 13. [Xác minh doanh nghiệp (KYB)](#13-xác-minh-doanh-nghiệp-kyb)
 14. [Thông báo trong ứng dụng và email](#14-thông-báo-trong-ứng-dụng-và-email)
 15. [Hồ sơ, kỹ năng, cấp độ, bảng xếp hạng](#15-hồ-sơ-kỹ-năng-cấp-độ-bảng-xếp-hạng)
+16. [Bảo vệ dữ liệu: link xem file, watermark](#16-bảo-vệ-dữ-liệu-link-xem-file-watermark)
 
 ---
 
@@ -40,6 +41,7 @@ Mục lục:
 | Phân trang | Query `page` (từ 1) và `pageSize` (1–100, mặc định 20). Response: `{ "items": [...], "page", "pageSize", "total" }` |
 | Xác thực | Header `Authorization: Bearer <accessToken>` cho mọi API trừ `/auth/*` |
 | Idempotency | Hai API tiền bắt buộc header `Idempotency-Key` (mục 4.1, 5.7) |
+| File mẫu (ảnh / âm thanh / video) | `fileUrl` là link qua gateway dạng `{gateway}/media/v/{token}`, **gắn thẳng** vào `<img>` / `<audio>` / `<video>` (không cần header, token chính là quyền xem). Sống 5 phút; hết hạn → 410 `link_het_han`, gọi lại API đã trả link để lấy link mới. Chi tiết mục 16 |
 | Mã thiết bị | Workspace gán nhãn nên gửi header `X-Device-Id: <uuid>` khi nộp nhãn — sinh một lần, lưu `localStorage`. Dùng cho chống gian lận (nhiều tài khoản một máy); không gửi vẫn nộp được |
 | Giới hạn tần suất | Gateway đếm theo phút: mọi API 600 lần / người dùng (chưa đăng nhập: theo IP); đăng nhập / đăng ký / quên – đặt lại mật khẩu / xác thực email 20 lần / IP; tạo lệnh nạp / rút 30 lần. Vượt → **429** (mục bảng mã HTTP) |
 
@@ -114,7 +116,7 @@ Dùng `roles` để chọn giao diện. Một tài khoản có thể có nhiều
 | Token | Sống | Ghi chú |
 |---|---|---|
 | `accessToken` | 15 phút (`expiresIn` giây) | JWT, gửi trong header |
-| `refreshToken` | 14 ngày | **Dùng một lần**: mỗi lần làm mới trả cặp token mới, token cũ hết hiệu lực |
+| `refreshToken` | 14 ngày **kể từ lần làm mới gần nhất** | **Dùng một lần**: mỗi lần làm mới trả cặp token mới, token cũ hết hiệu lực. Chuỗi mờ dạng `<mã phiên>.<bí mật>` — frontend không cần đọc bên trong |
 
 ```http
 POST /auth/refresh   { "refreshToken": "..." }   → 200 cặp token mới | 401 phien_khong_hop_le (kể cả khi tài khoản vừa bị khoá)
@@ -124,8 +126,18 @@ POST /auth/logout    { "refreshToken": "..." }   → 204 (luôn 204)
 Cách làm khuyến nghị:
 
 - Gặp 401 thì gọi `/auth/refresh` **một lần duy nhất** (khóa lại để nhiều request song song không cùng làm mới), lưu cặp mới, rồi gọi lại request cũ. Refresh cũng 401 thì đưa về trang đăng nhập.
-- **Không dùng lại refresh token cũ.** Backend coi việc dùng lại một token đã xoay là dấu hiệu bị đánh cắp và thu hồi **cả họ token**: mọi tab/thiết bị đang dùng họ đó phải đăng nhập lại. Hai tab cùng làm mới bằng một token cũng gây ra chuyện này, nên đồng bộ token giữa các tab (ví dụ BroadcastChannel).
+- **Không dùng lại refresh token cũ.** Mỗi lần đăng nhập mở một **phiên** (một thiết bị / trình duyệt); backend chỉ nhớ token hiện tại của phiên. Dùng lại một token đã xoay bị coi là dấu hiệu bị đánh cắp và **thu hồi cả phiên đó**: mọi tab dùng chung phiên phải đăng nhập lại (thiết bị khác — phiên khác — không ảnh hưởng). Hai tab cùng làm mới bằng một token cũng gây ra chuyện này, nên đồng bộ token giữa các tab (ví dụ BroadcastChannel).
+- **Sau khi triển khai bản backend này, mọi người dùng phải đăng nhập lại một lần** (refresh token cấp trước đó trả 401).
 - 401 có `code: "phien_da_bi_thu_hoi"` thì **bỏ qua bước refresh**, đưa thẳng về trang đăng nhập (mục 2.6).
+
+**Claim trong access token.** Ngoài `sub`, `role`, token mang hai cờ mà backend dùng để chặn rút tiền / publish:
+
+| Claim | Ý nghĩa | Đổi khi nào |
+|---|---|---|
+| `email_verified` | Đã xác thực email | Sau `POST /auth/verify-email` |
+| `kyb_verified` | Doanh nghiệp đã được admin duyệt KYB | Sau khi admin duyệt (mục 13) |
+
+Hai cờ được ghi **lúc cấp token**, nên token đang cầm vẫn mang giá trị cũ. **Ngay sau khi xác thực email hoặc nhận thông báo "đã xác minh doanh nghiệp", gọi `POST /auth/refresh` một lần** rồi mới cho rút tiền / publish. Không làm thì người dùng vẫn bị 409 `chua_xac_thuc_email` / `chua_xac_minh_doanh_nghiep` cho tới khi token tự hết hạn (tối đa 15 phút). Để hiển thị giao diện vẫn dùng `GET /me/profile` (`emailVerified`) và `GET /kyb/me` (`status`) — không cần giải mã token.
 
 ### 2.4 Xác thực email
 
@@ -141,7 +153,7 @@ POST /me/verify-email/resend                     (đã đăng nhập)
 ```
 
 - `GET /me/profile` có `emailVerified` — hiện thanh nhắc "Xác thực email để rút tiền / publish dự án" khi `false`.
-- Sau khi xác thực, rút tiền / publish hết trả 409 `chua_xac_thuc_email` sau khoảng 1 giây (mục 8).
+- Sau khi xác thực, **gọi `POST /auth/refresh`** để lấy access token mới mang `email_verified = true` (mục 2.3); token cũ vẫn bị rút tiền / publish trả 409 `chua_xac_thuc_email`. Nếu người dùng bấm link xác thực trên thiết bị khác, thiết bị đang mở chỉ cần làm mới token khi gặp 409 này.
 - Domain trang frontend lấy từ setting `identity.frontend_url` (mặc định `http://localhost:5173`).
 
 ### 2.5 Quên, đặt lại, đổi mật khẩu
@@ -222,6 +234,7 @@ Lưu ý: mốc thu hồi tính theo **giây** — token cấp trong cùng giây 
 | | Hồ sơ nghi gian lận | `GET /quality/admin/fraud-cases`, `GET /quality/admin/fraud-cases/{id}`, `POST /quality/admin/fraud-cases/{id}/resolve` (mục 7.6) |
 | | Nhật ký hệ thống, báo cáo tổng quan | `GET /admin/audit`, `GET /admin/stats/overview` (mục 7.7) |
 | | Thông báo toàn hệ thống | `POST /admin/announcements`, `GET /admin/announcements` (mục 7.8) |
+| | Truy người làm lộ ảnh | `POST /media/admin/watermark/decode` (mục 16.2) |
 
 ---
 
@@ -511,7 +524,8 @@ GET /projects/{id}/readiness
 ```http
 POST /projects/{id}/publish
 → 200 ProjectResponse { "status": "pendingEscrow" }
-→ 409 chua_xac_minh_doanh_nghiep   (hồ sơ KYB chưa được admin duyệt — mục 13)
+→ 409 chua_xac_minh_doanh_nghiep   (hồ sơ KYB chưa được admin duyệt — mục 13; đã duyệt mà vẫn 409 → làm mới token, mục 2.3)
+→ 409 chua_xac_thuc_email            (chưa xác thực email, hoặc token chưa được làm mới sau khi xác thực)
 ```
 
 Nên gọi `GET /kyb/me` trước khi mở checklist: `status` khác `verified` thì hiện thẻ "Xác minh doanh nghiệp" đứng đầu checklist và khoá nút publish. Các bước còn lại (tạo dự án, tập nhãn, nạp dữ liệu, nạp tiền) **không** cần KYB.
@@ -527,11 +541,13 @@ Sau đó hỏi lại `GET /projects/{id}` mỗi 1–2 giây trong tối đa ~30 
 GET /tasks/projects/{id}/progress
 → { "projectId", "totalTasks": 120, "openTasks": 80, "completedTasks": 35, "excludedTasks": 5,
     "activeLeases": 3, "submissions": 82, "requiredSubmissions": 230,
-    "cancelledTasks": 2, "submissionsLast24h": 40, "estimatedCompletionAt": "2026-10-16T09:00:00+00:00" }
+    "cancelledTasks": 2, "submissionsLast24h": 40, "estimatedCompletionAt": "2026-10-16T09:00:00+00:00",
+    "frozenAt": null }
 ```
 
 - `excludedTasks`: câu hỏi vàng (không tính vào việc phải làm). `cancelledTasks`: task bị huỷ (dự án huỷ, hoặc mẫu bị loại vì báo lỗi — mục 4.13).
 - `estimatedCompletionAt` (FB-20): ngoại suy từ tốc độ nộp 24 giờ qua; `null` khi 24 giờ qua không ai nộp ("chưa ước tính được").
+- `frozenAt` có giá trị: dự án đã đóng lâu (mặc định 90 ngày) và dữ liệu vận hành đã được dọn — các con số là **bản chụp lúc dọn**, không đổi nữa; `submissionsLast24h` = 0, `estimatedCompletionAt` = `null`. Hiện ghi chú "số liệu chốt ngày …". Khi đó danh sách báo lỗi task (mục 4.13) của dự án trả rỗng.
 
 **Chi phí dự án** (FB-20) — số liệu từ sổ cái:
 
@@ -703,7 +719,8 @@ GET /quality/projects/{id}/summary
     "agreed": 7, "disputed": 0, "notApplicable": 0, "waitingMoreLabels": 0,
     "redundancyIncreases": 1,
     "goldAnswers": 2, "goldAccuracyPercent": 50,
-    "tools": [ { "tool": "cam_xuc", "krippendorffAlpha": 0.81, "itemCount": 7, "labelCount": 14, "computedAt": "..." } ] }
+    "tools": [ { "tool": "cam_xuc", "krippendorffAlpha": 0.81, "itemCount": 7, "labelCount": 14, "computedAt": "..." } ],
+    "archivedAt": null }
 ```
 
 | Trường | Ý nghĩa |
@@ -713,6 +730,7 @@ GET /quality/projects/{id}/summary
 | `waitingMoreLabels` | Task đang tranh chấp, đã xin thêm người, chờ người gán tiếp |
 | `redundancyIncreases` | Tổng số lần đã xin thêm người |
 | `goldAccuracyPercent` | Tỉ lệ trả lời đúng câu vàng kiểm tra của cả dự án; `null` khi chưa có câu nào |
+| `archivedAt` | `null` = số liệu sống. Có giá trị = dự án đã đóng lâu, nhãn thô đã được dọn; cả `summary` và `labelers` là **bản chụp lúc lưu trữ** (riêng `reputation` của labeler luôn là điểm hiện tại). Hiện ghi chú "số liệu chốt ngày …" |
 | `tools[].krippendorffAlpha` | Mức đồng thuận đã trừ phần trùng hợp ngẫu nhiên (1 = hoàn toàn nhất trí, ≤ 0 = như đoán bừa). Chỉ có cho công cụ phân loại một lớp và so sánh cặp; cập nhật theo lô (mặc định 15 phút) |
 
 ```http
@@ -923,7 +941,7 @@ GET /ledger/me/earnings?from=2026-10-01&to=2026-10-31&groupBy=day|project
 {
   "assignmentId": "...", "projectId": "...", "taskId": "...", "sampleId": "...",
   "modality": "audio",
-  "fileUrl": "http://localhost:9000/datasets/...wav?X-Amz-...",
+  "fileUrl": "http://localhost:8080/media/v/ZGVmZ2hp...",
   "content": null,
   "metadata": { "durationSec": 10, "segmentStart": 10, "segmentEnd": 20, "sourceDurationSec": 25 },
   "labelSchema": {
@@ -942,7 +960,7 @@ GET /ledger/me/earnings?from=2026-10-01&to=2026-10-31&groupBy=day|project
 | Trường | Ý nghĩa |
 |---|---|
 | `modality` | Chọn khung hiển thị mẫu: ảnh, văn bản, player âm thanh, player video, hai cột A/B |
-| `fileUrl` | Link xem / nghe file, sống 5 phút. `null` với text / pair. Hết hạn khi đang làm thì gọi lại `next` (trả lại đúng task, kèm link mới) |
+| `fileUrl` | Link xem / nghe file qua media-svc, sống 5 phút. `null` với text / pair. Ảnh labeler nhận có **watermark chìm** mang mã của chính họ (không nhìn thấy, không đổi kích thước — mục 16). Hết hạn khi đang làm thì gọi lại `next` (trả lại đúng task, kèm link mới) |
 | `content` | Nội dung text (`{"text"}`) hoặc pair (`{"prompt"?, "a", "b"}`). `null` với dữ liệu file |
 | `metadata` | Thông tin mẫu, chỉ có những trường liên quan: `width`, `height` (ảnh, video), `durationSec`, `segmentStart`, `segmentEnd`, `sourceDurationSec` (audio, video), `length` (text) |
 | `labelSchema` | Danh sách công cụ, **đã điền đủ giá trị mặc định**. Mỗi công cụ là một khối trên màn hình, theo đúng thứ tự trong mảng |
@@ -1489,7 +1507,7 @@ POST /quality/admin/fraud-cases/{id}/resolve   { "action": "dismiss" | "confirm"
 
 ### 7.7 Nhật ký hệ thống và báo cáo (FP-06, FM-09)
 
-admin-svc ghi lại **mọi sự kiện nghiệp vụ** (ai làm gì, lúc nào) — giữ 365 ngày (`admin.audit_retention_days`).
+admin-svc ghi lại **các thao tác nghiệp vụ quan trọng** (ai làm gì, lúc nào: tài khoản, KYB, dự án, nạp / rút, tranh chấp, gian lận, setting…) — giữ 365 ngày (`admin.audit_retention_days`). Sự kiện phát sinh theo **từng lượt nộp / từng nhãn / từng click** (`annotation.submitted`, `annotation.approved`, `consensus.reached`, `funds.held`…) **không lưu chi tiết** ở đây (danh sách: setting `admin.audit_excluded_types`) nhưng vẫn được **đếm** cho báo cáo bên dưới; muốn xem lịch sử một nhãn thì dùng `GET /annotations/{id}/history`.
 
 ```http
 GET /admin/audit?actorId=&eventType=project.published&correlationId=&from=2026-10-01T00:00:00Z&to=&page=1&pageSize=50
@@ -1498,7 +1516,8 @@ GET /admin/audit?actorId=&eventType=project.published&correlationId=&from=2026-1
 ```
 
 - Mới nhất trước. `correlationId`: mọi sự kiện sinh ra từ cùng một thao tác của người dùng (ví dụ publish → ký quỹ → sinh task) — dùng để xem "thao tác này kéo theo những gì".
-- Payload lớn hơn 64 KB bị cắt (`payload` = `{ "_truncated": true, "bytes": 81234 }`). Một số loại phát sinh rất nhiều không được ghi (`admin.audit_excluded_types`).
+- Payload lớn hơn 64 KB bị cắt (`payload` = `{ "_truncated": true, "bytes": 81234 }`).
+- Lọc `eventType=annotation.submitted` (hoặc loại khác trong `admin.audit_excluded_types`) chỉ ra các bản ghi **cũ** từ trước khi loại đó bị loại trừ — không phải lỗi.
 
 ```http
 GET /admin/stats/overview?from=2026-10-01&to=2026-10-31          (ngày giờ Việt Nam, mặc định 30 ngày)
@@ -1510,7 +1529,7 @@ GET /admin/stats/overview?from=2026-10-01&to=2026-10-31          (ngày giờ Vi
     "daily": [ { "date": "2026-10-05", "newUsers", "annotationsSubmitted", "annotationsApproved", "depositsVnd" } ] }
 ```
 
-Số liệu đếm từ nhật ký nên **chỉ có từ `auditSince`** (lúc bắt đầu ghi nhật ký) — hiện ghi chú "số liệu từ ngày …" khi `from` sớm hơn.
+Số liệu lấy từ bảng đếm theo ngày (mọi sự kiện đều được đếm, kể cả loại không lưu chi tiết) nên **chỉ có từ `auditSince`** (lúc bắt đầu ghi) — hiện ghi chú "số liệu từ ngày …" khi `from` sớm hơn.
 
 ### 7.8 Thông báo toàn hệ thống (FM-09)
 
@@ -1543,8 +1562,8 @@ Các service trao đổi với nhau qua hàng đợi sự kiện, nên một s�
 | Rút tiền | `withdrawals/mine` → `completed` / `failed` | Mỗi vài giây. Lệnh `pendingApproval` chờ người duyệt: không polling, hỏi lại khi mở trang |
 | Admin duyệt rút / nạp chuyển khoản | Số dư người dùng đổi | Vài giây |
 | Admin đổi setting | Mọi service áp dụng | Thường < 1 giây; service đang tắt sẽ nhận khi bật lại |
-| Admin duyệt KYB | `POST /projects/{id}/publish` hết trả 409 `chua_xac_minh_doanh_nghiep` | Thường < 1 giây. Gặp 409 ngay sau khi nhận thông báo "đã xác minh" thì thử lại sau 1–2 giây |
-| Xác thực email | Rút tiền / publish hết trả 409 `chua_xac_thuc_email` | Thường < 1 giây |
+| Admin duyệt KYB | `POST /projects/{id}/publish` hết trả 409 `chua_xac_minh_doanh_nghiep` | **Làm mới token** (`POST /auth/refresh`) khi nhận thông báo "đã xác minh" hoặc khi `GET /kyb/me` chuyển `verified` — có hiệu lực ngay với token mới |
+| Xác thực email | Rút tiền / publish hết trả 409 `chua_xac_thuc_email` | **Làm mới token** ngay sau `POST /auth/verify-email` — có hiệu lực ngay với token mới |
 | Nhãn được duyệt | `GET /me/level` tăng `approvedCount`, có thể lên cấp / có huy hiệu | Vài giây |
 | Đổi mật khẩu, đăng xuất mọi nơi, bị khoá | Token cũ bị 401 `phien_da_bi_thu_hoi` | Vài trăm ms |
 | Bất kỳ sự kiện nào ở trên | Thông báo mới ở `GET /notifications/me/unread-count` | Hỏi mỗi 30 giây khi tab đang mở (mục 14) |
@@ -1632,6 +1651,10 @@ Danh sách các `code` thường gặp để frontend dịch. Mã không có tro
 | `nhom_khong_hop_le`, `khoang_ngay_khong_hop_le` | 400 | Thống kê sai `groupBy` / khoảng ngày (tối đa 366 ngày) |
 | `ho_so_da_xu_ly` | 409 | (admin) Hồ sơ gian lận đã xử lý |
 | `tieu_de_khong_hop_le`, `noi_dung_khong_hop_le`, `doi_tuong_khong_hop_le` | 400 | (admin) Thông báo toàn hệ thống sai |
+| `link_khong_hop_le` | 403 | Link xem file sai / bị sửa (mục 16) |
+| `link_het_han` | 410 | Link xem file quá 5 phút — lấy link mới từ API đã trả nó |
+| `khong_co_file`, `anh_hong` | 404 / 409 | File mẫu không còn trong kho / ảnh hỏng không gắn được watermark |
+| `anh_khong_hop_le`, `kich_thuoc_khong_hop_le`, `file_qua_lon` | 400 / 413 | (admin) Giải mã watermark: file không phải ảnh / width–height sai / ảnh > 20 MB |
 
 ---
 
@@ -1670,6 +1693,7 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 | Bản nháp | ≤ 256 KB mỗi lượt giữ task |
 | Báo lỗi task | 3 người báo → task tự huỷ (`task.report_auto_exclude`) |
 | Bảng xếp hạng / hồ sơ công khai | ≤ 100 người mỗi lần |
+| Link xem file mẫu | 5 phút (`storage.view_link_ttl`) |
 
 ---
 
@@ -1677,7 +1701,7 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 
 | Mục | Ảnh hưởng tới frontend |
 |---|---|
-| Upload thẳng lên MinIO | Link trỏ tới `http://localhost:9000` ở dev. Trình duyệt báo lỗi CORS khi `PUT` thì cấu hình MinIO cho phép origin của frontend (biến môi trường `MINIO_API_CORS_ALLOW_ORIGIN`) |
+| Upload thẳng lên MinIO | Chỉ **tải lên** còn đi thẳng MinIO (xem file thì qua media-svc, mục 16). Link upload trỏ tới `http://localhost:9000` ở dev. Trình duyệt báo lỗi CORS khi `PUT` thì cấu hình MinIO cho phép origin của frontend (biến môi trường `MINIO_API_CORS_ALLOW_ORIGIN`) |
 | Không có WebSocket / thông báo đẩy | Thông báo đã có (mục 14) nhưng frontend phải tự hỏi `unread-count`; trạng thái từng màn hình vẫn polling theo mục 8 |
 | Chưa xác minh tự động với cơ quan thuế | Admin tự đối chiếu giấy phép và mã số thuế (mục 13.2). Hồ sơ đã xác minh không sửa được qua API |
 | Chưa gộp tự động khung, đa giác, đoạn văn bản, chép lời, đoạn thời gian | Màn hình kết quả hiện danh sách nhãn đã duyệt của từng người (`labels`) |
@@ -1854,6 +1878,19 @@ POST /kyb/admin/{businessId}/reject  { "reason": "Giấy phép bị mờ" }   �
 - `status` lọc được cả `verified` / `rejected` / `draft` để tra cứu.
 - Mở chi tiết mới có `licenseUrl`; link hết hạn thì gọi lại API chi tiết. Ảnh hiện bằng `<img>`, PDF bằng `<iframe>` hoặc mở tab mới.
 - Duyệt / từ chối hồ sơ không còn chờ (admin khác vừa xử lý) → **409** `khong_cho_duyet`. Từ chối thiếu lý do → **400** `thieu_ly_do`.
+- Sau khi duyệt, doanh nghiệp phải **làm mới token** mới publish được (mục 2.3) — phía doanh nghiệp tự làm khi thấy `GET /kyb/me` là `verified`.
+
+**Dọn dữ liệu dự án đã đóng (admin, hiếm dùng).** Hệ thống tự dọn dữ liệu vận hành của dự án đã hoàn thành / huỷ sau `project.closed_data_retention` (mặc định 90 ngày; đặt 0 để tắt). Muốn dọn ngay một dự án:
+
+```http
+POST /tasks/admin/projects/{projectId}/purge
+→ 200 { "projectId", "purgedAt", "purgedNow": true, "deletedTasks": 120, "deletedAssignments": 240, "deletedReports": 0, "deletedGoldSamples": 5 }
+POST /quality/admin/projects/{projectId}/archive
+→ 200 { "projectId", "purgedAt", "purgedNow": true, "deleted": { "labels": 240, "consensus_rounds": 120, "task_targets": 120, "ds_state": 1 } }
+→ 409 du_an_chua_dong (dự án chưa hoàn thành / huỷ) | 404 khong_tim_thay
+```
+
+Gọi lại lần hai trả `purgedNow: false` (không xoá gì thêm). Nhãn đã duyệt, kết quả, tiền, mẫu và uy tín labeler **không** bị xoá; tiến độ và báo cáo chất lượng vẫn xem được dưới dạng bản chụp (`frozenAt` — mục 4.9, `archivedAt` — mục 4.12).
 
 ---
 
@@ -1958,3 +1995,49 @@ GET /users/leaderboard?period=all|month|week&limit=20
 - Huy hiệu: `moc_100`, `moc_1000`, `moc_10000` (số nhãn được duyệt), `uy_tin_cao`. Nhận rồi thì giữ.
 - Bảng xếp hạng theo số nhãn được duyệt trong kỳ: `all` (từ trước tới nay), `month` (30 ngày gần nhất), `week` (7 ngày gần nhất), tính theo ngày giờ Việt Nam. `limit` 1–100, mặc định 20. `period` sai → 400 `ky_khong_hop_le`.
 - Dự án có thể đặt `minLevel` (mục 4.5): dưới mức đó `next` trả 403 `chua_du_cap_do`.
+
+---
+
+## 16. Bảo vệ dữ liệu: link xem file, watermark
+
+Mọi file mẫu (ảnh, âm thanh, video) đi qua **media-svc**. Frontend không thấy địa chỉ kho file, chỉ nhận link `/media/v/{token}` sống 5 phút.
+
+| Ai xem | Ở đâu | Nhận bản nào |
+|---|---|---|
+| Chủ dự án, admin | `GET /projects/{id}/samples`, màn duyệt nhãn | **Bản gốc** |
+| Labeler | Task (`next`, `assignments/mine`), bài test đầu vào | Ảnh có **watermark chìm** mang mã của labeler |
+| Reviewer (không phải chủ dự án) | Màn duyệt nhãn | Ảnh có watermark của reviewer |
+| Khách cổng link | Trang vượt link | Ảnh có watermark của phiên vượt link |
+
+- Watermark **không nhìn thấy** và không đổi kích thước ảnh: vẽ khung / đa giác như bình thường.
+- Âm thanh / video: phát qua proxy, hỗ trợ tua (`Range`), không watermark.
+- Response có `Cache-Control: no-store` và `Content-Disposition: inline`. Có thể chặn chuột phải / kéo thả ảnh ở UI cho đỡ tiện tay, nhưng **không** chặn được chụp màn hình — watermark là để truy ra người làm lộ.
+- Admin tắt được watermark bằng setting `media.watermark_enabled` (khi đó labeler nhận bản gốc).
+
+### 16.1 Hiển thị ảnh / file
+
+```html
+<img src="{fileUrl}">    <audio src="{fileUrl}" controls>    <video src="{fileUrl}" controls>
+```
+
+| Mã | Khi nào | FE làm gì |
+|---|---|---|
+| 200 / 206 | Bình thường (206: đoạn khi tua) | |
+| 403 `link_khong_hop_le` | Link bị sửa / sai | Lấy lại link từ API |
+| 410 `link_het_han` | Quá 5 phút | Gọi lại API đã trả link (`next` trả lại đúng task kèm link mới) |
+| 404 `khong_co_file`, 409 `anh_hong` | File mất / hỏng | Hiện "Không hiển thị được", cho labeler báo lỗi task (mục 5.4) |
+
+Thẻ `<img>` không đọc được mã lỗi: dùng sự kiện `onerror` rồi gọi lại API lấy link mới (một lần); vẫn lỗi thì hiện thông báo.
+
+### 16.2 Admin: truy người làm lộ ảnh
+
+```http
+POST /media/admin/watermark/decode     (multipart: file = ảnh nghi bị lộ; width, height = tuỳ chọn)
+→ { "found": true, "confidence": 0.97, "viewer": { "type": "user", "userId": "...", "guestSessionId": null } }
+→ { "found": false, "confidence": 0.52, "viewer": null }      (không có watermark / bị cắt xén / quá biến dạng)
+```
+
+- `viewer.userId`: tài khoản đã nhận ảnh (labeler / reviewer) — tra thông tin bằng `GET /users/admin?search=` hoặc `GET /users/public?ids=`. `guestSessionId`: khách vãng lai ở cổng link (không có tài khoản).
+- Watermark chứa thẳng người xem (không lưu gì phía server) → API trả về **ai**, không trả về ảnh nào (nhìn ảnh bị lộ là biết).
+- Chịu được nén JPEG, lưu lại, đổi độ sáng. Ảnh bị **thu nhỏ**: gửi kèm `width` / `height` là kích thước gốc của mẫu (`metadata` của mẫu) để hệ thống phóng lại trước khi giải. **Không** chịu được cắt xén.
+- `confidence` ~0,5 là ngẫu nhiên; `found: true` đã qua kiểm CRC-32 nên tin được. Ảnh lớn không có watermark có thể mất vài giây (thử mọi độ mạnh).

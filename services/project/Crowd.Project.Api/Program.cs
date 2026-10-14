@@ -6,7 +6,6 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
-using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
 using Crowd.Project.Api.Consumers;
 using Crowd.Project.Api.Exceptions;
@@ -45,18 +44,11 @@ builder.Services.AddEventConsumer<ProjectDbContext, EscrowReserved, EscrowReserv
     builder.Configuration, "project-svc.escrow-reserved");
 builder.Services.AddEventConsumer<ProjectDbContext, EscrowRejected, EscrowRejectedProcessor>(
     builder.Configuration, "project-svc.escrow-rejected");
-// KYB: doanh nghiep da xac minh moi publish duoc (FB-02).
-builder.Services.AddEventConsumer<ProjectDbContext, BusinessVerified, BusinessVerifiedProcessor>(
-    builder.Configuration, "project-svc.business-verified");
-// Xac thuc email (FC-01): chu du an chua xac thuc thi chua publish duoc.
-builder.Services.AddEventConsumer<ProjectDbContext, UserRegistered, UserRegisteredEmailProcessor>(
-    builder.Configuration, "project-svc.user-registered");
-builder.Services.AddEventConsumer<ProjectDbContext, UserEmailVerified, UserEmailVerifiedProcessor>(
-    builder.Configuration, "project-svc.user-email-verified");
-
 // ---- Kho anh MinIO ----
 builder.Services.Configure<ObjectStorageOptions>(builder.Configuration.GetSection(ObjectStorageOptions.SectionName));
 builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
+// Link xem mau qua media-svc (FP-02/03): chu du an xem ban goc, labeler (bai test) xem ban co watermark.
+builder.Services.AddMediaLinks(builder.Configuration);
 
 // ---- Nghiep vu ----
 builder.Services.Configure<ProjectSagaOptions>(builder.Configuration.GetSection(ProjectSagaOptions.SectionName));

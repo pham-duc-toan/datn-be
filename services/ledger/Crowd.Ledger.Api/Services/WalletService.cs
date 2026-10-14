@@ -191,9 +191,13 @@ namespace Crowd.Ledger.Api.Services
                 throw new ForbiddenException("tai_khoan_bi_khoa", "Tai khoan dang bi khoa, khong rut duoc tien.");
             }
 
-            if (await _db.EmailStatuses.AnyAsync(e => e.UserId == uid && !e.Verified, ct))
+            // FC-01: claim email_verified cua access token (identity cap) — khong giu ban sao. Vua xac thuc
+            // xong ma token cu chua co claim: client lam moi token (POST /auth/refresh) roi goi lai.
+            if (!caller.DaXacThucEmail)
             {
-                throw new RuleViolationException("chua_xac_thuc_email", "Chua xac thuc email — bam link trong email truoc khi rut tien.");
+                throw new RuleViolationException(
+                    "chua_xac_thuc_email",
+                    "Chua xac thuc email — bam link trong email truoc khi rut tien. Vua xac thuc xong thi dang nhap lai / lam moi token.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();

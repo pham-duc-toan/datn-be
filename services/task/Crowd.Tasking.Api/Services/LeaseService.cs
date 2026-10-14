@@ -41,7 +41,7 @@ namespace Crowd.Tasking.Api.Services
         private readonly TaskDbContext _db;
         private readonly TaskEventPublisher _events;
         private readonly LeaseRevoker _revoker;
-        private readonly IObjectStorage _storage;
+        private readonly IMediaLinks _media;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
 
@@ -49,7 +49,7 @@ namespace Crowd.Tasking.Api.Services
             TaskDbContext db,
             TaskEventPublisher events,
             LeaseRevoker revoker,
-            IObjectStorage storage,
+            IMediaLinks media,
             ISettings settings,
             TimeProvider clock)
         {
@@ -68,9 +68,9 @@ namespace Crowd.Tasking.Api.Services
                 throw new ArgumentNullException(nameof(revoker));
             }
 
-            if (storage == null)
+            if (media == null)
             {
-                throw new ArgumentNullException(nameof(storage));
+                throw new ArgumentNullException(nameof(media));
             }
 
             if (settings == null)
@@ -86,7 +86,7 @@ namespace Crowd.Tasking.Api.Services
             _db = db;
             _events = events;
             _revoker = revoker;
-            _storage = storage;
+            _media = media;
             _settings = settings;
             _clock = clock;
         }
@@ -131,7 +131,7 @@ namespace Crowd.Tasking.Api.Services
                     {
                         await tx.CommitAsync(ct);
                         LabelingTask taskCu = await _db.Tasks.FirstAsync(t => t.Id == dangGiu.TaskId, ct);
-                        return await TaoResponseAsync(dangGiu, taskCu, duAn!);
+                        return TaoResponse(dangGiu, taskCu, duAn!);
                     }
 
                     Assignment? khoa = await TaskQueries.KhoaAssignmentAsync(_db, dangGiu.Id, ct);
@@ -149,20 +149,12 @@ namespace Crowd.Tasking.Api.Services
                 if (cauVang != null)
                 {
                     _db.Assignments.Add(cauVang);
-                    _events.Phat(caller, new TaskLeased
-                    {
-                        AssignmentId = cauVang.Id,
-                        TaskId = cauVang.TaskId,
-                        ProjectId = projectId,
-                        LabelerId = labelerId,
-                        ExpiresAt = cauVang.ExpiresAt,
-                    });
 
                     await _db.SaveChangesAsync(ct);
                     await tx.CommitAsync(ct);
 
                     LabelingTask taskVang = await _db.Tasks.AsNoTracking().FirstAsync(t => t.Id == cauVang.TaskId, ct);
-                    return await TaoResponseAsync(cauVang, taskVang, duAn!);
+                    return TaoResponse(cauVang, taskVang, duAn!);
                 }
 
                 // 4. KHOA mot task con cho, ngau nhien trong cua so dau hang doi (SKIP LOCKED, VD-T-06).
@@ -175,21 +167,14 @@ namespace Crowd.Tasking.Api.Services
 
                 // 4. Tao luot lease + tang bo dem — domain kiem lai "con cho khong".
                 Assignment moi = Assignment.Tao(task, labelerId, bayGio, _settings.ThoiGian(SettingKeys.TaskLeaseDuration));
+                // Khong phat event cho moi luot lease: khong service nao can (chong gian lan do toc do tu
+                // assignment.submitted, da mang LeasedAt) — phat chi lam day outbox / bus / audit.
                 _db.Assignments.Add(moi);
-
-                _events.Phat(caller, new TaskLeased
-                {
-                    AssignmentId = moi.Id,
-                    TaskId = task.Id,
-                    ProjectId = projectId,
-                    LabelerId = labelerId,
-                    ExpiresAt = moi.ExpiresAt,
-                });
 
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
 
-                return await TaoResponseAsync(moi, task, duAn!);
+                return TaoResponse(moi, task, duAn!);
             }
             catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "ux_assignments_one_lease_per_project"))
             {
@@ -208,7 +193,7 @@ namespace Crowd.Tasking.Api.Services
                 }
 
                 LabelingTask t = await _db.Tasks.AsNoTracking().FirstAsync(x => x.Id == benThang.TaskId, ct);
-                return await TaoResponseAsync(benThang, t, duAn!);
+                return TaoResponse(benThang, t, duAn!);
             }
             finally
             {
@@ -408,7 +393,7 @@ namespace Crowd.Tasking.Api.Services
             {
                 LabelingTask t = await _db.Tasks.AsNoTracking().FirstAsync(x => x.Id == a.TaskId, ct);
                 ProjectSnapshot p = await _db.ProjectSnapshots.AsNoTracking().FirstAsync(x => x.ProjectId == a.ProjectId, ct);
-                ketQua.Add(await TaoResponseAsync(a, t, p));
+                ketQua.Add(TaoResponse(a, t, p));
             }
 
             return ketQua;
@@ -454,6 +439,26 @@ namespace Crowd.Tasking.Api.Services
                 }
             }
 
+            // Du an da dong va da don du lieu van hanh: tra ban chup tien do cuoi (bang tasks khong con dong nao).
+            string? banChup = await _db.ProjectSnapshots.AsNoTracking()
+                .Where(x => x.ProjectId == projectId)
+                .Select(x => x.FinalProgressJson)
+                .FirstOrDefaultAsync(ct);
+            if (banChup != null)
+            {
+                ProgressResponse? cuoi = JsonSerializer.Deserialize<ProgressResponse>(banChup, JsonSerializerOptions.Web);
+                if (cuoi != null)
+                {
+                    return cuoi;
+                }
+            }
+
+            return await TinhTienDoAsync(projectId, ct);
+        }
+
+        /// <summary>Dem tien do tu bang tasks / assignments — KHONG kiem quyen (noi goi da kiem).</summary>
+        public async Task<ProgressResponse> TinhTienDoAsync(Guid projectId, CancellationToken ct)
+        {
             List<LabelingTask> tasks = await _db.Tasks.AsNoTracking().Where(t => t.ProjectId == projectId).ToListAsync(ct);
 
             int canNop = 0;
@@ -598,8 +603,23 @@ namespace Crowd.Tasking.Api.Services
             return a;
         }
 
-        private async Task<LeaseResponse> TaoResponseAsync(Assignment a, LabelingTask t, ProjectSnapshot p)
+        private LeaseResponse TaoResponse(Assignment a, LabelingTask t, ProjectSnapshot p)
         {
+            // FP-02/03: file qua media-svc — anh mang watermark chim = ma cua labeler;
+            // client khong biet khoa MinIO, khong tai duoc ban goc.
+            string? fileUrl = null;
+            if (t.StorageKey != null)
+            {
+                MauCanXem mau = new MauCanXem
+                {
+                    SampleId = a.SampleId,
+                    ProjectId = a.ProjectId,
+                    StorageKey = t.StorageKey,
+                    Modality = t.Modality,
+                };
+                fileUrl = _media.TaoLink(mau, NguoiXem.Labeler(a.LabelerId), CheDoXem.Watermark);
+            }
+
             return new LeaseResponse
             {
                 AssignmentId = a.Id,
@@ -607,7 +627,7 @@ namespace Crowd.Tasking.Api.Services
                 TaskId = a.TaskId,
                 SampleId = a.SampleId,
                 Modality = t.Modality,
-                FileUrl = t.StorageKey == null ? null : await _storage.TaoLinkXemAsync(t.StorageKey),
+                FileUrl = fileUrl,
                 Content = t.Content,
                 Metadata = t.Metadata,
                 LabelSchema = p.LabelSchema!.ToRawJson(),

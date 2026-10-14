@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.Annotation.Api.Services;
 using Crowd.Annotation.Domain.Annotations;
 using Crowd.Annotation.Infrastructure.Persistence;
 using Crowd.BuildingBlocks.Messaging;
@@ -59,8 +60,8 @@ namespace Crowd.Annotation.Api.Consumers
                 }
 
                 GateLabel l = cap.Value;
-                _db.Annotations.Add(LabelAnnotation.TaoTuCongLink(
-                    cap.Key, p.ProjectId, l.SampleId, l.StorageKey, l.SampleContent, l.SampleMetadata, l.LabelPayload, p.SolvedAt));
+                await MauDaGanStore.DamBaoAsync(_db, l.SampleId, p.ProjectId, l.StorageKey, l.SampleContent, l.SampleMetadata, ct);
+                _db.Annotations.Add(LabelAnnotation.TaoTuCongLink(cap.Key, p.ProjectId, l.SampleId, l.LabelPayload, p.SolvedAt));
             }
         }
 

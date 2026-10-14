@@ -66,8 +66,7 @@ namespace Crowd.Annotation.Tests
         private static LabelAnnotation NhanDaDuyet()
         {
             LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
-                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "k.png", null,
-                SampleMetadata.Rong.ToRawJson(), Guid.NewGuid(),
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
                 LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null), Luc);
             a.Duyet(Guid.NewGuid(), Luc.AddHours(1));
             return a;

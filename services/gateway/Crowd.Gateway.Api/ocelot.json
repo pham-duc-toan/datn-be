@@ -92,6 +92,25 @@
       "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
     },
     {
+      // media-svc: xem file mẫu qua token trong URL (thẻ <img> không gửi được Authorization).
+      // Token mã hoá AES-GCM, sống 5 phút, gắn người xem — chính nó là quyền xem (FP-02/03, FP-06).
+      "UpstreamPathTemplate": "/media/v/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/media/v/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8109 }],
+      "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
+    },
+    {
+      // media-svc: nhật ký lượt xem, giải mã watermark, trạng thái che PII — chỉ admin (service tự kiểm vai trò).
+      "UpstreamPathTemplate": "/media/admin/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/media/admin/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8109 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
       // gate-svc: thống kê cho người chia sẻ (FS-07).
       "UpstreamPathTemplate": "/gate/{everything}",
       "UpstreamHttpMethod": ["Get"],

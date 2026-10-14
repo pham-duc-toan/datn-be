@@ -49,8 +49,6 @@ builder.Services.AddEventConsumer<LedgerDbContext, PayoutFailed, PayoutFailedPro
 builder.Services.AddEventConsumer<LedgerDbContext, UserBlocked, UserBlockedProcessor>(cfg, "ledger-svc.user-blocked");
 builder.Services.AddEventConsumer<LedgerDbContext, UserUnblocked, UserUnblockedProcessor>(cfg, "ledger-svc.user-unblocked");
 // Xac thuc email (FC-01): chua xac thuc thi chua rut tien duoc.
-builder.Services.AddEventConsumer<LedgerDbContext, UserRegistered, UserRegisteredEmailProcessor>(cfg, "ledger-svc.user-registered");
-builder.Services.AddEventConsumer<LedgerDbContext, UserEmailVerified, UserEmailVerifiedProcessor>(cfg, "ledger-svc.user-email-verified");
 
 // Cong link (P2): tra nguoi chia se, hoa hong gioi thieu, giu doanh thu link vi pham.
 builder.Services.AddEventConsumer<LedgerDbContext, ClickValidated, ClickValidatedProcessor>(cfg, "ledger-svc.click-validated");

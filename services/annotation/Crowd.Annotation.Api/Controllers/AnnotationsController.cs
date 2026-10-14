@@ -130,7 +130,7 @@ namespace Crowd.Annotation.Api.Controllers
         [Authorize(Roles = CrowdRoles.Admin)]
         public async Task<IActionResult> DanhSachKhieuNai([FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
         {
-            return Ok(await _service.DanhSachKhieuNaiAsync(page, pageSize, ct));
+            return Ok(await _service.DanhSachKhieuNaiAsync(page, pageSize, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
         }
 
         /// <summary>POST /annotations/{id}/appeal/resolve {accept, note}</summary>

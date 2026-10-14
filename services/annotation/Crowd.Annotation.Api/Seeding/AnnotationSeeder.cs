@@ -140,14 +140,19 @@ namespace Crowd.Annotation.Api.Seeding
         {
             SeedSample mau = sp.Mau(s.SampleId);
 
+            // Thong tin mau luu mot lan (Find: xem ca dong vua them trong lan seed nay lan dong da co trong DB).
+            if (_db.Samples.Find(s.SampleId) == null)
+            {
+                _db.Samples.Add(AnnotationSample.Tao(
+                    s.SampleId, s.ProjectId, s.StorageKey,
+                    mau.ContentJson == null ? null : RawJson.Tu(mau.ContentJson), mau.Metadata.ToRawJson()));
+            }
+
             LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
                 s.AssignmentId,
                 s.TaskId,
                 s.ProjectId,
                 s.SampleId,
-                s.StorageKey,
-                mau.ContentJson == null ? null : RawJson.Tu(mau.ContentJson),
-                mau.Metadata.ToRawJson(),
                 s.LabelerId,
                 SeedEvents.NhanCua(sp, s),
                 bayGio - s.SubmittedAgo);

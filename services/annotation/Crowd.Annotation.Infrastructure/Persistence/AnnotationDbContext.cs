@@ -39,6 +39,8 @@ namespace Crowd.Annotation.Infrastructure.Persistence
 
         public DbSet<LabelAnnotation> Annotations => Set<LabelAnnotation>();
 
+        public DbSet<AnnotationSample> Samples => Set<AnnotationSample>();
+
         public DbSet<ProjectTerms> ProjectTerms => Set<ProjectTerms>();
 
         public DbSet<TaskConsensus> Consensus => Set<TaskConsensus>();
@@ -58,6 +60,19 @@ namespace Crowd.Annotation.Infrastructure.Persistence
 
             base.OnModelCreating(modelBuilder);
 
+            modelBuilder.Entity<AnnotationSample>(b =>
+            {
+                // Mot ban moi MAU (truoc day chep vao tung nhan).
+                b.ToTable("annotation_samples");
+                b.HasKey(x => x.SampleId);
+                b.Property(x => x.SampleId).HasColumnName("sample_id").ValueGeneratedNever();
+                b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
+                b.Property(x => x.StorageKey).HasColumnName("storage_key").HasMaxLength(300);
+                b.Property(x => x.Content).HasColumnName("content").HasColumnType("jsonb").HasConversion(RawJsonCotNull);
+                b.Property(x => x.Metadata).HasColumnName("metadata").HasColumnType("jsonb").HasConversion(RawJsonCot).IsRequired();
+                b.HasIndex(x => x.ProjectId).HasDatabaseName("ix_annotation_samples_du_an");
+            });
+
             modelBuilder.Entity<LabelAnnotation>(b =>
             {
                 b.ToTable("annotations");
@@ -67,9 +82,6 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.Property(x => x.TaskId).HasColumnName("task_id").IsRequired();
                 b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
                 b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
-                b.Property(x => x.StorageKey).HasColumnName("storage_key").HasMaxLength(300);
-                b.Property(x => x.SampleContent).HasColumnName("sample_content").HasColumnType("jsonb").HasConversion(RawJsonCotNull);
-                b.Property(x => x.SampleMetadata).HasColumnName("sample_metadata").HasColumnType("jsonb").HasConversion(RawJsonCot).IsRequired();
                 b.Property(x => x.LabelerId).HasColumnName("labeler_id");
                 // Nhan o dinh dang chung (Crowd.Labeling): ba cot. payload la jsonb —
                 // nhan "da hinh" theo loai bai toan (docs muc 3.2), them loai moi

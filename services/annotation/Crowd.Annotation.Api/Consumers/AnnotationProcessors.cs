@@ -88,14 +88,14 @@ namespace Crowd.Annotation.Api.Consumers
                     "Luot nop " + p.AssignmentId + " toi sau khi du an " + p.ProjectId + " da ket thuc.");
             }
 
+            // Thong tin mau luu MOT lan (annotation_samples); nhan chi tro sample_id.
+            await MauDaGanStore.DamBaoAsync(_db, p.SampleId, p.ProjectId, p.StorageKey, p.SampleContent, p.SampleMetadata, ct);
+
             LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
                 p.AssignmentId,
                 p.TaskId,
                 p.ProjectId,
                 p.SampleId,
-                p.StorageKey,
-                p.SampleContent,
-                p.SampleMetadata,
                 p.LabelerId,
                 p.LabelPayload,
                 p.SubmittedAt);

@@ -262,7 +262,7 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                     b.ToTable("session_revocations", (string)null);
                 });
 
-            modelBuilder.Entity("Crowd.Identity.Api.Entities.RefreshToken", b =>
+            modelBuilder.Entity("Crowd.Identity.Api.Entities.PhienDangNhap", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
@@ -276,13 +276,13 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
 
-                    b.Property<Guid>("FamilyId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("family_id");
+                    b.Property<int>("Generation")
+                        .HasColumnType("integer")
+                        .HasColumnName("generation");
 
-                    b.Property<Guid?>("ReplacedById")
-                        .HasColumnType("uuid")
-                        .HasColumnName("replaced_by_id");
+                    b.Property<DateTimeOffset>("LastRotatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_rotated_at");
 
                     b.Property<DateTimeOffset?>("RevokedAt")
                         .HasColumnType("timestamp with time zone")
@@ -301,16 +301,12 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ExpiresAt")
-                        .HasDatabaseName("ix_refresh_tokens_het_han");
+                        .HasDatabaseName("ix_login_sessions_het_han");
 
-                    b.HasIndex("FamilyId")
-                        .HasDatabaseName("ix_refresh_tokens_family");
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_login_sessions_user");
 
-                    b.HasIndex("TokenHash")
-                        .IsUnique()
-                        .HasDatabaseName("ux_refresh_tokens_hash");
-
-                    b.ToTable("refresh_tokens", (string)null);
+                    b.ToTable("login_sessions", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Identity.Api.Entities.ThongKeLabeler", b =>

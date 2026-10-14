@@ -34,7 +34,7 @@ namespace Crowd.Project.Api.Services
         private readonly ProjectDbContext _db;
         private readonly ProjectAccessService _access;
         private readonly MemberService _members;
-        private readonly IObjectStorage _storage;
+        private readonly IMediaLinks _media;
         private readonly TimeProvider _clock;
         private readonly ISettings _settings;
 
@@ -42,7 +42,7 @@ namespace Crowd.Project.Api.Services
             ProjectDbContext db,
             ProjectAccessService access,
             MemberService members,
-            IObjectStorage storage,
+            IMediaLinks media,
             TimeProvider clock,
             ISettings settings)
         {
@@ -68,9 +68,9 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(members));
             }
 
-            if (storage == null)
+            if (media == null)
             {
-                throw new ArgumentNullException(nameof(storage));
+                throw new ArgumentNullException(nameof(media));
             }
 
             if (clock == null)
@@ -81,7 +81,7 @@ namespace Crowd.Project.Api.Services
             _db = db;
             _access = access;
             _members = members;
-            _storage = storage;
+            _media = media;
             _clock = clock;
         }
 
@@ -126,8 +126,8 @@ namespace Crowd.Project.Api.Services
                 .Where(s => cauHoi.Contains(s.Id))
                 .ToDictionaryAsync(s => s.Id, ct);
 
-            // Cau hoi hien thi giong het mot task that: file (link ky san) hoac
-            // noi dung (van ban / cap), kem metadata (kich thuoc, doan thoi gian).
+            // Cau hoi hien thi giong het mot task that: file (qua media-svc: watermark chim mang ma
+            // cua labeler — FP-02/03) hoac noi dung (van ban / cap), kem metadata.
             List<EntranceQuestion> ds = new List<EntranceQuestion>();
             foreach (Guid id in lanMoi.QuestionSampleIds)
             {
@@ -135,7 +135,9 @@ namespace Crowd.Project.Api.Services
                 ds.Add(new EntranceQuestion
                 {
                     SampleId = id,
-                    FileUrl = s.StorageKey == null ? null : await _storage.TaoLinkXemAsync(s.StorageKey),
+                    FileUrl = s.StorageKey == null
+                        ? null
+                        : _media.TaoLink(DatasetService.MauXem(s), NguoiXem.Labeler(userId), CheDoXem.Watermark),
                     Content = s.Content,
                     Metadata = s.Metadata,
                 });

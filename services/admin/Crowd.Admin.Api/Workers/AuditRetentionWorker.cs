@@ -19,6 +19,9 @@ namespace Crowd.Admin.Api.Workers
         public const int KichThuocLo = 5000;
         private static readonly TimeSpan ChuKy = TimeSpan.FromHours(1);
 
+        /// <summary>Bus giao lai message trong vai giay / phut; 1 gio la du rong.</summary>
+        private static readonly TimeSpan GiuDauVetDaDem = TimeSpan.FromHours(1);
+
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
@@ -99,6 +102,17 @@ namespace Crowd.Admin.Api.Workers
                             SELECT event_id FROM audit_events WHERE occurred_at < {moc}
                             ORDER BY occurred_at LIMIT {KichThuocLo} FOR UPDATE SKIP LOCKED)", ct);
                     tong = tong + lanNay;
+                }
+                while (lanNay == KichThuocLo);
+
+                // Dau vet "da dem" cua event khong luu chi tiet: chi can song qua khoang bus co the giao lai.
+                DateTimeOffset mocDaDem = _clock.GetUtcNow() - GiuDauVetDaDem;
+                do
+                {
+                    lanNay = await db.Database.ExecuteSqlInterpolatedAsync($@"
+                        DELETE FROM audit_counted WHERE event_id IN (
+                            SELECT event_id FROM audit_counted WHERE seen_at < {mocDaDem}
+                            LIMIT {KichThuocLo} FOR UPDATE SKIP LOCKED)", ct);
                 }
                 while (lanNay == KichThuocLo);
             }

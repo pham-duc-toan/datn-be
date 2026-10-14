@@ -33,9 +33,6 @@ namespace Crowd.Annotation.Tests
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),
-                "k.png",
-                null,
-                SampleMetadata.Rong.ToRawJson(),
                 Guid.NewGuid(),
                 LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null),
                 T1);
@@ -58,9 +55,6 @@ namespace Crowd.Annotation.Tests
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),
-                "k.png",
-                null,
-                SampleMetadata.Rong.ToRawJson(),
                 Guid.NewGuid(),
                 LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null),
                 T1);
@@ -102,9 +96,6 @@ namespace Crowd.Annotation.Tests
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),
-                "k.png",
-                null,
-                SampleMetadata.Rong.ToRawJson(),
                 Labeler,
                 LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null),
                 Luc);
@@ -211,9 +202,6 @@ namespace Crowd.Annotation.Tests
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 Mau,
-                "k",
-                null,
-                Anh.ToRawJson(),
                 Guid.NewGuid(),
                 LabelPayload.Tao(TapNhan, duLieu, Anh),
                 DateTimeOffset.UtcNow);

@@ -11,12 +11,12 @@ import aio_pika
 import uvicorn
 from fastapi import FastAPI
 
-from app import db, ds_batch, fraud, processors, seeding, settings_store, settings_sync
+from app import cleanup, db, ds_batch, fraud, processors, seeding, settings_store, settings_sync
 from app.api import router
 from app.config import settings
 from app.contracts import (
-    AnnotationSubmitted, AssignmentSubmitted, GoldAnswered, ProjectPublished, SettingChanged, SettingsSnapshot,
-    TaskRedundancyReached,
+    AnnotationSubmitted, AssignmentSubmitted, GoldAnswered, ProjectCancelled, ProjectCompleted, ProjectPublished,
+    SettingChanged, SettingsSnapshot, TaskRedundancyReached,
 )
 from app.errors import LoiApi, xu_ly_loi_api
 from app.messaging.consumer import Consumer
@@ -28,6 +28,9 @@ log = logging.getLogger("quality-svc")
 # Ten queue theo quy uoc "<service>.<event>" giong cac service C#.
 CONSUMERS = [
     Consumer("quality-svc.project-published", ProjectPublished, processors.project_published),
+    # Moc dong du an — sau project.closed_data_retention thi chup bao cao roi xoa nhan tho (archive.py).
+    Consumer("quality-svc.project-completed", ProjectCompleted, processors.project_dong),
+    Consumer("quality-svc.project-cancelled", ProjectCancelled, processors.project_dong),
     Consumer("quality-svc.annotation-submitted", AnnotationSubmitted, processors.annotation_submitted),
     Consumer("quality-svc.task-redundancy-reached", TaskRedundancyReached, processors.task_redundancy_reached),
     Consumer("quality-svc.gold-answered", GoldAnswered, processors.gold_answered),
@@ -78,6 +81,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(Dispatcher().chay(dung), name="outbox"),
         asyncio.create_task(ds_batch.vong_lap(dung), name="dawid-skene"),
         asyncio.create_task(settings_sync.vong_lap_nap_lai(dung), name="settings-reload"),
+        asyncio.create_task(cleanup.vong_lap(dung), name="don-du-lieu-qua-han"),
     ]
     log.info("quality-svc san sang tren cong %s", cfg.port)
     try:

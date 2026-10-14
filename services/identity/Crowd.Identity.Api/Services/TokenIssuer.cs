@@ -80,6 +80,12 @@ namespace Crowd.Identity.Api.Services
         /// </summary>
         public string TaoAccessToken(User user)
         {
+            return TaoAccessToken(user, false);
+        }
+
+        /// <param name="kybDaDuyet">Ho so doanh nghiep cua user da duoc admin duyet (claim kyb_verified).</param>
+        public string TaoAccessToken(User user, bool kybDaDuyet)
+        {
             if (user == null)
             {
                 throw new ArgumentNullException(nameof(user));
@@ -97,6 +103,10 @@ namespace Crowd.Identity.Api.Services
             {
                 claims.Add(new Claim(CrowdClaims.Role, vaiTro));
             }
+
+            // Hai su that mot chieu, service khac doc tu token thay vi giu ban sao (CrowdClaims).
+            claims.Add(new Claim(CrowdClaims.EmailVerified, user.EmailVerifiedAt.HasValue ? "true" : "false", ClaimValueTypes.Boolean));
+            claims.Add(new Claim(CrowdClaims.KybVerified, kybDaDuyet ? "true" : "false", ClaimValueTypes.Boolean));
 
             // Ma dinh danh cua CHINH token nay — nen de sau nay lam danh sach
             // thu hoi (VD-S-11) ma khong phai thu hoi ca tai khoan.
@@ -122,6 +132,47 @@ namespace Crowd.Identity.Api.Services
         {
             byte[] ngauNhien = RandomNumberGenerator.GetBytes(32);
             return Base64UrlEncoder.Encode(ngauNhien);
+        }
+
+        /// <summary>
+        /// Refresh token cua mot phien: "{ma phien base64url}.{32 byte ngau nhien base64url}". Ma phien de
+        /// tim dong login_sessions bang khoa chinh; phan ngau nhien la bi mat (database chi giu hash ca chuoi).
+        /// </summary>
+        public static string TaoRefreshToken(Guid phienId)
+        {
+            return Base64UrlEncoder.Encode(phienId.ToByteArray()) + "." + TaoRefreshTokenGoc();
+        }
+
+        /// <summary>Doc ma phien tu refresh token. false neu token khong dung dinh dang.</summary>
+        public static bool DocPhien(string? token, out Guid phienId)
+        {
+            phienId = Guid.Empty;
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return false;
+            }
+
+            int cham = token.IndexOf('.', StringComparison.Ordinal);
+            if (cham <= 0 || cham == token.Length - 1)
+            {
+                return false;
+            }
+
+            try
+            {
+                byte[] du = Base64UrlEncoder.DecodeBytes(token.Substring(0, cham));
+                if (du.Length != 16)
+                {
+                    return false;
+                }
+
+                phienId = new Guid(du);
+                return true;
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
         }
 
         /// <summary>SHA-256 dang hex. Tat dinh: cung token goc luon ra cung hash.</summary>

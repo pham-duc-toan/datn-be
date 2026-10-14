@@ -66,6 +66,24 @@ namespace Crowd.Admin.Api.Persistence.Migrations
                     b.ToTable("announcements", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Admin.Api.Entities.AuditDaDem", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTimeOffset>("SeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("seen_at");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("SeenAt")
+                        .HasDatabaseName("ix_audit_counted_thoi_diem");
+
+                    b.ToTable("audit_counted", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Admin.Api.Entities.AuditEvent", b =>
                 {
                     b.Property<Guid>("EventId")
@@ -208,6 +226,34 @@ namespace Crowd.Admin.Api.Persistence.Migrations
                         .HasDatabaseName("ux_setting_history_key_version");
 
                     b.ToTable("setting_history", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Admin.Api.Entities.ThongKeNgay", b =>
+                {
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date")
+                        .HasColumnName("day");
+
+                    b.Property<string>("EventType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("event_type");
+
+                    b.Property<long>("AmountVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_vnd");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint")
+                        .HasColumnName("count");
+
+                    b.Property<long>("FeeVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("fee_vnd");
+
+                    b.HasKey("Day", "EventType");
+
+                    b.ToTable("stats_daily", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.BuildingBlocks.Persistence.Idempotency.ProcessedEvent", b =>

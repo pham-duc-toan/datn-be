@@ -64,7 +64,7 @@ namespace Crowd.Project.Api.Dtos
 
         public long? SizeBytes { get; init; }
 
-        /// <summary>Link xem / nghe file, het han sau vai phut (S-07). null voi text / pair.</summary>
+        /// <summary>Link xem / nghe BAN GOC qua media-svc, het han sau vai phut (S-07). null voi text / pair.</summary>
         public string? FileUrl { get; init; }
 
         /// <summary>Noi dung voi text / pair: {"text"} hoac {"prompt","a","b"}.</summary>
