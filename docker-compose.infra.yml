@@ -40,9 +40,10 @@ services:
     healthcheck: { test: ["CMD","rabbitmq-diagnostics","-q","ping"], interval: 10s, timeout: 5s, retries: 20 }
 
   minio:
-    # quay.io chu khong phai Docker Hub: MinIO da go image khoi Docker Hub,
-    # `docker pull minio/minio` tra ve "pull access denied".
-    image: quay.io/minio/minio:latest
+    # MinIO da go image chinh thuc khoi ca Docker Hub (`pull access denied`) lan quay.io
+    # (`failed to resolve`). pgsty/minio: ban dung tu ma nguon MinIO do cong dong duy tri,
+    # van kem san mc. Ghim phien ban de may nao keo ve cung ra mot ban.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     container_name: datn-minio
     # Dung chung nhung moi service mot bucket + access key gioi han vao
     # dung bucket do -> cach ly tuong duong, khong ton 15 container.
@@ -55,10 +56,9 @@ services:
     healthcheck: { test: ["CMD","mc","ready","local"], interval: 10s, timeout: 5s, retries: 20 }
 
   minio-init:
-    # Dung CHINH image server thay vi minio/mc: image mc da bien mat khoi ca
-    # Docker Hub lan quay.io, nhung binary mc van nam san trong image server
-    # tai /usr/bin/mc. Bot mot phu thuoc, va chac chan cung phien ban.
-    image: quay.io/minio/minio:latest
+    # Dung CHINH image server: binary mc nam san trong image tai /usr/bin/mc.
+    # Bot mot phu thuoc, va chac chan cung phien ban.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     depends_on:
       minio: { condition: service_healthy }
     entrypoint: >

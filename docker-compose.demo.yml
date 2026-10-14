@@ -61,7 +61,9 @@ services:
     healthcheck: { test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"], interval: 10s, timeout: 5s, retries: 30 }
 
   minio:
-    image: quay.io/minio/minio:latest
+    # MinIO da go image chinh thuc khoi ca Docker Hub lan quay.io (may moi keo ve bao "failed to resolve").
+    # pgsty/minio: ban dung tu ma nguon MinIO do cong dong duy tri, van kem san mc. Ghim phien ban.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     container_name: datn-demo-minio
     command: server /data --console-address ":9001"
     environment: { MINIO_ROOT_USER: datn, MINIO_ROOT_PASSWORD: "${MINIO_PASSWORD:?chay python deploy/tao_env.py}" }
@@ -70,7 +72,7 @@ services:
     healthcheck: { test: ["CMD", "mc", "ready", "local"], interval: 10s, timeout: 5s, retries: 30 }
 
   minio-init:
-    image: quay.io/minio/minio:latest
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     container_name: datn-demo-minio-init
     depends_on: { minio: { condition: service_healthy } }
     environment: { MINIO_PASSWORD: "${MINIO_PASSWORD:?chay python deploy/tao_env.py}" }

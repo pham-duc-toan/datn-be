@@ -191,7 +191,7 @@ Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledge
 cd services/quality
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt      # Linux/macOS: .venv/bin/pip
-.venv/Scripts/python -m pytest -q                   # 32 test logic: đồng thuận, uy tín, Dawid-Skene, hợp đồng envelope, setting
+.venv/Scripts/python -m pytest -q                   # 40 test logic: đồng thuận, uy tín, Dawid-Skene, hợp đồng envelope, setting
 ```
 
 **media-svc lần đầu** (phát file mẫu qua token + watermark chìm — **không có database**, chỉ cần RabbitMQ + MinIO):
@@ -225,7 +225,7 @@ Seed quality: them 5 / 5 du an          (log của quality-svc, định dạng P
 
 Từ lần chạy thứ hai, log sẽ là `Seed ...: da co du lieu seed — bo qua` (identity, payment) hoặc `da du du an seed — bo qua` (project, task, annotation, ledger). DB cũ chỉ có P1–P4 thì lần chạy đầu sau khi cập nhật code sẽ seed thêm P5–P7.
 
-Nếu muốn bật cả 10 service C# trong **một** terminal Git Bash (log ghi ra thư mục `logs/`):
+Nếu muốn bật cả 11 service C# trong **một** terminal Git Bash (log ghi ra thư mục `logs/`):
 
 ```bash
 mkdir -p logs
@@ -238,6 +238,7 @@ dotnet run --project services/ledger/Crowd.Ledger.Api         > logs/ledger.log 
 dotnet run --project services/payment/Crowd.Payment.Api       > logs/payment.log 2>&1 &
 dotnet run --project services/link/Crowd.Link.Api             > logs/link.log 2>&1 &
 dotnet run --project services/gate/Crowd.Gate.Api             > logs/gate.log 2>&1 &
+dotnet run --project services/notification/Crowd.Notification.Api > logs/notification.log 2>&1 &
 dotnet run --project services/gateway/Crowd.Gateway.Api       > logs/gateway.log 2>&1 &
 grep -h "Seed " logs/*.log        # đợi ~20 giây rồi xem kết quả seed
 ```
@@ -1248,6 +1249,7 @@ cd perf
 | `/quality/...` trả 502 | quality-svc chưa chạy (mục 3) hoặc chưa bật `--profile p3` |
 | Log quality `Bo qua dong thuan task ...: chua co ban sao du an` | Dự án publish **trước khi** quality-svc chạy lần đầu (không phải dự án seed): quality không có tập nhãn và trần redundancy nên bỏ qua. Dự án publish sau đó được tính bình thường |
 | Lô manifest đứng mãi ở `pending` | project-svc không chạy (worker nạp dữ liệu chạy bên trong nó). Bật lên là lô được xử lý; lô `ingesting` dở dang được làm lại từ đầu |
+| `docker compose up` báo `minio Error ... failed to resolve` / `no such manifest` / `pull access denied` | Đang dùng bản compose cũ trỏ tới `quay.io/minio/minio`: MinIO đã gỡ image chính thức khỏi cả Docker Hub lẫn quay.io, máy nào chưa có sẵn image trong cache đều không kéo được. `git pull` bản mới — compose dùng `pgsty/minio` (bản dựng từ mã nguồn MinIO do cộng đồng duy trì, ghim phiên bản, đọc được volume cũ) |
 | Lỗi bucket `datasets` không tồn tại | `minio-init` chưa chạy. Chạy lại `docker compose ... up -d` |
 | Nhãn đã duyệt nhưng labeler chưa thấy tiền | ledger-svc chưa chạy, hoặc event đang nằm trong outbox của annotation. Bật ledger lên thì event sẽ được giao (at-least-once) |
 | Hoàn thành / hủy dự án trả 503 `dich_vu_khong_san_sang` | project-svc không gọi được task-svc hoặc annotation-svc (đang tắt), hoặc `InternalApi:Key` / địa chỉ trong appsettings của project, task, annotation không khớp nhau |
