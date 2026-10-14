@@ -7,6 +7,8 @@ namespace Crowd.Labeling.Tools
     /// Da giac tren anh: [{"labelId":"so_tay","points":[[x,y],[x,y],[x,y],...]}].
     /// Moi diem nam trong anh. Thu tu DIEM giu nguyen (dao thu tu la doi hinh).
     /// Cham dap an: IoU (uoc luong bang luoi diem) &gt;= nguong (mac dinh 0.5).
+    /// Gop nhieu nguoi: ghep cum theo IoU, da giac dai dien = da giac "o giua" cua cum (so dinh
+    /// moi nguoi mot khac nen khong lay trung binh tung dinh duoc).
     /// </summary>
     internal sealed class PolygonTool : DanhSachToolBase
     {
@@ -36,9 +38,28 @@ namespace Crowd.Labeling.Tools
             }
         }
 
-        protected override double DoGiong(JsonObject a, JsonObject b)
+        protected override object PhanTich(JsonObject phanTu)
         {
-            return HinhHoc.IouDaGiac(Diem(a), Diem(b));
+            return Diem(phanTu);
+        }
+
+        protected override double DoGiongDaPhanTich(object a, object b, double tyLe)
+        {
+            List<double[]> p1 = (List<double[]>)a;
+            List<double[]> p2 = (List<double[]>)b;
+
+            // Hinh bao khong cham nhau thi IoU chac chan bang 0 — khoi phu luoi 100 x 100.
+            if (!HinhHoc.HinhBaoGiaoNhau(p1, p2))
+            {
+                return 0;
+            }
+
+            return HinhHoc.IouDaGiac(p1, p2);
+        }
+
+        protected override double DoGiong(JsonObject a, JsonObject b, double tyLe)
+        {
+            return DoGiongDaPhanTich(Diem(a), Diem(b), tyLe);
         }
 
         protected override string KhoaSapXep(JsonObject p)
@@ -47,7 +68,7 @@ namespace Crowd.Labeling.Tools
             return p["labelId"]!.GetValue<string>() + "|" + SoDeSapXep(d[0][0]) + "|" + SoDeSapXep(d[0][1]) + "|" + d.Count;
         }
 
-        private static List<double[]> Diem(JsonObject p)
+        internal static List<double[]> Diem(JsonObject p)
         {
             List<double[]> ds = new List<double[]>();
             foreach (JsonNode? n in (JsonArray)p["points"]!)

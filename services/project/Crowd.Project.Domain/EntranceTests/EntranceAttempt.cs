@@ -110,9 +110,30 @@ namespace Crowd.Project.Domain.EntranceTests
             NguongKhop nguongKhop,
             DateTimeOffset luc)
         {
+            return Nop(traLoi, dapAn, tapNhan, nguongPhanTram, nguongKhop, new Dictionary<Guid, SampleMetadata>(), luc);
+        }
+
+        /// <param name="thongTinMau">
+        /// Thong tin tung mau cua bai (kich thuoc anh...) — diem moc / duong gap khuc cham theo do lech
+        /// so voi duong cheo anh. Mau khong co trong bang thi cham khong kem thong tin mau.
+        /// </param>
+        public bool Nop(
+            IReadOnlyDictionary<Guid, LabelPayload> traLoi,
+            IReadOnlyDictionary<Guid, LabelPayload> dapAn,
+            LabelSchema tapNhan,
+            int nguongPhanTram,
+            NguongKhop nguongKhop,
+            IReadOnlyDictionary<Guid, SampleMetadata> thongTinMau,
+            DateTimeOffset luc)
+        {
             if (nguongKhop == null)
             {
                 throw new ArgumentNullException(nameof(nguongKhop));
+            }
+
+            if (thongTinMau == null)
+            {
+                throw new ArgumentNullException(nameof(thongTinMau));
             }
 
             if (traLoi == null)
@@ -158,7 +179,10 @@ namespace Crowd.Project.Domain.EntranceTests
 
                 // "Khop" do tung CONG CU quyet dinh: phan loai so tap lop, bbox so
                 // IoU, transcription so ti le loi ky tu... (Crowd.Labeling).
-                if (cuaLabeler.KhopDapAn(tapNhan, dung, nguongKhop))
+                SampleMetadata? mau;
+                thongTinMau.TryGetValue(cau, out mau);
+
+                if (cuaLabeler.KhopDapAn(tapNhan, dung, nguongKhop, mau))
                 {
                     soCauDung = soCauDung + 1;
                 }

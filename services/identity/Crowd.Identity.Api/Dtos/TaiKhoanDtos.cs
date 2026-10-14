@@ -169,4 +169,37 @@ namespace Crowd.Identity.Api.Dtos
 
         public required DateTimeOffset RevokedAt { get; init; }
     }
+
+    // ---------------- noi bo: project-svc tra cuu nguoi duoc moi / xin tham gia ----------------
+
+    public sealed class UserLookupRequest
+    {
+        public IReadOnlyList<Guid>? UserIds { get; init; }
+
+        /// <summary>Email bat ky hoa / thuong, co khoang trang — identity tu chuan hoa.</summary>
+        public IReadOnlyList<string>? Emails { get; init; }
+    }
+
+    /// <summary>
+    /// Thong tin du de project-svc quyet "nguoi nay vao du an duoc khong": vai tro, khoa,
+    /// cap do, uy tin (cung nguon task-svc dung khi cap task).
+    /// </summary>
+    public sealed class UserLookupDto
+    {
+        public required Guid UserId { get; init; }
+
+        public required string Email { get; init; }
+
+        public required string DisplayName { get; init; }
+
+        public required IReadOnlyList<string> Roles { get; init; }
+
+        public required bool Locked { get; init; }
+
+        /// <summary>Chua co thong ke (chua tung co nhan duoc duyet) = cap 1, nhu GET /me/level.</summary>
+        public required int Level { get; init; }
+
+        /// <summary>null = quality-svc chua cham.</summary>
+        public int? Reputation { get; init; }
+    }
 }

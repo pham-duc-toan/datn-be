@@ -14,11 +14,11 @@ namespace Crowd.Annotation.Api.Services
     /// Xuat ket qua du an ra file (FB-25):
     ///
     ///   json — day du: tap nhan, ket qua gop tung cong cu, cac nhan da duyet.
-    ///   csv  — mot dong mot mau, mot cot mot cong cu. Cong cu gop theo da so
-    ///          (phan loai, cap) ghi ket qua CHOT; cong cu khac ghi JSON cac nhan
-    ///          da duyet (moi nguoi mot phan tu).
-    ///   coco — chi du an ANH co cong cu bbox / polygon. Moi khung cua moi nhan da
-    ///          duyet la mot annotation COCO (chua gop khung — xem ResultAggregator).
+    ///   csv  — mot dong mot mau, mot cot mot cong cu, ghi ket qua GOP: lop / lua chon / van ban / so /
+    ///          thu tu xep hang; cong cu dang danh sach ghi JSON cac doi tuong da gop. Tranh chap de
+    ///          trong. Cong cu khong gop (freeText) ghi JSON cac nhan da duyet (moi nguoi mot phan tu).
+    ///   coco — chi du an ANH co cong cu bbox / polygon / mask. Moi doi tuong DA GOP la mot annotation
+    ///          COCO (mat na: segmentation la RLE khong nen).
     /// </summary>
     public static class ResultExporter
     {
@@ -87,14 +87,14 @@ namespace Crowd.Annotation.Api.Services
             }
 
             List<ToolDefinition> congCuKhung = tapNhan.Tools
-                .Where(t => t.Kind == ToolKinds.Bbox || t.Kind == ToolKinds.Polygon)
+                .Where(t => t.Kind == ToolKinds.Bbox || t.Kind == ToolKinds.Polygon || t.Kind == ToolKinds.Mask)
                 .ToList();
 
             if (tapNhan.Modality != Modalities.Image || congCuKhung.Count == 0)
             {
                 throw new InvalidValueException(
                     "coco_chi_cho_khung_anh",
-                    "COCO chi xuat duoc cho du an anh co cong cu bbox / polygon. Dung json hoac csv.");
+                    "COCO chi xuat duoc cho du an anh co cong cu bbox / polygon / mask. Dung json hoac csv.");
             }
 
             // Danh muc: moi (cong cu, lop) mot id. supercategory = ten cong cu.
@@ -114,6 +114,7 @@ namespace Crowd.Annotation.Api.Services
             JsonArray annotations = new JsonArray();
             int maAnh = 0;
             int maNhan = 0;
+            int soTranhChap = 0;
 
             foreach (SampleResultResponse s in kq.Samples)
             {
@@ -125,6 +126,7 @@ namespace Crowd.Annotation.Api.Services
                     ["id"] = maAnh,
                     ["file_name"] = s.StorageKey,
                     ["sample_id"] = s.SampleId.ToString(),
+                    ["disputed"] = s.Disputed,
                 };
 
                 if (md.Width.HasValue && md.Height.HasValue)
@@ -134,27 +136,44 @@ namespace Crowd.Annotation.Api.Services
                 }
 
                 images.Add(anh);
-
-                for (int nguoi = 0; nguoi < s.Labels.Count; nguoi++)
+                if (s.Disputed)
                 {
-                    JsonObject nhan = (JsonObject)s.Labels[nguoi].Node();
+                    soTranhChap++;
+                }
 
-                    foreach (ToolDefinition t in congCuKhung)
+                foreach (ToolDefinition t in congCuKhung)
+                {
+                    foreach (DoiTuongChot d in DoiTuongDaGop(s, t))
                     {
-                        JsonArray? muc = nhan[t.Name] as JsonArray;
-                        if (muc == null)
+                        maNhan++;
+                        int danhMuc = maDanhMuc[t.Name + "/" + d.DoiTuong["labelId"]!.GetValue<string>()];
+                        JsonObject nhan;
+                        if (t.Kind == ToolKinds.Bbox)
                         {
-                            continue;
+                            nhan = KhungCoco(d.DoiTuong);
+                        }
+                        else if (t.Kind == ToolKinds.Polygon)
+                        {
+                            nhan = DaGiacCoco(d.DoiTuong);
+                        }
+                        else
+                        {
+                            nhan = MatNaCoco(d.DoiTuong);
                         }
 
-                        foreach (JsonNode? m in muc)
+                        nhan["id"] = maNhan;
+                        nhan["image_id"] = maAnh;
+                        nhan["category_id"] = danhMuc;
+                        nhan["iscrowd"] = 0;
+                        nhan["support"] = d.SoNguoi;
+
+                        JsonNode? thuocTinh = d.DoiTuong["attributes"];
+                        if (thuocTinh != null)
                         {
-                            maNhan++;
-                            int danhMuc = maDanhMuc[t.Name + "/" + m!["labelId"]!.GetValue<string>()];
-                            annotations.Add(t.Kind == ToolKinds.Bbox
-                                ? KhungCoco(maNhan, maAnh, danhMuc, nguoi, (JsonObject)m)
-                                : DaGiacCoco(maNhan, maAnh, danhMuc, nguoi, (JsonObject)m));
+                            nhan["attributes"] = thuocTinh.DeepClone();
                         }
+
+                        annotations.Add(nhan);
                     }
                 }
             }
@@ -164,7 +183,8 @@ namespace Crowd.Annotation.Api.Services
                 ["info"] = new JsonObject
                 {
                     ["description"] = "Ket qua du an " + kq.ProjectId,
-                    ["note"] = "Moi khung cua moi nhan DA DUYET la mot annotation (chua gop khung giua nguoi gan).",
+                    ["note"] = "Moi annotation la mot doi tuong DA GOP tu cac nhan da duyet (ghep cum theo IoU; support = so nguoi ve). "
+                               + "Anh tranh chap (disputed = true, " + soTranhChap + " anh) khong co annotation cua cong cu tranh chap.",
                 },
                 ["images"] = images,
                 ["annotations"] = annotations,
@@ -174,7 +194,45 @@ namespace Crowd.Annotation.Api.Services
             return Encoding.UTF8.GetBytes(coco.ToJsonString());
         }
 
-        private static JsonObject KhungCoco(int id, int maAnh, int danhMuc, int nguoi, JsonObject m)
+        /// <summary>Mot doi tuong trong ket qua gop cua mot cong cu dang danh sach + so nguoi ve no.</summary>
+        internal sealed class DoiTuongChot
+        {
+            public DoiTuongChot(JsonObject doiTuong, int soNguoi)
+            {
+                DoiTuong = doiTuong;
+                SoNguoi = soNguoi;
+            }
+
+            public JsonObject DoiTuong { get; }
+
+            public int SoNguoi { get; }
+        }
+
+        /// <summary>
+        /// Cac doi tuong DA GOP cua mot cong cu dang danh sach tren mot mau (tools[ten].final). Rong khi
+        /// chua ai lam cong cu nay, hoac cong cu tranh chap (final = null).
+        /// </summary>
+        internal static List<DoiTuongChot> DoiTuongDaGop(SampleResultResponse s, ToolDefinition t)
+        {
+            List<DoiTuongChot> ds = new List<DoiTuongChot>();
+            JsonObject? gop = s.Tools.Node()[t.Name] as JsonObject;
+            JsonArray? cuoi = gop == null ? null : gop["final"] as JsonArray;
+            if (cuoi == null)
+            {
+                return ds;
+            }
+
+            JsonArray? ungHo = gop!["supports"] as JsonArray;
+            for (int i = 0; i < cuoi.Count; i++)
+            {
+                int soNguoi = ungHo != null && i < ungHo.Count ? ungHo[i]!.GetValue<int>() : 0;
+                ds.Add(new DoiTuongChot((JsonObject)cuoi[i]!, soNguoi));
+            }
+
+            return ds;
+        }
+
+        private static JsonObject KhungCoco(JsonObject m)
         {
             double x = m["x"]!.GetValue<double>();
             double y = m["y"]!.GetValue<double>();
@@ -183,18 +241,13 @@ namespace Crowd.Annotation.Api.Services
 
             return new JsonObject
             {
-                ["id"] = id,
-                ["image_id"] = maAnh,
-                ["category_id"] = danhMuc,
                 ["bbox"] = new JsonArray(x, y, w, h),
                 ["area"] = w * h,
                 ["segmentation"] = new JsonArray(),
-                ["iscrowd"] = 0,
-                ["annotator_index"] = nguoi,
             };
         }
 
-        private static JsonObject DaGiacCoco(int id, int maAnh, int danhMuc, int nguoi, JsonObject m)
+        private static JsonObject DaGiacCoco(JsonObject m)
         {
             List<(double X, double Y)> diem = new List<(double X, double Y)>();
             foreach (JsonNode? p in (JsonArray)m["points"]!)
@@ -227,45 +280,75 @@ namespace Crowd.Annotation.Api.Services
 
             return new JsonObject
             {
-                ["id"] = id,
-                ["image_id"] = maAnh,
-                ["category_id"] = danhMuc,
                 ["segmentation"] = new JsonArray(phang),
                 ["bbox"] = new JsonArray(minX, minY, maxX - minX, maxY - minY),
                 ["area"] = Math.Abs(dienTich2) / 2,
-                ["iscrowd"] = 0,
-                ["annotator_index"] = nguoi,
             };
         }
 
-        /// <summary>Gia tri o CSV cua mot cong cu.</summary>
+        /// <summary>Mat na: segmentation la RLE khong nen cua COCO ({"size":[cao, rong],"counts":[...]}) — dung luon dinh dang cua nhan.</summary>
+        private static JsonObject MatNaCoco(JsonObject m)
+        {
+            double[] hop = MatNa.HopBao(m) ?? new double[] { 0, 0, 0, 0 };
+            return new JsonObject
+            {
+                ["segmentation"] = m["rle"]!.DeepClone(),
+                ["bbox"] = new JsonArray(hop[0], hop[1], hop[2], hop[3]),
+                ["area"] = MatNa.DienTich(m),
+            };
+        }
+
+        /// <summary>Gia tri o CSV cua mot cong cu: ket qua GOP; cong cu khong gop (freeText) ghi JSON cac nhan da duyet.</summary>
         private static string GiaTriCongCu(ToolDefinition t, JsonNode? gop, IReadOnlyList<RawJson> nhan)
         {
-            JsonNode? final = gop == null ? null : gop["final"];
+            string cachGop = gop == null || gop["method"] == null ? "none" : gop["method"]!.GetValue<string>();
+
+            if (cachGop == "none")
+            {
+                JsonArray moiNguoi = new JsonArray();
+                foreach (RawJson n in nhan)
+                {
+                    JsonNode? k = n.Node()[t.Name];
+                    moiNguoi.Add(k == null ? null : k.DeepClone());
+                }
+
+                return moiNguoi.ToJsonString();
+            }
+
+            JsonNode? final = gop!["final"];
+            if (final == null)
+            {
+                // Tranh chap: khong co ket qua (cot "disputed" = true).
+                return string.Empty;
+            }
 
             if (t.Kind == ToolKinds.Classification)
             {
-                if (final == null)
-                {
-                    return string.Empty;
-                }
-
                 return string.Join(";", ((JsonArray)final["labelIds"]!).Select(n => n!.GetValue<string>()));
             }
 
             if (t.Kind == ToolKinds.Pairwise)
             {
-                return final == null ? string.Empty : final["choice"]!.GetValue<string>();
+                return final["choice"]!.GetValue<string>();
             }
 
-            JsonArray moiNguoi = new JsonArray();
-            foreach (RawJson n in nhan)
+            if (t.Kind == ToolKinds.Transcription)
             {
-                JsonNode? k = n.Node()[t.Name];
-                moiNguoi.Add(k == null ? null : k.DeepClone());
+                return final["text"]!.GetValue<string>();
             }
 
-            return moiNguoi.ToJsonString();
+            if (t.Kind == ToolKinds.Number)
+            {
+                return final["value"]!.ToJsonString();
+            }
+
+            if (t.Kind == ToolKinds.Ranking)
+            {
+                return string.Join(";", ((JsonArray)final["order"]!).Select(n => n!.ToJsonString()));
+            }
+
+            // Cong cu dang danh sach: JSON cac doi tuong da gop.
+            return final.ToJsonString();
         }
 
         /// <summary>

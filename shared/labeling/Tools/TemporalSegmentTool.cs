@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Nodes;
 
 namespace Crowd.Labeling.Tools
@@ -6,6 +8,7 @@ namespace Crowd.Labeling.Tools
     /// Doan thoi gian trong audio / video: [{"labelId":"noi","start":1.5,"end":4.0}],
     /// don vi GIAY, tinh tu DAU MAU (doan cat), 0 &lt;= start &lt; end &lt;= durationSec.
     /// Cham dap an: IoU thoi gian tung cap &gt;= nguong (mac dinh 0.5).
+    /// Gop nhieu nguoi: ghep cum theo IoU thoi gian, doan dai dien = TRUNG VI diem dau / diem cuoi.
     /// </summary>
     internal sealed class TemporalSegmentTool : DanhSachToolBase
     {
@@ -35,9 +38,30 @@ namespace Crowd.Labeling.Tools
             }
         }
 
-        protected override double DoGiong(JsonObject a, JsonObject b)
+        protected override object PhanTich(JsonObject phanTu)
         {
-            return HinhHoc.IouDoan(HinhHoc.So(a["start"]), HinhHoc.So(a["end"]), HinhHoc.So(b["start"]), HinhHoc.So(b["end"]));
+            return new double[] { HinhHoc.So(phanTu["start"]), HinhHoc.So(phanTu["end"]) };
+        }
+
+        protected override double DoGiongDaPhanTich(object a, object b, double tyLe)
+        {
+            double[] d1 = (double[])a;
+            double[] d2 = (double[])b;
+            return HinhHoc.IouDoan(d1[0], d1[1], d2[0], d2[1]);
+        }
+
+        protected override double DoGiong(JsonObject a, JsonObject b, double tyLe)
+        {
+            return DoGiongDaPhanTich(PhanTich(a), PhanTich(b), tyLe);
+        }
+
+        protected override JsonObject DaiDien(IReadOnlyList<JsonObject> thanhVien, BoSoSanh so)
+        {
+            return new JsonObject
+            {
+                ["start"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => HinhHoc.So(m["start"])))),
+                ["end"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => HinhHoc.So(m["end"])))),
+            };
         }
 
         protected override string KhoaSapXep(JsonObject p)

@@ -77,6 +77,9 @@ class AnnotationSubmitted(Payload):
     sample_id: uuid.UUID
     labeler_id: uuid.UUID | None
     label_payload: LabelPayload
+    # Metadata cua mau (width / height...) — de so do lech diem moc / duong gap khuc khi gop nhan.
+    # Co mac dinh: message do ban truoc phat (chua co truong nay) van doc duoc luc nang cap.
+    sample_metadata: Any = None
     source: Literal["professional", "linkGateway", "collaborative"]
 
 

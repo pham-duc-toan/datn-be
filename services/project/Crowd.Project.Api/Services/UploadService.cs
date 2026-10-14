@@ -40,6 +40,7 @@ namespace Crowd.Project.Api.Services
             { Modalities.Video, new string[] { ".mp4", ".mov", ".webm", ".mkv" } },
             { Modalities.Text, Array.Empty<string>() },
             { Modalities.Pair, Array.Empty<string>() },
+            { Modalities.List, Array.Empty<string>() },
         };
 
         /// <summary>File manifest (.jsonl / .json) duoc upload cho moi loai du lieu.</summary>

@@ -202,13 +202,10 @@ try:
     PL, _ = tao_du_an(biz, "MINLV", {"m1": "Min 1"}, 1, 1, GIA, dieu_kien={"minLevel": 3, "minReputation": None,
               "requireEntranceTest": False, "entranceQuestionCount": 10, "entrancePassPercent": 80})
     publish_va_duyet(biz, PL)
-    tham_gia(moi_vao, PL)
+    # project-svc kiem cap do NGAY LUC VAO du an (cung luat task-svc ap khi cap task).
+    r = requests.post(G + f"/projects/{PL}/join", headers=moi_vao["h"])
+    kiem("labeler cap 1 join du an minLevel 3 → 409 chua_du_cap_do", r.status_code == 409 and code(r) == "chua_du_cap_do", r.text)
     tham_gia(l1, PL)
-    # Ngay sau khi duyet / tham gia, task-svc co the chua nhan project.published (du_an_chua_san_sang)
-    # hoac member.added (khong_phai_thanh_vien) → cho. (Response 4xx co bool False → tra tuple de cho() dung lai.)
-    r = cho(lambda: (lambda x: (x.status_code, code(x), x.text) if code(x) not in ("du_an_chua_san_sang", "khong_phai_thanh_vien") else None)(
-        requests.post(G + f"/tasks/projects/{PL}/next", headers=moi_vao["h"])), 20)
-    kiem("labeler cap 1 → 403 chua_du_cap_do", r is not None and r[0] == 403 and r[1] == "chua_du_cap_do", r)
     kiem("labeler cap 3 nhan duoc task (level.changed toi task-svc)",
          cho(lambda: requests.post(G + f"/tasks/projects/{PL}/next", headers=l1["h"]).status_code == 200, 20))
 

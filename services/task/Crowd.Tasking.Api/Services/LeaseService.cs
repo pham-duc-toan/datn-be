@@ -246,7 +246,8 @@ namespace Crowd.Tasking.Api.Services
                 // Kiem theo TAP NHAN cua du an (ban sao tu project.published) va
                 // metadata MAU (khung trong anh, doan thoi gian trong doan audio).
                 // Sai → LabelFormatException → 400, luot lease van giu de sua va nop lai.
-                LabelPayload nhan = LabelPayload.Tao(duAn.LabelSchema, duLieuNhan.Value, SampleMetadata.Tu(task.Metadata));
+                SampleMetadata thongTinMau = SampleMetadata.Tu(task.Metadata);
+                LabelPayload nhan = LabelPayload.Tao(duAn.LabelSchema, duLieuNhan.Value, thongTinMau);
 
                 DateTimeOffset bayGio = _clock.GetUtcNow();
                 bool vuaDu = a.Nop(task, nhan, bayGio);
@@ -267,7 +268,7 @@ namespace Crowd.Tasking.Api.Services
                             ProjectId = a.ProjectId,
                             SampleId = a.SampleId,
                             LabelerId = a.LabelerId,
-                            Correct = nhan.KhopDapAn(duAn.LabelSchema, vang.ExpectedPayload, NguongKhopTuSetting.Doc(_settings)),
+                            Correct = nhan.KhopDapAn(duAn.LabelSchema, vang.ExpectedPayload, NguongKhopTuSetting.Doc(_settings), thongTinMau),
                             AnsweredAt = bayGio,
                         });
                     }

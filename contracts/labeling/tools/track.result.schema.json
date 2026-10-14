@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu track",
+  "description": "Theo doi doi tuong trong video: moi doi tuong la mot chuoi khung o cac MOC thoi gian (giay, tinh tu dau mau); giua hai moc khung duoc noi suy tuyen tinh; doi tuong ton tai tu moc dau toi moc cuoi. Vd [{\"labelId\":\"xe\",\"keyframes\":[{\"t\":0,\"x\":10,\"y\":20,\"w\":50,\"h\":30},{\"t\":2.5,\"x\":80,\"y\":20,\"w\":50,\"h\":30}]}]",
+  "type": "array",
+  "maxItems": 500,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "labelId",
+      "keyframes"
+    ],
+    "properties": {
+      "labelId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 50
+      },
+      "keyframes": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 2000,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "t",
+            "x",
+            "y",
+            "w",
+            "h"
+          ],
+          "properties": {
+            "t": {
+              "type": "number",
+              "minimum": 0
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0
+            },
+            "w": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "h": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        }
+      },
+      "attributes": {
+        "description": "Thuoc tinh cua doi tuong, theo 'attributes' cua cong cu trong tap nhan (kiem ngu nghia trong code).",
+        "type": "object",
+        "maxProperties": 20,
+        "propertyNames": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$"
+        },
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 5000
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

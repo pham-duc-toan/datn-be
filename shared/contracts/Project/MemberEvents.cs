@@ -24,6 +24,79 @@ namespace Crowd.Contracts.Project
         public required Guid UserId { get; init; }
 
         public required ProjectMemberRole Role { get; init; }
+
+        /// <summary>
+        /// Duong vao (them sau, khong bat buoc — ban cu khong co): owner_invite (chu du an moi
+        /// truc tiep), invite_code, join, entrance_test, join_request. notification-svc chi bao
+        /// cho nguoi duoc moi khi la owner_invite; cac service nhan ban bo qua truong nay.
+        /// </summary>
+        public string? Via { get; init; }
+
+        /// <summary>Ten du an luc vao — de thong bao co ten (khong bat buoc).</summary>
+        public string? ProjectName { get; init; }
+    }
+
+    /// <summary>Gia tri cua MemberAdded.Via.</summary>
+    public static class MemberJoinVia
+    {
+        public const string OwnerInvite = "owner_invite";
+        public const string InviteCode = "invite_code";
+        public const string Join = "join";
+        public const string EntranceTest = "entrance_test";
+        public const string JoinRequest = "join_request";
+    }
+
+    /// <summary>Labeler gui don xin tham gia du an che do duyet → bao chu du an.</summary>
+    public sealed record JoinRequestSubmitted : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "join_request.submitted"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid RequestId { get; init; }
+
+        public required Guid ProjectId { get; init; }
+
+        public required string ProjectName { get; init; }
+
+        public required Guid OwnerId { get; init; }
+
+        public required Guid UserId { get; init; }
+
+        /// <summary>Don sinh tu bai test dau vao: diem dat.</summary>
+        public int? ScorePercent { get; init; }
+    }
+
+    /// <summary>Chu du an duyet / tu choi don → bao labeler. Duyet thi member.added di kem.</summary>
+    public sealed record JoinRequestDecided : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "join_request.decided"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid RequestId { get; init; }
+
+        public required Guid ProjectId { get; init; }
+
+        public required string ProjectName { get; init; }
+
+        public required Guid UserId { get; init; }
+
+        public required bool Approved { get; init; }
+
+        public string? Reason { get; init; }
     }
 
     public sealed record MemberBlocked : IEventPayload

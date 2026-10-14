@@ -233,7 +233,10 @@ namespace Crowd.Labeling.Tests
             Assert.Equal("ngay", g["loai"]!["final"]!["labelIds"]![0]!.GetValue<string>());
             Assert.Equal(2, g["loai"]!["votes"]!["ngay"]!.GetValue<int>());
             Assert.False(g["loai"]!["disputed"]!.GetValue<bool>());
-            Assert.Equal("none", g["vat"]!["method"]!.GetValue<string>());
+            // Khung: ba nguoi deu khong ve gi → ket qua gop la danh sach rong, khong tranh chap.
+            Assert.Equal("cluster", g["vat"]!["method"]!.GetValue<string>());
+            Assert.Empty((JsonArray)g["vat"]!["final"]!);
+            Assert.False(g["vat"]!["disputed"]!.GetValue<bool>());
             Assert.Equal("none", g["vung"]!["method"]!.GetValue<string>());   // khong ai gan cong cu tuy chon nay
 
             JsonObject hoa = LabelAggregator.Gop(Cap, new LabelPayload[]

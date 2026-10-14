@@ -39,13 +39,13 @@ namespace Crowd.Labeling.Tools
             return TaoKetQua(lop);
         }
 
-        public bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh)
+        public bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh, SampleMetadata mau)
         {
             HashSet<string> a = new HashSet<string>(DocLop(nop), StringComparer.Ordinal);
             return a.SetEquals(DocLop(dapAn));
         }
 
-        public JsonObject Gop(IReadOnlyList<JsonNode> ketQua, ToolDefinition tool)
+        public JsonObject Gop(IReadOnlyList<JsonNode> ketQua, ToolDefinition tool, ThamSoGop thamSo)
         {
             int soNguoi = ketQua.Count;
             SortedDictionary<string, int> phieu = new SortedDictionary<string, int>(StringComparer.Ordinal);
@@ -68,11 +68,20 @@ namespace Crowd.Labeling.Tools
                 votes[p.Key] = p.Value;
             }
 
+            // Dong y = chon DUNG tap lop da chot.
+            HashSet<string> tapChot = new HashSet<string>(chot, StringComparer.Ordinal);
+            JsonArray dongY = new JsonArray();
+            foreach (JsonNode k in ketQua)
+            {
+                dongY.Add(chot.Count > 0 && tapChot.SetEquals(DocLop(k)));
+            }
+
             return new JsonObject
             {
                 ["method"] = "majority",
                 ["final"] = chot.Count == 0 ? null : TaoKetQua(chot),
                 ["votes"] = votes,
+                ["agrees"] = dongY,
                 ["disputed"] = chot.Count == 0,
             };
         }

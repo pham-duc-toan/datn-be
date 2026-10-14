@@ -407,11 +407,11 @@ Các quyết định đã chốt khi làm P3:
 | `posterior` | Tính hậu nghiệm từng đáp án, **có trọng số theo độ chính xác từng labeler** (mô hình một đồng xu; độ chính xác lấy từ Dawid–Skene nếu có, không thì từ câu vàng làm mượt). Chốt khi đáp án dẫn đầu ≥ `quality.posterior_target` (0,95) |
 | `voi` | Dừng tối ưu: chỉ mua thêm nếu tồn tại m nhãn nữa (m ≤ 6 và ≤ phần còn lại tới trần) mà giá trị thông tin kỳ vọng × `quality.voi_value_ratio` vượt chi phí m nhãn |
 
-Hai chính sách mới áp cho công cụ chọn một (phân loại một lớp, so sánh cặp). Chạm trần mà chưa đủ tin cậy thì task là **tranh chấp**, để người duyệt xử lý. Thí nghiệm trên 5 bộ dữ liệu công khai và mô phỏng ([NC-D-01](thi-nghiem/nc-d-01-redundancy-thich-ung.md)): để đạt cùng độ chính xác với cố định n nhãn, `posterior` / `voi` cần ít hơn 29–76% nhãn. Mặc định vẫn là `majority`, vì khi mọi labeler đều mới (chưa có bằng chứng về độ chính xác) thì `posterior` đắt hơn.
+Hai chính sách mới áp cho công cụ chọn một (phân loại một lớp, so sánh cặp); công cụ khác trong cùng tập nhãn vẫn gộp theo mục 3.15. Chạm trần mà chưa đủ tin cậy thì task là **tranh chấp**, để người duyệt xử lý. Thí nghiệm trên 5 bộ dữ liệu công khai và mô phỏng ([NC-D-01](thi-nghiem/nc-d-01-redundancy-thich-ung.md)): để đạt cùng độ chính xác với cố định n nhãn, `posterior` / `voi` cần ít hơn 29–76% nhãn. Mặc định vẫn là `majority`, vì khi mọi labeler đều mới (chưa có bằng chứng về độ chính xác) thì `posterior` đắt hơn.
 
 **Đánh giá một task được xếp hàng theo task** (`pg_advisory_xact_lock`): hai nhãn cuối của cùng task xử lý song song thì mỗi transaction chỉ thấy nhãn của mình, cả hai đếm thiếu và task kẹt vĩnh viễn không có đồng thuận. Lỗi này lộ ra khi chạy E2E tổng thể. Sau khi sửa, khi nhiều task được quyết định song song lại lộ thêm **deadlock lúc cập nhật uy tín**: hai task của cùng hai labeler khoá dòng `reputations` theo thứ tự ngược nhau, giao lại vẫn đụng nhau, đủ 5 lần thì vào DLQ. Sửa bằng cách cập nhật theo `labeler_id` tăng dần. Phép thử ép race (`tests/e2e/ep_race_quality.py`, 40 task mỗi lần, hai người nộp đồng thời) cho 120/120 task có kết quả qua 3 lần chạy, và nằm trong bộ hồi quy của CI.
 
-Gộp tự động hiện chỉ cho `classification` và `pairwise` (đa số tuyệt đối). Công cụ khác (khung, chép lời…) cho trạng thái `notApplicable` — gộp chúng (WBF, ROVER) là việc tiếp theo.
+Đồng thuận tính trên **mọi công cụ** của tập nhãn trừ `freeText` (câu trả lời mở): phân loại và so sánh cặp theo đa số tuyệt đối; khung, đa giác, điểm mốc, đường, mặt nạ, đoạn thời gian, chuỗi khung theo ghép cụm; đoạn văn bản và quan hệ theo phần tử trùng hệt; bản chép, số, xếp hạng theo bản ở giữa / trung vị / Borda — xem mục 3.15. Tập nhãn chỉ có `freeText` thì task ở trạng thái `notApplicable`.
 
 Dawid–Skene / Krippendorff alpha chạy **batch** (mặc định 15 phút, admin chạy tay được) trên các công cụ một giá trị (phân loại một lớp, so sánh cặp); labeler cần ≥ 5 nhãn trong dự án mới được chấm DS (VD-Q-07). Không chạy trong request. Mỗi lô **chỉ tính lại dự án có nhãn mới** (bảng `ds_state` giữ số nhãn đã dùng; `labels` chỉ INSERT nên số khác ⇔ có nhãn mới, kể cả nhãn đến trễ). Tính lại mọi dự án tốn ~1 giây / dự án (EM của crowd-kit): trên DB dev 107 dự án, lô đầy đủ mất 102 giây và nút "chạy ngay" của admin quá timeout gateway; lô tăng dần mất 0,04 giây. `?full=true` vẫn tính lại tất cả (sau khi đổi `quality.ds_min_labels`).
 
@@ -447,6 +447,8 @@ CREATE TABLE project_members (
 CREATE INDEX idx_pm_user ON project_members (user_id, state);
 ```
 
+Ai được thêm vào bảng này, bằng đường nào (mời, mã mời, đơn xin tham gia, bài test) và theo điều kiện gì: xem mục 3.16.
+
 **Nhân bản sang các service thực thi** (theo luật 2, mục 4):
 
 ```
@@ -478,13 +480,13 @@ Một nền tảng gán nhãn phải nhận được ảnh, văn bản, âm than
 
 | # | Câu hỏi | Chọn | Lý do |
 |---|---|---|---|
-| Q1 | Mô hình hóa "loại bài toán" | **Loại dữ liệu × công cụ**: dự án có một `modality`; tập nhãn là danh sách công cụ (`classification`, `bbox`, `polygon`, `span`, `transcription`, `temporalSegment`, `pairwise`) | Một màn hình thường cần nhiều công cụ cùng lúc (phân loại cảm xúc + gắn thực thể). Liệt kê từng "task type" ghép sẵn sẽ bùng nổ tổ hợp |
+| Q1 | Mô hình hóa "loại bài toán" | **Loại dữ liệu × công cụ**: dự án có một `modality`; tập nhãn là danh sách công cụ (ban đầu 7 loại: `classification`, `bbox`, `polygon`, `span`, `transcription`, `temporalSegment`, `pairwise`; nay 15 loại, mục 3.15) | Một màn hình thường cần nhiều công cụ cùng lúc (phân loại cảm xúc + gắn thực thể). Liệt kê từng "task type" ghép sẵn sẽ bùng nổ tổ hợp |
 | Q2 | Kiểm nhãn ở đâu | **JSON Schema cho hình dạng** ([contracts/labeling](../contracts/labeling)) + **code C# cho ngữ nghĩa** (lớp có trong tập nhãn, khung nằm trong ảnh, đoạn nằm trong audio) | Schema dùng chung được cho frontend; luật phụ thuộc mẫu thì schema không diễn đạt được |
 | Q3 | Nạp file lớn | **Upload thẳng lên MinIO bằng link ký sẵn + manifest + worker nền** (ffprobe đo thời lượng) | Video vài GB không đi qua service. ZIP trong request chỉ giữ cho ảnh nhỏ |
 | Q4 | Lưu mẫu | `samples` thêm `modality`, `content jsonb` (text/pair), `metadata jsonb`; `storage_key` nullable; CHECK đúng một trong hai | Văn bản không cần file; metadata (kích thước, thời lượng, đoạn) là thứ server cần để kiểm nhãn |
 | Q5 | Bản sao ở task / annotation | `label_schema jsonb` chép nguyên từ `project.published` | Kiểm nhãn lúc nộp và gộp kết quả không phải gọi HTTP sang project-svc (luật 1 mục 4) |
 | Q6 | Media dài | **Cắt đoạn** theo `segmentSeconds`, mỗi đoạn một task, giá theo task | Labeler không phải nghe 1 giờ cho một task; tiền và redundancy giữ nguyên mô hình cũ |
-| Q7 | Chấm câu vàng / gộp kết quả | Chấm trong C# theo từng công cụ: tập lớp bằng nhau, bbox IoU ≥ 0,5, polygon IoU, span F1, CER ≤ 0,1, IoU thời gian; ngưỡng đổi bằng `matchThreshold`. Gộp: đa số cho phân loại / cặp; công cụ khác **chưa gộp tự động**, kết quả là các nhãn đã duyệt | Gộp khung / bản chép (WBF, ROVER, Dawid–Skene) là việc của quality-svc (P3) |
+| Q7 | Chấm câu vàng / gộp kết quả | Chấm trong C# theo từng công cụ: tập lớp bằng nhau, bbox IoU ≥ 0,5, polygon IoU, span F1, CER ≤ 0,1, IoU thời gian; ngưỡng đổi bằng `matchThreshold`. Gộp: mọi công cụ trừ `freeText`, thuật toán ở mục 3.15 | Chấm và gộp dùng **chung một phép đo độ giống** cho từng công cụ, nên "khớp đáp án" và "hai người vẽ cùng một vật" là một định nghĩa |
 
 ```
 project.published { modality, labelSchema }          ← tập nhãn dạng chuẩn
@@ -505,7 +507,7 @@ assignments / annotations / gold_items:  task_type = modality,
 | # | Câu hỏi | Chọn | Lý do |
 |---|---|---|---|
 | S1 | Lưu ở đâu | **Một bảng chung `settings` trong `admin_db`**, mỗi dòng một khóa (`key`, `value jsonb`, `version`, `updated_at`, `updated_by`) + `setting_history` (cũ → mới, ai, lý do) | Một chỗ cho admin xem và sửa; lịch sử để truy "ai hạ phí lúc nào" |
-| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 145 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
+| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 155 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
 | S3 | Service đọc thế nào | **Bản sao `settings_replica` trong DB của chính mỗi service** + bộ nhớ (`SettingsStore`). Nhận `setting.changed`; lúc khởi động nạp bản sao rồi xin `settings.snapshot_requested`, admin-svc phát `settings.snapshot` (cả lúc khởi động và định kỳ) | Đúng luật 1–2 mục 4: không gọi HTTP sang admin-svc trong đường nóng; admin-svc chết thì mọi service vẫn chạy với giá trị đã có. Mỗi khóa có `version` riêng — event đến sai thứ tự không ghi đè giá trị mới |
 | S4 | Đổi có hiệu lực khi nào | **Chỉ cho thao tác mới.** Chu kỳ worker (giải phóng tiền treo, reaper, quét link…) đọc lại mỗi giây qua `ChoTheoSetting`, nên rút ngắn chu kỳ có hiệu lực ngay, không phải chờ hết chu kỳ cũ. Giá trị đọc lại mỗi lần dùng; thứ đã chốt thì giữ: dự án đã publish giữ phí lúc publish, lease đang chạy giữ hạn cũ, lệnh rút đã tạo giữ thuế đã tính | Không ai bị đổi luật giữa chừng. `consumers.prefetch_count` là ngoại lệ (`restart`) vì chỉ đặt được lúc mở kênh |
 | S5 | Domain có đọc setting không | **Không.** Tầng Api đọc setting, dựng **đối tượng quy định** (`QuyDinhDuAn`, `QuyDinhDuLieu`, `QuyDinhBaiTest`, `QuyDinhDuyetNhan`, `QuyDinhRut`, `QuyDinhNap`, `NguongKhop`) truyền vào domain | Domain vẫn thuần, test không cần hạ tầng. Độ rộng cột DB (`CotDb.*`) vẫn là hằng số của schema — setting độ dài bị chặn trần ở đó |
@@ -675,6 +677,145 @@ Ba nguyên tắc:
 
 **Chưa làm (ghi lại để biết giới hạn):** partition `outbox` / `assignments` theo thời gian (xoá bằng `DROP PARTITION` thay vì `DELETE`); gộp `label_agreements` + `gold_answers` thành bộ đếm theo labeler; hạn giữ cho `annotation_history`, `notifications`; xoá file MinIO của dự án đã đóng (cần doanh nghiệp đồng ý); sổ cái **không bao giờ** xoá (kiểm toán). Dự án đóng **trước** khi quality-svc có consumer `project.completed` không có `closed_at` — đã điền một lần bằng tay từ `task_db` trên dev / demo.
 
+### 3.15. Thêm công cụ gán nhãn, và gộp nhãn cho mọi công cụ
+
+**Bài toán.** Mục 3.9 dựng khung "loại dữ liệu × công cụ" với 7 công cụ, nhưng (1) thiếu nhiều dạng nhãn phổ biến — điểm mốc, đường, mặt nạ tô cọ, theo dõi đối tượng trong video, OCR, quan hệ giữa thực thể, xếp hạng nhiều mục, thang điểm, câu trả lời mở — và (2) chỉ phân loại / so sánh cặp được gộp tự động; với khung, đa giác… task ở trạng thái `notApplicable`: không có đồng thuận, không xin thêm người, không có bằng chứng cho uy tín, và file xuất ra là **khung của từng người chồng lên nhau**.
+
+Sau thay đổi: 6 loại dữ liệu, 15 công cụ, mọi công cụ trừ câu trả lời mở đều chấm và gộp được.
+
+| Công cụ | Dữ liệu | Kết quả | Độ giống hai kết quả (chấm câu vàng **và** ghép khi gộp) | Ngưỡng mặc định |
+|---|---|---|---|---|
+| `classification` | mọi loại | `{labelIds}` | tập lớp bằng nhau | — |
+| `pairwise` | pair | `{choice}` | cùng lựa chọn | — |
+| `freeText` ★ | mọi loại | `{text}` | không chấm | — |
+| `number` ★ | mọi loại | `{value}` | lệch ≤ `tolerance` của công cụ | 0 |
+| `transcription` | audio, video, **image** ★ | `{text}` | tỉ lệ lỗi ký tự (CER) | ≤ 0,1 |
+| `bbox` | image | `[{labelId,x,y,w,h}]` | IoU | 0,5 |
+| `polygon` | image | `[{labelId,points}]` | IoU ước lượng trên lưới 100 × 100 | 0,5 |
+| `keypoint` ★ | image | `[{labelId,x,y}]` | 1 − khoảng cách / đường chéo ảnh | 0,98 |
+| `polyline` ★ | image | `[{labelId,points}]` | 1 − độ lệch trung bình / đường chéo ảnh | 0,97 |
+| `mask` ★ | image | `[{labelId,rle}]` | IoU trên RLE | 0,5 |
+| `span` | text | `[{labelId,start,end}]` | trùng hệt; chấm bằng F1 | F1 1,0 |
+| `relation` ★ | text | `[{labelId,from,to}]` | trùng hệt; chấm bằng F1 | F1 1,0 |
+| `temporalSegment` | audio, video | `[{labelId,start,end}]` | IoU thời gian | 0,5 |
+| `track` ★ | video | `[{labelId,keyframes}]` | IoU không-thời gian | 0,5 |
+| `ranking` ★ | **list** ★ | `{order}` | tỉ lệ cặp mục xếp cùng chiều (Kendall) | 0,8 |
+
+★ = thêm ở mục này. Công cụ dạng danh sách (trừ `relation`) còn cho mỗi đối tượng mang **thuộc tính** riêng (`attributes`: `choice` / `boolean` / `text` / `number`).
+
+**Thêm công cụ: không đổi bảng, không đổi event.** Đúng như Q1–Q5 dự tính, mỗi công cụ mới là một file JSON Schema ([contracts/labeling/tools](../contracts/labeling/tools)) + một lớp `IToolKind` trong `shared/labeling/Tools` + một dòng trong bảng `ToolKinds`. Không có migration nào ở C#. Thay đổi hợp đồng duy nhất là `annotation.submitted` thêm `sampleMetadata` (quyết định C7).
+
+| # | Câu hỏi | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| C1 | Ô nhập chữ cho ảnh / văn bản / cặp | Tách **`freeText`** (câu trả lời mở: không chấm, không gộp) khỏi **`transcription`** (chép nội dung có sẵn: chấm bằng CER, gộp được; mở thêm cho ảnh) | Cùng hình dạng `{text}` nhưng khác bản chất. Dùng chung một công cụ thì mô tả ảnh sẽ bị đem ra "đồng thuận" — không bao giờ khớp, đốt hết trần redundancy |
+| C2 | OCR, "xe + bị che khuất" | **Thuộc tính khai trên công cụ**, mang theo từng đối tượng; không tạo công cụ `ocr` riêng | Một cơ chế phủ OCR (khung + `text`), phân loại phụ (`choice`), cờ (`boolean`) cho cả 8 công cụ dạng danh sách. Đánh đổi: kiểu của giá trị phụ thuộc tập nhãn nên JSON Schema chỉ kiểm được "là chuỗi / số / true-false", phần còn lại kiểm trong code |
+| C3 | Quan hệ trỏ tới đoạn nào | Bằng **vị trí** `[start, end)` của đoạn trong công cụ `span` mà `spanTool` chỉ tới; kiểm chéo giữa hai công cụ sau khi chuẩn hoá từng công cụ | Tham chiếu bằng số thứ tự sẽ lệch: danh sách đoạn được **sắp xếp lại** khi chuẩn hoá (để hai nhãn giống nhau ra cùng chuỗi JSON). Cái giá: `LabelPayload.Tao` có thêm một bước luật **giữa** các công cụ |
+| C4 | Xếp hạng nhiều mục | Loại dữ liệu mới **`list`** (`content = {prompt, items[]}`, `metadata.itemCount`); kết quả là hoán vị các **chỉ số** mục | `pair` cố định hai mục `a` / `b`. Chỉ số gọn và kiểm được ngay bằng `itemCount`; đánh đổi: thứ tự `items` trở thành định danh, không sửa được sau khi nạp (mẫu vốn bất biến) |
+| C5 | Lưu mặt nạ | **RLE không nén kiểu COCO** ngay trong `payload jsonb` (đoạn 0 / 1 xen kẽ, duyệt theo cột), bắt buộc ở dạng chuẩn; mọi phép tính (IoU, bỏ phiếu từng pixel, hình bao) đi trên **đoạn**, không bung ra pixel | Không cần kho file riêng, không đổi bảng, xuất COCO không phải chuyển đổi. Mặt nạ ảnh 4K vẫn chỉ vài nghìn đoạn. Chặn kích thước: ≤ 100.000 đoạn mỗi mặt nạ, tổng ≤ 200.000 đoạn mỗi công cụ (nhãn đi qua 3 event). Không dùng PNG / RLE nén: phải giải mã mới tính được |
+| C6 | Theo dõi đối tượng | Mỗi đối tượng = chuỗi **keyframe** `{t, x, y, w, h}`, giữa hai keyframe **nội suy tuyến tính**; độ giống = IoU không-thời gian lấy mẫu 50 thời điểm trên khoảng hợp của hai chuỗi | Người gán chỉ vẽ ở vài thời điểm thay vì từng khung hình; phép đo phạt cả lệch vị trí lẫn lệch thời điểm bắt đầu / kết thúc. Chưa có ẩn / hiện lại trong một chuỗi |
+| C7 | Thước đo cho điểm mốc và đường | Chuẩn hoá độ lệch theo **đường chéo ảnh** → cần kích thước ảnh ở mọi nơi chấm: `KhopDapAn(..., metadata mẫu)` (task-svc, project-svc) và `annotation.submitted.sampleMetadata` → `labels.sample_metadata` (quality-svc) | Ngưỡng theo pixel sẽ sai giữa ảnh 4K và ảnh thu nhỏ. Thêm vài chục byte vào một event, đổi lại quality-svc không phải gọi đồng bộ sang service khác (luật 1 mục 4). Mẫu cũ không có kích thước: dùng hình bao của chính các điểm đang so |
+| C8 | Gộp ở đâu | **Hai nơi, một thuật toán**: `Crowd.Labeling` (C#) gộp nhãn **đã duyệt** → kết quả giao doanh nghiệp, file xuất; `quality-svc/app/gop.py` (Python) gộp nhãn **vừa nộp** → đồng thuận, xin thêm người, chấm khớp / lệch | Hai câu hỏi khác nhau trên hai tập nhãn khác nhau, ở hai service khác ngôn ngữ; gọi đồng bộ sang nhau vi phạm luật 1. Cái giá là **hai bản cài đặt** — xem "Giữ hai bản không lệch nhau" |
+| C9 | Khi nào một task tranh chấp | Công cụ dạng danh sách: một người **khớp** khi F1 giữa đối tượng của họ và đối tượng đã gộp ≥ `quality.consensus_min_f1` (0,8); công cụ tranh chấp khi **không quá một nửa** số người khớp. Một nhãn khớp khi khớp mọi công cụ đã có kết quả | Đòi "ai cũng vẽ đủ mọi vật" thì một khung thừa của một người làm cả mẫu tranh chấp; F1 cho phép sót / thừa một vài trong nhiều vật. Ngưỡng là setting vì tuỳ độ khó dữ liệu |
+| C10 | File xuất | COCO / YOLO / VOC / CSV ghi **đối tượng đã gộp** (kèm `support` = số người vẽ); COCO thêm `mask` | Dữ liệu huấn luyện cần một khung cho một vật. Mẫu tranh chấp không có đối tượng và được đánh dấu — cùng nguyên tắc với phân loại (FB-22) |
+
+**Thuật toán ghép cụm** (`DanhSachToolBase.Gop`, dùng cho mọi công cụ dạng danh sách):
+
+```text
+1. GHÉP   Duyệt lần lượt từng người. Với mỗi người, ghép đối tượng của họ vào các cụm ĐÃ CÓ (do người trước
+          tạo): cùng lớp, độ giống với đối tượng MỞ ĐẦU cụm ≥ ngưỡng; ưu tiên cặp giống nhất; mỗi cụm nhận
+          tối đa một đối tượng của một người. Đối tượng không ghép được mở cụm mới.
+2. CHỐT   Giữ cụm có HƠN MỘT NỬA số người. Mỗi cụm ra một đối tượng đại diện + thuộc tính gộp.
+3. ĐỒNG Ý Mỗi người: F1 giữa đối tượng của họ và kết quả chốt ≥ ngưỡng thì khớp.
+          Không quá một nửa số người khớp → tranh chấp, không có kết quả.
+```
+
+| Công cụ | Đối tượng đại diện của cụm |
+|---|---|
+| `bbox`, `keypoint`, `temporalSegment` | **Trung vị** từng toạ độ (không bị một người vẽ lệch kéo đi như trung bình) |
+| `polygon`, `polyline`, `track` | Thành viên **"ở giữa"** — tổng độ giống tới các thành viên khác lớn nhất (số đỉnh / số keyframe mỗi người một khác, không lấy trung bình từng toạ độ được) |
+| `mask` | **Bỏ phiếu từng pixel** trong cụm |
+| `span`, `relation` | Ngưỡng ghép cố định "trùng hệt" → cụm = các bản y hệt nhau |
+| Thuộc tính | `choice` / `boolean`: giá trị quá bán trong số người có ghi; `number`: trung vị; `text`: bản ở giữa |
+
+Công cụ cho cả mẫu: `transcription` lấy bản chép **ở giữa** (kết quả luôn là một bản do người thật gõ, không trộn chữ của nhiều bản như ROVER); `number` lấy trung vị; `ranking` cộng điểm Borda. Cả ba dùng chung luật "không quá một nửa số người khớp kết quả gộp → tranh chấp".
+
+Thuật toán **tất định và không có trọng số**: cùng dữ liệu cùng thứ tự luôn ra cùng kết quả (mọi chỗ hoà đều có luật phá hoà), và giải thích được cho doanh nghiệp bằng một câu. Chưa dùng độ tin cậy từng labeler làm trọng số (kiểu WBF / Dawid–Skene cho khung): cần đủ dữ liệu mới ước lượng được, và sẽ làm kết quả của cùng một mẫu thay đổi theo thời gian.
+
+**Giữ hai bản không lệch nhau.** Ba lớp:
+
+1. Bộ ví dụ chung [contracts/labeling/testdata/gop.vectors.json](../contracts/labeling/testdata/gop.vectors.json) — 31 ví dụ phủ mọi công cụ, kèm ca tranh chấp, thuộc tính, ảnh không có kích thước, tiếng Việt có dấu. Phần `expected` do C# sinh (`UPDATE_GOP_VECTORS=1 dotnet test shared/test/labeling-tests`); `GopVectorTests.cs` và `tests/test_gop_vectors.py` cùng chạy bộ này, lệch là test của bên đó đỏ.
+2. Những chỗ hai ngôn ngữ dễ khác nhau được viết **cùng một công thức**: làm tròn (`floor(v × 1000 + 0,5) / 1000`), khoảng cách sửa trên **đơn vị UTF-16** (chuỗi Python được đổi sang UTF-16 trước khi đo), khoá sắp xếp so theo đơn vị UTF-16, thứ tự phá hoà khi ghép cặp.
+3. IoU đa giác: C# quét từng hàng lưới (tính giao điểm với cạnh một lần mỗi hàng), Python tính cả lưới bằng numpy — hai cách cài đặt nhưng **cùng phép so sánh** trên cùng lưới điểm, nên ra cùng số điểm.
+
+**Chi phí tính toán.** Ghép cụm so từng cặp đối tượng cùng lớp nên tăng theo bình phương số đối tượng; phép đo đắt nhất là IoU đa giác (lưới 100 × 100) và mặt nạ (đi trên đoạn). Trong một lần gộp, mỗi đối tượng chỉ được đọc từ JSON một lần và mỗi cặp chỉ so một lần (`BoSoSanh` / `_nho_do_giong`); đa giác và mặt nạ có bước lọc nhanh bằng hình bao / khoảng pixel trước khi tính IoU; một người gán thì không so cặp. Đo trên máy dev (một lần gộp một mẫu ảnh 1920 × 1080, 5 người, dữ liệu sinh ngẫu nhiên; hai bên cho kết quả **giống hệt** trên cả 6 trường hợp):
+
+| Mẫu | C# (annotation-svc, kết quả / file xuất) | Python (quality-svc, đồng thuận) |
+|---|---|---|
+| 50 khung mỗi người | 16 ms | 65 ms |
+| 300 khung mỗi người | 0,8 giây | 3,7 giây |
+| 20 đa giác 12 đỉnh mỗi người | 0,15 giây | 0,5 giây |
+| 100 đa giác 12 đỉnh mỗi người | 0,8 giây | 7,7 giây |
+| 10 mặt nạ ~1.000 đoạn mỗi người | 45 ms | 0,5 giây |
+| 40 mặt nạ ~1.000 đoạn mỗi người | 0,3 giây | 1,3 giây |
+
+Trước khi đọc sẵn và nhớ theo cặp, C# mất 7,8 giây cho trường hợp 40 mặt nạ (đọc lại 1.000 số của mặt nạ ở mỗi lần so). quality-svc tính đồng thuận trong consumer, mỗi task một lần nên vài giây cho mẫu cực dày là chấp nhận được. `GET /annotations/projects/{id}/results` thì gộp **lại mọi mẫu ở mỗi lần gọi**: dự án hàng nghìn mẫu dày đa giác / mặt nạ sẽ chậm — chưa có cache kết quả gộp (xem Giới hạn).
+
+**Hành vi thay đổi với dự án đang có.** (1) Dự án dùng khung / đa giác / đoạn / chép lời trước đây không có đồng thuận, nay có: task có thể được xin thêm người tới `maxRedundancy` — không vượt ngân sách, vì ký quỹ luôn tính theo trần (mục 3.7). (2) File COCO / YOLO / VOC đổi từ "mỗi khung của mỗi người" sang "khung đã gộp"; với một nhãn đã duyệt mỗi mẫu thì kết quả như cũ. (3) Nhãn nhận trước bản này không có `sample_metadata`: vẫn gộp được, điểm mốc / đường dùng thước đo dự phòng.
+
+**Kiểm chứng.** `shared/test/labeling-tests`: 59 test (định dạng, chuẩn hoá, chấm đáp án từng công cụ + bộ ví dụ chung). `services/quality/tests`: 111 test (62 từ bộ ví dụ chung: từng công cụ và cả task). `services/annotation`: COCO / CSV / YOLO chạy từ nhãn đã duyệt tới file. E2E [e2e_cong_cu.py](../tests/e2e/e2e_cong_cu.py) (81 ca, qua API thật): nộp sai bị từ chối đúng lý do, đồng thuận ở quality-svc, tranh chấp → xin thêm người → người thứ ba phá thế hoà, kết quả gộp và file xuất, bài test đầu vào và câu vàng bằng điểm mốc, đổi ngưỡng bằng setting lúc đang chạy.
+
+**Giới hạn.**
+
+- IoU đa giác là ước lượng trên lưới (sai số ~1%), đủ cho ngưỡng 0,5 nhưng không dùng làm số đo chính xác.
+- Trang kết quả / file xuất gộp lại toàn bộ dự án ở mỗi lần gọi (bảng chi phí ở trên). Dự án lớn với đối tượng dày cần cache kết quả gộp theo mẫu (tính lại khi mẫu có nhãn được duyệt / bị loại) — chưa làm.
+- `track`: đối tượng biến mất rồi xuất hiện lại phải tách thành hai chuỗi (mất định danh); chưa có khung xoay.
+- Chưa xuất định dạng riêng cho `keypoint` (COCO keypoints cần bộ khung xương cố định), `track` (MOT), `relation` (CoNLL / BRAT): lấy qua JSON / CSV.
+- Dawid–Skene / Krippendorff alpha (mục 3.7) vẫn chỉ tính cho công cụ một giá trị rời rạc; chính sách `posterior` / `voi` cũng vậy.
+- Cổng vượt link (mục 3.6) vẫn chỉ nhận phân loại một lớp và so sánh cặp.
+- Dữ liệu seed chưa có dự án mẫu cho công cụ mới; frontend chưa có màn hình vẽ cho các công cụ này ([hợp đồng](tich-hop-frontend.md) mục 6.3, 6.6 ví dụ 11–18).
+
+### 3.16. Vào dự án: ba chế độ, mời nhiều người, mã mời, đơn xin tham gia
+
+Trước bản này chỉ có hai đường: dự án **công khai** thì labeler tự `join`, dự án **riêng tư** thì chủ dự án thêm **từng `userId`**. Doanh nghiệp không biết `userId` của người ta thì gần như không dùng được chế độ riêng tư. `join` cũng không kiểm cấp độ / uy tín: người chưa đủ điều kiện vẫn vào được, rồi lần nhận task nào cũng bị task-svc từ chối `chua_du_cap_do`.
+
+**Ba chế độ hiển thị** (`visibility`, chỉ đổi được khi còn Nháp):
+
+| Chế độ | Labeler thấy dự án? | Tự vào bằng cách nào | Chủ dự án mời / mã mời |
+|---|---|---|---|
+| `public` | Có | `POST /join`, hoặc làm đạt bài test đầu vào | Có |
+| `approval` *(mới)* | Có | Gửi **đơn** (`POST /join-requests`) → chủ dự án duyệt. Có bài test thì làm đạt mới thành đơn, kèm điểm | Có |
+| `private` | Không (404) | Không | Có — đường duy nhất |
+
+**Bốn đường vào, một luật điều kiện.** Mọi đường đều kiểm hồ sơ labeler lấy **ngay lúc vào** từ identity-svc, cùng luật và cùng mã lỗi với task-svc khi cấp task (`EligibilityPolicy`): `tai_khoan_bi_khoa`, `khong_phai_labeler`, `chua_du_cap_do`, `chua_du_uy_tin`.
+
+| Đường vào | Ai bấm | Kiểm điều kiện | `member.added.via` | Thông báo |
+|---|---|---|---|---|
+| `POST /members`, `POST /members/batch` (theo email hoặc userId) | Chủ dự án | Có, với vai trò labeler; reviewer chỉ kiểm khoá | `owner_invite` | Người được mời |
+| `POST /projects/join-by-code` | Labeler | Có | `invite_code` | — |
+| `POST /join`, bài test đầu vào | Labeler | Có, **trước khi** làm bài | `join`, `entrance_test` | — |
+| Duyệt đơn | Chủ dự án | Có, kiểm **lại** lúc duyệt (uy tín có thể đã tụt) | `join_request` | Labeler (duyệt / từ chối + lý do); chủ dự án khi có đơn mới |
+
+**Tra cứu người dùng: hỏi chủ dữ liệu, không giữ bản sao.** project-svc gọi `POST /internal/users/lookup` của identity-svc (khoá `X-Internal-Key`, gateway không định tuyến `/internal`) để đổi email → userId và lấy vai trò, khoá, cấp độ, uy tín. Đây là cùng kiểu với lúc đóng dự án (`DongSoClient`): thao tác hiếm, không nằm trên đường nóng, nên hỏi chủ dữ liệu tại chỗ, không nhân bản email sang project_db — trước đó hệ thống đã chủ động bỏ bản sao email KYB. identity không trả lời thì **từ chối** (503 `dich_vu_khong_san_sang`), giống task-svc "thiếu dữ liệu thì không cho qua". Riêng màn hàng đợi đơn vẫn hiện được khi identity tắt, chỉ thiếu tên / cấp độ / uy tín.
+
+**Mời nhiều người.** `POST /members/batch` nhận `userIds` và `emails` (tổng tối đa `project.member_batch_max`, mặc định 100). Mỗi đầu vào trả một dòng kết quả theo đúng thứ tự gửi: `added`, `khong_tim_thay`, `email_khong_hop_le`, `trung_lap` (cùng một người xuất hiện hai lần), `da_la_thanh_vien`, `bi_chan` hoặc mã điều kiện. Người hợp lệ được thêm hết trong **một** transaction cùng các event `member.added`. Hai lần mời trùng người chạy cùng lúc thì khoá chính `(project_id, user_id)` chọn một, lần kia làm lại và thấy `da_la_thanh_vien`. `POST /members` (một người) dùng chung logic, nhận `userId` **hoặc** `email`, lỗi trả đúng mã như trên. Trước đây nó thêm cả `userId` không tồn tại; nay trả 404.
+
+**Mã mời** (bảng `invite_codes`). 16 ký tự từ bảng 32 ký tự dễ đọc (bỏ I, O, 0, 1), tức 80 bit ngẫu nhiên: không dò được trong giới hạn tần suất của gateway. Mã luôn có hạn (mặc định 7 ngày, tối đa `project.invite_code_max_ttl`), có thể giới hạn số lượt và thu hồi được. Mã được lưu nguyên văn để chủ dự án xem lại và chia sẻ lại; nó chỉ mở cửa một dự án, không phải mật khẩu. Người dùng gõ chữ thường, có gạch hay khoảng trắng đều được. Mã mời là **lời mời của chủ dự án**, nên bỏ qua chế độ hiển thị (vào được dự án riêng tư, kể cả khi dự án còn Nháp) và bỏ qua bài test, nhưng **không** bỏ qua cấp độ / uy tín. Thứ tự kiểm tra: mã tồn tại → dự án chưa kết thúc → chưa là thành viên → đủ điều kiện → mã còn dùng được → ghi lượt và thêm thành viên trong một transaction. Người bị từ chối vì vậy không làm tốn lượt. Hai người dùng **lượt cuối** cùng lúc: cột `xmin` chọn một, người kia đọc lại và nhận `ma_moi_het_luot` (E2E: 6 người tranh 3 lượt → đúng 3 người vào).
+
+**Đơn xin tham gia** (bảng `join_requests`). Mỗi người có tối đa **một** đơn `pending` trong một dự án, đảm bảo bằng chỉ mục duy nhất có điều kiện `WHERE status = 'Pending'`, nên hai request gửi cùng lúc thì DB chọn một. Đơn bị từ chối thì phải chờ `project.join_request_cooldown` (mặc định 24 giờ) mới gửi lại được: chống spam hàng đợi của chủ dự án. Nếu dự án có bài test, không gửi đơn tay được (`can_lam_test`); làm đạt bài test thì đơn tự tạo, kèm `scorePercent` và `entranceAttemptId`, và trong lúc đơn đang chờ không làm lại test được. Người đang có đơn mà vào bằng đường khác thì đơn tự đóng: chủ dự án mời thẳng → `approved`, labeler nhập mã mời → `cancelled`. Nhờ vậy hàng đợi không còn đơn thừa.
+
+**Sửa lệch giữa hai service.** identity coi labeler chưa có thống kê là **cấp 1**. task-svc trước đây lại từ chối người chưa từng nhận `level.changed`, kể cả khi dự án chỉ đòi cấp 1. Nay task-svc cũng coi là cấp 1. Thay đổi này vẫn an toàn theo hướng từ chối: `level.changed` đến trễ chỉ làm labeler cấp cao tạm bị coi là cấp 1, không bao giờ cho người không đủ cấp vượt qua.
+
+**Event mới.** `join_request.submitted` (→ notification: báo chủ dự án) và `join_request.decided` (→ notification: báo labeler). `member.added` thêm hai trường **không bắt buộc**: `via` và `projectName`. Bản tin cũ không có hai trường này vẫn đọc được; các service nhân bản bảng thành viên bỏ qua chúng. Hai loại thông báo mới: `thanh_vien` (mặc định có email) và `don_tham_gia` (mặc định **không** email, vì chủ dự án có thể nhận rất nhiều đơn).
+
+**Kiểm chứng.** `Crowd.Project.Tests/ThanhVienTests.cs` (13 test thuần: chế độ, điều kiện, mã mời, đơn). E2E [e2e_thanh_vien.py](../tests/e2e/e2e_thanh_vien.py) (86 ca qua API thật): mời theo email / userId, một và nhiều người, giới hạn lô; mã mời (hết lượt, hết hạn, thu hồi, 6 người tranh 3 lượt); kiểm cấp độ / uy tín ở `join`, lúc mời, mã mời, bài test; chế độ approval (gửi, trùng, từ chối + chờ, rút, duyệt, uy tín tụt lúc duyệt, đơn tự đóng) và approval kèm bài test; thông báo cho cả hai phía; nhận task thật sau khi vào.
+
+**Giới hạn.**
+
+- Mời theo email chỉ áp dụng cho người **đã có tài khoản**. Chưa có lời mời chờ đăng ký (gửi email mời người chưa có tài khoản, tự vào khi đăng ký bằng email đó).
+- Chủ dự án mời theo email thì biết được email đó có tài khoản hay không (`khong_tim_thay`). Rủi ro này chấp nhận được, vì chủ dự án là doanh nghiệp đã KYB; có thể giảm bằng giới hạn tần suất riêng nếu cần.
+- Danh sách thành viên chưa kèm tên / email: frontend ghép bằng `GET /users/public?ids=`.
+- Chưa có hạn tự đóng cho đơn `pending` mà chủ dự án bỏ quên; labeler tự rút được.
+
 ## 4. Dữ liệu chéo — ba luật cứng
 
 Đây là chỗ dự án microservice hay vỡ nhất.
@@ -841,7 +982,7 @@ Service 2 project: `Api → BuildingBlocks`, `Tests → Api`.
 
 | Phase | Service dựng thêm | Kiểm chứng được |
 |---|---|---|
-| **P0** | gateway, identity, project, task, annotation | Chạy end-to-end **mọi loại dữ liệu** (ảnh, văn bản, âm thanh, video, cặp) với 7 loại công cụ nhãn (mục 3.9). Tạo dự án → upload → gán nhãn → xem kết quả, xuất JSON / CSV / COCO |
+| **P0** | gateway, identity, project, task, annotation | Chạy end-to-end **mọi loại dữ liệu** (ảnh, văn bản, âm thanh, video, cặp) với 15 loại công cụ nhãn trên 6 loại dữ liệu (mục 3.9, 3.15). Tạo dự án → upload → gán nhãn → xem kết quả, xuất JSON / CSV / COCO |
 | **P1** | ledger, payment | Vòng tiền khép kín: nạp → ký quỹ → duyệt nhãn → hold → rút |
 | **P2** | link, gate | Kênh thu thập thứ hai + chống lạm dụng (**đã có**, mục 3.6) |
 | **P3** | quality | Chất lượng đo được bằng số: đồng thuận, Krippendorff alpha, Dawid–Skene, redundancy thích ứng, câu vàng kiểm tra, uy tín (**đã có**, mục 3.7) |

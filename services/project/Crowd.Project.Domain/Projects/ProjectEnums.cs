@@ -33,12 +33,22 @@ namespace Crowd.Project.Domain.Projects
         Cancelled,
     }
 
+    /// <summary>
+    /// Ai thay du an va vao bang cach nao. Moi che do deu con hai duong cua chu du an: moi
+    /// truc tiep (POST /members, /members/batch) va ma moi (invite-codes).
+    /// </summary>
     public enum ProjectVisibility
     {
-        /// <summary>Moi labeler du dieu kien deu thay va tham gia duoc.</summary>
+        /// <summary>Moi labeler du dieu kien deu thay va tu tham gia (join / bai test dau vao).</summary>
         Public,
 
-        /// <summary>Private pool (FP-05): chi nguoi duoc chu du an moi.</summary>
+        /// <summary>Private pool (FP-05): khong hien trong danh sach, chi vao qua loi moi / ma moi.</summary>
         Private,
+
+        /// <summary>
+        /// Cong khai nhung CAN DUYET: labeler thay du an, gui don xin tham gia (co bai test thi
+        /// lam dat moi thanh don, kem diem); chu du an duyet / tu choi tung don.
+        /// </summary>
+        Approval,
     }
 }

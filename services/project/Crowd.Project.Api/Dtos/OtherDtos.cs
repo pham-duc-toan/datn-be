@@ -10,11 +10,151 @@ namespace Crowd.Project.Api.Dtos
 {
     // ---- Thanh vien ----
 
+    /// <summary>Moi MOT nguoi: userId HOAC email (khong ca hai).</summary>
     public sealed class AddMemberRequest
     {
         public Guid? UserId { get; init; }
 
+        public string? Email { get; init; }
+
         public MemberRole? Role { get; init; }
+    }
+
+    /// <summary>Moi NHIEU nguoi cung vai tro: userIds va / hoac emails (tong toi da project.member_batch_max).</summary>
+    public sealed class AddMembersBatchRequest
+    {
+        public MemberRole? Role { get; init; }
+
+        public IReadOnlyList<Guid>? UserIds { get; init; }
+
+        public IReadOnlyList<string>? Emails { get; init; }
+    }
+
+    public sealed class AddMembersBatchResponse
+    {
+        /// <summary>So nguoi da them.</summary>
+        public required int Added { get; init; }
+
+        /// <summary>Moi dau vao mot dong, cung thu tu (userIds truoc, emails sau).</summary>
+        public required IReadOnlyList<AddMemberResult> Results { get; init; }
+    }
+
+    public sealed class AddMemberResult
+    {
+        /// <summary>Dau vao nguyen van (userId hoac email nhu da gui).</summary>
+        public required string Input { get; init; }
+
+        public Guid? UserId { get; init; }
+
+        public string? DisplayName { get; init; }
+
+        /// <summary>
+        /// added | khong_tim_thay | email_khong_hop_le | trung_lap | da_la_thanh_vien | bi_chan |
+        /// tai_khoan_bi_khoa | khong_phai_labeler | chua_du_cap_do | chua_du_uy_tin
+        /// </summary>
+        public required string Status { get; init; }
+
+        public string? Message { get; init; }
+    }
+
+    // ---- Ma moi ----
+    public sealed class CreateInviteCodeRequest
+    {
+        /// <summary>null = khong gioi han luot.</summary>
+        public int? MaxUses { get; init; }
+
+        /// <summary>null = 7 ngay (khong vuot project.invite_code_max_ttl).</summary>
+        public int? ExpiresInHours { get; init; }
+
+        public string? Note { get; init; }
+    }
+
+    public sealed class InviteCodeResponse
+    {
+        public required Guid Id { get; init; }
+
+        public required Guid ProjectId { get; init; }
+
+        /// <summary>16 ky tu; nguoi dung go co gach / khoang trang / chu thuong deu duoc.</summary>
+        public required string Code { get; init; }
+
+        public string? Note { get; init; }
+
+        public int? MaxUses { get; init; }
+
+        public required int UsedCount { get; init; }
+
+        public required DateTimeOffset ExpiresAt { get; init; }
+
+        public required DateTimeOffset CreatedAt { get; init; }
+
+        public DateTimeOffset? RevokedAt { get; init; }
+
+        /// <summary>active | expired | exhausted | revoked</summary>
+        public required string Status { get; init; }
+    }
+
+    public sealed class JoinByCodeRequest
+    {
+        public string? Code { get; init; }
+    }
+
+    public sealed class JoinByCodeResponse
+    {
+        public required Guid ProjectId { get; init; }
+
+        public required string ProjectName { get; init; }
+
+        public required MemberResponse Member { get; init; }
+    }
+
+    // ---- Don xin tham gia (du an che do approval) ----
+    public sealed class CreateJoinRequestRequest
+    {
+        /// <summary>Loi nhan cho chu du an (toi da 500 ky tu).</summary>
+        public string? Message { get; init; }
+    }
+
+    public sealed class RejectJoinRequestRequest
+    {
+        public string? Reason { get; init; }
+    }
+
+    public sealed class JoinRequestResponse
+    {
+        public required Guid Id { get; init; }
+
+        public required Guid ProjectId { get; init; }
+
+        public string? ProjectName { get; init; }
+
+        public required Guid UserId { get; init; }
+
+        /// <summary>Chi trong danh sach cua chu du an: ten, cap do, uy tin hien tai (null neu identity-svc khong tra loi).</summary>
+        public string? DisplayName { get; init; }
+
+        public int? Level { get; init; }
+
+        public int? Reputation { get; init; }
+
+        public string? Message { get; init; }
+
+        /// <summary>pending | approved | rejected | cancelled</summary>
+        public required JoinRequestStatus Status { get; init; }
+
+        /// <summary>Don sinh tu bai test dau vao.</summary>
+        public Guid? EntranceAttemptId { get; init; }
+
+        public int? ScorePercent { get; init; }
+
+        public required DateTimeOffset CreatedAt { get; init; }
+
+        public DateTimeOffset? DecidedAt { get; init; }
+
+        public string? RejectReason { get; init; }
+
+        /// <summary>Don bi tu choi: tu luc nay moi gui duoc don moi.</summary>
+        public DateTimeOffset? CanRequestAgainAt { get; init; }
     }
 
     public sealed class MemberResponse
@@ -205,6 +345,9 @@ namespace Crowd.Project.Api.Dtos
 
         /// <summary>true = dau va vua thanh thanh vien du an.</summary>
         public required bool JoinedProject { get; init; }
+
+        /// <summary>Du an che do approval: dau thi thanh DON XIN THAM GIA cho chu du an duyet (kem diem).</summary>
+        public Guid? JoinRequestId { get; init; }
 
         public required int AttemptsLeft { get; init; }
     }

@@ -1,0 +1,3385 @@
+[
+  {
+    "name": "bbox: ba nguoi, hai vat; nguoi thu ba bo sot mot vat",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vat",
+          "kind": "bbox",
+          "classes": [
+            "xe",
+            "nguoi"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 200,
+      "height": 100
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "x": 10,
+            "y": 10,
+            "w": 50,
+            "h": 30
+          },
+          {
+            "labelId": "nguoi",
+            "x": 120,
+            "y": 20,
+            "w": 20,
+            "h": 60
+          }
+        ]
+      },
+      {
+        "vat": [
+          {
+            "labelId": "nguoi",
+            "x": 122,
+            "y": 22,
+            "w": 20,
+            "h": 58
+          },
+          {
+            "labelId": "xe",
+            "x": 12,
+            "y": 11,
+            "w": 52,
+            "h": 30
+          }
+        ]
+      },
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "x": 8,
+            "y": 9,
+            "w": 50,
+            "h": 33
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vat": {
+        "method": "cluster",
+        "final": [
+          {
+            "x": 121,
+            "y": 21,
+            "w": 20,
+            "h": 59,
+            "labelId": "nguoi"
+          },
+          {
+            "x": 10,
+            "y": 10,
+            "w": 50,
+            "h": 30,
+            "labelId": "xe"
+          }
+        ],
+        "supports": [
+          2,
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "bbox"
+      }
+    }
+  },
+  {
+    "name": "bbox: hai nguoi ve hai cho khac nhau → tranh chap",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vat",
+          "kind": "bbox",
+          "classes": [
+            "xe"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 200,
+      "height": 100
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 20
+          }
+        ]
+      },
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "x": 100,
+            "y": 50,
+            "w": 20,
+            "h": 20
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vat": {
+        "method": "cluster",
+        "final": null,
+        "agrees": [
+          false,
+          false
+        ],
+        "disputed": true,
+        "kind": "bbox"
+      }
+    }
+  },
+  {
+    "name": "bbox: cung vi tri nhung khac lop khong ghep duoc; khung le loi cua mot nguoi bi bo",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vat",
+          "kind": "bbox",
+          "classes": [
+            "xe",
+            "nguoi"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 200,
+      "height": 100
+    },
+    "minF1": 0.6,
+    "labels": [
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "x": 10,
+            "y": 10,
+            "w": 40,
+            "h": 40
+          }
+        ]
+      },
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "x": 11,
+            "y": 10,
+            "w": 40,
+            "h": 40
+          },
+          {
+            "labelId": "nguoi",
+            "x": 150,
+            "y": 10,
+            "w": 20,
+            "h": 20
+          }
+        ]
+      },
+      {
+        "vat": [
+          {
+            "labelId": "nguoi",
+            "x": 10,
+            "y": 10,
+            "w": 40,
+            "h": 40
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vat": {
+        "method": "cluster",
+        "final": [
+          {
+            "x": 10.5,
+            "y": 10,
+            "w": 40,
+            "h": 40,
+            "labelId": "xe"
+          }
+        ],
+        "supports": [
+          2
+        ],
+        "agrees": [
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "bbox"
+      }
+    }
+  },
+  {
+    "name": "bbox: khong ai ve gi → dong y voi danh sach rong",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vat",
+          "kind": "bbox",
+          "classes": [
+            "xe"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 200,
+      "height": 100
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vat": []
+      },
+      {
+        "vat": []
+      },
+      {
+        "vat": []
+      }
+    ],
+    "expected": {
+      "vat": {
+        "method": "cluster",
+        "final": [],
+        "supports": [],
+        "agrees": [
+          true,
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "bbox"
+      }
+    }
+  },
+  {
+    "name": "bbox: MOT nguoi, nguong 1.0, toa do nhieu chu so — ket qua la nhan cua chinh ho (lam tron 3 chu so), van khop",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vat",
+          "kind": "bbox",
+          "classes": [
+            "xe"
+          ],
+          "matchThreshold": 1.0
+        }
+      ]
+    },
+    "metadata": {
+      "width": 200,
+      "height": 100
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "x": 10.12345,
+            "y": 20.98765,
+            "w": 30.55555,
+            "h": 40.4444
+          },
+          {
+            "labelId": "xe",
+            "x": 100,
+            "y": 50,
+            "w": 20,
+            "h": 20
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vat": {
+        "method": "cluster",
+        "final": [
+          {
+            "x": 10.123,
+            "y": 20.988,
+            "w": 30.556,
+            "h": 40.444,
+            "labelId": "xe"
+          },
+          {
+            "x": 100,
+            "y": 50,
+            "w": 20,
+            "h": 20,
+            "labelId": "xe"
+          }
+        ],
+        "supports": [
+          1,
+          1
+        ],
+        "agrees": [
+          true
+        ],
+        "disputed": false,
+        "kind": "bbox"
+      }
+    }
+  },
+  {
+    "name": "bbox + thuoc tinh (OCR): chu lay ban o giua, lua chon theo da so, so lay trung vi",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "chu",
+          "kind": "bbox",
+          "classes": [
+            "dong"
+          ],
+          "attributes": [
+            {
+              "name": "noi_dung",
+              "type": "text"
+            },
+            {
+              "name": "mau",
+              "type": "choice",
+              "options": [
+                "do",
+                "xanh",
+                "den"
+              ]
+            },
+            {
+              "name": "mo",
+              "type": "boolean"
+            },
+            {
+              "name": "so_tu",
+              "type": "number"
+            }
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 400,
+      "height": 100
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "chu": [
+          {
+            "labelId": "dong",
+            "x": 10,
+            "y": 10,
+            "w": 200,
+            "h": 30,
+            "attributes": {
+              "noi_dung": "CAM DO XE",
+              "mau": "do",
+              "mo": false,
+              "so_tu": 3
+            }
+          }
+        ]
+      },
+      {
+        "chu": [
+          {
+            "labelId": "dong",
+            "x": 12,
+            "y": 10,
+            "w": 198,
+            "h": 30,
+            "attributes": {
+              "noi_dung": "cam do xe",
+              "mau": "do",
+              "mo": true,
+              "so_tu": 3
+            }
+          }
+        ]
+      },
+      {
+        "chu": [
+          {
+            "labelId": "dong",
+            "x": 10,
+            "y": 12,
+            "w": 200,
+            "h": 28,
+            "attributes": {
+              "noi_dung": "CAM DO XE MAY",
+              "mau": "den",
+              "so_tu": 4
+            }
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "chu": {
+        "method": "cluster",
+        "final": [
+          {
+            "x": 10,
+            "y": 10,
+            "w": 200,
+            "h": 30,
+            "labelId": "dong",
+            "attributes": {
+              "noi_dung": "CAM DO XE",
+              "mau": "do",
+              "so_tu": 3
+            }
+          }
+        ],
+        "supports": [
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "bbox"
+      }
+    }
+  },
+  {
+    "name": "polygon: ba hinh gan giong → lay hinh o giua",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vung",
+          "kind": "polygon",
+          "classes": [
+            "ao"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 200,
+      "height": 200
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vung": [
+          {
+            "labelId": "ao",
+            "points": [
+              [
+                10,
+                10
+              ],
+              [
+                110,
+                10
+              ],
+              [
+                110,
+                110
+              ],
+              [
+                10,
+                110
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "ao",
+            "points": [
+              [
+                14,
+                12
+              ],
+              [
+                112,
+                14
+              ],
+              [
+                108,
+                112
+              ],
+              [
+                12,
+                108
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "ao",
+            "points": [
+              [
+                20,
+                20
+              ],
+              [
+                120,
+                20
+              ],
+              [
+                120,
+                120
+              ],
+              [
+                70,
+                130
+              ],
+              [
+                20,
+                120
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vung": {
+        "method": "cluster",
+        "final": [
+          {
+            "points": [
+              [
+                14,
+                12
+              ],
+              [
+                112,
+                14
+              ],
+              [
+                108,
+                112
+              ],
+              [
+                12,
+                108
+              ]
+            ],
+            "labelId": "ao"
+          }
+        ],
+        "supports": [
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "polygon"
+      }
+    }
+  },
+  {
+    "name": "keypoint: trung vi toa do; mot nguoi cham lech xa bi tinh la khong khop",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "mat",
+          "kind": "keypoint",
+          "classes": [
+            "mui",
+            "cam"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 300,
+      "height": 400
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "mat": [
+          {
+            "labelId": "mui",
+            "x": 100,
+            "y": 100
+          },
+          {
+            "labelId": "cam",
+            "x": 100,
+            "y": 180
+          }
+        ]
+      },
+      {
+        "mat": [
+          {
+            "labelId": "mui",
+            "x": 104,
+            "y": 98
+          },
+          {
+            "labelId": "cam",
+            "x": 97,
+            "y": 184
+          }
+        ]
+      },
+      {
+        "mat": [
+          {
+            "labelId": "mui",
+            "x": 101,
+            "y": 103
+          },
+          {
+            "labelId": "cam",
+            "x": 160,
+            "y": 250
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "mat": {
+        "method": "cluster",
+        "final": [
+          {
+            "x": 98.5,
+            "y": 182,
+            "labelId": "cam"
+          },
+          {
+            "x": 101,
+            "y": 100,
+            "labelId": "mui"
+          }
+        ],
+        "supports": [
+          2,
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "keypoint"
+      }
+    }
+  },
+  {
+    "name": "keypoint: anh khong co kich thuoc → thuoc do la hinh bao cua cac diem",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "mat",
+          "kind": "keypoint",
+          "classes": [
+            "mui"
+          ],
+          "matchThreshold": 0.9
+        }
+      ]
+    },
+    "metadata": null,
+    "minF1": 0.8,
+    "labels": [
+      {
+        "mat": [
+          {
+            "labelId": "mui",
+            "x": 0,
+            "y": 0
+          },
+          {
+            "labelId": "mui",
+            "x": 300,
+            "y": 400
+          }
+        ]
+      },
+      {
+        "mat": [
+          {
+            "labelId": "mui",
+            "x": 10,
+            "y": 5
+          },
+          {
+            "labelId": "mui",
+            "x": 290,
+            "y": 395
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "mat": {
+        "method": "cluster",
+        "final": [
+          {
+            "x": 5,
+            "y": 2.5,
+            "labelId": "mui"
+          },
+          {
+            "x": 295,
+            "y": 397.5,
+            "labelId": "mui"
+          }
+        ],
+        "supports": [
+          2,
+          2
+        ],
+        "agrees": [
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "keypoint"
+      }
+    }
+  },
+  {
+    "name": "polyline: hai nguoi ve nguoc chieu nhau van la mot duong",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "lan",
+          "kind": "polyline",
+          "classes": [
+            "vach"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 300,
+      "height": 400
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "lan": [
+          {
+            "labelId": "vach",
+            "points": [
+              [
+                0,
+                100
+              ],
+              [
+                300,
+                100
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "lan": [
+          {
+            "labelId": "vach",
+            "points": [
+              [
+                300,
+                104
+              ],
+              [
+                150,
+                106
+              ],
+              [
+                0,
+                104
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "lan": [
+          {
+            "labelId": "vach",
+            "points": [
+              [
+                0,
+                98
+              ],
+              [
+                100,
+                99
+              ],
+              [
+                300,
+                97
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "lan": {
+        "method": "cluster",
+        "final": [
+          {
+            "points": [
+              [
+                0,
+                100
+              ],
+              [
+                300,
+                100
+              ]
+            ],
+            "labelId": "vach"
+          }
+        ],
+        "supports": [
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "polyline"
+      }
+    }
+  },
+  {
+    "name": "mask: bo phieu tung pixel trong cum (anh 4x4)",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vung",
+          "kind": "mask",
+          "classes": [
+            "troi"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 4,
+      "height": 4
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vung": [
+          {
+            "labelId": "troi",
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                0,
+                8,
+                8
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "troi",
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                0,
+                10,
+                6
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "troi",
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                2,
+                7,
+                7
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vung": {
+        "method": "cluster",
+        "final": [
+          {
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                0,
+                9,
+                7
+              ]
+            },
+            "labelId": "troi"
+          }
+        ],
+        "supports": [
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "mask"
+      }
+    }
+  },
+  {
+    "name": "mask: hai vung, mot nguoi to them vung thu ba",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vung",
+          "kind": "mask",
+          "classes": [
+            "troi",
+            "dat"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 4,
+      "height": 4
+    },
+    "minF1": 0.7,
+    "labels": [
+      {
+        "vung": [
+          {
+            "labelId": "troi",
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                0,
+                4,
+                12
+              ]
+            }
+          },
+          {
+            "labelId": "dat",
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                12,
+                4
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "dat",
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                11,
+                5
+              ]
+            }
+          },
+          {
+            "labelId": "troi",
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                0,
+                5,
+                11
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "troi",
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                0,
+                4,
+                12
+              ]
+            }
+          },
+          {
+            "labelId": "dat",
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                12,
+                4
+              ]
+            }
+          },
+          {
+            "labelId": "dat",
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                5,
+                3,
+                8
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vung": {
+        "method": "cluster",
+        "final": [
+          {
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                12,
+                4
+              ]
+            },
+            "labelId": "dat"
+          },
+          {
+            "rle": {
+              "size": [
+                4,
+                4
+              ],
+              "counts": [
+                0,
+                4,
+                12
+              ]
+            },
+            "labelId": "troi"
+          }
+        ],
+        "supports": [
+          3,
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "mask"
+      }
+    }
+  },
+  {
+    "name": "span: giu doan duoc qua nua so nguoi danh dau y het",
+    "schema": {
+      "modality": "text",
+      "tools": [
+        {
+          "name": "ner",
+          "kind": "span",
+          "classes": [
+            "PER",
+            "LOC"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "length": 40
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "ner": [
+          {
+            "labelId": "PER",
+            "start": 0,
+            "end": 5
+          },
+          {
+            "labelId": "LOC",
+            "start": 20,
+            "end": 26
+          }
+        ]
+      },
+      {
+        "ner": [
+          {
+            "labelId": "PER",
+            "start": 0,
+            "end": 5
+          },
+          {
+            "labelId": "LOC",
+            "start": 20,
+            "end": 27
+          }
+        ]
+      },
+      {
+        "ner": [
+          {
+            "labelId": "LOC",
+            "start": 20,
+            "end": 26
+          },
+          {
+            "labelId": "PER",
+            "start": 0,
+            "end": 5
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "ner": {
+        "method": "majority",
+        "final": [
+          {
+            "end": 5,
+            "start": 0,
+            "labelId": "PER"
+          },
+          {
+            "end": 26,
+            "start": 20,
+            "labelId": "LOC"
+          }
+        ],
+        "supports": [
+          3,
+          2
+        ],
+        "agrees": [
+          true,
+          false,
+          true
+        ],
+        "disputed": false,
+        "kind": "span"
+      }
+    }
+  },
+  {
+    "name": "relation: quan he co huong, giu quan he qua ban",
+    "schema": {
+      "modality": "text",
+      "tools": [
+        {
+          "name": "ner",
+          "kind": "span",
+          "classes": [
+            "PER",
+            "ORG"
+          ]
+        },
+        {
+          "name": "qh",
+          "kind": "relation",
+          "classes": [
+            "lam_tai",
+            "sep_cua"
+          ],
+          "spanTool": "ner"
+        }
+      ]
+    },
+    "metadata": {
+      "length": 40
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "ner": [
+          {
+            "labelId": "PER",
+            "start": 0,
+            "end": 5
+          },
+          {
+            "labelId": "ORG",
+            "start": 18,
+            "end": 24
+          }
+        ],
+        "qh": [
+          {
+            "labelId": "lam_tai",
+            "from": {
+              "start": 0,
+              "end": 5
+            },
+            "to": {
+              "start": 18,
+              "end": 24
+            }
+          }
+        ]
+      },
+      {
+        "ner": [
+          {
+            "labelId": "PER",
+            "start": 0,
+            "end": 5
+          },
+          {
+            "labelId": "ORG",
+            "start": 18,
+            "end": 24
+          }
+        ],
+        "qh": [
+          {
+            "labelId": "lam_tai",
+            "from": {
+              "start": 0,
+              "end": 5
+            },
+            "to": {
+              "start": 18,
+              "end": 24
+            }
+          }
+        ]
+      },
+      {
+        "ner": [
+          {
+            "labelId": "PER",
+            "start": 0,
+            "end": 5
+          },
+          {
+            "labelId": "ORG",
+            "start": 18,
+            "end": 24
+          }
+        ],
+        "qh": [
+          {
+            "labelId": "lam_tai",
+            "from": {
+              "start": 18,
+              "end": 24
+            },
+            "to": {
+              "start": 0,
+              "end": 5
+            }
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "ner": {
+        "method": "majority",
+        "final": [
+          {
+            "end": 5,
+            "start": 0,
+            "labelId": "PER"
+          },
+          {
+            "end": 24,
+            "start": 18,
+            "labelId": "ORG"
+          }
+        ],
+        "supports": [
+          3,
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "span"
+      },
+      "qh": {
+        "method": "majority",
+        "final": [
+          {
+            "from": {
+              "end": 5,
+              "start": 0
+            },
+            "to": {
+              "end": 24,
+              "start": 18
+            },
+            "labelId": "lam_tai"
+          }
+        ],
+        "supports": [
+          2
+        ],
+        "agrees": [
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "relation"
+      }
+    }
+  },
+  {
+    "name": "temporalSegment: trung vi diem dau va diem cuoi",
+    "schema": {
+      "modality": "audio",
+      "tools": [
+        {
+          "name": "doan",
+          "kind": "temporalSegment",
+          "classes": [
+            "noi",
+            "nhac"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "durationSec": 30
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "doan": [
+          {
+            "labelId": "noi",
+            "start": 1.0,
+            "end": 5.0
+          },
+          {
+            "labelId": "nhac",
+            "start": 10,
+            "end": 20
+          }
+        ]
+      },
+      {
+        "doan": [
+          {
+            "labelId": "noi",
+            "start": 1.2,
+            "end": 5.4
+          },
+          {
+            "labelId": "nhac",
+            "start": 11,
+            "end": 20.5
+          }
+        ]
+      },
+      {
+        "doan": [
+          {
+            "labelId": "noi",
+            "start": 0.9,
+            "end": 4.6
+          },
+          {
+            "labelId": "nhac",
+            "start": 10.5,
+            "end": 19
+          }
+        ]
+      },
+      {
+        "doan": [
+          {
+            "labelId": "noi",
+            "start": 1.1,
+            "end": 5.2
+          },
+          {
+            "labelId": "nhac",
+            "start": 25,
+            "end": 29
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "doan": {
+        "method": "cluster",
+        "final": [
+          {
+            "start": 1.05,
+            "end": 5.1,
+            "labelId": "noi"
+          },
+          {
+            "start": 10.5,
+            "end": 20,
+            "labelId": "nhac"
+          }
+        ],
+        "supports": [
+          4,
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "temporalSegment"
+      }
+    }
+  },
+  {
+    "name": "track: ba nguoi theo doi cung mot xe, lay chuoi o giua",
+    "schema": {
+      "modality": "video",
+      "tools": [
+        {
+          "name": "vat",
+          "kind": "track",
+          "classes": [
+            "xe"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 200,
+      "height": 100,
+      "durationSec": 10
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "keyframes": [
+              {
+                "t": 0,
+                "x": 0,
+                "y": 10,
+                "w": 40,
+                "h": 40
+              },
+              {
+                "t": 4,
+                "x": 100,
+                "y": 10,
+                "w": 40,
+                "h": 40
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "keyframes": [
+              {
+                "t": 0.2,
+                "x": 6,
+                "y": 12,
+                "w": 40,
+                "h": 40
+              },
+              {
+                "t": 2,
+                "x": 52,
+                "y": 12,
+                "w": 40,
+                "h": 38
+              },
+              {
+                "t": 4,
+                "x": 104,
+                "y": 10,
+                "w": 40,
+                "h": 40
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "keyframes": [
+              {
+                "t": 0,
+                "x": 2,
+                "y": 8,
+                "w": 42,
+                "h": 42
+              },
+              {
+                "t": 3.8,
+                "x": 96,
+                "y": 10,
+                "w": 40,
+                "h": 40
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vat": {
+        "method": "cluster",
+        "final": [
+          {
+            "keyframes": [
+              {
+                "h": 40,
+                "t": 0,
+                "w": 40,
+                "x": 0,
+                "y": 10
+              },
+              {
+                "h": 40,
+                "t": 4,
+                "w": 40,
+                "x": 100,
+                "y": 10
+              }
+            ],
+            "labelId": "xe"
+          }
+        ],
+        "supports": [
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "track"
+      }
+    }
+  },
+  {
+    "name": "transcription: lay ban o giua, ban khac xa khong khop",
+    "schema": {
+      "modality": "audio",
+      "tools": [
+        {
+          "name": "loi",
+          "kind": "transcription"
+        }
+      ]
+    },
+    "metadata": {
+      "durationSec": 10
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "loi": {
+          "text": "Xin chao cac ban than men"
+        }
+      },
+      {
+        "loi": {
+          "text": "xin chao cac ban than men"
+        }
+      },
+      {
+        "loi": {
+          "text": "Xin chao cac bon than men"
+        }
+      },
+      {
+        "loi": {
+          "text": "tam biet"
+        }
+      }
+    ],
+    "expected": {
+      "loi": {
+        "method": "medoid",
+        "final": {
+          "text": "Xin chao cac ban than men"
+        },
+        "agrees": [
+          true,
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "transcription"
+      }
+    }
+  },
+  {
+    "name": "transcription: hai nguoi chep khac han nhau → tranh chap",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "chu",
+          "kind": "transcription"
+        }
+      ]
+    },
+    "metadata": {
+      "width": 100,
+      "height": 50
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "chu": {
+          "text": "CAM DO XE"
+        }
+      },
+      {
+        "chu": {
+          "text": "cho thue xe"
+        }
+      }
+    ],
+    "expected": {
+      "chu": {
+        "method": "medoid",
+        "final": null,
+        "agrees": [
+          true,
+          false
+        ],
+        "disputed": true,
+        "kind": "transcription"
+      }
+    }
+  },
+  {
+    "name": "number: thang diem nguyen, trung vi, sai so 1",
+    "schema": {
+      "modality": "pair",
+      "tools": [
+        {
+          "name": "diem",
+          "kind": "number",
+          "integer": true,
+          "min": 1,
+          "max": 5,
+          "tolerance": 1
+        }
+      ]
+    },
+    "metadata": null,
+    "minF1": 0.8,
+    "labels": [
+      {
+        "diem": {
+          "value": 4
+        }
+      },
+      {
+        "diem": {
+          "value": 5
+        }
+      },
+      {
+        "diem": {
+          "value": 4
+        }
+      },
+      {
+        "diem": {
+          "value": 1
+        }
+      }
+    ],
+    "expected": {
+      "diem": {
+        "method": "median",
+        "final": {
+          "value": 4
+        },
+        "agrees": [
+          true,
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "number"
+      }
+    }
+  },
+  {
+    "name": "number: so thuc, so nguoi chan → trung binh hai gia tri giua",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "do_dai",
+          "kind": "number",
+          "tolerance": 0.5
+        }
+      ]
+    },
+    "metadata": {
+      "width": 100,
+      "height": 50
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "do_dai": {
+          "value": 10.2
+        }
+      },
+      {
+        "do_dai": {
+          "value": 10.6
+        }
+      },
+      {
+        "do_dai": {
+          "value": 12
+        }
+      },
+      {
+        "do_dai": {
+          "value": 10.3
+        }
+      }
+    ],
+    "expected": {
+      "do_dai": {
+        "method": "median",
+        "final": {
+          "value": 10.45
+        },
+        "agrees": [
+          true,
+          true,
+          false,
+          true
+        ],
+        "disputed": false,
+        "kind": "number"
+      }
+    }
+  },
+  {
+    "name": "number: moi nguoi mot gia tri, khong sai so → tranh chap",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "so_nguoi",
+          "kind": "number",
+          "integer": true
+        }
+      ]
+    },
+    "metadata": {
+      "width": 100,
+      "height": 50
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "so_nguoi": {
+          "value": 3
+        }
+      },
+      {
+        "so_nguoi": {
+          "value": 5
+        }
+      },
+      {
+        "so_nguoi": {
+          "value": 8
+        }
+      }
+    ],
+    "expected": {
+      "so_nguoi": {
+        "method": "median",
+        "final": null,
+        "agrees": [
+          false,
+          true,
+          false
+        ],
+        "disputed": true,
+        "kind": "number"
+      }
+    }
+  },
+  {
+    "name": "ranking: diem Borda, hoa diem thi muc chi so nho dung truoc",
+    "schema": {
+      "modality": "list",
+      "tools": [
+        {
+          "name": "xep",
+          "kind": "ranking"
+        }
+      ]
+    },
+    "metadata": {
+      "itemCount": 4
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "xep": {
+          "order": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      {
+        "xep": {
+          "order": [
+            1,
+            0,
+            2,
+            3
+          ]
+        }
+      },
+      {
+        "xep": {
+          "order": [
+            0,
+            1,
+            3,
+            2
+          ]
+        }
+      },
+      {
+        "xep": {
+          "order": [
+            3,
+            2,
+            1,
+            0
+          ]
+        }
+      }
+    ],
+    "expected": {
+      "xep": {
+        "method": "borda",
+        "final": {
+          "order": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        "scores": {
+          "0": 8,
+          "1": 8,
+          "2": 4,
+          "3": 4
+        },
+        "agrees": [
+          true,
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "ranking"
+      }
+    }
+  },
+  {
+    "name": "nhieu cong cu: phan loai + so sanh cap + van ban tu do; cong cu tuy chon co nguoi bo trong",
+    "schema": {
+      "modality": "pair",
+      "tools": [
+        {
+          "name": "tot_hon",
+          "kind": "pairwise"
+        },
+        {
+          "name": "an_toan",
+          "kind": "classification",
+          "classes": [
+            "an_toan",
+            "khong_an_toan"
+          ],
+          "required": false
+        },
+        {
+          "name": "ly_do",
+          "kind": "freeText",
+          "required": false
+        }
+      ]
+    },
+    "metadata": null,
+    "minF1": 0.8,
+    "labels": [
+      {
+        "tot_hon": {
+          "choice": "a"
+        },
+        "ly_do": {
+          "text": "a day du hon"
+        }
+      },
+      {
+        "tot_hon": {
+          "choice": "a"
+        },
+        "an_toan": {
+          "labelIds": [
+            "an_toan"
+          ]
+        }
+      },
+      {
+        "tot_hon": {
+          "choice": "tie"
+        },
+        "an_toan": {
+          "labelIds": [
+            "khong_an_toan"
+          ]
+        }
+      }
+    ],
+    "expected": {
+      "tot_hon": {
+        "method": "majority",
+        "final": {
+          "choice": "a"
+        },
+        "votes": {
+          "a": 2,
+          "tie": 1
+        },
+        "agrees": [
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "pairwise"
+      },
+      "an_toan": {
+        "method": "majority",
+        "final": null,
+        "votes": {
+          "an_toan": 1,
+          "khong_an_toan": 1
+        },
+        "agrees": [
+          false,
+          false
+        ],
+        "disputed": true,
+        "kind": "classification"
+      },
+      "ly_do": {
+        "method": "none",
+        "kind": "freeText"
+      }
+    }
+  },
+  {
+    "name": "polygon: hinh lom chu L, hai vat, toa do le; mot nguoi ve mot vat khac han",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vung",
+          "kind": "polygon",
+          "classes": [
+            "nha",
+            "san"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 640,
+      "height": 480
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vung": [
+          {
+            "labelId": "nha",
+            "points": [
+              [
+                50.5,
+                40.25
+              ],
+              [
+                210.75,
+                40.25
+              ],
+              [
+                210.75,
+                120.5
+              ],
+              [
+                130.25,
+                120.5
+              ],
+              [
+                130.25,
+                260.75
+              ],
+              [
+                50.5,
+                260.75
+              ]
+            ]
+          },
+          {
+            "labelId": "san",
+            "points": [
+              [
+                300,
+                300
+              ],
+              [
+                520,
+                310
+              ],
+              [
+                500,
+                430
+              ],
+              [
+                310,
+                420
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "san",
+            "points": [
+              [
+                305.5,
+                296.5
+              ],
+              [
+                515.25,
+                312.75
+              ],
+              [
+                498.5,
+                433.25
+              ],
+              [
+                306.75,
+                418.5
+              ],
+              [
+                300.1,
+                350.2
+              ]
+            ]
+          },
+          {
+            "labelId": "nha",
+            "points": [
+              [
+                55.1,
+                44.9
+              ],
+              [
+                205.3,
+                43.7
+              ],
+              [
+                207.9,
+                118.2
+              ],
+              [
+                133.6,
+                124.4
+              ],
+              [
+                128.8,
+                255.5
+              ],
+              [
+                52.2,
+                258.1
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "nha",
+            "points": [
+              [
+                48.3,
+                38.6
+              ],
+              [
+                214.2,
+                41.1
+              ],
+              [
+                212.4,
+                125.7
+              ],
+              [
+                127.5,
+                122.3
+              ],
+              [
+                131.9,
+                263.4
+              ],
+              [
+                47.7,
+                262.2
+              ]
+            ]
+          },
+          {
+            "labelId": "san",
+            "points": [
+              [
+                20,
+                400
+              ],
+              [
+                80,
+                400
+              ],
+              [
+                80,
+                460
+              ],
+              [
+                20,
+                460
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vung": {
+        "method": "cluster",
+        "final": [
+          {
+            "points": [
+              [
+                50.5,
+                40.25
+              ],
+              [
+                210.75,
+                40.25
+              ],
+              [
+                210.75,
+                120.5
+              ],
+              [
+                130.25,
+                120.5
+              ],
+              [
+                130.25,
+                260.75
+              ],
+              [
+                50.5,
+                260.75
+              ]
+            ],
+            "labelId": "nha"
+          },
+          {
+            "points": [
+              [
+                300,
+                300
+              ],
+              [
+                520,
+                310
+              ],
+              [
+                500,
+                430
+              ],
+              [
+                310,
+                420
+              ]
+            ],
+            "labelId": "san"
+          }
+        ],
+        "supports": [
+          3,
+          2
+        ],
+        "agrees": [
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "polygon"
+      }
+    }
+  },
+  {
+    "name": "polygon: IoU sat nguong — hinh vuong lech nua canh khong ghep duoc voi nguong 0.5 nhung ghep duoc voi 0.3",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vung",
+          "kind": "polygon",
+          "classes": [
+            "o"
+          ],
+          "matchThreshold": 0.3
+        }
+      ]
+    },
+    "metadata": {
+      "width": 400,
+      "height": 400
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vung": [
+          {
+            "labelId": "o",
+            "points": [
+              [
+                100,
+                100
+              ],
+              [
+                200,
+                100
+              ],
+              [
+                200,
+                200
+              ],
+              [
+                100,
+                200
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "o",
+            "points": [
+              [
+                150,
+                100
+              ],
+              [
+                250,
+                100
+              ],
+              [
+                250,
+                200
+              ],
+              [
+                150,
+                200
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vung": {
+        "method": "cluster",
+        "final": [
+          {
+            "points": [
+              [
+                100,
+                100
+              ],
+              [
+                200,
+                100
+              ],
+              [
+                200,
+                200
+              ],
+              [
+                100,
+                200
+              ]
+            ],
+            "labelId": "o"
+          }
+        ],
+        "supports": [
+          2
+        ],
+        "agrees": [
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "polygon"
+      }
+    }
+  },
+  {
+    "name": "polyline: duong cong nhieu dinh so voi duong it dinh; mot nguoi ve duong khac",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "lan",
+          "kind": "polyline",
+          "classes": [
+            "vach",
+            "le"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 800,
+      "height": 600
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "lan": [
+          {
+            "labelId": "vach",
+            "points": [
+              [
+                10,
+                500
+              ],
+              [
+                200,
+                380
+              ],
+              [
+                400,
+                300
+              ],
+              [
+                600,
+                260
+              ],
+              [
+                790,
+                250
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "lan": [
+          {
+            "labelId": "vach",
+            "points": [
+              [
+                12.5,
+                505.5
+              ],
+              [
+                105,
+                440
+              ],
+              [
+                198,
+                384
+              ],
+              [
+                300,
+                338
+              ],
+              [
+                405,
+                296
+              ],
+              [
+                500,
+                276
+              ],
+              [
+                602,
+                263
+              ],
+              [
+                700,
+                255
+              ],
+              [
+                788,
+                252
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "lan": [
+          {
+            "labelId": "vach",
+            "points": [
+              [
+                790,
+                245
+              ],
+              [
+                400,
+                310
+              ],
+              [
+                10,
+                495
+              ]
+            ]
+          },
+          {
+            "labelId": "le",
+            "points": [
+              [
+                0,
+                590
+              ],
+              [
+                790,
+                590
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "lan": [
+          {
+            "labelId": "vach",
+            "points": [
+              [
+                10,
+                100
+              ],
+              [
+                790,
+                120
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "lan": {
+        "method": "cluster",
+        "final": null,
+        "agrees": [
+          true,
+          true,
+          false,
+          false
+        ],
+        "disputed": true,
+        "kind": "polyline"
+      }
+    }
+  },
+  {
+    "name": "track: hai xe; mot nguoi theo doi xe thu hai tre va lech; chuoi ngan khong du trung",
+    "schema": {
+      "modality": "video",
+      "tools": [
+        {
+          "name": "vat",
+          "kind": "track",
+          "classes": [
+            "xe",
+            "nguoi"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 640,
+      "height": 360,
+      "durationSec": 12
+    },
+    "minF1": 0.6,
+    "labels": [
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "keyframes": [
+              {
+                "t": 0,
+                "x": 10,
+                "y": 100,
+                "w": 80,
+                "h": 50
+              },
+              {
+                "t": 3,
+                "x": 200,
+                "y": 110,
+                "w": 84,
+                "h": 52
+              },
+              {
+                "t": 6,
+                "x": 420,
+                "y": 120,
+                "w": 90,
+                "h": 56
+              }
+            ]
+          },
+          {
+            "labelId": "nguoi",
+            "keyframes": [
+              {
+                "t": 2,
+                "x": 500,
+                "y": 200,
+                "w": 30,
+                "h": 80
+              },
+              {
+                "t": 10,
+                "x": 300,
+                "y": 210,
+                "w": 30,
+                "h": 80
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "vat": [
+          {
+            "labelId": "nguoi",
+            "keyframes": [
+              {
+                "t": 2.4,
+                "x": 492.5,
+                "y": 203,
+                "w": 31,
+                "h": 78
+              },
+              {
+                "t": 6.1,
+                "x": 401,
+                "y": 206.5,
+                "w": 30,
+                "h": 80
+              },
+              {
+                "t": 9.7,
+                "x": 309,
+                "y": 211,
+                "w": 29,
+                "h": 81
+              }
+            ]
+          },
+          {
+            "labelId": "xe",
+            "keyframes": [
+              {
+                "t": 0.3,
+                "x": 31.5,
+                "y": 102,
+                "w": 78,
+                "h": 50
+              },
+              {
+                "t": 5.8,
+                "x": 409,
+                "y": 118.5,
+                "w": 91,
+                "h": 55
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "vat": [
+          {
+            "labelId": "xe",
+            "keyframes": [
+              {
+                "t": 0,
+                "x": 14,
+                "y": 97,
+                "w": 80,
+                "h": 52
+              },
+              {
+                "t": 6,
+                "x": 425,
+                "y": 123,
+                "w": 88,
+                "h": 54
+              }
+            ]
+          },
+          {
+            "labelId": "nguoi",
+            "keyframes": [
+              {
+                "t": 7,
+                "x": 380,
+                "y": 205,
+                "w": 30,
+                "h": 80
+              },
+              {
+                "t": 8,
+                "x": 355,
+                "y": 207,
+                "w": 30,
+                "h": 80
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vat": {
+        "method": "cluster",
+        "final": [
+          {
+            "keyframes": [
+              {
+                "h": 80,
+                "t": 2,
+                "w": 30,
+                "x": 500,
+                "y": 200
+              },
+              {
+                "h": 80,
+                "t": 10,
+                "w": 30,
+                "x": 300,
+                "y": 210
+              }
+            ],
+            "labelId": "nguoi"
+          },
+          {
+            "keyframes": [
+              {
+                "h": 52,
+                "t": 0,
+                "w": 80,
+                "x": 14,
+                "y": 97
+              },
+              {
+                "h": 54,
+                "t": 6,
+                "w": 88,
+                "x": 425,
+                "y": 123
+              }
+            ],
+            "labelId": "xe"
+          }
+        ],
+        "supports": [
+          2,
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "track"
+      }
+    }
+  },
+  {
+    "name": "mask: nhieu doan, hai vat cung lop (anh 6x5) - bo phieu tung pixel",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vung",
+          "kind": "mask",
+          "classes": [
+            "la"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 6,
+      "height": 5
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vung": [
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                1,
+                3,
+                2,
+                3,
+                2,
+                2,
+                17
+              ]
+            }
+          },
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                16,
+                4,
+                1,
+                4,
+                1,
+                4
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                15,
+                5,
+                1,
+                4,
+                1,
+                3,
+                1
+              ]
+            }
+          },
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                1,
+                3,
+                2,
+                3,
+                1,
+                3,
+                17
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                0,
+                4,
+                2,
+                3,
+                2,
+                2,
+                17
+              ]
+            }
+          },
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                16,
+                4,
+                2,
+                3,
+                2,
+                3
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vung": {
+        "method": "cluster",
+        "final": [
+          {
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                1,
+                3,
+                2,
+                3,
+                2,
+                2,
+                17
+              ]
+            },
+            "labelId": "la"
+          },
+          {
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                16,
+                4,
+                1,
+                4,
+                1,
+                4
+              ]
+            },
+            "labelId": "la"
+          }
+        ],
+        "supports": [
+          3,
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "mask"
+      }
+    }
+  },
+  {
+    "name": "mask + thuoc tinh: hinh khop nhung thuoc tinh moi nguoi mot khac (co nguoi bo trong) -> tranh chap",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "vung",
+          "kind": "mask",
+          "classes": [
+            "la"
+          ],
+          "attributes": [
+            {
+              "name": "kho",
+              "type": "boolean"
+            }
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 6,
+      "height": 5
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "vung": [
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                1,
+                3,
+                2,
+                3,
+                2,
+                2,
+                17
+              ]
+            },
+            "attributes": {
+              "kho": true
+            }
+          },
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                16,
+                4,
+                1,
+                4,
+                1,
+                4
+              ]
+            },
+            "attributes": {
+              "kho": false
+            }
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                15,
+                5,
+                1,
+                4,
+                1,
+                3,
+                1
+              ]
+            }
+          },
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                1,
+                3,
+                2,
+                3,
+                1,
+                3,
+                17
+              ]
+            },
+            "attributes": {
+              "kho": true
+            }
+          }
+        ]
+      },
+      {
+        "vung": [
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                0,
+                4,
+                2,
+                3,
+                2,
+                2,
+                17
+              ]
+            },
+            "attributes": {
+              "kho": false
+            }
+          },
+          {
+            "labelId": "la",
+            "rle": {
+              "size": [
+                5,
+                6
+              ],
+              "counts": [
+                16,
+                4,
+                2,
+                3,
+                2,
+                3
+              ]
+            },
+            "attributes": {
+              "kho": false
+            }
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "vung": {
+        "method": "cluster",
+        "final": null,
+        "agrees": [
+          true,
+          false,
+          false
+        ],
+        "disputed": true,
+        "kind": "mask"
+      }
+    }
+  },
+  {
+    "name": "keypoint: hai diem cung lop gan nhau — ghep uu tien cap gan nhat, moi cum mot diem moi nguoi",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "mat",
+          "kind": "keypoint",
+          "classes": [
+            "mat"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 1000,
+      "height": 1000
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "mat": [
+          {
+            "labelId": "mat",
+            "x": 400,
+            "y": 500
+          },
+          {
+            "labelId": "mat",
+            "x": 420,
+            "y": 500
+          }
+        ]
+      },
+      {
+        "mat": [
+          {
+            "labelId": "mat",
+            "x": 418.5,
+            "y": 501.25
+          },
+          {
+            "labelId": "mat",
+            "x": 402.75,
+            "y": 498.5
+          }
+        ]
+      },
+      {
+        "mat": [
+          {
+            "labelId": "mat",
+            "x": 409,
+            "y": 500
+          },
+          {
+            "labelId": "mat",
+            "x": 423,
+            "y": 503
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "mat": {
+        "method": "cluster",
+        "final": [
+          {
+            "x": 402.75,
+            "y": 500,
+            "labelId": "mat"
+          },
+          {
+            "x": 420,
+            "y": 501.25,
+            "labelId": "mat"
+          }
+        ],
+        "supports": [
+          3,
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "keypoint"
+      }
+    }
+  },
+  {
+    "name": "transcription: tieng Viet co dau, khoang trang thua, nguong CER rieng cua cong cu",
+    "schema": {
+      "modality": "audio",
+      "tools": [
+        {
+          "name": "loi",
+          "kind": "transcription",
+          "matchThreshold": 0.2
+        }
+      ]
+    },
+    "metadata": {
+      "durationSec": 8
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "loi": {
+          "text": "Hôm nay  trời đẹp quá"
+        }
+      },
+      {
+        "loi": {
+          "text": "hôm nay trời đẹp qua"
+        }
+      },
+      {
+        "loi": {
+          "text": "Hôm nay trời đẹp"
+        }
+      },
+      {
+        "loi": {
+          "text": "Hôm qua trời mưa to"
+        }
+      }
+    ],
+    "expected": {
+      "loi": {
+        "method": "medoid",
+        "final": {
+          "text": "Hôm nay  trời đẹp quá"
+        },
+        "agrees": [
+          true,
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "transcription"
+      }
+    }
+  }
+]

@@ -86,6 +86,16 @@ namespace Crowd.Labeling
                 ra[t.Name] = ToolKindRegistry.Lay(t.Kind).KiemVaChuanHoa(ketQua, t, thongTinMau);
             }
 
+            // 3. Luat GIUA cac cong cu: quan he chi noi nhung doan co trong cong cu span no tro toi.
+            foreach (ToolDefinition t in tapNhan.Tools)
+            {
+                JsonArray? quanHe = t.Kind == ToolKinds.Relation ? ra[t.Name] as JsonArray : null;
+                if (quanHe != null)
+                {
+                    RelationTool.KiemThamChieu(quanHe, ra[t.SpanTool!] as JsonArray, t);
+                }
+            }
+
             return new LabelPayload(tapNhan.Modality, PhienBanHienTai, JsonCanonical.Viet(ra));
         }
 
@@ -147,15 +157,26 @@ namespace Crowd.Labeling
 
         /// <summary>
         /// Nhan nay co khop dap an khong (cau vang, bai test). Moi cong cu co trong
-        /// dap an phai khop theo cach cua loai cong cu do (tap lop, IoU, F1, CER).
+        /// dap an phai khop theo cach cua loai cong cu do (tap lop, IoU, F1, CER...).
+        /// Cong cu freeText (cau tra loi mo) khong cham.
         /// </summary>
         public bool KhopDapAn(LabelSchema tapNhan, LabelPayload dapAn)
         {
-            return KhopDapAn(tapNhan, dapAn, NguongKhop.CuaThuVien);
+            return KhopDapAn(tapNhan, dapAn, NguongKhop.CuaThuVien, null);
         }
 
         /// <param name="nguong">Nguong mac dinh theo loai cong cu (setting labeling.threshold.*).</param>
         public bool KhopDapAn(LabelSchema tapNhan, LabelPayload dapAn, NguongKhop nguong)
+        {
+            return KhopDapAn(tapNhan, dapAn, nguong, null);
+        }
+
+        /// <param name="nguong">Nguong mac dinh theo loai cong cu (setting labeling.threshold.*).</param>
+        /// <param name="mau">
+        /// Thong tin mau — kich thuoc anh de chuan hoa do lech cua diem moc / duong gap khuc. Khong co
+        /// thi cac cong cu do dung hinh bao cua chinh cac diem dang so (xem HinhHoc.DuongCheo).
+        /// </param>
+        public bool KhopDapAn(LabelSchema tapNhan, LabelPayload dapAn, NguongKhop nguong, SampleMetadata? mau)
         {
             if (nguong == null)
             {
@@ -177,6 +198,8 @@ namespace Crowd.Labeling
                 return false;
             }
 
+            SampleMetadata thongTinMau = mau ?? SampleMetadata.Rong;
+
             foreach (ToolDefinition t in tapNhan.Tools)
             {
                 JsonNode? nop = KetQua(t.Name);
@@ -192,7 +215,7 @@ namespace Crowd.Labeling
                     return false;
                 }
 
-                if (!ToolKindRegistry.Lay(t.Kind).Khop(nop, dung, t, nguong.Lay(t.Kind)))
+                if (!ToolKindRegistry.Lay(t.Kind).Khop(nop, dung, t, nguong.Lay(t.Kind), thongTinMau))
                 {
                     return false;
                 }
@@ -260,14 +283,33 @@ namespace Crowd.Labeling
     }
 
     /// <summary>
-    /// Gop nhan cua nhieu nguoi (da duyet) cho MOT mau, theo tung cong cu:
-    ///     {"loai_anh": {"method":"majority","final":{...},"votes":{...},"disputed":false},
-    ///      "vat_the":  {"method":"none"}}
-    /// "none" = cong cu chua co cach gop tu dong — ket qua cuoi la cac nhan da duyet.
+    /// Gop nhan cua nhieu nguoi cho MOT mau, theo tung cong cu:
+    ///     {"loai_anh": {"kind":"classification","method":"majority","final":{...},"votes":{...},"agrees":[true,true,false],"disputed":false},
+    ///      "vat_the":  {"kind":"bbox","method":"cluster","final":[{...},{...}],"supports":[3,2],"agrees":[true,true,true],"disputed":false},
+    ///      "mo_ta":    {"kind":"freeText","method":"none"}}
+    ///
+    ///   method    majority (phan loai, cap, doan van ban, quan he) | cluster (khung, da giac, diem, duong,
+    ///             mat na, doan thoi gian, chuoi khung) | medoid (chep loi) | median (so) | borda (xep hang)
+    ///             | none (freeText, hoac khong ai lam cong cu nay)
+    ///   final     ket qua gop; null = TRANH CHAP (khong co ket qua duoc qua nua so nguoi ung ho)
+    ///   agrees    tung nhan (theo thu tu dua vao, bo nhan khong lam cong cu nay) co khop ket qua gop khong
+    ///   supports  cong cu ghep cum: so nguoi ve tung doi tuong trong final
     /// </summary>
     public static class LabelAggregator
     {
+        /// <summary>Mac dinh cua setting quality.consensus_min_f1.</summary>
+        public const double F1ToiThieuMacDinh = 0.8;
+
         public static JsonObject Gop(LabelSchema tapNhan, IReadOnlyList<LabelPayload> nhan)
+        {
+            return Gop(tapNhan, nhan, NguongKhop.CuaThuVien, null, F1ToiThieuMacDinh);
+        }
+
+        /// <param name="nguong">Nguong ghep doi tuong mac dinh theo loai cong cu (setting labeling.threshold.*).</param>
+        /// <param name="mau">Thong tin mau (kich thuoc anh cho diem moc / duong gap khuc).</param>
+        /// <param name="f1ToiThieu">Cong cu dang danh sach: F1 toi thieu de mot nguoi tinh la khop ket qua gop.</param>
+        public static JsonObject Gop(
+            LabelSchema tapNhan, IReadOnlyList<LabelPayload> nhan, NguongKhop nguong, SampleMetadata? mau, double f1ToiThieu)
         {
             if (tapNhan == null)
             {
@@ -278,6 +320,13 @@ namespace Crowd.Labeling
             {
                 throw new ArgumentNullException(nameof(nhan));
             }
+
+            if (nguong == null)
+            {
+                throw new ArgumentNullException(nameof(nguong));
+            }
+
+            SampleMetadata thongTinMau = mau ?? SampleMetadata.Rong;
 
             JsonObject ra = new JsonObject();
             foreach (ToolDefinition t in tapNhan.Tools)
@@ -294,7 +343,7 @@ namespace Crowd.Labeling
 
                 JsonObject gop = ketQua.Count == 0
                     ? new JsonObject { ["method"] = "none" }
-                    : ToolKindRegistry.Lay(t.Kind).Gop(ketQua, t);
+                    : ToolKindRegistry.Lay(t.Kind).Gop(ketQua, t, new ThamSoGop(nguong.Lay(t.Kind), thongTinMau, f1ToiThieu));
 
                 gop["kind"] = t.Kind;
                 ra[t.Name] = gop;

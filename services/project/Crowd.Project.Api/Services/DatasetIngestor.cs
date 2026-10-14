@@ -46,6 +46,10 @@ namespace Crowd.Project.Api.Services
     /// </summary>
     public sealed class DatasetIngestor
     {
+        /// <summary>Mau danh sach (xep hang): so muc toi thieu / toi da — trung gioi han cua ranking.result.schema.json.</summary>
+        private const int SoMucToiThieu = 2;
+        private const int SoMucToiDa = 50;
+
         private readonly ProjectDbContext _db;
         private readonly IObjectStorage _storage;
         private readonly IMediaProbe _probe;
@@ -319,6 +323,8 @@ namespace Crowd.Project.Api.Services
                     return new List<Sample> { TaoVanBan(o, ten, duAn, lo, bayGio) };
                 case Modalities.Pair:
                     return new List<Sample> { TaoCap(o, ten, duAn, lo, bayGio) };
+                case Modalities.List:
+                    return new List<Sample> { TaoDanhSach(o, ten, duAn, lo, bayGio) };
                 case Modalities.Image:
                     return new List<Sample> { await TaoAnhAsync(o, ten, duAn, lo, bayGio, ct) };
                 case Modalities.Audio:
@@ -366,6 +372,55 @@ namespace Crowd.Project.Api.Services
             }
 
             return Sample.TaoTuNoiDung(duAn.Id, lo.Id, Modalities.Pair, nd, ten, Bam(nd.Json), SampleMetadata.Rong, bayGio, QuyDinhTuSetting.DuLieu(_settings));
+        }
+
+        /// <summary>
+        /// Mau DANH SACH (cong cu ranking): {"prompt":"...","items":["...","..."]} — 2 den 50 muc, moi muc
+        /// la mot chuoi khong rong. So muc ghi vao metadata (itemCount) de kiem nhan xep hang.
+        /// </summary>
+        private Sample TaoDanhSach(JsonObject o, string ten, LabelingProject duAn, Dataset lo, DateTimeOffset bayGio)
+        {
+            JsonArray? mang = o["items"] as JsonArray;
+            if (mang == null || mang.Count < SoMucToiThieu || mang.Count > SoMucToiDa)
+            {
+                throw new InvalidValueException(
+                    "items_khong_hop_le", "\"items\" phai la mang tu " + SoMucToiThieu + " den " + SoMucToiDa + " muc.");
+            }
+
+            JsonArray muc = new JsonArray();
+            foreach (JsonNode? n in mang)
+            {
+                string? chu = null;
+                JsonValue? v = n as JsonValue;
+                if (v != null)
+                {
+                    v.TryGetValue(out chu);
+                }
+
+                if (string.IsNullOrWhiteSpace(chu))
+                {
+                    throw new InvalidValueException("items_khong_hop_le", "moi muc trong \"items\" phai la chuoi khong rong.");
+                }
+
+                muc.Add(chu);
+            }
+
+            JsonObject noiDung = new JsonObject { ["items"] = muc };
+            string? cauHoi = ChuoiTuyChon(o, "prompt");
+            if (cauHoi != null)
+            {
+                noiDung["prompt"] = cauHoi;
+            }
+
+            RawJson nd = RawJson.Tu(noiDung);
+            int doDaiToiDa = _settings.SoNguyen(SettingKeys.DatasetTextMaxChars);
+            if (nd.Json.Length > doDaiToiDa)
+            {
+                throw new InvalidValueException("text_qua_dai", "noi dung danh sach toi da " + doDaiToiDa + " ky tu.");
+            }
+
+            SampleMetadata md = new SampleMetadata { ItemCount = muc.Count };
+            return Sample.TaoTuNoiDung(duAn.Id, lo.Id, Modalities.List, nd, ten, Bam(nd.Json), md, bayGio, QuyDinhTuSetting.DuLieu(_settings));
         }
 
         private async Task<Sample> TaoAnhAsync(

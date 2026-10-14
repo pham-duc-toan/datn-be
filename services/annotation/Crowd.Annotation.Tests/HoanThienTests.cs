@@ -98,7 +98,7 @@ namespace Crowd.Annotation.Tests
                 SampleMetadata = RawJson.Tu("{\"width\":200,\"height\":100}"),
                 ApprovedCount = 1,
                 Disputed = false,
-                Tools = RawJson.Tu("{}"),
+                Tools = RawJson.Tu("{\"vat\":{\"kind\":\"bbox\",\"method\":\"cluster\",\"final\":[{\"labelId\":\"mat\",\"x\":50,\"y\":25,\"w\":100,\"h\":50}],\"supports\":[1],\"agrees\":[true],\"disputed\":false}}"),
                 Labels = new List<RawJson> { RawJson.Tu("{\"vat\":[{\"labelId\":\"mat\",\"x\":50,\"y\":25,\"w\":100,\"h\":50}]}") },
             };
             SampleResultResponse khongKichThuoc = new SampleResultResponse
@@ -108,7 +108,7 @@ namespace Crowd.Annotation.Tests
                 SampleMetadata = RawJson.Tu("{}"),
                 ApprovedCount = 1,
                 Disputed = false,
-                Tools = RawJson.Tu("{}"),
+                Tools = RawJson.Tu("{\"vat\":{\"kind\":\"bbox\",\"method\":\"cluster\",\"final\":[{\"labelId\":\"mat\",\"x\":1,\"y\":1,\"w\":2,\"h\":2}],\"supports\":[1],\"agrees\":[true],\"disputed\":false}}"),
                 Labels = new List<RawJson> { RawJson.Tu("{\"vat\":[{\"labelId\":\"mat\",\"x\":1,\"y\":1,\"w\":2,\"h\":2}]}") },
             };
             return new ProjectResultsResponse

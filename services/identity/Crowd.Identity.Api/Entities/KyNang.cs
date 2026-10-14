@@ -11,7 +11,7 @@ namespace Crowd.Identity.Api.Entities
         public const int DoDaiToiDa = 50;
 
         /// <summary>Loai du lieu he thong ho tro — trung modality cua du an.</summary>
-        public static readonly IReadOnlyList<string> LoaiDuLieu = new string[] { "image", "text", "audio", "video", "pair" };
+        public static readonly IReadOnlyList<string> LoaiDuLieu = new string[] { "image", "text", "audio", "video", "pair", "list" };
 
         /// <summary>Cat khoang trang, bo trung (khong phan biet hoa thuong), kiem so muc va do dai.</summary>
         public static List<string> ChuanHoa(IReadOnlyList<string>? ds, string maLoi, string ten)

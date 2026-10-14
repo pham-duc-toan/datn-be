@@ -112,6 +112,8 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_bao_ve_du_lieu.py` | Link file qua media-svc (không lộ MinIO), chủ dự án nhận bản gốc, labeler / reviewer nhận ảnh có watermark, admin giải mã ảnh "bị lộ" ra đúng người (labeler 1 ≠ labeler 2, ảnh khác của cùng người vẫn ra người đó), token bị sửa → 403, hết hạn → 410, tắt watermark bằng setting |
 | `e2e_hoan_thien.py` | Xác thực email (bấm link thật trong Mailpit), quên / đặt lại / đổi mật khẩu, thu hồi phiên ở gateway, hồ sơ + avatar + kỹ năng, cấp độ / huy hiệu / xếp hạng, nháp + báo lỗi task, chi phí / ETA, cảnh báo lệch, xuất YOLO sai loại dự án (nội dung zip YOLO / VOC kiểm ở unit test `HoanThienTests`), thu nhập, tranh chấp (cả hai kết cục, kiểm sổ cái), hồ sơ gian lận + khoá, audit + báo cáo + thông báo toàn hệ thống, rate limit 429 |
 | `e2e_luu_tru.py` | Lưu trữ & dọn dẹp: một dòng mỗi phiên đăng nhập (làm mới 5 lần vẫn một dòng, dùng lại token cũ → thu hồi phiên), claim `email_verified` / `kyb_verified`, không còn `task.leased`, audit không lưu chi tiết `annotation.submitted` nhưng báo cáo vẫn đếm, mẫu lưu một lần (`annotation_samples`), gate không giữ mẫu dự án không bật cổng link, **dọn outbox đã gửi ở cả 11 service** (hạ `outbox.retention` xuống 1 giờ), dọn dự án đã đóng ở task-svc + quality-svc (tiến độ, báo cáo chất lượng, nhãn và uy tín giữ nguyên) |
+| `e2e_cong_cu.py` | Công cụ gán nhãn mở rộng + gộp nhãn (kiến trúc 3.15): ảnh có khung kèm thuộc tính (OCR), điểm mốc, đường gấp khúc, mặt nạ, số, chép chữ, văn bản tự do — nộp sai bị từ chối đúng lý do, quality-svc tính đồng thuận, kết quả gộp và file COCO / CSV / YOLO; điểm mốc lệch nhau → tranh chấp → xin thêm người → người thứ ba phá thế hoà; văn bản có **quan hệ** giữa các đoạn; dữ liệu **danh sách** với xếp hạng (Borda) + thang điểm (trung vị); **theo dõi đối tượng** trong video; bài test đầu vào và câu vàng bằng điểm mốc (chấm theo đường chéo ảnh); đổi ngưỡng ghép bằng setting lúc đang chạy. Cần ffmpeg |
+| `e2e_thanh_vien.py` | Vào dự án (kiến trúc 3.16): mời theo email / userId, một và nhiều người (kết quả từng dòng, giới hạn lô); mã mời (gõ tay, hết lượt, hết hạn, thu hồi, **6 người tranh 3 lượt**, dùng được khi dự án còn Nháp); kiểm cấp độ / uy tín ở `join`, lúc mời, mã mời và **trước** bài test; chế độ `approval` (gửi đơn, trùng, từ chối + thời gian chờ, rút, duyệt, uy tín tụt lúc duyệt, đơn tự đóng khi vào bằng đường khác) và `approval` kèm bài test (đạt → đơn kèm điểm); thông báo cho cả hai phía; nhận task thật sau khi vào. Cấp độ / uy tín đặt thẳng trong `identity_db.labeler_stats` |
 
 Tài khoản doanh nghiệp do E2E tự tạo được **xác minh KYB tự động** (`tro_giup.dang_ky(..., xac_minh=True)`, mặc định) để các bộ cũ publish được như trước. Tương tự, mọi tài khoản E2E tự tạo được **xác thực email** bằng link thật trong Mailpit (`xac_thuc=True`, mặc định) — chưa xác thực thì không rút tiền / publish được.
 
@@ -191,7 +193,7 @@ Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledge
 cd services/quality
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt      # Linux/macOS: .venv/bin/pip
-.venv/Scripts/python -m pytest -q                   # 40 test logic: đồng thuận, uy tín, Dawid-Skene, hợp đồng envelope, setting
+.venv/Scripts/python -m pytest -q                   # 111 test logic: đồng thuận, gộp nhãn (bộ ví dụ chung với C#), uy tín, Dawid-Skene, hợp đồng envelope, setting
 ```
 
 **media-svc lần đầu** (phát file mẫu qua token + watermark chìm — **không có database**, chỉ cần RabbitMQ + MinIO):
@@ -690,7 +692,7 @@ Cùng file ZIP này cũng dùng được để test **upload dataset** cho bất
 ### 6.12 Quản lý dự án đang chạy
 
 ```bash
-# Thêm lab3 vào P2 (FP-05)
+# Thêm lab3 vào P2 (FP-05) — theo userId HOẶC email; nhiều người một lần, mã mời: mục 6.21
 curl -s -X POST http://localhost:8080/projects/2ae9dc42-5b32-518d-b24f-cdd7da800a96/members -H "Authorization: Bearer <token-biz1>" \
   -H "Content-Type: application/json" -d '{"userId":"14299c5f-f7c3-5075-b65a-cd4fbc2aa194","role":"labeler"}'
 
@@ -711,7 +713,9 @@ curl -s http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/gold
 
 # Kết quả và xuất file (FB-22, FB-25). Kết quả gộp THEO TỪNG CÔNG CỤ trong "tools":
 #   classification / pairwise: đa số tuyệt đối (method "majority", final, votes, disputed);
-#   bbox / polygon / span / temporalSegment / transcription: method "none" (chưa gộp tự động), xem "labels" = các nhãn đã duyệt.
+#   bbox / polygon / keypoint / polyline / mask / temporalSegment / track: ghép cụm (method "cluster"); span / relation: "majority";
+#   transcription: bản ở giữa ("medoid"); number: trung vị ("median"); ranking: Borda ("borda"); freeText: không gộp ("none"), xem "labels".
+#   final = null và disputed = true khi không có kết quả được quá nửa số người ủng hộ (mục 6.20).
 # format=coco chỉ dùng cho dự án ảnh có công cụ bbox / polygon (xem mục 6.14).
 curl -s http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/results -H "Authorization: Bearer <token-biz1>"
 curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/export?format=csv" -H "Authorization: Bearer <token-biz1>" -o ketqua.csv
@@ -754,17 +758,19 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8080/projects/
 
 ### 6.14 Nhiều loại dữ liệu: văn bản, âm thanh, video, cặp, khung ảnh
 
-Mỗi dự án chọn **một loại dữ liệu** (`modality`) lúc tạo: `image`, `text`, `audio`, `video`, `pair`. Tập nhãn là danh sách **công cụ**, mỗi công cụ có `name` (tự đặt, là khóa trong payload) và `kind`:
+Mỗi dự án chọn **một loại dữ liệu** (`modality`) lúc tạo: `image`, `text`, `audio`, `video`, `pair`, `list`. Tập nhãn là danh sách **công cụ**, mỗi công cụ có `name` (tự đặt, là khóa trong payload) và `kind`:
 
 | kind | Dùng cho | Dữ liệu nộp của công cụ | Server kiểm thêm | Cách gộp kết quả |
 |---|---|---|---|---|
 | `classification` | mọi loại | `{"labelIds":["a"]}` | lớp có trong tập nhãn; `allowMultiple: false` thì đúng một lớp | đa số tuyệt đối |
-| `bbox` | image | `[{"labelId":"xe","x":10,"y":20,"w":50,"h":40}]` | khung nằm trong ảnh (`metadata.width/height`) | chưa gộp (`none`) |
-| `polygon` | image | `[{"labelId":"duong","points":[[0,0],[10,0],[10,10]]}]` | 3–500 đỉnh, nằm trong ảnh | chưa gộp |
-| `span` | text | `[{"labelId":"TEN_NGUOI","start":4,"end":8}]` | `0 ≤ start < end ≤` độ dài văn bản | chưa gộp |
-| `transcription` | audio, video | `{"text":"..."}` | dài ≤ `maxLength` (mặc định 5000) | chưa gộp |
-| `temporalSegment` | audio, video | `[{"labelId":"nhac","start":0,"end":2.5}]` | nằm trong thời lượng **của đoạn**, tính từ đầu đoạn | chưa gộp |
+| `bbox` | image | `[{"labelId":"xe","x":10,"y":20,"w":50,"h":40}]` | khung nằm trong ảnh (`metadata.width/height`) | ghép cụm theo IoU, trung vị toạ độ |
+| `polygon` | image | `[{"labelId":"duong","points":[[0,0],[10,0],[10,10]]}]` | 3–500 đỉnh, nằm trong ảnh | ghép cụm theo IoU, lấy hình ở giữa |
+| `span` | text | `[{"labelId":"TEN_NGUOI","start":4,"end":8}]` | `0 ≤ start < end ≤` độ dài văn bản | đoạn được quá nửa số người ghi y hệt |
+| `transcription` | audio, video, image | `{"text":"..."}` | dài ≤ `maxLength` (mặc định 5000) | bản chép ở giữa |
+| `temporalSegment` | audio, video | `[{"labelId":"nhac","start":0,"end":2.5}]` | nằm trong thời lượng **của đoạn**, tính từ đầu đoạn | ghép cụm theo IoU thời gian, trung vị |
 | `pairwise` | pair | `{"choice":"a"}` (`a` / `b` / `tie`) | `tie` bị từ chối khi khai `allowTie: false` (mặc định cho hòa) | đa số tuyệt đối |
+
+Tám công cụ thêm sau (`freeText`, `number`, `keypoint`, `polyline`, `mask`, `track`, `relation`, `ranking`), thuộc tính của từng đối tượng và dữ liệu `list`: mục 6.20.
 
 Công cụ có `"required": false` thì được bỏ trống. Câu vàng chấm theo từng công cụ: phân loại so tập lớp, bbox theo IoU ≥ 0,5, polygon IoU, span F1, transcription CER ≤ 0,1, temporalSegment IoU thời gian; ngưỡng đổi được bằng `matchThreshold` của công cụ.
 
@@ -840,7 +846,7 @@ curl -s -X PUT http://localhost:8080/projects/<id-du-an-anh>/label-schema -H "Au
 curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H "Authorization: Bearer <token-lab1>" -H "Content-Type: application/json" \
   -d '{"payload":{"loai":{"labelIds":["ngoai_troi"]},"vat":[{"labelId":"xe","x":20,"y":30,"w":100,"h":50}],"vung":[{"labelId":"duong","points":[[0,200],[300,200],[300,150],[0,150]]}]}}'
 
-# Sau khi duyệt: COCO (images có width/height, mỗi khung của mỗi nhãn đã duyệt là một annotation)
+# Sau khi duyệt: COCO (images có width/height, mỗi đối tượng ĐÃ GỘP từ các nhãn đã duyệt là một annotation)
 curl -s "http://localhost:8080/annotations/projects/<id-du-an-anh>/export?format=coco" -H "Authorization: Bearer <token-biz1>" -o ketqua.coco.json
 ```
 
@@ -863,7 +869,7 @@ task-svc ──task.redundancy_reached──►      ├─ khớp      → cons
 ```
 
 - **Câu vàng kiểm tra:** câu vàng mục đích `qualityCheck` được trộn vào luồng task theo tỉ lệ `goldCheckPercent` (mặc định 10%). Response giống hệt task thật. Trả lời không tạo nhãn, không trả tiền; task-svc chấm ngay và báo `gold.answered`.
-- **Đồng thuận:** khi task đủ người, quality gộp các công cụ `classification` / `pairwise` theo đa số tuyệt đối. Các công cụ khác (khung, chép lời…) chưa gộp tự động, trạng thái là `notApplicable`.
+- **Đồng thuận:** khi task đủ người, quality gộp **từng công cụ** của tập nhãn: `classification` / `pairwise` theo đa số tuyệt đối; khung, đa giác, điểm mốc, đường, mặt nạ, đoạn thời gian, chuỗi khung theo ghép cụm; đoạn văn bản, quan hệ theo phần tử trùng hệt; bản chép, số, xếp hạng theo bản ở giữa / trung vị / Borda (mục 6.20). Công cụ `freeText` không gộp; tập nhãn chỉ có `freeText` thì trạng thái là `notApplicable`.
 - **Redundancy thích ứng:** tranh chấp mà chưa chạm trần `maxRedundancy` thì quality xin thêm **một** người. task-svc mở lại task, quality tính lại khi đủ người. Ký quỹ tối thiểu tính theo **trần**, nên lượt thêm luôn có tiền; phần không dùng được trả lại khi kết thúc dự án.
 - **Duyệt vẫn là việc của người:** đồng thuận chỉ đánh dấu nhãn khớp / lệch (`consensusAgrees`). Doanh nghiệp có nút duyệt hàng loạt các nhãn khớp.
 - **Uy tín 0–100** = 60% độ chính xác câu vàng + 40% mức khớp đồng thuận (có Dawid–Skene thì dùng độ tin cậy DS thay cho mức khớp thô), làm mượt Bayes cho người mới. Công thức: [services/quality/app/reputation.py](../services/quality/app/reputation.py).
@@ -932,7 +938,7 @@ curl -s -X PUT http://localhost:8080/admin/settings/quality.redundancy_policy -H
 
 ### 6.16 Setting hệ thống (admin): phí, tự duyệt, hạn mức
 
-Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (145 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
+Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (155 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
 
 ```bash
 # Toàn bộ setting: key, group, type, value, defaultValue, min, max, unit, effect, description, version
@@ -1180,6 +1186,118 @@ Script xoá mẫu mà gate-svc giữ cho dự án đã publish nhưng không b�
 
 ---
 
+### 6.20 Công cụ gán nhãn mở rộng và gộp nhãn (kiến trúc mục 3.15)
+
+Tám công cụ thêm sau, dùng y như các công cụ ở mục 6.14 (khai trong tập nhãn, nộp theo `name`). Định dạng đầy đủ, hàm mã hoá mặt nạ và bảng lỗi: [tích hợp frontend](tich-hop-frontend.md) mục 6.3 và ví dụ 11–18.
+
+| kind | Dùng cho | Dữ liệu nộp | Server kiểm thêm | Gộp |
+|---|---|---|---|---|
+| `freeText` | mọi loại | `{"text":"..."}` | không rỗng khi bắt buộc; ≤ `maxLength` | không gộp, không chấm câu vàng |
+| `number` | mọi loại | `{"value":4}` | `min`, `max`, `integer` của công cụ | trung vị; khớp khi lệch ≤ `tolerance` |
+| `keypoint` | image | `[{"labelId":"mui","x":100,"y":85}]` | điểm nằm trong ảnh | ghép cụm (lệch ≤ 2% đường chéo ảnh), trung vị |
+| `polyline` | image | `[{"labelId":"vach","points":[[0,140],[200,60]]}]` | 2–500 đỉnh trong ảnh, độ dài > 0 | ghép cụm (lệch trung bình ≤ 3% đường chéo), lấy đường ở giữa |
+| `mask` | image | `[{"labelId":"troi","rle":{"size":[cao,rộng],"counts":[...]}}]` | `size` trùng ảnh; tổng `counts` = số pixel; dạng chuẩn | ghép cụm theo IoU, bỏ phiếu từng pixel |
+| `track` | video | `[{"labelId":"xe","keyframes":[{"t":0,"x":10,"y":20,"w":60,"h":60},{"t":6,...}]}]` | ≥ 2 keyframe, `t` tăng dần trong thời lượng, khung trong khung hình | ghép cụm theo IoU không-thời gian, lấy chuỗi ở giữa |
+| `relation` | text | `[{"labelId":"lam_tai","from":{"start":0,"end":3},"to":{"start":17,"end":20}}]` | hai đầu là hai đoạn đã có trong công cụ `spanTool` | quan hệ được quá nửa số người ghi y hệt |
+| `ranking` | list | `{"order":[2,0,3,1]}` | hoán vị đủ các mục của mẫu | điểm Borda; khớp khi Kendall ≥ 0,8 |
+
+**Thuộc tính của từng đối tượng:** công cụ dạng danh sách khai thêm `"attributes":[{"name":"noi_dung","type":"text","required":true},{"name":"mau","type":"choice","options":["do","xanh"]}]`; mỗi đối tượng nộp kèm `"attributes":{"noi_dung":"CAM DO XE","mau":"do"}`. OCR = `bbox` + thuộc tính `text`.
+
+**Dữ liệu danh sách** (`modality: "list"`, cho `ranking`): dòng manifest `{"prompt":"...","items":["A","B","C","D"]}` (2–50 mục); task trả `content.items` và `metadata.itemCount`.
+
+```bash
+# Dự án xếp hạng: tạo dự án list → tập nhãn → nạp một mẫu 4 mục (rồi đặt giá, publish, duyệt như mục 6.11, 6.4, 6.5)
+curl -s -X POST http://localhost:8080/projects -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"name":"Xep hang cau tra loi","description":"thu","modality":"list","visibility":"public"}'          # → copy "id"
+curl -s -X PUT http://localhost:8080/projects/<projectId>/label-schema -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"modality":"list","tools":[{"name":"xep","kind":"ranking"},{"name":"diem","kind":"number","integer":true,"min":1,"max":5,"tolerance":1}]}'
+curl -s -X POST http://localhost:8080/projects/<projectId>/datasets/manifest -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"name":"lo","rows":[{"prompt":"Cau tra loi nao tot nhat?","items":["Tra loi A","Tra loi B","Tra loi C","Tra loi D"]}]}'
+
+# Labeler nộp (sau khi nhận task như mục 6.6): thứ tự tốt nhất → kém nhất theo chỉ số mục
+curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H "Authorization: Bearer <token-lab1>" -H "Content-Type: application/json" \
+  -d '{"payload":{"xep":{"order":[0,1,2,3]},"diem":{"value":4}}}'
+#   thiếu mục → 400 nhan_khong_hop_le "phai xep du 4 muc (dang co 3)"; lặp mục → 400 nhan_sai_dinh_dang
+
+# Kết quả gộp (sau khi duyệt): tools.xep = {"method":"borda","final":{"order":[...]},"scores":{...},"agrees":[...]}
+curl -s http://localhost:8080/annotations/projects/<projectId>/results -H "Authorization: Bearer <token-biz1>"
+```
+
+**Gộp nhãn nhiều người.** Cùng một thuật toán chạy ở hai chỗ: quality-svc gộp nhãn **vừa nộp** (đồng thuận → `consensusAgrees`, xin thêm người khi tranh chấp), annotation-svc gộp nhãn **đã duyệt** (`results`, file xuất). Một người *khớp* kết quả gộp của công cụ dạng danh sách khi F1 giữa các đối tượng của họ và các đối tượng đã gộp ≥ `quality.consensus_min_f1` (0,8); không quá một nửa số người khớp thì công cụ đó tranh chấp (`final: null`).
+
+| Setting | Mặc định | Ý nghĩa |
+|---|---|---|
+| `labeling.threshold.keypoint` / `.polyline` | 0,98 / 0,97 | Độ giống tối thiểu = 1 − (độ lệch / đường chéo ảnh) |
+| `labeling.threshold.mask` / `.track` | 0,5 | IoU tối thiểu (mặt nạ; chuỗi khung theo không-thời gian) |
+| `labeling.threshold.relation` / `.ranking` | 1,0 / 0,8 | F1 khi chấm quan hệ; tỉ lệ cặp mục xếp cùng chiều |
+| `quality.consensus_min_f1` | 0,8 | F1 để một người tính là khớp kết quả gộp (công cụ dạng danh sách) |
+
+Các ngưỡng `labeling.threshold.*` dùng cho **cả** chấm câu vàng lẫn ghép đối tượng khi gộp; `matchThreshold` khai trên công cụ luôn được ưu tiên.
+
+```bash
+# Xem đồng thuận của quality-svc cho một dự án: mỗi task một dòng mỗi vòng (moreRequested = đã xin thêm người)
+docker exec datn-db-quality psql -U quality_user -d quality_db -c \
+  "select task_id, target, status, label_count, final from consensus_rounds where project_id = '<projectId>' order by decided_at"
+
+# Hai bản cài đặt thuật toán gộp (C# và Python) đối chiếu bằng bộ ví dụ chung contracts/labeling/testdata/gop.vectors.json
+dotnet test shared/test/labeling-tests                                   # C#: 59 test
+cd services/quality && .venv/Scripts/python -m pytest -q tests/test_gop_vectors.py     # Python: 62 test trên cùng bộ ví dụ
+# Sửa thuật toán / thêm ví dụ: sinh lại phần "expected" bằng C#, xem git diff, rồi sửa app/gop.py cho test Python xanh
+UPDATE_GOP_VECTORS=1 dotnet test shared/test/labeling-tests
+
+python tests/e2e/e2e_cong_cu.py                                          # E2E qua API thật (cần ffmpeg)
+```
+
+**Nâng cấp từ bản trước.** Không có migration ở C#. quality-svc tự chạy `007_gop_nhan.sql` (thêm cột `labels.sample_metadata`). Dự án đang chạy có khung / đa giác / đoạn / chép lời trước đây không có đồng thuận (`notApplicable`), từ bản này được tính — task tranh chấp sẽ được xin thêm người tới `maxRedundancy`. File COCO / YOLO / VOC xuất **khung đã gộp** thay vì khung của từng người.
+
+---
+
+### 6.21 Vào dự án: mời nhiều người, mã mời, đơn xin tham gia (kiến trúc mục 3.16)
+
+Ba chế độ `visibility` (chỉ đổi khi dự án còn Nháp): `public` (labeler tự `join`), `approval` (labeler gửi đơn, chủ dự án duyệt), `private` (chỉ vào khi được mời / có mã mời). Mọi đường vào đều kiểm `minLevel` / `minReputation` ngay lúc vào, cùng mã lỗi với task-svc (`chua_du_cap_do`, `chua_du_uy_tin`, `tai_khoan_bi_khoa`, `khong_phai_labeler`).
+
+```bash
+P=3d904a1a-3920-530b-b055-793baae64f1b   # P1 của biz1
+
+# Mời nhiều người một lần theo email và / hoặc userId (tối đa project.member_batch_max = 100)
+curl -s -X POST http://localhost:8080/projects/$P/members/batch -H "Authorization: Bearer <token-biz1>" \
+  -H "Content-Type: application/json" -d '{"role":"labeler","emails":["labeler3@crowd.local","khong-co@crowd.local","labeler1@crowd.local"]}'
+# → {"added":1,"results":[{"input":"labeler3@crowd.local","userId":"14299c5f-...","displayName":"...","status":"added"},
+#      {"input":"khong-co@crowd.local","status":"khong_tim_thay",...},{"input":"labeler1@crowd.local","status":"da_la_thanh_vien",...}]}
+# lab3 nhận thông báo "Bạn được mời vào dự án"
+
+# Mã mời: 10 lượt, hạn 48 giờ (không gửi thì 7 ngày, không giới hạn lượt)
+curl -s -X POST http://localhost:8080/projects/$P/invite-codes -H "Authorization: Bearer <token-biz1>" \
+  -H "Content-Type: application/json" -d '{"maxUses":10,"expiresInHours":48,"note":"nhom K66"}'
+# → {"id":"...","code":"K7QX3MWPA9TRHC2N","usedCount":0,"status":"active",...}
+curl -s http://localhost:8080/projects/$P/invite-codes -H "Authorization: Bearer <token-biz1>"                     # xem lại, đếm lượt
+curl -s -X DELETE http://localhost:8080/projects/$P/invite-codes/<id> -H "Authorization: Bearer <token-biz1>"     # thu hồi
+
+# Labeler nhập mã (chữ thường, gạch, khoảng trắng đều được) → thành viên ngay, kể cả dự án riêng tư
+curl -s -X POST http://localhost:8080/projects/join-by-code -H "Authorization: Bearer <token-lab3>" \
+  -H "Content-Type: application/json" -d '{"code":"k7qx-3mwp-a9tr-hc2n"}'
+# 409 ma_moi_het_luot / ma_moi_het_han / ma_moi_da_thu_hoi / da_la_thanh_vien; 404 mã không tồn tại
+```
+
+Chế độ `approval`: tạo dự án với `"visibility":"approval"` (hoặc `PUT /projects/{id}` khi còn Nháp), publish như thường.
+
+```bash
+# Labeler: join thẳng → 409 can_xin_duyet; gửi đơn
+curl -s -X POST http://localhost:8080/projects/<id>/join-requests -H "Authorization: Bearer <token-lab3>" \
+  -H "Content-Type: application/json" -d '{"message":"Em đã gán nhãn ảnh 2 năm"}'
+curl -s http://localhost:8080/projects/join-requests/mine -H "Authorization: Bearer <token-lab3>"                 # đơn của tôi
+curl -s -X DELETE http://localhost:8080/projects/<id>/join-requests/mine -H "Authorization: Bearer <token-lab3>"  # rút đơn
+
+# Chủ dự án (nhận thông báo "Đơn xin tham gia mới"): hàng đợi kèm tên, cấp độ, uy tín
+curl -s "http://localhost:8080/projects/<id>/join-requests?status=pending" -H "Authorization: Bearer <token-biz1>"
+curl -s -X POST http://localhost:8080/projects/<id>/join-requests/<requestId>/approve -H "Authorization: Bearer <token-biz1>"
+curl -s -X POST http://localhost:8080/projects/<id>/join-requests/<requestId>/reject -H "Authorization: Bearer <token-biz1>" \
+  -H "Content-Type: application/json" -d '{"reason":"Dự án đã đủ người"}'
+# Bị từ chối: gửi lại sau project.join_request_cooldown (mặc định 24 giờ), trước đó 409 chua_duoc_xin_lai
+```
+
+Dự án `approval` có bài test đầu vào: không gửi đơn tay được (`can_lam_test`). Làm bài như mục 6.9; đạt thì response có `"joinedProject": false, "joinRequestId": "..."`, và đơn trong hàng đợi của chủ dự án mang `scorePercent`.
+
 ## 7. Kiểm tra tổng sau khi test
 
 ```bash
@@ -1252,5 +1370,6 @@ cd perf
 | `docker compose up` báo `minio Error ... failed to resolve` / `no such manifest` / `pull access denied` | Đang dùng bản compose cũ trỏ tới `quay.io/minio/minio`: MinIO đã gỡ image chính thức khỏi cả Docker Hub lẫn quay.io, máy nào chưa có sẵn image trong cache đều không kéo được. `git pull` bản mới — compose dùng `pgsty/minio` (bản dựng từ mã nguồn MinIO do cộng đồng duy trì, ghim phiên bản, đọc được volume cũ) |
 | Lỗi bucket `datasets` không tồn tại | `minio-init` chưa chạy. Chạy lại `docker compose ... up -d` |
 | Nhãn đã duyệt nhưng labeler chưa thấy tiền | ledger-svc chưa chạy, hoặc event đang nằm trong outbox của annotation. Bật ledger lên thì event sẽ được giao (at-least-once) |
+| Mời thành viên / `join` / mã mời / đơn xin tham gia trả 503 `dich_vu_khong_san_sang` | project-svc không gọi được identity-svc (đang tắt), hoặc `InternalApi:IdentityUrl` / `InternalApi:Key` của project và identity không khớp. Không tra được hồ sơ thì project-svc **không** cho vào dự án (kiến trúc 3.16) |
 | Hoàn thành / hủy dự án trả 503 `dich_vu_khong_san_sang` | project-svc không gọi được task-svc hoặc annotation-svc (đang tắt), hoặc `InternalApi:Key` / địa chỉ trong appsettings của project, task, annotation không khớp nhau |
 | P2 tự chuyển sang `cancelled` | Đúng thiết kế: dự án chờ duyệt quá `project.approval_timeout` (mặc định 72 giờ) thì tự hủy và hoàn ký quỹ (compensation của saga) |

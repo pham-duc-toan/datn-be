@@ -11,6 +11,7 @@ namespace Crowd.Labeling
     ///   audio  mot file am thanh (hoac doan) metadata: durationSec (+ segment)
     ///   video  mot file video (hoac doan)    metadata: durationSec, width, height (+ segment)
     ///   pair   mot cap noi dung can so sanh  content: {"prompt","a","b"} — vd hai cau tra loi LLM
+    ///   list   mot danh sach muc can xep hang content: {"prompt","items":[...]}, metadata: itemCount
     /// </summary>
     public static class Modalities
     {
@@ -19,8 +20,9 @@ namespace Crowd.Labeling
         public const string Audio = "audio";
         public const string Video = "video";
         public const string Pair = "pair";
+        public const string List = "list";
 
-        public static readonly IReadOnlyList<string> TatCa = new string[] { Image, Text, Audio, Video, Pair };
+        public static readonly IReadOnlyList<string> TatCa = new string[] { Image, Text, Audio, Video, Pair, List };
 
         public static bool HopLe(string? modality)
         {

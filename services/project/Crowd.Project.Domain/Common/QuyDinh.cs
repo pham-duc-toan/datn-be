@@ -43,6 +43,19 @@ namespace Crowd.Project.Domain.Common
         public required int DoDaiTenMauToiDa { get; init; }
     }
 
+    /// <summary>Quy dinh moi / nhan nguoi vao du an.</summary>
+    public sealed class QuyDinhThanhVien
+    {
+        /// <summary>So nguoi toi da trong mot lan moi nhieu nguoi (POST /members/batch).</summary>
+        public required int SoNguoiMoiToiDa { get; init; }
+
+        /// <summary>Han dung toi da cua mot ma moi.</summary>
+        public required TimeSpan HanMaMoiToiDa { get; init; }
+
+        /// <summary>Don bi tu choi: cho bao lau moi duoc gui don moi.</summary>
+        public required TimeSpan ChoXinLaiSauTuChoi { get; init; }
+    }
+
     /// <summary>Quy dinh bai test dau vao.</summary>
     public sealed class QuyDinhBaiTest
     {

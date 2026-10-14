@@ -26,12 +26,12 @@ namespace Crowd.Labeling.Tools
             return new JsonObject { ["choice"] = chon };
         }
 
-        public bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh)
+        public bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh, SampleMetadata mau)
         {
             return DocChon(nop) == DocChon(dapAn);
         }
 
-        public JsonObject Gop(IReadOnlyList<JsonNode> ketQua, ToolDefinition tool)
+        public JsonObject Gop(IReadOnlyList<JsonNode> ketQua, ToolDefinition tool, ThamSoGop thamSo)
         {
             Dictionary<string, int> phieu = new Dictionary<string, int>();
             foreach (JsonNode k in ketQua)
@@ -57,11 +57,18 @@ namespace Crowd.Labeling.Tools
                 votes[p.Key] = p.Value;
             }
 
+            JsonArray dongY = new JsonArray();
+            foreach (JsonNode k in ketQua)
+            {
+                dongY.Add(thang.HasValue && DocChon(k) == thang.Value.Key);
+            }
+
             return new JsonObject
             {
                 ["method"] = "majority",
                 ["final"] = thang.HasValue ? new JsonObject { ["choice"] = thang.Value.Key } : null,
                 ["votes"] = votes,
+                ["agrees"] = dongY,
                 ["disputed"] = !thang.HasValue,
             };
         }

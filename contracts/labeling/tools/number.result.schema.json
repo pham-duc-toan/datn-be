@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu number",
+  "description": "Mot so: thang diem, so dem... Vd {\"value\": 4}",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "value"
+  ],
+  "properties": {
+    "value": {
+      "type": "number"
+    }
+  }
+}

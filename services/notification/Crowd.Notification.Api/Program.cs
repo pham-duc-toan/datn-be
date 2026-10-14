@@ -72,6 +72,10 @@ builder.Services.AddEventConsumer<NotificationDbContext, DisputeResolved, Disput
 builder.Services.AddEventConsumer<NotificationDbContext, LevelChanged, LevelChangedProcessor>(cfg, "notification-svc.level-changed");
 builder.Services.AddEventConsumer<NotificationDbContext, BadgeAwarded, BadgeAwardedProcessor>(cfg, "notification-svc.badge-awarded");
 builder.Services.AddEventConsumer<NotificationDbContext, SystemAnnouncement, SystemAnnouncementProcessor>(cfg, "notification-svc.system-announcement");
+// Thanh vien du an: duoc moi, don xin tham gia.
+builder.Services.AddEventConsumer<NotificationDbContext, MemberAdded, MemberAddedProcessor>(cfg, "notification-svc.member-added");
+builder.Services.AddEventConsumer<NotificationDbContext, JoinRequestSubmitted, JoinRequestSubmittedProcessor>(cfg, "notification-svc.join-request-submitted");
+builder.Services.AddEventConsumer<NotificationDbContext, JoinRequestDecided, JoinRequestDecidedProcessor>(cfg, "notification-svc.join-request-decided");
 
 // ---- Gui email ----
 builder.Services.Configure<SmtpOptions>(cfg.GetSection(SmtpOptions.SectionName));

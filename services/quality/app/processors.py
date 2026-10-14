@@ -68,11 +68,11 @@ async def annotation_submitted(s: AsyncSession, env: Envelope[AnnotationSubmitte
 
     await s.execute(
         text(
-            "INSERT INTO labels (annotation_id, project_id, task_id, sample_id, labeler_id, data, received_at) "
-            "VALUES (:a, :p, :t, :sm, :l, CAST(:d AS jsonb), :at) ON CONFLICT (annotation_id) DO NOTHING"
+            "INSERT INTO labels (annotation_id, project_id, task_id, sample_id, labeler_id, data, sample_metadata, received_at) "
+            "VALUES (:a, :p, :t, :sm, :l, CAST(:d AS jsonb), CAST(:md AS jsonb), :at) ON CONFLICT (annotation_id) DO NOTHING"
         ),
         {"a": p.annotation_id, "p": p.project_id, "t": p.task_id, "sm": p.sample_id, "l": p.labeler_id,
-         "d": json.dumps(p.label_payload.data), "at": env.occurred_at},
+         "d": json.dumps(p.label_payload.data), "md": json.dumps(p.sample_metadata or {}), "at": env.occurred_at},
     )
     await danh_gia_task(s, p.task_id, env)
 
@@ -138,7 +138,7 @@ async def danh_gia_task(s: AsyncSession, task_id: uuid.UUID, env: Envelope) -> N
         return
 
     dong = (await s.execute(
-        text("SELECT annotation_id, labeler_id, data FROM labels WHERE task_id = :t ORDER BY received_at"),
+        text("SELECT annotation_id, labeler_id, data, sample_metadata FROM labels WHERE task_id = :t ORDER BY received_at, annotation_id"),
         {"t": task_id})).all()
     if len(dong) < muc_tieu.target:
         return  # chua du nhan — doi annotation.submitted con lai
@@ -153,7 +153,11 @@ async def danh_gia_task(s: AsyncSession, task_id: uuid.UUID, env: Envelope) -> N
     nhan = [consensus.Nhan(str(d.annotation_id), str(d.labeler_id), d.data if isinstance(d.data, dict) else json.loads(d.data))
             for d in dong]
     cs = await chinh_sach_hien_tai(s, [d.labeler_id for d in dong])
-    kq = consensus.danh_gia(schema, nhan, muc_tieu.target, du_an.max_redundancy, cs)
+    # Metadata cua mau (kich thuoc anh): moi nhan cua task mang cung mot ban — lay ban dau tien co.
+    mau = next((m for m in ((d.sample_metadata if isinstance(d.sample_metadata, dict) else None) for d in dong) if m), None)
+    tham_so = consensus.ThamSoGop(
+        mau=mau, nguong=settings_store.nguong_gop(), f1_toi_thieu=settings_store.so_thuc(settings_store.CONSENSUS_MIN_F1))
+    kq = consensus.danh_gia(schema, nhan, muc_tieu.target, du_an.max_redundancy, cs, tham_so)
 
     trang_thai = "moreRequested" if kq.xin_them is not None else kq.status
     await s.execute(
@@ -169,7 +173,7 @@ async def danh_gia_task(s: AsyncSession, task_id: uuid.UUID, env: Envelope) -> N
         await outbox.ghi(s, RedundancyIncreaseRequested(
             task_id=task_id, project_id=muc_tieu.project_id, sample_id=muc_tieu.sample_id,
             new_redundancy=kq.xin_them,
-            reason=f"Tranh chap sau {len(nhan)} nhan: khong lua chon nao qua ban."),
+            reason=f"Tranh chap sau {len(nhan)} nhan: khong co ket qua duoc qua nua so nguoi ung ho."),
             env.correlation_id, env.event_id)
         log.info("Task %s tranh chap voi %s nhan → xin redundancy %s", task_id, len(nhan), kq.xin_them)
         return

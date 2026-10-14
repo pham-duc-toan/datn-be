@@ -27,17 +27,18 @@ namespace Crowd.Annotation.Domain.Annotations
 
         /// <summary>
         /// Ket qua gop THEO TUNG CONG CU (Crowd.Labeling.LabelAggregator), vd
-        ///   {"loai":{"kind":"classification","method":"majority","final":{...},"votes":{...},"disputed":false},
-        ///    "vat":{"kind":"bbox","method":"none"}}
-        /// "none" = chua co cach gop tu dong (khung, van ban chep...) — ket qua cuoi
-        /// la cac nhan DA DUYET (Approved).
+        ///   {"loai":{"kind":"classification","method":"majority","final":{...},"votes":{...},"agrees":[...],"disputed":false},
+        ///    "vat":{"kind":"bbox","method":"cluster","final":[{...}],"supports":[3],"agrees":[...],"disputed":false},
+        ///    "mo_ta":{"kind":"freeText","method":"none"}}
+        /// "none" = cong cu khong gop tu dong (cau tra loi mo) hoac chua ai lam — ket qua cuoi
+        /// la cac nhan DA DUYET (Approved). final = null khi tranh chap.
         /// </summary>
         public JsonObject Tools { get; }
 
         /// <summary>Cac nhan da duyet cua mau, cu nhat truoc.</summary>
         public IReadOnlyList<LabelAnnotation> Approved { get; }
 
-        /// <summary>Co cong cu nao gop theo da so ma khong lua chon nao qua ban (FB-22).</summary>
+        /// <summary>Co cong cu nao gop ma khong ra ket qua duoc qua nua so nguoi ung ho (FB-22).</summary>
         public bool Disputed
         {
             get
@@ -63,14 +64,32 @@ namespace Crowd.Annotation.Domain.Annotations
     ///
     ///   classification / pairwise → DA SO TUYET DOI (hon mot nua so nguoi):
     ///       3 nguoi: cho, cho, meo → cho;  2 nguoi: cho, meo → tranh chap (FB-22)
-    ///   bbox / polygon / span / temporalSegment / transcription → "none": chua gop
-    ///       tu dong (hai khung lech vai pixel van la mot vat — can IoU + ghep cap);
-    ///       ket qua cuoi la cac nhan da duyet. quality-svc (P3) se thay bang
-    ///       Dawid–Skene / WBF / ROVER co trong so theo do tin cay tung labeler.
+    ///   bbox / polygon / keypoint / polyline / mask / temporalSegment / track → GHEP CUM: cac doi
+    ///       tuong "cung mot vat" cua nhung nguoi khac nhau (do giong &gt;= nguong) gom thanh cum, giu cum
+    ///       duoc hon mot nua so nguoi ve, moi cum ra mot doi tuong dai dien;
+    ///   span / relation → giu phan tu duoc hon mot nua so nguoi ghi y het;
+    ///   transcription → ban "o giua";  number → trung vi;  ranking → diem Borda;
+    ///   freeText → "none": cau tra loi mo, ket qua cuoi la cac nhan da duyet.
+    ///
+    /// quality-svc chay CUNG thuat toan tren moi nhan vua nop (ca nhan chua duyet) de tinh dong thuan
+    /// va xin them nguoi; o day chi tinh tren nhan DA DUYET — day la ket qua giao cho doanh nghiep.
     /// </summary>
     public static class ResultAggregator
     {
         public static IReadOnlyList<SampleResult> Chot(LabelSchema tapNhan, IEnumerable<LabelAnnotation> daDuyet)
+        {
+            return Chot(tapNhan, daDuyet, NguongKhop.CuaThuVien, new Dictionary<Guid, SampleMetadata>(), LabelAggregator.F1ToiThieuMacDinh);
+        }
+
+        /// <param name="nguong">Nguong ghep doi tuong mac dinh theo loai cong cu (setting labeling.threshold.*).</param>
+        /// <param name="thongTinMau">Thong tin tung mau (kich thuoc anh cho diem moc / duong gap khuc); thieu thi gop khong kem.</param>
+        /// <param name="f1ToiThieu">Setting quality.consensus_min_f1.</param>
+        public static IReadOnlyList<SampleResult> Chot(
+            LabelSchema tapNhan,
+            IEnumerable<LabelAnnotation> daDuyet,
+            NguongKhop nguong,
+            IReadOnlyDictionary<Guid, SampleMetadata> thongTinMau,
+            double f1ToiThieu)
         {
             if (tapNhan == null)
             {
@@ -82,6 +101,11 @@ namespace Crowd.Annotation.Domain.Annotations
                 throw new ArgumentNullException(nameof(daDuyet));
             }
 
+            if (thongTinMau == null)
+            {
+                throw new ArgumentNullException(nameof(thongTinMau));
+            }
+
             List<SampleResult> ketQua = new List<SampleResult>();
 
             foreach (IGrouping<Guid, LabelAnnotation> nhom in daDuyet.GroupBy(a => a.SampleId).OrderBy(g => g.Key))
@@ -89,7 +113,10 @@ namespace Crowd.Annotation.Domain.Annotations
                 List<LabelAnnotation> ds = nhom.OrderBy(a => a.SubmittedAt).ToList();
                 List<LabelPayload> nhan = ds.Select(a => a.Payload).ToList();
 
-                ketQua.Add(new SampleResult(nhom.Key, ds.Count, LabelAggregator.Gop(tapNhan, nhan), ds));
+                SampleMetadata? mau;
+                thongTinMau.TryGetValue(nhom.Key, out mau);
+
+                ketQua.Add(new SampleResult(nhom.Key, ds.Count, LabelAggregator.Gop(tapNhan, nhan, nguong, mau, f1ToiThieu), ds));
             }
 
             return ketQua;
@@ -175,7 +202,8 @@ namespace Crowd.Annotation.Domain.Annotations
 
             foreach (ToolDefinition t in tapNhan.Tools)
             {
-                if (t.Kind == ToolKinds.Transcription)
+                // Chi cong cu co lua chon roi rac moi co "phan bo": chon lop, hoac a / b / hoa.
+                if (!ToolKinds.CoLop(t.Kind) && t.Kind != ToolKinds.Pairwise)
                 {
                     continue;
                 }

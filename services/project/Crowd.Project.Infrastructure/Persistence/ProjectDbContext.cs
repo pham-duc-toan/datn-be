@@ -32,6 +32,10 @@ namespace Crowd.Project.Infrastructure.Persistence
 
         public DbSet<EntranceAttempt> EntranceAttempts => Set<EntranceAttempt>();
 
+        public DbSet<InviteCode> InviteCodes => Set<InviteCode>();
+
+        public DbSet<JoinRequest> JoinRequests => Set<JoinRequest>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -51,6 +55,8 @@ namespace Crowd.Project.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new SampleConfiguration());
             modelBuilder.ApplyConfiguration(new GoldItemConfiguration());
             modelBuilder.ApplyConfiguration(new EntranceAttemptConfiguration());
+            modelBuilder.ApplyConfiguration(new InviteCodeConfiguration());
+            modelBuilder.ApplyConfiguration(new JoinRequestConfiguration());
             modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
 
             // Ha tang dung chung: outbox (gui event) + processed_events (nhan event).

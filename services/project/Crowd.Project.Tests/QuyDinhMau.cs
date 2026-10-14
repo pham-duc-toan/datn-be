@@ -23,5 +23,10 @@ namespace Crowd.Project.Tests
         {
             get { return QuyDinhTuSetting.BaiTest(MacDinh); }
         }
+
+        public static QuyDinhThanhVien ThanhVien
+        {
+            get { return QuyDinhTuSetting.ThanhVien(MacDinh); }
+        }
     }
 }

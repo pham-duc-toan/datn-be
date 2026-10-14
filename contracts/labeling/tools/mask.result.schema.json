@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu mask",
+  "description": "Danh sach mat na phan vung, ma hoa RLE KHONG NEN kieu COCO: size = [cao, rong]; counts = do dai cac doan 0 / 1 xen ke, BAT DAU bang doan 0, duyet pixel theo COT (tren xuong, roi sang cot ke). Vd anh 2x2 chi bat pixel tren-trai: [{\"labelId\":\"troi\",\"rle\":{\"size\":[2,2],\"counts\":[0,1,3]}}]",
+  "type": "array",
+  "maxItems": 200,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "labelId",
+      "rle"
+    ],
+    "properties": {
+      "labelId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 50
+      },
+      "rle": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "size",
+          "counts"
+        ],
+        "properties": {
+          "size": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20000
+            }
+          },
+          "counts": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 100000,
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "attributes": {
+        "description": "Thuoc tinh cua doi tuong, theo 'attributes' cua cong cu trong tap nhan (kiem ngu nghia trong code).",
+        "type": "object",
+        "maxProperties": 20,
+        "propertyNames": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$"
+        },
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 5000
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

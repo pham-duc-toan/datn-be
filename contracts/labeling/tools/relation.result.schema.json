@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu relation",
+  "description": "Quan he CO HUONG giua hai doan van ban cua cong cu span ma 'spanTool' tro toi; moi dau la vi tri [start, end) cua mot doan DA CO trong ket qua cong cu span. Vd [{\"labelId\":\"lam_viec_tai\",\"from\":{\"start\":0,\"end\":5},\"to\":{\"start\":18,\"end\":24}}]",
+  "type": "array",
+  "maxItems": 1000,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "labelId",
+      "from",
+      "to"
+    ],
+    "properties": {
+      "labelId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 50
+      },
+      "from": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ],
+        "properties": {
+          "start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "to": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ],
+        "properties": {
+          "start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  }
+}

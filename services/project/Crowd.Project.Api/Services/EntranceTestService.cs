@@ -24,7 +24,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Crowd.Project.Api.Services
 {
     /// <summary>
-    /// Bai test dau vao (FL-03): labeler lam dat thi thanh thanh vien du an.
+    /// Bai test dau vao (FL-03): labeler lam dat thi thanh thanh vien du an — du an che do
+    /// approval thi thanh DON xin tham gia kem diem, cho chu du an duyet.
     ///
     /// Cau hoi rut NGAU NHIEN tu cau vang muc dich EntranceTest, moi lan mot bo
     /// khac — lam lai khong gap dung bo cu. Dap an KHONG BAO GIO roi server.
@@ -34,6 +35,7 @@ namespace Crowd.Project.Api.Services
         private readonly ProjectDbContext _db;
         private readonly ProjectAccessService _access;
         private readonly MemberService _members;
+        private readonly JoinRequestService _joinRequests;
         private readonly IMediaLinks _media;
         private readonly TimeProvider _clock;
         private readonly ISettings _settings;
@@ -42,6 +44,7 @@ namespace Crowd.Project.Api.Services
             ProjectDbContext db,
             ProjectAccessService access,
             MemberService members,
+            JoinRequestService joinRequests,
             IMediaLinks media,
             TimeProvider clock,
             ISettings settings)
@@ -68,6 +71,11 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(members));
             }
 
+            if (joinRequests == null)
+            {
+                throw new ArgumentNullException(nameof(joinRequests));
+            }
+
             if (media == null)
             {
                 throw new ArgumentNullException(nameof(media));
@@ -81,6 +89,7 @@ namespace Crowd.Project.Api.Services
             _db = db;
             _access = access;
             _members = members;
+            _joinRequests = joinRequests;
             _media = media;
             _clock = clock;
         }
@@ -88,7 +97,7 @@ namespace Crowd.Project.Api.Services
         public async Task<EntranceTestStartResponse> BatDauAsync(Guid projectId, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeXemAsync(projectId, caller, ct);
-            duAn.KiemTraChoTuThamGia();
+            duAn.KiemTraChoXinThamGia();
 
             if (!duAn.RequireEntranceTest)
             {
@@ -102,6 +111,17 @@ namespace Crowd.Project.Api.Services
             if (daLaThanhVien)
             {
                 throw new RuleViolationException("da_la_thanh_vien", "Ban da la thanh vien (hoac da bi chan khoi) du an nay.");
+            }
+
+            // Kiem dieu kien TRUOC khi lam bai: khong de labeler lam xong moi biet khong du cap do.
+            // Du an can duyet: them luat cua don (khong co don dang cho, het thoi gian cho sau tu choi).
+            if (duAn.Visibility == ProjectVisibility.Approval)
+            {
+                await _joinRequests.KiemTraDuocGuiDonAsync(duAn, userId, bayGio, ct);
+            }
+            else
+            {
+                await _members.KiemDieuKienLabelerAsync(duAn, userId, ct);
             }
 
             List<EntranceAttempt> cacLan = await _db.EntranceAttempts
@@ -210,17 +230,32 @@ namespace Crowd.Project.Api.Services
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            bool dau = lan.Nop(traLoi, dapAn, tapNhan, duAn.EntrancePassPercent, NguongKhopTuSetting.Doc(_settings), bayGio);
+            Dictionary<Guid, SampleMetadata> thongTinMau = new Dictionary<Guid, SampleMetadata>();
+            foreach (KeyValuePair<Guid, RawJson> m in metadataMau)
+            {
+                thongTinMau[m.Key] = SampleMetadata.Tu(m.Value);
+            }
+
+            bool dau = lan.Nop(traLoi, dapAn, tapNhan, duAn.EntrancePassPercent, NguongKhopTuSetting.Doc(_settings), thongTinMau, bayGio);
 
             int soLanDaLam = await _db.EntranceAttempts.CountAsync(a => a.ProjectId == projectId && a.UserId == userId, ct);
             bool vuaThamGia = false;
+            Guid? donId = null;
 
-            if (dau)
+            if (dau && duAn.Visibility == ProjectVisibility.Approval)
+            {
+                // Du an can duyet: dau thi thanh DON kem diem cho chu du an duyet; luu ket qua bai
+                // test va don trong CUNG SaveChanges (LuuDonMoiAsync).
+                JoinRequest don = JoinRequest.Tao(projectId, userId, null, lan.Id, lan.ScorePercent, bayGio);
+                await _joinRequests.LuuDonMoiAsync(don, duAn, caller, ct);
+                donId = don.Id;
+            }
+            else if (dau)
             {
                 // Luu ket qua bai test VA them thanh vien trong CUNG SaveChanges
                 // (LuuThanhVienMoiAsync goi SaveChanges cho ca hai).
                 ProjectMember moi = ProjectMember.TaoThanhVien(projectId, userId, MemberRole.Labeler, bayGio);
-                await _members.LuuThanhVienMoiAsync(moi, caller, ct);
+                await _members.LuuThanhVienMoiAsync(moi, Crowd.Contracts.Project.MemberJoinVia.EntranceTest, duAn, caller, ct);
                 vuaThamGia = true;
             }
             else
@@ -235,6 +270,7 @@ namespace Crowd.Project.Api.Services
                 PassPercent = duAn.EntrancePassPercent,
                 Passed = dau,
                 JoinedProject = vuaThamGia,
+                JoinRequestId = donId,
                 AttemptsLeft = Math.Max(0, _settings.SoNguyen(SettingKeys.EntranceMaxAttempts) - soLanDaLam),
             };
         }

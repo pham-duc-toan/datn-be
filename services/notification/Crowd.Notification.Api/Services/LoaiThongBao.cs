@@ -23,6 +23,8 @@ namespace Crowd.Notification.Api.Services
         public const string TranhChap = "tranh_chap";
         public const string HeThong = "he_thong";
         public const string CapDo = "cap_do";
+        public const string ThanhVien = "thanh_vien";
+        public const string DonThamGia = "don_tham_gia";
 
         public static readonly IReadOnlyList<LoaiThongBao> TatCa = new List<LoaiThongBao>
         {
@@ -37,6 +39,8 @@ namespace Crowd.Notification.Api.Services
             new LoaiThongBao(TranhChap, "Tranh chấp nhãn đã duyệt", true, true, false),
             new LoaiThongBao(HeThong, "Thông báo từ quản trị viên", false, true, false),
             new LoaiThongBao(CapDo, "Cấp độ và huy hiệu", false, false, false),
+            new LoaiThongBao(ThanhVien, "Được thêm vào dự án / kết quả đơn xin tham gia", false, true, false),
+            new LoaiThongBao(DonThamGia, "Đơn xin tham gia dự án mới (chủ dự án)", false, false, false),
         };
 
         private LoaiThongBao(string ma, string ten, bool batBuoc, bool macDinhEmail, bool gop)
@@ -225,6 +229,39 @@ namespace Crowd.Notification.Api.Services
         public static NoiDung HuyHieuMoi(string ten)
         {
             return new NoiDung("Huy hiệu mới", "Bạn vừa đạt huy hiệu “" + ten + "”.", "/me/level");
+        }
+
+        // ---- thanh vien du an: moi, don xin tham gia ----
+
+        public static NoiDung DuocThemVaoDuAn(Guid projectId, string? tenDuAn)
+        {
+            return new NoiDung("Bạn được mời vào dự án",
+                "Chủ dự án đã thêm bạn vào " + TenDuAn(tenDuAn) + ". Bạn có thể bắt đầu nhận task.", "/projects/" + projectId);
+        }
+
+        public static NoiDung DonThamGiaMoi(Guid projectId, string tenDuAn, int? diem)
+        {
+            return new NoiDung("Đơn xin tham gia mới",
+                "Có labeler xin tham gia " + TenDuAn(tenDuAn) + (diem.HasValue ? " (bài test đầu vào đạt " + diem.Value + "%)" : string.Empty) + ".",
+                "/projects/" + projectId + "/join-requests");
+        }
+
+        public static NoiDung KetQuaDonThamGia(Guid projectId, string tenDuAn, bool duyet, string? lyDo)
+        {
+            if (duyet)
+            {
+                return new NoiDung("Đơn xin tham gia được duyệt",
+                    "Bạn đã là thành viên " + TenDuAn(tenDuAn) + ". Bạn có thể bắt đầu nhận task.", "/projects/" + projectId);
+            }
+
+            return new NoiDung("Đơn xin tham gia bị từ chối",
+                "Đơn xin tham gia " + TenDuAn(tenDuAn) + " bị từ chối" + (string.IsNullOrWhiteSpace(lyDo) ? "." : ". Lý do: " + lyDo + "."),
+                "/projects/join-requests/mine");
+        }
+
+        private static string TenDuAn(string? ten)
+        {
+            return string.IsNullOrWhiteSpace(ten) ? "dự án" : "dự án “" + ten + "”";
         }
 
         // ---- thong bao toan he thong (FM-09) ----

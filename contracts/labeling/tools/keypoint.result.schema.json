@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu keypoint",
+  "description": "Danh sach diem moc tren anh, toa do PIXEL. Vd [{\"labelId\":\"mui\",\"x\":120,\"y\":80}]",
+  "type": "array",
+  "maxItems": 1000,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "labelId",
+      "x",
+      "y"
+    ],
+    "properties": {
+      "labelId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 50
+      },
+      "x": {
+        "type": "number",
+        "minimum": 0
+      },
+      "y": {
+        "type": "number",
+        "minimum": 0
+      },
+      "attributes": {
+        "description": "Thuoc tinh cua doi tuong, theo 'attributes' cua cong cu trong tap nhan (kiem ngu nghia trong code).",
+        "type": "object",
+        "maxProperties": 20,
+        "propertyNames": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$"
+        },
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 5000
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

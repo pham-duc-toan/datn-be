@@ -422,6 +422,39 @@
     "description": "Thoi gian lam mot bai test dau vao."
   },
   {
+    "key": "project.member_batch_max",
+    "group": "Du an",
+    "type": "int",
+    "default": 100,
+    "min": 1,
+    "max": 1000,
+    "unit": "nguoi",
+    "effect": "newOperations",
+    "description": "So nguoi toi da trong mot lan chu du an moi nhieu nguoi (theo email / userId)."
+  },
+  {
+    "key": "project.invite_code_max_ttl",
+    "group": "Du an",
+    "type": "durationSeconds",
+    "default": 2592000,
+    "min": 3600,
+    "max": 31536000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Han dung toi da cua mot ma moi tham gia du an (chu du an khong dat han thi lay 7 ngay, khong vuot muc nay)."
+  },
+  {
+    "key": "project.join_request_cooldown",
+    "group": "Du an",
+    "type": "durationSeconds",
+    "default": 86400,
+    "min": 0,
+    "max": 2592000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Don xin tham gia bi tu choi: labeler phai cho bao lau moi duoc gui don moi vao cung du an. 0 = gui lai ngay."
+  },
+  {
     "key": "dataset.zip_max_bytes",
     "group": "Du lieu va file",
     "type": "long",
@@ -1030,6 +1063,83 @@
     "unit": "IoU",
     "effect": "newOperations",
     "description": "Nguong cham mac dinh cho doan thoi gian."
+  },
+  {
+    "key": "labeling.threshold.keypoint",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.98,
+    "min": 0,
+    "max": 1,
+    "unit": "do giong",
+    "effect": "newOperations",
+    "description": "Nguong mac dinh cho diem moc: 1 − (do lech / duong cheo anh). 0.98 = lech toi da 2% duong cheo."
+  },
+  {
+    "key": "labeling.threshold.polyline",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.97,
+    "min": 0,
+    "max": 1,
+    "unit": "do giong",
+    "effect": "newOperations",
+    "description": "Nguong mac dinh cho duong gap khuc: 1 − (do lech trung binh / duong cheo anh)."
+  },
+  {
+    "key": "labeling.threshold.mask",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.5,
+    "min": 0,
+    "max": 1,
+    "unit": "IoU",
+    "effect": "newOperations",
+    "description": "Nguong mac dinh cho mat na phan vung."
+  },
+  {
+    "key": "labeling.threshold.track",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.5,
+    "min": 0,
+    "max": 1,
+    "unit": "IoU",
+    "effect": "newOperations",
+    "description": "Nguong mac dinh cho chuoi khung theo doi trong video (IoU khong-thoi gian)."
+  },
+  {
+    "key": "labeling.threshold.relation",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 1,
+    "min": 0,
+    "max": 1,
+    "unit": "F1",
+    "effect": "newOperations",
+    "description": "Nguong cham mac dinh cho quan he giua cac doan van ban."
+  },
+  {
+    "key": "labeling.threshold.ranking",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.8,
+    "min": 0,
+    "max": 1,
+    "unit": "Kendall",
+    "effect": "newOperations",
+    "description": "Nguong mac dinh cho xep hang: ti le cap muc duoc xep cung thu tu."
+  },
+  {
+    "key": "quality.consensus_min_f1",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.8,
+    "min": 0,
+    "max": 1,
+    "unit": "F1",
+    "effect": "newOperations",
+    "description": "Gop nhan cong cu dang danh sach (khung, da giac, doan...): mot nguoi tinh la KHOP ket qua gop khi F1 giua cac doi tuong cua ho va cac doi tuong da gop dat muc nay. Khong qua mot nua so nguoi khop thi mau la tranh chap."
   },
   {
     "key": "identity.access_token_lifetime",

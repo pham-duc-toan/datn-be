@@ -10,6 +10,8 @@ pyjwt[crypto]>=2.8
 httpx>=0.27
 # Dawid-Skene, Krippendorff alpha (Toloka crowd-kit)
 crowd-kit>=1.2
+# Gop da giac (luoi diem) — da co san qua pandas / crowd-kit, khai ro vi app/gop.py dung truc tiep
+numpy>=1.26
 
 # test
 pytest>=8

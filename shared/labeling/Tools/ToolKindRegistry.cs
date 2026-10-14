@@ -31,6 +31,14 @@ namespace Crowd.Labeling.Tools
                 new TranscriptionTool(),
                 new TemporalSegmentTool(),
                 new PairwiseTool(),
+                new FreeTextTool(),
+                new NumberTool(),
+                new KeypointTool(),
+                new PolylineTool(),
+                new MaskTool(),
+                new TrackTool(),
+                new RelationTool(),
+                new RankingTool(),
             })
             {
                 d[k.Kind] = k;

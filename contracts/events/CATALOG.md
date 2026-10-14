@@ -37,6 +37,9 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `dataset.ingested` | task, ml | Sinh task tu sample; ml bat dau pre-label |
 | `gold_set.updated` | task, gate | Cap nhat bo cau hoi vang |
 | `member.added` / `member.blocked` / `member.unblocked` / `member.removed` | task, annotation, media | Nhan ban `project_members` sang `*_members_cache` — nen cua phan quyen chieu ngang (VD-S-14) |
+| `member.added` (them `via`, `projectName`, khong bat buoc) | notification | `via = owner_invite`: bao nguoi duoc chu du an moi. Cac duong khac (`invite_code`, `join`, `entrance_test`, `join_request`) khong bao — nguoi do tu bam, don duoc duyet bao qua `join_request.decided`. Ban tin cu khong co `via` → khong bao |
+| `join_request.submitted` | notification | Labeler gui don xin tham gia du an che do `approval` (hoac lam dat bai test, kem `scorePercent`) → bao chu du an |
+| `join_request.decided` | notification | Chu du an duyet / tu choi don (kem ly do) → bao labeler. Duyet thi `member.added` (`via = join_request`) di cung transaction |
 
 ## task-svc
 
@@ -53,7 +56,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `annotation.submitted` | quality, fraud | Dau vao dong thuan va Dawid-Skene; phat hien gian lan |
+| `annotation.submitted` | quality, fraud | Dau vao dong thuan (gop nhan moi cong cu — kien truc 3.15) va Dawid-Skene; phat hien gian lan. Mang `sampleMetadata` (kich thuoc anh, do dai...): quality-svc can de so do lech diem moc / duong gap khuc theo duong cheo anh |
 | `annotation.approved` | ledger, notification, identity | **Chi tra**; notification: chi nhan kenh chuyen nghiep, thong bao GOP theo du an; identity: dem nhan da duyet (cap do, huy hieu, bang xep hang) |
 | `annotation.rejected` | notification | Thong bao |
 | `appeal.opened` | admin | Hang doi khieu nai (FL-09) |
@@ -62,7 +65,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `consensus.reached` | annotation | Ket qua dong thuan cua MOT task (agreed / disputed / notApplicable) + tung nhan khop hay lech. **Chi la goi y** cho nguoi duyet — khong tu duyet, khong tu chi tien |
+| `consensus.reached` | annotation | Ket qua dong thuan cua MOT task (agreed / disputed / notApplicable) + tung nhan khop hay lech. `final` = ket qua gop theo TUNG cong cu (cung hinh dang voi nhan nop; null = cong cu tranh chap) — voi mat na / chuoi khung co the dai vai chuc KB. **Chi la goi y** cho nguoi duyet — khong tu duyet, khong tu chi tien |
 | `redundancy.increase_requested` | task | **Vong lap thich ung**: tranh chap ma chua cham tran → xin them MOT nguoi (`NewRedundancy` tuyet doi) |
 | `reputation.changed` | task, identity | Uy tin 0-100 = cau vang + muc khop dong thuan / do tin cay Dawid-Skene |
 | `dispute.detected` | task, admin | *(chua lam)* Day len reviewer cap cao |

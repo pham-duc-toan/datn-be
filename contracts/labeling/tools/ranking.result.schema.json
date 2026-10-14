@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu ranking",
+  "description": "Xep hang cac muc cua mau (du lieu list): 'order' la CHI SO muc (tu 0) theo thu tu tot nhat → kem nhat, moi muc dung mot lan. Vd 3 muc: {\"order\": [2, 0, 1]}",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "order"
+  ],
+  "properties": {
+    "order": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 49
+      }
+    }
+  }
+}

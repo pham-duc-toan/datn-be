@@ -8,6 +8,7 @@ using Crowd.Project.Api.Dtos;
 using Crowd.Project.Api.Helpers;
 using Crowd.Project.Api.Services;
 using Crowd.Project.Domain.Common;
+using Crowd.Project.Domain.Members;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -38,11 +39,18 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.DanhSachAsync(projectId, ChuDuAn(), ct));
         }
 
-        /// <summary>POST /projects/{id}/members — chu du an moi nguoi (FP-05).</summary>
+        /// <summary>POST /projects/{id}/members — chu du an moi MOT nguoi theo userId hoac email (FP-05).</summary>
         [HttpPost("members")]
         public async Task<IActionResult> Them(Guid projectId, [FromBody] AddMemberRequest body, CancellationToken ct)
         {
             return Ok(await _service.ThemAsync(projectId, body, ChuDuAn(), ct));
+        }
+
+        /// <summary>POST /projects/{id}/members/batch — moi nhieu nguoi (userIds / emails), ket qua tung nguoi.</summary>
+        [HttpPost("members/batch")]
+        public async Task<IActionResult> ThemNhieu(Guid projectId, [FromBody] AddMembersBatchRequest body, CancellationToken ct)
+        {
+            return Ok(await _service.ThemNhieuAsync(projectId, body, ChuDuAn(), ct));
         }
 
         /// <summary>POST /projects/{id}/members/{userId}/block (FB-23)</summary>
@@ -71,6 +79,133 @@ namespace Crowd.Project.Api.Controllers
         public async Task<IActionResult> ThamGia(Guid projectId, CancellationToken ct)
         {
             return Ok(await _service.ThamGiaAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Labeler), ct));
+        }
+
+        private Caller ChuDuAn()
+        {
+            return Caller.TuHttp(HttpContext, ActorRole.Business);
+        }
+    }
+
+    /// <summary>Ma moi tham gia du an: chu du an tao / xem / thu hoi; labeler nhap ma de vao.</summary>
+    [ApiController]
+    [Route("projects")]
+    [Authorize]
+    public sealed class InviteCodesController : ControllerBase
+    {
+        private readonly InviteCodeService _service;
+
+        public InviteCodesController(InviteCodeService service)
+        {
+            if (service == null)
+            {
+                throw new ArgumentNullException(nameof(service));
+            }
+
+            _service = service;
+        }
+
+        /// <summary>POST /projects/{id}/invite-codes — { maxUses?, expiresInHours?, note? }.</summary>
+        [HttpPost("{projectId:guid}/invite-codes")]
+        public async Task<IActionResult> Tao(Guid projectId, [FromBody] CreateInviteCodeRequest body, CancellationToken ct)
+        {
+            InviteCodeResponse ma = await _service.TaoAsync(projectId, body, ChuDuAn(), ct);
+            return Created("/projects/" + projectId + "/invite-codes", ma);
+        }
+
+        [HttpGet("{projectId:guid}/invite-codes")]
+        public async Task<IActionResult> DanhSach(Guid projectId, CancellationToken ct)
+        {
+            return Ok(await _service.DanhSachAsync(projectId, ChuDuAn(), ct));
+        }
+
+        /// <summary>DELETE /projects/{id}/invite-codes/{codeId} — thu hoi (giu lai dong de xem lich su).</summary>
+        [HttpDelete("{projectId:guid}/invite-codes/{codeId:guid}")]
+        public async Task<IActionResult> ThuHoi(Guid projectId, Guid codeId, CancellationToken ct)
+        {
+            return Ok(await _service.ThuHoiAsync(projectId, codeId, ChuDuAn(), ct));
+        }
+
+        /// <summary>POST /projects/join-by-code — { code }: labeler vao du an cua ma (ke ca rieng tu).</summary>
+        [HttpPost("join-by-code")]
+        [Authorize(Roles = CrowdRoles.Labeler)]
+        public async Task<IActionResult> VaoBangMa([FromBody] JoinByCodeRequest body, CancellationToken ct)
+        {
+            return Ok(await _service.VaoBangMaAsync(body, Caller.TuHttp(HttpContext, ActorRole.Labeler), ct));
+        }
+
+        private Caller ChuDuAn()
+        {
+            return Caller.TuHttp(HttpContext, ActorRole.Business);
+        }
+    }
+
+    /// <summary>Don xin tham gia du an che do approval.</summary>
+    [ApiController]
+    [Route("projects")]
+    [Authorize]
+    public sealed class JoinRequestsController : ControllerBase
+    {
+        private readonly JoinRequestService _service;
+
+        public JoinRequestsController(JoinRequestService service)
+        {
+            if (service == null)
+            {
+                throw new ArgumentNullException(nameof(service));
+            }
+
+            _service = service;
+        }
+
+        /// <summary>POST /projects/{id}/join-requests — labeler gui don { message? }.</summary>
+        [HttpPost("{projectId:guid}/join-requests")]
+        [Authorize(Roles = CrowdRoles.Labeler)]
+        public async Task<IActionResult> Gui(Guid projectId, [FromBody] CreateJoinRequestRequest body, CancellationToken ct)
+        {
+            JoinRequestResponse don = await _service.GuiAsync(projectId, body, Labeler(), ct);
+            return Created("/projects/join-requests/mine", don);
+        }
+
+        /// <summary>DELETE /projects/{id}/join-requests/mine — labeler rut don dang cho.</summary>
+        [HttpDelete("{projectId:guid}/join-requests/mine")]
+        [Authorize(Roles = CrowdRoles.Labeler)]
+        public async Task<IActionResult> Rut(Guid projectId, CancellationToken ct)
+        {
+            return Ok(await _service.RutAsync(projectId, Labeler(), ct));
+        }
+
+        /// <summary>GET /projects/join-requests/mine — moi don cua toi.</summary>
+        [HttpGet("join-requests/mine")]
+        [Authorize(Roles = CrowdRoles.Labeler)]
+        public async Task<IActionResult> CuaToi(CancellationToken ct)
+        {
+            return Ok(await _service.CuaToiAsync(Labeler(), ct));
+        }
+
+        /// <summary>GET /projects/{id}/join-requests?status=pending — hang doi cua chu du an.</summary>
+        [HttpGet("{projectId:guid}/join-requests")]
+        public async Task<IActionResult> DanhSach(Guid projectId, [FromQuery] JoinRequestStatus? status, CancellationToken ct)
+        {
+            return Ok(await _service.DanhSachAsync(projectId, status, ChuDuAn(), ct));
+        }
+
+        [HttpPost("{projectId:guid}/join-requests/{requestId:guid}/approve")]
+        public async Task<IActionResult> Duyet(Guid projectId, Guid requestId, CancellationToken ct)
+        {
+            return Ok(await _service.DuyetAsync(projectId, requestId, ChuDuAn(), ct));
+        }
+
+        /// <summary>POST .../reject — { reason? }.</summary>
+        [HttpPost("{projectId:guid}/join-requests/{requestId:guid}/reject")]
+        public async Task<IActionResult> TuChoi(Guid projectId, Guid requestId, [FromBody] RejectJoinRequestRequest body, CancellationToken ct)
+        {
+            return Ok(await _service.TuChoiAsync(projectId, requestId, body, ChuDuAn(), ct));
+        }
+
+        private Caller Labeler()
+        {
+            return Caller.TuHttp(HttpContext, ActorRole.Labeler);
         }
 
         private Caller ChuDuAn()

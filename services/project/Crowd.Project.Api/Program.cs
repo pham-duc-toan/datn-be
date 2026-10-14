@@ -56,6 +56,8 @@ builder.Services.AddScoped<ProjectAccessService>();
 builder.Services.AddScoped<ProjectEventPublisher>();
 builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<MemberService>();
+builder.Services.AddScoped<InviteCodeService>();
+builder.Services.AddScoped<JoinRequestService>();
 builder.Services.AddScoped<DatasetService>();
 builder.Services.AddScoped<GioiHanZipFilter>();
 builder.Services.AddScoped<UploadService>();
@@ -72,6 +74,7 @@ builder.Services.AddScoped<ProjectSeeder>();
 builder.Services.AddCrowdJwtAuthentication(builder.Configuration);
 builder.Services.AddCrowdInternalApi(builder.Configuration);
 builder.Services.AddHttpClient<DongSoClient>();
+builder.Services.AddHttpClient<IdentityClient>();
 
 // ---- HTTP ----
 builder.Services

@@ -103,8 +103,8 @@ try:
     kiem("khong token → 401", requests.get(G + "/notifications/me").status_code == 401)
 
     tc = requests.get(G + "/notifications/me/preferences", headers=biz["h"]).json()
-    kiem("11 loai, rut_tien bat buoc, nhan_duyet mac dinh tat email",
-         len(tc) == 11 and next(x for x in tc if x["type"] == "rut_tien")["mandatory"]
+    kiem("13 loai, rut_tien bat buoc, nhan_duyet mac dinh tat email",
+         len(tc) == 13 and next(x for x in tc if x["type"] == "rut_tien")["mandatory"]
          and not next(x for x in tc if x["type"] == "nhan_duyet")["emailEnabled"], tc)
     r = requests.put(G + "/notifications/me/preferences", headers=biz["h"], json={"items": [{"type": "rut_tien", "emailEnabled": False}]})
     kiem("tat email loai bat buoc → 400", r.status_code == 400 and "loai_bat_buoc" in r.text, r.text)

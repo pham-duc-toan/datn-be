@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Crowd.Contracts.Admin;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
+using Crowd.Contracts.Project;
 using Crowd.Notification.Api.Persistence;
 using Crowd.Notification.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -90,6 +91,58 @@ namespace Crowd.Notification.Api.Consumers
         protected override Task XuLyPayloadAsync(LevelChanged p, CancellationToken ct)
         {
             return Writer.GhiAsync(p.UserId, LoaiThongBao.CapDo, NoiDungThongBao.CapDoMoi(p.Level), ct);
+        }
+    }
+
+    /// <summary>
+    /// member.added (project) → bao nguoi duoc CHU DU AN moi truc tiep. Cac duong vao khac (tu
+    /// join, ma moi, bai test) la nguoi do tu bam — khong can bao; don duoc duyet bao qua
+    /// join_request.decided. Ban cu khong co Via → khong bao (khong biet ai lam).
+    /// </summary>
+    public sealed class MemberAddedProcessor : ThongBaoProcessor<MemberAdded>
+    {
+        public MemberAddedProcessor(ThongBaoWriter writer, NotificationDbContext db)
+            : base(writer, db)
+        {
+        }
+
+        protected override Task XuLyPayloadAsync(MemberAdded p, CancellationToken ct)
+        {
+            if (!string.Equals(p.Via, MemberJoinVia.OwnerInvite, StringComparison.Ordinal))
+            {
+                return Task.CompletedTask;
+            }
+
+            return Writer.GhiAsync(p.UserId, LoaiThongBao.ThanhVien, NoiDungThongBao.DuocThemVaoDuAn(p.ProjectId, p.ProjectName), ct);
+        }
+    }
+
+    /// <summary>join_request.submitted (project) → bao chu du an co don moi.</summary>
+    public sealed class JoinRequestSubmittedProcessor : ThongBaoProcessor<JoinRequestSubmitted>
+    {
+        public JoinRequestSubmittedProcessor(ThongBaoWriter writer, NotificationDbContext db)
+            : base(writer, db)
+        {
+        }
+
+        protected override Task XuLyPayloadAsync(JoinRequestSubmitted p, CancellationToken ct)
+        {
+            return Writer.GhiAsync(p.OwnerId, LoaiThongBao.DonThamGia, NoiDungThongBao.DonThamGiaMoi(p.ProjectId, p.ProjectName, p.ScorePercent), ct);
+        }
+    }
+
+    /// <summary>join_request.decided (project) → bao labeler ket qua don.</summary>
+    public sealed class JoinRequestDecidedProcessor : ThongBaoProcessor<JoinRequestDecided>
+    {
+        public JoinRequestDecidedProcessor(ThongBaoWriter writer, NotificationDbContext db)
+            : base(writer, db)
+        {
+        }
+
+        protected override Task XuLyPayloadAsync(JoinRequestDecided p, CancellationToken ct)
+        {
+            return Writer.GhiAsync(
+                p.UserId, LoaiThongBao.ThanhVien, NoiDungThongBao.KetQuaDonThamGia(p.ProjectId, p.ProjectName, p.Approved, p.Reason), ct);
         }
     }
 

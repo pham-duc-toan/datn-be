@@ -265,6 +265,9 @@ namespace Crowd.Tasking.Tests
 
             // Du an doi cap do ma chua biet cap do cua labeler → tu choi, KHONG cho qua.
             Assert.Equal("chua_du_cap_do", EligibilityPolicy.LyDoTuChoi(DuAnChay(2, null), Labeler(CachedMemberState.Active), null, Luc));
+
+            // Chua biet cap = cap 1 (nhu identity): du an chi doi cap 1 thi khong chan nguoi moi.
+            Assert.Null(EligibilityPolicy.LyDoTuChoi(DuAnChay(1, null), Labeler(CachedMemberState.Active), null, Luc));
         }
 
         [Fact]

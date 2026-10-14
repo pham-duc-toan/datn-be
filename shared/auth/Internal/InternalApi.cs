@@ -28,6 +28,9 @@ namespace Crowd.BuildingBlocks.Auth.Internal
 
         public string AnnotationUrl { get; set; } = string.Empty;
 
+        /// <summary>identity-svc: project-svc tra cuu nguoi duoc moi / xin vao du an.</summary>
+        public string IdentityUrl { get; set; } = string.Empty;
+
         /// <summary>Het gio moi loi goi noi bo.</summary>
         public int TimeoutSeconds { get; set; } = 10;
     }

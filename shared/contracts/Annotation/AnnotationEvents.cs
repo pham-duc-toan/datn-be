@@ -35,6 +35,12 @@ namespace Crowd.Contracts.Annotation
         /// <summary>Noi dung nhan o moi dang (phan loai, bounding box...) — xem Crowd.Labeling.</summary>
         public required LabelPayload LabelPayload { get; init; }
 
+        /// <summary>
+        /// Thong tin mau (kich thuoc anh, do dai...) — quality-svc can kich thuoc anh de so do lech cua
+        /// diem moc / duong gap khuc khi gop nhan. Chi vai chuc byte; noi dung mau KHONG di theo event nay.
+        /// </summary>
+        public required RawJson SampleMetadata { get; init; }
+
         public required AnnotationSource Source { get; init; }
     }
 

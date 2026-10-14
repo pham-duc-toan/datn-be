@@ -68,7 +68,11 @@ namespace Crowd.Tasking.Domain.Eligibility
 
             if (duAn.MinLevel.HasValue)
             {
-                if (labeler == null || labeler.Level == null || labeler.Level.Value < duAn.MinLevel.Value)
+                // Chua tung nhan level.changed = cap 1 (identity tinh cap 1 khi chua co thong ke, va
+                // project-svc kiem luc vao du an theo dung so do). Van fail-safe: level.changed den
+                // tre chi lam labeler cap cao tam bi coi la cap 1, khong bao gio cho qua nham.
+                int cap = labeler == null || labeler.Level == null ? 1 : labeler.Level.Value;
+                if (cap < duAn.MinLevel.Value)
                 {
                     return "chua_du_cap_do";
                 }

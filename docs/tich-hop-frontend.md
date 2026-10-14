@@ -206,11 +206,11 @@ Lưu ý: mốc thu hồi tính theo **giây** — token cấp trong cùng giây 
 | | Theo dõi dự án, chi phí, ETA | `GET /projects/{id}`, `GET /tasks/projects/{id}/progress`, `GET /ledger/projects/{id}/cost`, `POST /projects/{id}/pause` / `resume` / `complete` / `cancel` |
 | | Task bị labeler báo lỗi | `GET /tasks/projects/{id}/reports`, `POST /tasks/reports/{id}/resolve` (mục 4.13) |
 | | Tranh chấp nhãn đã duyệt | `POST /ledger/disputes`, `GET /ledger/disputes/mine` (mục 4.14) |
-| | Thành viên | `GET/POST /projects/{id}/members`, `.../block`, `.../unblock`, `DELETE .../members/{userId}` |
+| | Thành viên, mời, mã mời, đơn xin tham gia | `GET/POST /projects/{id}/members`, `POST /projects/{id}/members/batch`, `.../block`, `.../unblock`, `DELETE .../members/{userId}`, `GET/POST /projects/{id}/invite-codes`, `DELETE .../invite-codes/{codeId}`, `GET /projects/{id}/join-requests`, `POST .../join-requests/{requestId}/approve` / `reject` (mục 4.9) |
 | | Duyệt nhãn | `GET /annotations/projects/{id}?status=pendingReview`, `POST /annotations/{id}/approve` / `reject`, `POST /annotations/projects/{id}/approve-agreed`, `GET /annotations/{id}/history` |
 | | Kết quả, phân bố nhãn, tải về | `GET /annotations/projects/{id}/results`, `GET /annotations/projects/{id}/distribution`, `GET /annotations/projects/{id}/export?format=json\|csv\|coco\|yolo\|voc` |
 | Labeler | Chợ dự án | `GET /projects`, `GET /projects/{id}` |
-| | Tham gia, bài test | `POST /projects/{id}/join`, `POST /projects/{id}/entrance-test/attempts`, `.../attempts/{attemptId}/submit`, `GET .../attempts` |
+| | Tham gia, mã mời, đơn xin, bài test | `POST /projects/{id}/join`, `POST /projects/join-by-code`, `POST /projects/{id}/join-requests`, `DELETE /projects/{id}/join-requests/mine`, `GET /projects/join-requests/mine`, `POST /projects/{id}/entrance-test/attempts`, `.../attempts/{attemptId}/submit`, `GET .../attempts` (mục 5.1) |
 | | Workspace gán nhãn | `POST /tasks/projects/{id}/next`, `POST /tasks/assignments/{id}/submit`, `PUT /tasks/assignments/{id}/draft`, `POST /tasks/assignments/{id}/report`, `POST /tasks/assignments/{id}/release`, `GET /tasks/assignments/mine` |
 | | Lịch sử, khiếu nại, uy tín | `GET /annotations/mine`, `POST /annotations/{id}/appeal`, `GET /quality/me` |
 | | Ví, rút tiền, thống kê thu nhập | `GET /ledger/me/balance`, `GET /ledger/me/transactions`, `GET /ledger/me/earnings`, `POST /ledger/withdrawals`, `GET /ledger/withdrawals/mine` |
@@ -314,8 +314,12 @@ POST /projects
 → 201 ProjectResponse
 ```
 
-- `modality`: `image` | `text` | `audio` | `video` | `pair`. **Không đổi được sau khi tạo**: nó quyết định loại file được nạp và công cụ được dùng.
-- `visibility`: `public` (labeler tự tham gia được) | `private` (chủ dự án thêm thành viên).
+- `modality`: `image` | `text` | `audio` | `video` | `pair` | `list`. **Không đổi được sau khi tạo**: nó quyết định loại file được nạp và công cụ được dùng.
+- `visibility` (chỉ đổi khi còn Nháp):
+  - `public`: labeler thấy dự án và tự tham gia (`join`, hoặc làm đạt bài test).
+  - `approval`: labeler thấy dự án nhưng phải gửi **đơn**, chủ dự án duyệt. Có bài test thì làm đạt mới thành đơn, kèm điểm.
+  - `private`: labeler không thấy; chỉ vào khi được chủ dự án mời hoặc có mã mời.
+  Cả ba chế độ đều mời trực tiếp và dùng mã mời được (mục 4.9).
 
 `ProjectResponse` (cũng là response của `GET /projects/{id}` và của mọi lệnh `PUT` cấu hình):
 
@@ -367,25 +371,38 @@ PUT /projects/{id}/label-schema
 | `segmentSeconds` | Chỉ audio/video, 5–3600. File dài hơn sẽ bị **cắt thành nhiều mẫu**, mỗi đoạn N giây là một task |
 | `tools[].name` | Khóa của công cụ trong nhãn nộp lên. `^[a-z][a-z0-9_]{0,39}$`, không trùng trong một tập nhãn |
 | `tools[].kind` | Loại công cụ, xem bảng dưới |
-| `classes` | Danh sách lớp (1–50 ký tự mỗi lớp, tối đa 100 lớp, không trùng). Bắt buộc với mọi `kind` trừ `transcription`, `pairwise`. Phân loại cần ≥ 2 lớp |
+| `classes` | Danh sách lớp (1–50 ký tự mỗi lớp, tối đa 100 lớp, không trùng). Bắt buộc với công cụ **chọn lớp** (`classification` và mọi công cụ dạng danh sách); **không được khai** với `transcription`, `freeText`, `number`, `pairwise`, `ranking`. Phân loại cần ≥ 2 lớp |
 | `allowMultiple` | Chỉ `classification`: cho chọn nhiều lớp (mặc định `false`) |
 | `required` | Mặc định `true`. `false` = labeler được bỏ trống công cụ này |
-| `minItems`, `maxItems` | Công cụ dạng danh sách (bbox, polygon, span, temporalSegment): số mục tối thiểu / tối đa (mặc định 0 / 1000) |
-| `maxLength` | Chỉ `transcription`: độ dài tối đa (mặc định 5000) |
+| `minItems`, `maxItems` | Công cụ dạng danh sách (`bbox`, `polygon`, `keypoint`, `polyline`, `mask`, `span`, `relation`, `temporalSegment`, `track`): số mục tối thiểu / tối đa (mặc định 0 / 1000) |
+| `maxLength` | Chỉ `transcription`, `freeText`: độ dài tối đa (mặc định 5000) |
 | `allowTie` | Chỉ `pairwise`: cho chọn "ngang nhau". **Mặc định `true`**; khai `false` để bắt buộc chọn một bên |
-| `matchThreshold` | Ngưỡng 0–1 để chấm câu vàng (mục 6.5). Bỏ trống = mặc định của loại công cụ |
+| `matchThreshold` | Ngưỡng 0–1 để chấm câu vàng **và** ghép đối tượng khi gộp nhãn nhiều người (mục 6.5, 4.11). Bỏ trống = mặc định của loại công cụ. Không dùng cho `classification`, `pairwise`, `freeText`, `number` |
+| `attributes` | Công cụ dạng danh sách (trừ `relation`): **thuộc tính của từng đối tượng**, tối đa 20. Mỗi thuộc tính `{ "name", "type": "choice" \| "boolean" \| "text" \| "number", "required"?: false, "options"?: [...] (bắt buộc với `choice`, 2–50 lựa chọn), "maxLength"?: 500 (chỉ `text`) }`. Xem mục 6.3 |
+| `spanTool` | Chỉ `relation`, bắt buộc: `name` của công cụ `span` trong cùng tập nhãn mà hai đầu quan hệ trỏ tới |
+| `min`, `max`, `integer`, `tolerance` | Chỉ `number`: giới hạn giá trị (bỏ trống = không giới hạn), chỉ nhận số nguyên (`integer`, mặc định `false`), và mức lệch vẫn tính là khớp khi chấm / gộp (`tolerance`, mặc định 0) |
 
 Công cụ nào dùng được với loại dữ liệu nào:
 
-| kind | image | text | audio | video | pair |
-|---|---|---|---|---|---|
-| `classification` | ✔ | ✔ | ✔ | ✔ | ✔ |
-| `bbox` | ✔ | | | | |
-| `polygon` | ✔ | | | | |
-| `span` | | ✔ | | | |
-| `transcription` | | | ✔ | ✔ | |
-| `temporalSegment` | | | ✔ | ✔ | |
-| `pairwise` | | | | | ✔ |
+| kind | image | text | audio | video | pair | list | Dùng cho |
+|---|---|---|---|---|---|---|---|
+| `classification` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | Chọn một / nhiều lớp cho cả mẫu |
+| `freeText` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | Câu trả lời **mở**: mô tả ảnh, dịch, tóm tắt, viết lại |
+| `number` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | Thang điểm, số đếm |
+| `bbox` | ✔ | | | | | | Khung chữ nhật (kèm thuộc tính: OCR) |
+| `polygon` | ✔ | | | | | | Đa giác |
+| `keypoint` | ✔ | | | | | | Điểm mốc (khuôn mặt, tư thế) |
+| `polyline` | ✔ | | | | | | Đường gấp khúc không khép kín (làn đường) |
+| `mask` | ✔ | | | | | | Mặt nạ phân vùng tô bằng cọ |
+| `span` | | ✔ | | | | | Đoạn văn bản (NER) |
+| `relation` | | ✔ | | | | | Quan hệ có hướng giữa hai đoạn của một công cụ `span` |
+| `transcription` | ✔ | | ✔ | ✔ | | | Chép lại nội dung **có sẵn**: lời nói, chữ trong ảnh |
+| `temporalSegment` | | | ✔ | ✔ | | | Đoạn thời gian |
+| `track` | | | | ✔ | | | Theo dõi đối tượng qua các khung hình |
+| `pairwise` | | | | | ✔ | | So sánh hai câu trả lời |
+| `ranking` | | | | | | ✔ | Xếp hạng nhiều mục |
+
+`freeText` và `transcription` cùng gửi `{ "text": "..." }` nhưng khác bản chất: `transcription` có **một đáp án đúng** nên được chấm câu vàng và gộp tự động; `freeText` là câu trả lời mở nên **không chấm, không gộp**.
 
 Sai hình dạng → 400 `tap_nhan_sai_dinh_dang` (`detail` liệt kê từng chỗ sai). Sai luật (tên trùng, công cụ không hợp loại dữ liệu…) → 400 `tap_nhan_khong_hop_le`. Frontend có thể kiểm trước bằng [label-schema.schema.json](../contracts/labeling/label-schema.schema.json) (ví dụ thư viện `ajv`, draft 2020-12).
 
@@ -469,6 +486,7 @@ Một dòng manifest theo loại dữ liệu:
 | image, audio, video | `{ "file": "<key>", "name": "tùy chọn" }` | Audio/video: backend tự đo thời lượng; nếu máy chủ không có ffprobe thì khai thêm `"durationSec"` |
 | text | `{ "text": "...", "name": "tùy chọn" }` | ≤ 100.000 ký tự |
 | pair | `{ "prompt": "tùy chọn", "a": "...", "b": "..." }` | |
+| list | `{ "prompt": "tùy chọn", "items": ["...", "...", "..."] }` | 2–50 mục, mỗi mục là chuỗi không rỗng. Thứ tự trong `items` là **chỉ số mục** (từ 0) dùng khi xếp hạng |
 
 `rows` tối đa 1.000 dòng; nhiều hơn thì ghép thành file `.jsonl` (mỗi dòng một object, ≤ 50.000 dòng) rồi gửi `manifestKey`.
 
@@ -488,8 +506,8 @@ Xem mẫu:
 ```http
 GET /projects/{id}/samples?page=1&pageSize=50
 → { "items": [ { "id", "datasetId", "modality", "originalName", "sizeBytes",
-                 "fileUrl": "http://localhost:9000/...",   // null với text / pair
-                 "content": null,                         // {"text"} hoặc {"prompt","a","b"} với text / pair
+                 "fileUrl": "http://localhost:9000/...",   // null với text / pair / list
+                 "content": null,                         // {"text"}, {"prompt","a","b"} hoặc {"prompt","items"} với text / pair / list
                  "metadata": { "width": 300, "height": 200 } } ], ... }
 ```
 
@@ -595,14 +613,53 @@ POST /projects/{id}/cancel   { "reason": "..." }
 
 Sau khi đóng: duyệt, từ chối, khiếu nại, phân xử nhãn của dự án → 409 `du_an_da_ket_thuc`.
 
-Thành viên (dự án `private` cần thêm labeler bằng tay; reviewer luôn do chủ dự án thêm):
+Thành viên. Reviewer luôn do chủ dự án thêm; labeler vào bằng một trong bốn đường: chủ dự án mời, mã mời, tự `join` / bài test (`public`), đơn được duyệt (`approval`).
 
 ```http
 GET    /projects/{id}/members        → [ { "userId", "role": "labeler", "state": "active", "joinedAt" } ]
-POST   /projects/{id}/members        { "userId": "...", "role": "reviewer" }
+POST   /projects/{id}/members        { "email": "a@b.vn", "role": "labeler" }      (hoặc "userId"; đúng MỘT trong hai)
+POST   /projects/{id}/members/batch  { "role": "labeler", "userIds": ["..."], "emails": ["a@b.vn", "c@d.vn"] }
+→ { "added": 1, "results": [
+      { "input": "a@b.vn", "userId": "...", "displayName": "Nguyen Van A", "status": "added" },
+      { "input": "c@d.vn", "userId": null, "status": "khong_tim_thay", "message": "Khong co tai khoan voi email nay." } ] }
 POST   /projects/{id}/members/{userId}/block | /unblock
 DELETE /projects/{id}/members/{userId}
 ```
+
+- `batch`: tối đa `project.member_batch_max` (mặc định 100) đầu vào; mỗi đầu vào một dòng kết quả, **đúng thứ tự gửi** (userIds trước, emails sau). `status`: `added`, `khong_tim_thay`, `email_khong_hop_le`, `trung_lap` (cùng người hai lần), `da_la_thanh_vien`, `bi_chan` (đang bị chặn — dùng `unblock`), `tai_khoan_bi_khoa`, `khong_phai_labeler`, `chua_du_cap_do`, `chua_du_uy_tin`. Hiện bảng kết quả, cho sửa và gửi lại các dòng lỗi.
+- Email không phân biệt hoa thường, bỏ khoảng trắng hai đầu. Chỉ mời được người **đã có tài khoản**.
+- `POST /members` một người: lỗi trả đúng mã như trên (404 `khong_tim_thay`, 409 cho các mã còn lại, 400 email sai). Người được mời nhận thông báo `thanh_vien`.
+- Labeler phải đủ `minLevel` / `minReputation` của dự án; reviewer chỉ cần tài khoản không bị khoá.
+
+Mã mời — chia sẻ một mã thay vì gõ từng người (vào được cả dự án riêng tư, kể cả khi còn Nháp):
+
+```http
+POST   /projects/{id}/invite-codes   { "maxUses": 50, "expiresInHours": 72, "note": "Lop K66" }   (mọi trường tuỳ chọn)
+→ 201 { "id", "projectId", "code": "K7QX3MWPA9TRHC2N", "note", "maxUses": 50, "usedCount": 0,
+        "expiresAt", "createdAt", "revokedAt": null, "status": "active" }
+GET    /projects/{id}/invite-codes   → [ ... ]  (mới nhất trước; status: active | expired | exhausted | revoked)
+DELETE /projects/{id}/invite-codes/{codeId}  → mã đã thu hồi (giữ lại để xem lịch sử)
+```
+
+- Không gửi `expiresInHours` thì 7 ngày; tối đa `project.invite_code_max_ttl` (mặc định 30 ngày). Không gửi `maxUses` thì không giới hạn lượt.
+- Hiển thị mã dạng `K7QX-3MWP-A9TR-HC2N` cho dễ đọc; server chấp nhận cả có gạch, khoảng trắng, chữ thường. Gợi ý: tạo link `https://<frontend>/join?code=...` trỏ tới màn nhập mã.
+- Mã mời bỏ qua chế độ hiển thị và bài test, **không** bỏ qua cấp độ / uy tín.
+
+Đơn xin tham gia (dự án `approval`):
+
+```http
+GET  /projects/{id}/join-requests?status=pending      (pending | approved | rejected | cancelled; mặc định pending, cũ nhất trước)
+→ [ { "id", "projectId", "projectName", "userId", "displayName", "level": 2, "reputation": 81,
+      "message": "Em da gan nhan anh 2 nam", "status": "pending",
+      "entranceAttemptId": null, "scorePercent": null, "createdAt", "decidedAt": null, "rejectReason": null } ]
+POST /projects/{id}/join-requests/{requestId}/approve                  → đơn, status "approved" (labeler thành thành viên)
+POST /projects/{id}/join-requests/{requestId}/reject  { "reason": "Du an da du nguoi" }   → đơn, status "rejected"
+```
+
+- `displayName` / `level` / `reputation` là số **hiện tại** (null nếu identity-svc tạm không trả lời; danh sách vẫn hiện).
+- Duyệt kiểm lại điều kiện: uy tín tụt dưới ngưỡng từ lúc gửi đơn → 409 `chua_du_uy_tin`; khi đó từ chối đơn.
+- Đơn sinh từ bài test có `scorePercent` + `entranceAttemptId`.
+- Có đơn mới → chủ dự án nhận thông báo `don_tham_gia` (mặc định không gửi email).
 
 Chặn labeler thì lượt task họ đang giữ bị thu hồi ngay.
 
@@ -640,7 +697,7 @@ GET  /annotations/{id}/history  → [ { "action": "submitted|approved|rejected|a
 
 Duyệt lại nhãn đã duyệt → 409 `da_duyet`.
 
-**Gợi ý từ đồng thuận.** Khi một mẫu đủ người gán, quality-svc so các nhãn và đặt `consensusAgrees` trên từng nhãn: `true` (khớp kết quả số đông), `false` (lệch), `null` (chưa đủ người, hoặc tập nhãn không có công cụ phân loại / so sánh cặp để so). Cờ chỉ là gợi ý, **không** tự duyệt và không tự trả tiền. Màn hình duyệt nên tô nổi các nhãn `false` để người duyệt xem kỹ.
+**Gợi ý từ đồng thuận.** Khi một mẫu đủ người gán, quality-svc gộp các nhãn theo từng công cụ (cùng thuật toán với mục 4.11) và đặt `consensusAgrees` trên từng nhãn: `true` (khớp kết quả gộp ở **mọi** công cụ đã có kết quả), `false` (lệch ở ít nhất một công cụ), `null` (chưa đủ người, mẫu tranh chấp ở mọi công cụ người đó làm, hoặc tập nhãn chỉ có `freeText`). Với công cụ dạng danh sách, "khớp" nghĩa là F1 giữa các đối tượng của người đó và các đối tượng đã gộp ≥ `quality.consensus_min_f1` (0,8): vẽ thiếu / thừa một trong nhiều vật vẫn khớp.
 
 ```http
 GET  /annotations/projects/{id}?status=pendingReview&consensusAgrees=false     lọc nhãn lệch
@@ -667,8 +724,8 @@ GET /annotations/projects/{id}/results
       "sampleContent": { "prompt": "...", "a": "...", "b": "..." }, "sampleMetadata": {},
       "approvedCount": 2, "disputed": false,
       "tools": {
-        "tot_hon": { "kind": "pairwise", "method": "majority", "final": { "choice": "a" }, "votes": { "a": 2 }, "disputed": false },
-        "an_toan": { "kind": "classification", "method": "majority", "final": { "labelIds": ["an_toan"] }, "votes": { "an_toan": 2 }, "disputed": false }
+        "tot_hon": { "kind": "pairwise", "method": "majority", "final": { "choice": "a" }, "votes": { "a": 2 }, "agrees": [true, true], "disputed": false },
+        "an_toan": { "kind": "classification", "method": "majority", "final": { "labelIds": ["an_toan"] }, "votes": { "an_toan": 2 }, "agrees": [true, true], "disputed": false }
       },
       "labels": [ { "tot_hon": { "choice": "a" }, "an_toan": { "labelIds": ["an_toan"] } }, { ... } ]
     }
@@ -676,12 +733,43 @@ GET /annotations/projects/{id}/results
 }
 ```
 
-- Kết quả **gộp theo từng công cụ** từ các nhãn đã duyệt:
-  - `classification`, `pairwise`: `method: "majority"`. Một lựa chọn thắng khi được **hơn một nửa** số người chọn. Không lựa chọn nào quá bán thì `final: null`, `disputed: true` (tranh chấp, nên làm nổi bật cho doanh nghiệp xem lại).
-  - Các công cụ còn lại (khung, đa giác, đoạn văn bản, chép lời, đoạn thời gian): `method: "none"`, **chưa gộp tự động**. Kết quả là `labels` (mỗi người một phần tử).
-- `labelDistribution`: số lần mỗi lớp xuất hiện, theo từng công cụ. Dùng cho biểu đồ cảnh báo lệch lớp.
+- Kết quả **gộp theo từng công cụ** từ các nhãn đã duyệt. Mọi công cụ trả cùng một khung:
+
+  | Trường | Ý nghĩa |
+  |---|---|
+  | `kind` | Loại công cụ |
+  | `method` | Cách gộp, bảng dưới. `"none"` = không gộp (công cụ `freeText`, hoặc chưa ai làm công cụ tùy chọn này): xem `labels` |
+  | `final` | Kết quả gộp, **cùng hình dạng với nhãn nộp lên** của công cụ đó. `null` = tranh chấp |
+  | `disputed` | `true` = không có kết quả được quá nửa số người ủng hộ. Nên làm nổi bật cho doanh nghiệp xem lại |
+  | `agrees` | Mảng `true` / `false`, **theo thứ tự `labels`** (bỏ qua người không làm công cụ này): nhãn của người đó có khớp `final` không |
+  | `supports` | Chỉ công cụ dạng danh sách: số người vẽ từng đối tượng trong `final` (cùng thứ tự) |
+  | `votes` / `scores` | Phân loại, cặp: số phiếu từng lựa chọn. Xếp hạng: điểm Borda từng mục |
+
+  | Công cụ | `method` | Gộp thế nào | Một người "khớp" khi |
+  |---|---|---|---|
+  | `classification`, `pairwise` | `majority` | Lựa chọn được **hơn một nửa** số người chọn (nhiều lớp: xét từng lớp) | Chọn đúng kết quả gộp |
+  | `bbox`, `keypoint`, `temporalSegment` | `cluster` | Ghép các đối tượng "cùng một vật" của những người khác nhau thành cụm (cùng lớp, độ giống ≥ ngưỡng); giữ cụm có hơn một nửa số người; đối tượng gộp = **trung vị** từng toạ độ | F1 với các đối tượng đã gộp ≥ 0,8 |
+  | `polygon`, `polyline`, `track` | `cluster` | Như trên; đối tượng gộp = bản **"ở giữa"** của cụm (giống các bản khác nhất) | như trên |
+  | `mask` | `cluster` | Như trên; mặt nạ gộp = **bỏ phiếu từng pixel** trong cụm | như trên |
+  | `span`, `relation` | `majority` | Giữ đoạn / quan hệ được hơn một nửa số người ghi **y hệt** | như trên |
+  | `transcription` | `medoid` | Bản chép "ở giữa" (tổng độ lệch tới các bản khác nhỏ nhất) | CER so với bản đó ≤ 0,1 |
+  | `number` | `median` | Trung vị | Lệch trung vị ≤ `tolerance` |
+  | `ranking` | `borda` | Mục đứng thứ k (từ 0) trong m mục được m−1−k điểm; cộng điểm rồi xếp giảm dần | Tỉ lệ cặp mục xếp cùng chiều (Kendall) ≥ 0,8 |
+
+  Với mọi công cụ trừ phân loại / cặp, **không quá một nửa số người khớp** thì công cụ đó tranh chấp (`final: null`). Thuộc tính của đối tượng được gộp theo từng thuộc tính: `choice` / `boolean` lấy giá trị quá bán (không có thì bỏ), `number` lấy trung vị, `text` lấy bản ở giữa; một đối tượng chỉ được tính là khớp khi khớp cả các thuộc tính **có trong kết quả gộp**.
+
+  Ví dụ một mẫu ảnh có khung (3 người vẽ, người thứ ba bỏ sót một vật):
+
+  ```json
+  "tools": {
+    "vat": { "kind": "bbox", "method": "cluster",
+             "final": [ { "labelId": "nguoi", "x": 121, "y": 21, "w": 20, "h": 59 }, { "labelId": "xe", "x": 10, "y": 10, "w": 50, "h": 30 } ],
+             "supports": [2, 3], "agrees": [true, true, false], "disputed": false } }
+  ```
+- Ngưỡng ghép đối tượng: `matchThreshold` của công cụ, không có thì setting `labeling.threshold.<loại>` (mục 6.5). Mức F1 để tính là khớp: setting `quality.consensus_min_f1`.
+- `labelDistribution`: số lần mỗi lớp xuất hiện, theo từng công cụ **có lớp** (phân loại, cặp, và các công cụ dạng danh sách — đếm trên nhãn đã duyệt). Dùng cho biểu đồ cảnh báo lệch lớp.
 - `imbalanceWarnings` (FB-24): cảnh báo lệch lớp, cùng hình dạng với API `distribution` dưới đây.
-- `samples[].consensusStatus` (`agreed` | `disputed` | `notApplicable` | `null`) và `consensusFinal`: kết quả đồng thuận của quality-svc tính trên **mọi** nhãn đã nộp (kể cả chưa duyệt), khác với `tools` chỉ tính trên nhãn đã duyệt.
+- `samples[].consensusStatus` (`agreed` | `disputed` | `notApplicable` | `null`) và `consensusFinal` (`{ "<tên công cụ>": <final> \| null }`): kết quả đồng thuận của quality-svc tính trên **mọi** nhãn đã nộp (kể cả chưa duyệt, bằng đúng thuật toán trên), khác với `tools` chỉ tính trên nhãn đã duyệt. `notApplicable` = tập nhãn chỉ có `freeText`.
 
 Phân bố nhãn (nhẹ hơn `results`, dùng cho biểu đồ trên trang dự án):
 
@@ -703,9 +791,9 @@ GET /annotations/projects/{id}/export?format=json|csv|coco|yolo|voc     → file
 ```
 
 - `json`: giống `results`.
-- `csv`: một dòng một mẫu, một cột một công cụ (UTF-8 có BOM, mở bằng Excel được).
-- `coco`: chỉ dự án ảnh có công cụ `bbox` / `polygon`; dự án khác → 400 `coco_chi_cho_khung_anh`.
-- `yolo` / `voc` (FB-25): file **zip**, chỉ dự án ảnh có công cụ `bbox` (đa giác không xuất); dự án khác → 400 `khung_chi_cho_anh`. YOLO: `labels/{sampleId}.txt` (mỗi dòng `lớp tâm_x tâm_y rộng cao`, chuẩn hoá 0–1), `classes.txt`, `data.yaml`. VOC: `Annotations/{sampleId}.xml` (toạ độ pixel), `ImageSets/Main/default.txt`. Zip **không** chứa ảnh (ảnh đã có ở doanh nghiệp): `images.txt` ánh xạ `sampleId` → khoá file lưu trữ. Giống COCO, **chưa gộp khung** giữa người gán: mỗi khung của mỗi nhãn đã duyệt là một dòng. Ảnh thiếu kích thước bị bỏ qua và được đếm trong `README.txt`.
+- `csv`: một dòng một mẫu, một cột một công cụ (UTF-8 có BOM, mở bằng Excel được). Ô ghi **kết quả gộp**: lớp (`a;b`), lựa chọn, bản chép, số, thứ tự xếp hạng (`2;0;1`); công cụ dạng danh sách ghi JSON các đối tượng đã gộp; tranh chấp để trống; `freeText` ghi JSON câu trả lời của từng người.
+- `coco`: chỉ dự án ảnh có công cụ `bbox` / `polygon` / `mask`; dự án khác → 400 `coco_chi_cho_khung_anh`. Mỗi đối tượng **đã gộp** là một annotation (thêm `support` = số người vẽ, `attributes` nếu có); mặt nạ xuất `segmentation` dạng RLE không nén của COCO. Ảnh tranh chấp có `"disputed": true` trong `images` và không có annotation của công cụ tranh chấp.
+- `yolo` / `voc` (FB-25): file **zip**, chỉ dự án ảnh có công cụ `bbox` (đa giác không xuất); dự án khác → 400 `khung_chi_cho_anh`. YOLO: `labels/{sampleId}.txt` (mỗi dòng `lớp tâm_x tâm_y rộng cao`, chuẩn hoá 0–1), `classes.txt`, `data.yaml`. VOC: `Annotations/{sampleId}.xml` (toạ độ pixel), `ImageSets/Main/default.txt`. Zip **không** chứa ảnh (ảnh đã có ở doanh nghiệp): `images.txt` ánh xạ `sampleId` → khoá file lưu trữ. Giống COCO, mỗi khung **đã gộp** là một dòng; mẫu tranh chấp có file nhãn rỗng. Ảnh thiếu kích thước bị bỏ qua và được đếm trong `README.txt`.
 
 Gọi bằng `fetch` có header Authorization rồi tạo blob để tải (thẻ `<a href>` không gửi được token).
 
@@ -726,7 +814,7 @@ GET /quality/projects/{id}/summary
 | Trường | Ý nghĩa |
 |---|---|
 | `tasksEvaluated` | Số task đã đủ người và được tính đồng thuận (trạng thái cuối của mỗi task) |
-| `agreed` / `disputed` / `notApplicable` | Đồng thuận / vẫn tranh chấp khi đã hết trần / tập nhãn không có công cụ gộp được |
+| `agreed` / `disputed` / `notApplicable` | Đồng thuận / vẫn tranh chấp khi đã hết trần / tập nhãn chỉ có công cụ không gộp (`freeText`) |
 | `waitingMoreLabels` | Task đang tranh chấp, đã xin thêm người, chờ người gán tiếp |
 | `redundancyIncreases` | Tổng số lần đã xin thêm người |
 | `goldAccuracyPercent` | Tỉ lệ trả lời đúng câu vàng kiểm tra của cả dự án; `null` khi chưa có câu nào |
@@ -788,7 +876,28 @@ GET  /projects/{id}                        chi tiết, có labelSchema + guideli
 POST /projects/{id}/join                   → 200 { "userId", "role": "labeler", "state": "active", "joinedAt" }
 ```
 
-`join` trả 409 `can_lam_test` nếu dự án yêu cầu bài test đầu vào, 409 `du_an_rieng_tu` nếu dự án riêng tư.
+`join` trả 409 `can_lam_test` nếu dự án yêu cầu bài test đầu vào, 409 `can_xin_duyet` nếu dự án ở chế độ `approval`, 404 nếu dự án riêng tư (labeler không thấy nó). Không đủ cấp độ / uy tín → 409 `chua_du_cap_do` / `chua_du_uy_tin`, `detail` ghi rõ "yeu cau toi thieu 3, hien tai la 1" — kiểm ngay ở đây chứ không đợi tới lúc nhận task. Chợ dự án nên hiện `minLevel` / `minReputation` và làm mờ nút khi labeler chưa đủ (`GET /me/level`).
+
+Nhập mã mời (màn "Tham gia bằng mã"):
+
+```http
+POST /projects/join-by-code   { "code": "k7qx-3mwp-a9tr-hc2n" }
+→ 200 { "projectId", "projectName", "member": { "userId", "role": "labeler", "state": "active", "joinedAt" } }
+```
+
+404 mã không tồn tại; 409 `ma_moi_het_han` / `ma_moi_het_luot` / `ma_moi_da_thu_hoi` / `da_la_thanh_vien` / `bi_chan` / `chua_du_cap_do` / `chua_du_uy_tin`. Chỉ tài khoản labeler (doanh nghiệp → 403).
+
+Dự án `approval` (nút "Xin tham gia" thay cho "Tham gia"):
+
+```http
+POST   /projects/{id}/join-requests   { "message": "Em da gan nhan anh 2 nam" }   (tuỳ chọn, ≤ 500 ký tự)
+→ 201 { "id", "projectId", "status": "pending", "message", "createdAt", ... }
+GET    /projects/join-requests/mine   → mọi đơn của tôi, mới nhất trước, kèm projectName; đơn bị từ chối có rejectReason + canRequestAgainAt
+DELETE /projects/{id}/join-requests/mine   → rút đơn đang chờ (404 nếu không có)
+```
+
+- 409 `da_co_don_dang_cho` (mỗi dự án một đơn chờ), `chua_duoc_xin_lai` (bị từ chối chưa quá `project.join_request_cooldown`, mặc định 24 giờ — hiện `canRequestAgainAt`), `can_lam_test` (dự án có bài test: làm bài, đạt thì đơn tự tạo), `khong_can_duyet` (dự án `public`: dùng `join`).
+- Kết quả đơn tới qua thông báo `thanh_vien` ("Đơn xin tham gia được duyệt / bị từ chối"). Được duyệt thì `POST /tasks/projects/{id}/next` dùng được sau vài giây (task-svc nhận `member.added`).
 
 ### 5.2 Bài test đầu vào
 
@@ -809,7 +918,8 @@ POST /projects/{id}/entrance-test/attempts/{attemptId}/submit
 GET /projects/{id}/entrance-test/attempts   → lịch sử (tối đa 3 lần làm)
 ```
 
-- Đậu thì tự thành thành viên (`joinedProject: true`).
+- Đậu thì tự thành thành viên (`joinedProject: true`). Dự án `approval`: đậu thì thành **đơn** chờ chủ dự án duyệt — `joinedProject: false`, `joinRequestId` có giá trị; đang có đơn chờ thì không làm lại bài được (409 `da_co_don_dang_cho`).
+- Bắt đầu bài kiểm cấp độ / uy tín **trước** (409 `chua_du_cap_do`...), không để labeler làm xong mới biết không đủ điều kiện.
 - Câu trả lời sai định dạng → 400, bài **chưa** bị tính là đã nộp; sửa rồi nộp lại.
 - Server không bao giờ trả đáp án.
 
@@ -959,10 +1069,10 @@ GET /ledger/me/earnings?from=2026-10-01&to=2026-10-31&groupBy=day|project
 
 | Trường | Ý nghĩa |
 |---|---|
-| `modality` | Chọn khung hiển thị mẫu: ảnh, văn bản, player âm thanh, player video, hai cột A/B |
+| `modality` | Chọn khung hiển thị mẫu: ảnh, văn bản, player âm thanh, player video, hai cột A/B, danh sách mục |
 | `fileUrl` | Link xem / nghe file qua media-svc, sống 5 phút. `null` với text / pair. Ảnh labeler nhận có **watermark chìm** mang mã của chính họ (không nhìn thấy, không đổi kích thước — mục 16). Hết hạn khi đang làm thì gọi lại `next` (trả lại đúng task, kèm link mới) |
-| `content` | Nội dung text (`{"text"}`) hoặc pair (`{"prompt"?, "a", "b"}`). `null` với dữ liệu file |
-| `metadata` | Thông tin mẫu, chỉ có những trường liên quan: `width`, `height` (ảnh, video), `durationSec`, `segmentStart`, `segmentEnd`, `sourceDurationSec` (audio, video), `length` (text) |
+| `content` | Nội dung text (`{"text"}`), pair (`{"prompt"?, "a", "b"}`) hoặc list (`{"prompt"?, "items": [...]}`). `null` với dữ liệu file |
+| `metadata` | Thông tin mẫu, chỉ có những trường liên quan: `width`, `height` (ảnh, video), `durationSec`, `segmentStart`, `segmentEnd`, `sourceDurationSec` (audio, video), `length` (text), `itemCount` (list) |
 | `labelSchema` | Danh sách công cụ, **đã điền đủ giá trị mặc định**. Mỗi công cụ là một khối trên màn hình, theo đúng thứ tự trong mảng |
 | `expiresAt` | Hiện đồng hồ đếm ngược; cảnh báo khi còn ~2 phút |
 
@@ -1014,10 +1124,98 @@ Ví dụ với task âm thanh ở trên:
 - `start`, `end` là **chỉ số ký tự UTF-16**, `end` **không tính**: đoạn được đánh dấu chính là `text.slice(start, end)` trong JavaScript. Lấy từ `Selection` / `Range` phải quy về chỉ số trong chuỗi gốc (không tính HTML).
 - Server kiểm: `0 ≤ start < end ≤ metadata.length`.
 
-#### `transcription` — chép lời (audio, video)
+#### `transcription` — chép lại nội dung có sẵn (audio, video, image)
 
-- UI: ô nhập nhiều dòng, đếm ký tự theo `maxLength`.
+- UI: ô nhập nhiều dòng, đếm ký tự theo `maxLength`. Audio / video: chép lời nói; ảnh: chép chữ trong ảnh (OCR cả ảnh — cần vị trí từng dòng chữ thì dùng `bbox` kèm thuộc tính `text`).
 - Gửi: `{ "text": "xin chao cac ban" }`.
+
+#### `freeText` — câu trả lời mở (mọi loại dữ liệu)
+
+- UI: ô nhập nhiều dòng như trên. Dùng cho mô tả ảnh, dịch, tóm tắt, trả lời câu hỏi, viết lại câu trả lời của LLM.
+- Gửi: `{ "text": "Một tấm biển báo màu đỏ đặt bên đường." }`.
+- Server kiểm: `required: true` thì không được rỗng; không quá `maxLength`. **Không chấm câu vàng, không gộp tự động** (mỗi người viết một kiểu): màn hình kết quả hiện câu trả lời của từng người.
+
+#### `number` — một số (mọi loại dữ liệu)
+
+- UI: thanh trượt / ô sao / ô nhập số theo `min`, `max`, `integer` của công cụ (ví dụ `"integer": true, "min": 1, "max": 5` → 5 ngôi sao).
+- Gửi: `{ "value": 4 }`.
+- Server kiểm: là số; nguyên nếu `integer`; trong `[min, max]`.
+
+#### `keypoint` — điểm mốc (image)
+
+- UI: click đặt điểm, mỗi điểm chọn một lớp (`"mat_trai"`, `"mui"`...). Một lớp có thể có nhiều điểm.
+- Gửi: `[ { "labelId": "mui", "x": 100.5, "y": 85 } ]`, cùng hệ toạ độ pixel với bbox.
+- Server kiểm: điểm nằm trong ảnh.
+
+#### `polyline` — đường gấp khúc (image)
+
+- UI: click từng đỉnh, **không** đóng vòng (làn đường, dây điện, đường viền).
+- Gửi: `[ { "labelId": "vach_lien", "points": [[0, 140], [90, 80], [200, 60]] } ]`. 2–500 đỉnh, mọi đỉnh trong ảnh, đường phải có độ dài > 0.
+- Vẽ từ đầu nào cũng được: backend coi hai chiều vẽ là một đường.
+
+#### `mask` — mặt nạ phân vùng (image)
+
+- UI: tô bằng cọ / tẩy trên canvas cùng kích thước ảnh gốc; mỗi vùng chọn một lớp. Các vùng được phép chồng nhau.
+- Gửi: `[ { "labelId": "bau_troi", "rle": { "size": [150, 200], "counts": [0, 15000, 15000] } } ]`.
+- `rle` là **RLE không nén kiểu COCO**: `size` = `[cao, rộng]` (đúng bằng `metadata.height`, `metadata.width`); `counts` = độ dài các đoạn pixel **0 / 1 xen kẽ, bắt đầu bằng đoạn 0**, duyệt pixel **theo cột** (từ trên xuống, hết cột thì sang cột bên phải). Tổng `counts` phải bằng cao × rộng; chỉ đoạn đầu được dài 0 (khi pixel trên-trái thuộc vùng); mặt nạ phải có ít nhất một pixel.
+
+```js
+// mask: Uint8Array dài width * height theo HÀNG (index = y * width + x), khác 0 = thuộc vùng
+function maHoaRle(mask, width, height) {
+  const counts = [];
+  let dangBat = 0, dai = 0;                      // luôn bắt đầu bằng đoạn 0
+  for (let x = 0; x < width; x++) {              // duyệt THEO CỘT
+    for (let y = 0; y < height; y++) {
+      const v = mask[y * width + x] ? 1 : 0;
+      if (v === dangBat) dai++;
+      else { counts.push(dai); dangBat = v; dai = 1; }
+    }
+  }
+  counts.push(dai);
+  return { size: [height, width], counts };      // counts.length === 1 nghĩa là mặt nạ rỗng — đừng gửi
+}
+
+function giaiMaRle(rle) {                         // để vẽ lại mặt nạ (màn hình duyệt, kết quả gộp)
+  const [height, width] = rle.size;
+  const mask = new Uint8Array(width * height);
+  let p = 0, bat = 0;
+  for (const dai of rle.counts) {
+    if (bat) for (let i = p; i < p + dai; i++) mask[(i % height) * width + Math.floor(i / height)] = 1;
+    p += dai; bat ^= 1;
+  }
+  return mask;
+}
+```
+
+#### `track` — theo dõi đối tượng (video)
+
+- UI: tại một số thời điểm (keyframe) người dùng vẽ khung quanh đối tượng; giữa hai keyframe frontend **nội suy tuyến tính** vị trí và kích thước để hiển thị — backend chấm và gộp theo đúng phép nội suy đó.
+- Gửi: `[ { "labelId": "xe", "keyframes": [ { "t": 0, "x": 10, "y": 20, "w": 60, "h": 60 }, { "t": 3.5, "x": 110, "y": 30, "w": 60, "h": 60 } ] } ]`.
+- `t` tính bằng **giây từ đầu mẫu** (như `temporalSegment`, xem 6.4), tăng dần, ít nhất **hai** keyframe; khung theo pixel của video (`metadata.width × height`). Đối tượng tồn tại từ keyframe đầu tới keyframe cuối; biến mất rồi xuất hiện lại thì tạo một chuỗi mới.
+
+#### `relation` — quan hệ giữa hai đoạn văn bản (text)
+
+- UI: sau khi đánh dấu các đoạn bằng công cụ `span` (công cụ có `name` = `spanTool`), kéo mũi tên từ đoạn này sang đoạn kia và chọn loại quan hệ.
+- Gửi: `[ { "labelId": "lam_viec_tai", "from": { "start": 0, "end": 3 }, "to": { "start": 17, "end": 20 } } ]`.
+- Hai đầu là **vị trí `[start, end)` của hai đoạn đã có** trong kết quả công cụ span của cùng nhãn (không dùng số thứ tự: backend sắp xếp lại danh sách đoạn). Quan hệ **có hướng** (`from` → `to`), không nối một đoạn với chính nó, không ghi trùng. Xoá một đoạn thì phải xoá các quan hệ gắn với nó trước khi gửi.
+
+#### `ranking` — xếp hạng nhiều mục (list)
+
+- UI: danh sách `content.items` kéo-thả để sắp xếp.
+- Gửi: `{ "order": [2, 0, 3, 1] }` — **chỉ số** mục trong `content.items` (từ 0) theo thứ tự **tốt nhất → kém nhất**. Phải đủ mọi mục (`metadata.itemCount`), mỗi mục đúng một lần.
+- Nên xáo thứ tự hiển thị ban đầu để giảm thiên vị, nhưng gửi lên theo chỉ số gốc.
+
+#### Thuộc tính của từng đối tượng (`attributes`)
+
+Công cụ dạng danh sách (trừ `relation`) có thể khai `attributes`; khi đó mỗi đối tượng mang thêm khoá `attributes`:
+
+```json
+{ "labelId": "dong_chu", "x": 10, "y": 10, "w": 100, "h": 20,
+  "attributes": { "noi_dung": "CẤM ĐỖ XE", "ngon_ngu": "vi", "viet_tay": false, "co_chu": 24 } }
+```
+
+- UI: chọn một đối tượng → bảng thuộc tính bên cạnh: `choice` → dropdown `options`; `boolean` → checkbox; `text` → ô nhập (`maxLength`); `number` → ô số.
+- Thuộc tính `required: true` phải có trên **mọi** đối tượng (text thì không được rỗng); thuộc tính tùy chọn chưa điền thì **bỏ hẳn khoá**. Không gửi thuộc tính ngoài khai báo.
 
 #### `temporalSegment` — đánh dấu đoạn thời gian (audio, video)
 
@@ -1037,8 +1235,9 @@ Ví dụ với task âm thanh ở trên:
 | `image` | `<img src=fileUrl>` hoặc canvas | Dùng `metadata.width/height` làm hệ tọa độ, không dùng kích thước đang hiển thị |
 | `text` | `content.text` | Hiển thị đúng chuỗi gốc (giữ khoảng trắng, xuống dòng) để chỉ số `span` khớp |
 | `audio` | `<audio src=fileUrl>` + waveform | Nếu `metadata.segmentStart` có giá trị, mẫu là **một đoạn cắt từ file dài** và `fileUrl` là **cả file**. Player phải tua tới `segmentStart` và dừng ở `segmentEnd`; mốc 0 trên timeline = `segmentStart`. Thời gian gửi lên = thời gian player − `segmentStart` |
-| `video` | `<video src=fileUrl>` | Giống audio. Chưa vẽ khung lên video được (mục 11) |
+| `video` | `<video src=fileUrl>` | Giống audio. Công cụ `track`: vẽ khung lên lớp canvas phủ trên video, toạ độ theo `metadata.width × height` |
 | `pair` | `content.prompt`, `content.a`, `content.b` | Nên đảo ngẫu nhiên vị trí trái/phải trên màn hình để giảm thiên vị, nhưng **gửi lên theo tên gốc** `a` / `b` |
+| `list` | `content.prompt`, `content.items[]` | Mỗi mục là một chuỗi; chỉ số trong mảng là định danh mục. Hiển thị xáo trộn được, gửi lên theo chỉ số gốc |
 
 ### 6.5 Kiểm trước ở frontend và chấm câu vàng
 
@@ -1054,8 +1253,18 @@ Ví dụ với task âm thanh ở trên:
 | `transcription` | Tỉ lệ lỗi ký tự (CER) ≤ 0,1 |
 | `temporalSegment` | IoU thời gian ≥ 0,5 |
 | `pairwise` | Cùng lựa chọn |
+| `keypoint` | Mỗi điểm đáp án có một điểm cùng lớp lệch không quá **2% đường chéo ảnh** (độ giống = 1 − lệch / đường chéo ≥ 0,98) |
+| `polyline` | Độ lệch trung bình dọc đường ≤ 3% đường chéo ảnh (độ giống ≥ 0,97), không phụ thuộc chiều vẽ và số đỉnh |
+| `mask` | IoU vùng ≥ 0,5 |
+| `track` | IoU không-thời gian ≥ 0,5: lấy mẫu đều 50 thời điểm, tổng diện tích giao / tổng diện tích hợp — lệch vị trí **và** lệch thời điểm bắt đầu / kết thúc đều bị trừ |
+| `relation` | F1 ≥ 1,0 trên các quan hệ trùng hết (cùng loại, cùng hai đầu, cùng hướng) |
+| `number` | Lệch đáp án ≤ `tolerance` của công cụ |
+| `ranking` | Tỉ lệ cặp mục xếp cùng chiều với đáp án (Kendall) ≥ 0,8 — 3 mục thì phải đúng hết, 4 mục được lệch một cặp |
+| `freeText` | **Không chấm** (đáp án có ghi cũng bỏ qua) |
 
-Ngưỡng đổi được bằng `matchThreshold` của công cụ.
+Công cụ dạng danh sách: số đối tượng phải **bằng** đáp án, và mỗi đối tượng khớp phải khớp cả các thuộc tính **đáp án có ghi** (`choice` / `boolean` / `number` bằng nhau, `text` có CER ≤ 0,1).
+
+Ngưỡng đổi được bằng `matchThreshold` của công cụ; không khai thì dùng setting `labeling.threshold.<bbox | polygon | span | transcription | temporal_segment | keypoint | polyline | mask | track | relation | ranking>`.
 
 ### 6.6 Ví dụ trọn vẹn theo từng bài toán
 
@@ -1368,6 +1577,245 @@ function dungPayload(labelSchema, ketQuaTheoCongCu) {
 }
 ```
 
+#### Ví dụ 11 — OCR: khung + thuộc tính của từng khung
+
+(a)
+
+```json
+{ "modality": "image",
+  "tools": [ { "name": "chu", "kind": "bbox", "classes": ["dong_chu"],
+               "attributes": [
+                 { "name": "noi_dung", "type": "text", "required": true, "maxLength": 200 },
+                 { "name": "ngon_ngu", "type": "choice", "options": ["vi", "en"] },
+                 { "name": "viet_tay", "type": "boolean" },
+                 { "name": "co_chu", "type": "number" } ] } ] }
+```
+
+(c) Trong `labelSchema` trả về, mỗi thuộc tính đã điền đủ mặc định: `{ "name": "noi_dung", "type": "text", "required": true, "maxLength": 200 }`, `{ "name": "ngon_ngu", "type": "choice", "required": false, "options": ["vi", "en"] }`…
+
+(d) Ảnh 200 × 150:
+
+```json
+{ "payload": { "chu": [
+    { "labelId": "dong_chu", "x": 10, "y": 10, "w": 100, "h": 20,
+      "attributes": { "noi_dung": "CAM DO XE", "ngon_ngu": "vi", "viet_tay": false, "co_chu": 24 } } ] } }
+```
+
+Chỉ gửi thuộc tính bắt buộc cũng hợp lệ: `"attributes": { "noi_dung": "CAM DO XE" }`.
+
+| Gửi sai | Kết quả |
+|---|---|
+| Khung không có `attributes`, hoặc thiếu `noi_dung` | 400 `nhan_khong_hop_le`: "Cong cu 'chu': doi tuong thieu thuoc tinh bat buoc 'noi_dung'." |
+| `"ngon_ngu": "fr"` | 400 `nhan_khong_hop_le`: "thuoc tinh 'ngon_ngu': 'fr' khong nam trong cac lua chon." |
+| `"viet_tay": "co"` | 400 `nhan_khong_hop_le`: "thuoc tinh 'viet_tay' phai la true / false." |
+| `"mau": "do"` (không khai trong tập nhãn) | 400 `nhan_khong_hop_le`: "thuoc tinh 'mau' khong co trong tap nhan." |
+| `"noi_dung": ["a"]` (không phải chuỗi / số / true-false) | 400 `nhan_sai_dinh_dang` |
+
+Kết quả gộp của khung này (mục 4.11): toạ độ lấy trung vị; `noi_dung` lấy bản chép "ở giữa"; `ngon_ngu` / `viet_tay` lấy giá trị quá bán, không có thì bỏ; `co_chu` lấy trung vị.
+
+#### Ví dụ 12 — Điểm mốc khuôn mặt
+
+(a)
+
+```json
+{ "modality": "image",
+  "tools": [ { "name": "khuon_mat", "kind": "keypoint", "classes": ["mat_trai", "mat_phai", "mui"], "minItems": 1 } ] }
+```
+
+(d) Ảnh 200 × 150:
+
+```json
+{ "payload": { "khuon_mat": [
+    { "labelId": "mat_trai", "x": 80, "y": 60 }, { "labelId": "mat_phai", "x": 120, "y": 60 }, { "labelId": "mui", "x": 100.5, "y": 85 } ] } }
+```
+
+| Gửi sai | Kết quả |
+|---|---|
+| `{"labelId":"mui","x":250,"y":60}` | 400 `nhan_khong_hop_le`: "diem (250, 60) nam ngoai chieu rong anh." |
+| `{"labelId":"tai","x":10,"y":60}` | 400 `nhan_khong_hop_le`: "lop 'tai' khong co trong tap nhan." |
+| `"khuon_mat": []` khi `minItems: 1` | 400 `nhan_khong_hop_le`: "so doi tuong phai tu 1 den 1000 (dang co 0)." |
+| Điểm thiếu `y` | 400 `nhan_sai_dinh_dang` |
+
+Hai người chấm cùng một điểm được coi là trùng khi lệch nhau không quá 2% đường chéo ảnh (ảnh 200 × 150: 5 pixel; ảnh 1920 × 1080: ~44 pixel). Cần chặt / lỏng hơn thì đặt `matchThreshold` (0,99 = 1% đường chéo).
+
+#### Ví dụ 13 — Làn đường (đường gấp khúc)
+
+(a)
+
+```json
+{ "modality": "image",
+  "tools": [ { "name": "lan_duong", "kind": "polyline", "classes": ["vach_lien", "vach_dut"] } ] }
+```
+
+(d)
+
+```json
+{ "payload": { "lan_duong": [
+    { "labelId": "vach_lien", "points": [[0, 140], [90, 80], [200, 60]] },
+    { "labelId": "vach_dut", "points": [[40, 149], [120, 90]] } ] } }
+```
+
+| Gửi sai | Kết quả |
+|---|---|
+| Đường một đỉnh | 400 `nhan_sai_dinh_dang` |
+| `"points": [[5,5],[5,5]]` | 400 `nhan_khong_hop_le`: "duong co do dai bang 0 (cac diem trung nhau)." |
+| Đỉnh `[90, 200]` trên ảnh cao 150 | 400 `nhan_khong_hop_le`: "diem (90, 200) nam ngoai chieu cao anh." |
+
+#### Ví dụ 14 — Phân vùng bằng mặt nạ
+
+(a)
+
+```json
+{ "modality": "image",
+  "tools": [ { "name": "vung", "kind": "mask", "classes": ["bau_troi", "mat_duong"] } ] }
+```
+
+(d) Ảnh 200 × 150 (30.000 pixel): nửa trái là bầu trời (cột 0–99 = 15.000 pixel đầu khi duyệt theo cột), nửa phải là mặt đường:
+
+```json
+{ "payload": { "vung": [
+    { "labelId": "bau_troi",  "rle": { "size": [150, 200], "counts": [0, 15000, 15000] } },
+    { "labelId": "mat_duong", "rle": { "size": [150, 200], "counts": [15000, 15000] } } ] } }
+```
+
+Mã hoá / giải mã: hàm `maHoaRle` / `giaiMaRle` ở mục 6.3.
+
+| Gửi sai | Kết quả |
+|---|---|
+| `"size": [200, 150]` (đảo rộng / cao) | 400 `nhan_khong_hop_le`: "mat na 150x200 khac kich thuoc anh 200x150." |
+| `"counts": [0, 15000, 14000]` | 400 `nhan_khong_hop_le`: "tong counts phai bang so pixel cua anh (30000)." |
+| `"counts": [100, 0, 29900]` | 400 `nhan_khong_hop_le`: "counts khong o dang chuan: chi doan dau tien duoc dai 0." |
+| `"counts": [30000]` (mặt nạ rỗng) | 400 `nhan_sai_dinh_dang` |
+
+#### Ví dụ 15 — Theo dõi đối tượng trong video
+
+(a)
+
+```json
+{ "modality": "video",
+  "tools": [ { "name": "doi_tuong", "kind": "track", "classes": ["xe", "nguoi"],
+               "attributes": [ { "name": "bi_che", "type": "boolean" } ] } ] }
+```
+
+(c) `"metadata": { "width": 320, "height": 240, "durationSec": 12 }`.
+
+(d) Ba keyframe; giữa các keyframe khung được nội suy tuyến tính:
+
+```json
+{ "payload": { "doi_tuong": [
+    { "labelId": "xe",
+      "keyframes": [ { "t": 0, "x": 10, "y": 20, "w": 60, "h": 60 },
+                     { "t": 3.5, "x": 110, "y": 30, "w": 60, "h": 60 },
+                     { "t": 6, "x": 200, "y": 40, "w": 60, "h": 60 } ],
+      "attributes": { "bi_che": false } } ] } }
+```
+
+| Gửi sai | Kết quả |
+|---|---|
+| Chuỗi chỉ có một keyframe | 400 `nhan_khong_hop_le`: "chuoi khung can it nhat hai moc thoi gian." |
+| Keyframe `t: 1` đứng sau `t: 3` | 400 `nhan_khong_hop_le`: "moc thoi gian phai tang dan (moc 1s dung sau 3s)." |
+| `t: 20` trên video 12 giây | 400 `nhan_khong_hop_le`: "moc 20s vuot qua do dai mau 12s." |
+| `x: 300, w: 60` trên video rộng 320 | 400 `nhan_khong_hop_le`: "khung o moc 6s vuot qua chieu rong video (320px)." |
+
+#### Ví dụ 16 — Trích xuất quan hệ giữa các thực thể
+
+(a)
+
+```json
+{ "modality": "text",
+  "tools": [
+    { "name": "thuc_the", "kind": "span", "classes": ["NGUOI", "TO_CHUC", "DIA_DIEM"] },
+    { "name": "quan_he", "kind": "relation", "classes": ["lam_viec_tai", "dat_tai"], "spanTool": "thuc_the", "required": false } ] }
+```
+
+`spanTool` trỏ tới công cụ không tồn tại hoặc không phải `span` → 400 `tap_nhan_khong_hop_le`: "spanTool 'khong_co' phai la mot cong cu span trong tap nhan."
+
+(c) `"content": { "text": "Lan lam viec tai FPT o Ha Noi" }, "metadata": { "length": 29 }`.
+
+(d)
+
+```json
+{ "payload": {
+    "thuc_the": [ { "labelId": "NGUOI", "start": 0, "end": 3 }, { "labelId": "TO_CHUC", "start": 17, "end": 20 }, { "labelId": "DIA_DIEM", "start": 23, "end": 29 } ],
+    "quan_he":  [ { "labelId": "lam_viec_tai", "from": { "start": 0, "end": 3 }, "to": { "start": 17, "end": 20 } },
+                  { "labelId": "dat_tai", "from": { "start": 17, "end": 20 }, "to": { "start": 23, "end": 29 } } ] } }
+```
+
+Không có quan hệ nào thì bỏ khoá `quan_he` (công cụ tùy chọn) hoặc gửi `[]`.
+
+| Gửi sai | Kết quả |
+|---|---|
+| `"to": {"start":17,"end":21}` (không phải một đoạn đã đánh dấu) | 400 `nhan_khong_hop_le`: "dau 'to' [17, 21) khong phai mot doan trong cong cu 'thuc_the'." |
+| `from` và `to` cùng một đoạn | 400 `nhan_khong_hop_le`: "quan he phai noi HAI doan khac nhau." |
+| Ghi hai lần cùng một quan hệ | 400 `nhan_khong_hop_le`: "quan he bi ghi trung." |
+
+#### Ví dụ 17 — Xếp hạng nhiều câu trả lời + chấm điểm
+
+(a)
+
+```json
+{ "modality": "list",
+  "tools": [
+    { "name": "xep_hang", "kind": "ranking" },
+    { "name": "diem_tot_nhat", "kind": "number", "integer": true, "min": 1, "max": 5, "tolerance": 1 } ] }
+```
+
+(b) Manifest: `{ "prompt": "Cau tra loi nao tot nhat?", "items": ["Tra loi A", "Tra loi B", "Tra loi C", "Tra loi D"] }`.
+
+(c) `"modality": "list", "fileUrl": null, "content": { "prompt": "...", "items": ["Tra loi A", "Tra loi B", "Tra loi C", "Tra loi D"] }, "metadata": { "itemCount": 4 }`.
+
+(d) "C tốt nhất, rồi A, D, B; câu tốt nhất được 4 điểm":
+
+```json
+{ "payload": { "xep_hang": { "order": [2, 0, 3, 1] }, "diem_tot_nhat": { "value": 4 } } }
+```
+
+| Gửi sai | Kết quả |
+|---|---|
+| `"order": [2, 0, 3]` | 400 `nhan_khong_hop_le`: "phai xep du 4 muc (dang co 3)." |
+| `"order": [2, 0, 3, 4]` | 400 `nhan_khong_hop_le`: "muc 4 khong ton tai (mau co 4 muc, danh so tu 0)." |
+| `"order": [2, 0, 2, 1]` (lặp mục) | 400 `nhan_sai_dinh_dang` |
+| `"value": 4.5` | 400 `nhan_khong_hop_le`: "Cong cu 'diem_tot_nhat': phai la so nguyen." |
+| `"value": 6` | 400 `nhan_khong_hop_le`: "gia tri 6 lon hon muc toi da 5." |
+| `"value": "4"` | 400 `nhan_sai_dinh_dang` |
+
+Với `"tolerance": 1`, ba người chấm 4, 5, 4 cho kết quả gộp 4 (trung vị) và cả ba đều tính là khớp.
+
+#### Ví dụ 18 — Mô tả ảnh (câu trả lời mở) + chép chữ trong ảnh
+
+(a)
+
+```json
+{ "modality": "image",
+  "tools": [
+    { "name": "mo_ta", "kind": "freeText", "maxLength": 300 },
+    { "name": "chu_trong_anh", "kind": "transcription", "required": false } ] }
+```
+
+(d)
+
+```json
+{ "payload": { "mo_ta": { "text": "Mot tam bien bao mau do dat ben duong." }, "chu_trong_anh": { "text": "CAM DO XE" } } }
+```
+
+| Gửi sai | Kết quả |
+|---|---|
+| `"mo_ta": {"text": "   "}` | 400 `nhan_khong_hop_le`: "Cong cu 'mo_ta': van ban khong duoc rong." |
+| `mo_ta` dài 301 ký tự | 400 `nhan_khong_hop_le`: "Cong cu 'mo_ta': toi da 300 ky tu." |
+
+Ở màn hình kết quả, `chu_trong_anh` có `final` (bản chép "ở giữa"), còn `mo_ta` có `method: "none"` — hiển thị mô tả của từng người từ `labels`.
+
+**Biến thể — đánh giá câu trả lời của LLM** (dữ liệu `pair`): trộn so sánh cặp, thang điểm và ô viết lại:
+
+```json
+{ "modality": "pair",
+  "tools": [ { "name": "tot_hon", "kind": "pairwise" },
+             { "name": "diem_a", "kind": "number", "integer": true, "min": 1, "max": 5 },
+             { "name": "viet_lai", "kind": "freeText", "required": false } ] }
+```
+
+Gửi: `{ "payload": { "tot_hon": { "choice": "a" }, "diem_a": { "value": 5 }, "viet_lai": { "text": "Thu do cua Phap la Paris." } } }`.
+
 ---
 
 ## 7. Admin
@@ -1594,7 +2042,13 @@ Danh sách các `code` thường gặp để frontend dịch. Mã không có tro
 | `nhan_khong_hop_le` | 400 | Nhãn sai nghĩa (lớp không có, khung ra ngoài ảnh, đoạn vượt thời lượng…) |
 | `lease_het_han`, `lease_khong_con` | 409 | Lượt giữ task đã hết hạn / đã nộp / đã bỏ qua |
 | `khong_phai_thanh_vien`, `bi_chan_khoi_du_an`, `du_an_khong_chay`, `du_an_chua_san_sang`, `da_qua_deadline`, `chua_du_cap_do`, `chua_du_uy_tin`, `khong_mo_kenh_chuyen_nghiep`, `tai_khoan_bi_khoa` | 403 | Không được nhận task |
-| `can_lam_test`, `du_an_rieng_tu`, `da_la_thanh_vien` | 409 | Không tham gia được |
+| `can_lam_test`, `du_an_rieng_tu`, `da_la_thanh_vien`, `bi_chan`, `can_xin_duyet` | 409 | Không tham gia được |
+| `chua_du_cap_do`, `chua_du_uy_tin`, `khong_phai_labeler`, `tai_khoan_bi_khoa` | 409 | (project-svc) Không đủ điều kiện vào dự án — `join`, mã mời, đơn, bài test, chủ dự án mời / duyệt |
+| `ma_moi_het_han`, `ma_moi_het_luot`, `ma_moi_da_thu_hoi` | 409 | Mã mời không dùng được nữa (thu hồi lần hai cũng `ma_moi_da_thu_hoi`) |
+| `han_ma_moi_khong_hop_le`, `so_luot_khong_hop_le`, `ghi_chu_qua_dai` | 400 | Tạo mã mời sai (hạn 1 giờ … `project.invite_code_max_ttl`, lượt 1–100.000, ghi chú ≤ 200) |
+| `da_co_don_dang_cho`, `chua_duoc_xin_lai`, `khong_can_duyet`, `don_da_xu_ly` | 409 | Đơn xin tham gia: đã có đơn chờ / chưa hết thời gian chờ / dự án public / đơn đã duyệt, từ chối hoặc rút |
+| `loi_nhan_qua_dai`, `ly_do_qua_dai` | 400 | Lời nhắn / lý do từ chối > 500 ký tự |
+| `thieu_thong_tin`, `qua_nhieu_nguoi`, `khong_the_them_owner` | 400 | Mời thành viên: thiếu role, gửi cả userId lẫn email, vượt `project.member_batch_max`, role owner |
 | `da_duyet`, `tu_duyet` | 409 | Duyệt nhãn đã duyệt / tự duyệt nhãn của mình |
 | `khong_the_khieu_nai`, `da_khieu_nai`, `qua_han_khieu_nai` | 409 | Không khiếu nại được |
 | `khong_du_so_du` | 409 | Rút quá số dư khả dụng |
@@ -1682,7 +2136,10 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 | Trang vượt link | Đếm ngược 8 giây (`gate.countdown`); 1 câu vàng + 2 câu thật (`gate.gold_per_session`, `gate.real_per_session`); bộ câu sống 10 phút (`gate.session_ttl`); token mở link 3 phút, dùng một lần (`gate.token_ttl`) |
 | Link rút gọn | Mã 7 ký tự (`link.code_length`); alias 3–32 ký tự `[A-Za-z0-9_-]`; mật khẩu 4–100 ký tự; hàng loạt 100 URL (`link.bulk_max`) |
 | Tập nhãn | ≤ 20 công cụ; ≤ 100 lớp mỗi công cụ; tên lớp ≤ 50 ký tự |
-| Mỗi công cụ dạng danh sách | ≤ 1.000 mục (mặc định); polygon 3–500 đỉnh |
+| Mỗi công cụ dạng danh sách | ≤ 1.000 mục (mặc định); polygon 3–500 đỉnh; polyline 2–500 đỉnh; ≤ 20 thuộc tính mỗi công cụ, thuộc tính `text` ≤ 5.000 ký tự |
+| Mặt nạ (`mask`) | ≤ 200 mặt nạ mỗi nhãn; mỗi mặt nạ ≤ 100.000 đoạn; tổng ≤ 200.000 đoạn mỗi công cụ; ảnh ≤ 20.000 pixel mỗi chiều |
+| Theo dõi (`track`) | ≤ 500 chuỗi mỗi nhãn; mỗi chuỗi 2–2.000 keyframe |
+| Xếp hạng (`ranking`) | Mẫu danh sách 2–50 mục |
 | Câu vàng | ≤ 2.000 mỗi dự án (`project.gold_items_max`) |
 | Giấy phép kinh doanh (KYB) | `.pdf` / `.png` / `.jpg`, ≤ 10 MB (`identity.kyb_file_max_bytes`) |
 | Phân trang | `pageSize` ≤ 100 |
@@ -1704,8 +2161,9 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 | Upload thẳng lên MinIO | Chỉ **tải lên** còn đi thẳng MinIO (xem file thì qua media-svc, mục 16). Link upload trỏ tới `http://localhost:9000` ở dev. Trình duyệt báo lỗi CORS khi `PUT` thì cấu hình MinIO cho phép origin của frontend (biến môi trường `MINIO_API_CORS_ALLOW_ORIGIN`) |
 | Không có WebSocket / thông báo đẩy | Thông báo đã có (mục 14) nhưng frontend phải tự hỏi `unread-count`; trạng thái từng màn hình vẫn polling theo mục 8 |
 | Chưa xác minh tự động với cơ quan thuế | Admin tự đối chiếu giấy phép và mã số thuế (mục 13.2). Hồ sơ đã xác minh không sửa được qua API |
-| Chưa gộp tự động khung, đa giác, đoạn văn bản, chép lời, đoạn thời gian | Màn hình kết quả hiện danh sách nhãn đã duyệt của từng người (`labels`) |
-| Chưa có: khung trên video, điểm mốc (keypoint), đường gấp khúc, mặt nạ pixel, OCR, trả lời tự do cho văn bản / ảnh, thuộc tính cho từng đối tượng, quan hệ giữa thực thể, xếp hạng > 2 câu trả lời | Không làm UI cho các dạng này; thang điểm 1–5 tạm dùng `classification` với các lớp `"1"`…`"5"` |
+| `freeText` không gộp tự động | Câu trả lời mở không có một đáp án đúng: màn hình kết quả hiện câu trả lời của từng người (`labels`), không có `final` |
+| Chưa có: đối tượng **ẩn / hiện lại** trong một chuỗi `track` (tạo chuỗi mới), khung xoay, hình khối 3D / point cloud, quan hệ giữa các khung trên ảnh, xếp hạng một phần (top-k), xuất định dạng MOT / COCO keypoints | Không làm UI cho các dạng này. Kết quả `track`, `keypoint`, `polyline`, `relation`, `ranking` lấy qua `export?format=json` / `csv` |
+| Cổng vượt link chỉ nhận phân loại một lớp / so sánh cặp | Dự án dùng công cụ khác không bật được kênh cổng link (mục 12.3) |
 | Hồ sơ người gán trên màn hình duyệt | Gom các `labelerId` trên trang rồi gọi **một lần** `GET /users/public?ids=...` (mục 15) để hiện tên, ảnh, cấp độ |
 | Rate limit đếm theo từng instance gateway | Chạy nhiều gateway thì hạn mức thực tế cao hơn — không ảnh hưởng FE |
 
@@ -1930,12 +2388,14 @@ Cách làm khuyến nghị:
 | `tranh_chap` | Doanh nghiệp mở tranh chấp nhãn của bạn / admin phân xử xong | Labeler, doanh nghiệp | **Bắt buộc** |
 | `he_thong` | Thông báo từ quản trị viên (mục 7.8) | Theo đối tượng admin chọn | Bật (tắt được); chỉ gửi khi admin chọn gửi email |
 | `cap_do` | Lên / xuống cấp, nhận huy hiệu (mục 15) | Labeler | Tắt (bật được) |
+| `thanh_vien` | Được chủ dự án mời vào dự án; đơn xin tham gia được duyệt / bị từ chối (kèm lý do) | Labeler, reviewer | Bật (tắt được) |
+| `don_tham_gia` | Có đơn xin tham gia mới (kèm điểm bài test nếu có); `link` = `/projects/{id}/join-requests` | Doanh nghiệp | Tắt (bật được) |
 
 **Gộp:** hai loại phát sinh nhiều (`nhan_duyet`, `tien_kha_dung`) không tạo một dòng cho mỗi sự kiện. Sự kiện mới được **cộng dồn** vào thông báo cùng loại (và cùng dự án) còn **chưa đọc**, chưa gửi email, có sự kiện gần nhất trong 24 giờ. Thông báo đó được viết lại ("3 nhãn được duyệt, tổng +60.000 đ…", "60.000 đ (3 khoản) đã chuyển…") và `createdAt` chuyển thành thời điểm sự kiện mới nhất, nên dòng này nổi lên đầu danh sách (`unread-count` không tăng thêm). Người dùng đọc rồi thì sự kiện sau mở dòng mới.
 
 ```http
 GET /notifications/me/preferences
-→ [ { "type": "rut_tien", "label": "Kết quả rút tiền", "mandatory": true, "emailEnabled": true }, ... ]   (11 mục)
+→ [ { "type": "rut_tien", "label": "Kết quả rút tiền", "mandatory": true, "emailEnabled": true }, ... ]   (13 mục)
 PUT /notifications/me/preferences   { "items": [ { "type": "du_an", "emailEnabled": false } ] }
 → danh sách đầy đủ sau khi lưu
 ```
@@ -1960,7 +2420,7 @@ PUT /me/skills    { "domains": [...], "languages": [...], "modalities": [...] } 
 ```
 
 - `avatarUrl` là link ký **có hạn** — đừng lưu lại lâu, lấy lại khi tải trang.
-- Kỹ năng (FL-01): `modalities` ∈ `image`, `text`, `audio`, `video`, `pair`; `domains` / `languages` là chữ tự do (trùng nhau không phân biệt hoa thường thì gộp). Đổi tên hiển thị có hiệu lực trong token **từ lần đăng nhập / refresh sau**.
+- Kỹ năng (FL-01): `modalities` ∈ `image`, `text`, `audio`, `video`, `pair`, `list`; `domains` / `languages` là chữ tự do (trùng nhau không phân biệt hoa thường thì gộp). Đổi tên hiển thị có hiệu lực trong token **từ lần đăng nhập / refresh sau**.
 
 **Ảnh đại diện** — tải thẳng lên kho file như KYB:
 

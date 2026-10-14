@@ -15,6 +15,7 @@ namespace Crowd.Labeling
     ///   text   {"length":245}
     ///   audio  {"durationSec":30}
     ///   video  {"durationSec":30,"width":1280,"height":720}
+    ///   list   {"itemCount":4}
     ///   doan cat tu file dai (audio/video):
     ///          {"durationSec":30,"segmentStart":60,"segmentEnd":90,"sourceDurationSec":300}
     ///
@@ -37,6 +38,9 @@ namespace Crowd.Labeling
         public double? SegmentEnd { get; init; }
 
         public double? SourceDurationSec { get; init; }
+
+        /// <summary>So muc cua mau danh sach (list) — cong cu ranking kiem hoan vi theo so nay.</summary>
+        public int? ItemCount { get; init; }
 
         public static readonly SampleMetadata Rong = new SampleMetadata();
 
@@ -78,6 +82,11 @@ namespace Crowd.Labeling
                 o["sourceDurationSec"] = Math.Round(SourceDurationSec.Value, 3);
             }
 
+            if (ItemCount.HasValue)
+            {
+                o["itemCount"] = ItemCount.Value;
+            }
+
             return RawJson.Tu(o);
         }
 
@@ -103,6 +112,7 @@ namespace Crowd.Labeling
                 SegmentStart = SoThuc(o, "segmentStart"),
                 SegmentEnd = SoThuc(o, "segmentEnd"),
                 SourceDurationSec = SoThuc(o, "sourceDurationSec"),
+                ItemCount = SoNguyen(o, "itemCount"),
             };
         }
 

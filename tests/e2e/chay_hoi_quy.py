@@ -54,6 +54,8 @@ ok &= chay("kyb_thong_bao", "e2e_kyb_thong_bao.py")
 ok &= chay("hoan_thien", "e2e_hoan_thien.py")
 ok &= chay("bao_ve_du_lieu", "e2e_bao_ve_du_lieu.py")
 ok &= chay("luu_tru", "e2e_luu_tru.py")
+ok &= chay("cong_cu", "e2e_cong_cu.py")
+ok &= chay("thanh_vien", "e2e_thanh_vien.py")
 
 dat("ledger.gate_batch_interval", 2)
 dat("ledger.gate_payout_mode", "batched")

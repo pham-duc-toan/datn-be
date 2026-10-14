@@ -1,32 +1,34 @@
 """Dong thuan cho MOT task — logic thuan, khong DB, de test.
 
-Chi cac cong cu chon lua roi rac moi gop tu dong duoc:
-  classification — moi lop xet doc lap, lop duoc chon khi HON MOT NUA so nguoi
-                   tra loi cong cu do chon no (cung luat ResultAggregator ben C#);
-  pairwise       — lua chon a / b / tie qua ban.
-Cac cong cu khac (bbox, polygon, span, transcription, temporalSegment) chua gop
-tu dong: khong tinh vao dong thuan.
+Moi cong cu cua tap nhan duoc GOP theo cach cua loai cong cu do (app/gop.py — ban Python cua
+Crowd.Labeling ben C#):
+  classification — moi lop xet doc lap, lop duoc chon khi HON MOT NUA so nguoi tra loi cong cu do chon no;
+  pairwise       — lua chon a / b / tie qua ban;
+  bbox, polygon, keypoint, polyline, mask, temporalSegment, track — ghep cum cac doi tuong "cung mot
+                   vat", giu cum co hon mot nua so nguoi; span, relation — phan tu duoc qua nua so
+                   nguoi ghi y het; transcription — ban "o giua"; number — trung vi; ranking — Borda.
+                   Voi cac cong cu nay mot nguoi KHOP khi ket qua cua ho du gan ket qua gop (F1 / CER /
+                   sai so / Kendall), va cong cu TRANH CHAP khi khong qua mot nua so nguoi khop.
+  freeText       — cau tra loi mo: khong gop, khong tinh vao dong thuan.
 
 Ket qua:
-  agreed        — moi cong cu gop duoc deu co ket qua qua ban;
-  disputed      — co cong cu khong lua chon nao qua ban;
-  notApplicable — tap nhan khong co cong cu nao gop duoc.
+  agreed        — moi cong cu gop duoc deu co ket qua duoc qua nua so nguoi ung ho;
+  disputed      — co cong cu tranh chap;
+  notApplicable — tap nhan khong co cong cu nao gop duoc (chi toan freeText).
 Tranh chap ma chua cham tran redundancy → xin them mot nguoi (vong lap thich ung).
 
 Chinh sach dung (setting quality.redundancy_policy, NC-D-01 — xem redundancy.py):
   majority  (mac dinh) — nhu tren;
   posterior / voi      — voi cong cu CHON MOT (phan loai mot lop, so sanh cap): dap an la
                          lua chon co HAU NGHIEM cao nhat (co trong so theo do chinh xac tung
-                         labeler), dung theo nguong / gia tri thong tin. Cong cu chon nhieu lop
-                         van theo majority.
+                         labeler), dung theo nguong / gia tri thong tin. Moi cong cu khac van gop
+                         nhu majority.
 """
 
 from dataclasses import dataclass, field
 from typing import Any
 
-from app import redundancy
-
-CONG_CU_GOP_DUOC = ("classification", "pairwise")
+from app import gop, redundancy
 
 
 @dataclass(frozen=True)
@@ -56,35 +58,21 @@ class ChinhSach:
     tran: int = 0                               # voi: tran redundancy (danh_gia tu dien)
 
 
+@dataclass(frozen=True)
+class ThamSoGop:
+    """Tham so gop cho cong cu khong roi rac (doc tu setting + metadata cua mau)."""
+
+    mau: dict[str, Any] | None = None           # metadata mau: width / height cho diem moc, duong gap khuc
+    nguong: dict[str, float] = field(default_factory=dict)   # loai cong cu → setting labeling.threshold.*
+    f1_toi_thieu: float = gop.F1_TOI_THIEU_MAC_DINH          # setting quality.consensus_min_f1
+
+
 def _lop(ket_qua: Any) -> frozenset[str]:
     return frozenset(ket_qua.get("labelIds", [])) if isinstance(ket_qua, dict) else frozenset()
 
 
 def _chon(ket_qua: Any) -> str | None:
     return ket_qua.get("choice") if isinstance(ket_qua, dict) else None
-
-
-def _gop_classification(ket_qua: list[Any]) -> dict[str, Any] | None:
-    n = len(ket_qua)
-    phieu: dict[str, int] = {}
-    for k in ket_qua:
-        for lop in _lop(k):
-            phieu[lop] = phieu.get(lop, 0) + 1
-    chot = sorted(l for l, v in phieu.items() if v * 2 > n)
-    return {"labelIds": chot} if chot else None
-
-
-def _gop_pairwise(ket_qua: list[Any]) -> dict[str, Any] | None:
-    n = len(ket_qua)
-    phieu: dict[str, int] = {}
-    for k in ket_qua:
-        c = _chon(k)
-        if c is not None:
-            phieu[c] = phieu.get(c, 0) + 1
-    for c, v in phieu.items():
-        if v * 2 > n:
-            return {"choice": c}
-    return None
 
 
 def _khop(kind: str, ket_qua: Any, final: dict[str, Any]) -> bool:
@@ -143,52 +131,52 @@ def _gop_theo_hau_nghiem(t: dict[str, Any], nhan: list[Nhan], cs: ChinhSach) -> 
 
 
 def danh_gia(label_schema: dict[str, Any], nhan: list[Nhan], target: int, max_redundancy: int,
-             chinh_sach: ChinhSach | None = None) -> KetQua:
+             chinh_sach: ChinhSach | None = None, tham_so: ThamSoGop | None = None) -> KetQua:
     """Tinh dong thuan tren cac nhan da nop cua mot task (da du `target` nguoi)."""
     cs = chinh_sach if chinh_sach is not None else ChinhSach()
     if cs.tran != max_redundancy:
         cs = ChinhSach(cs.ten, cs.nguong, cs.ti_le_gia_tri, cs.do_chinh_xac, cs.mac_dinh, max_redundancy)
-    cong_cu = [t for t in label_schema.get("tools", []) if t.get("kind") in CONG_CU_GOP_DUOC]
+    ts = tham_so if tham_so is not None else ThamSoGop()
+    cong_cu = [t for t in label_schema.get("tools", []) if gop.gop_duoc(t)]
 
     if not cong_cu:
         return KetQua(status="notApplicable", final=None, agrees={n.annotation_id: None for n in nhan})
 
     final: dict[str, Any] = {}
+    # ten cong cu → {annotation_id → khop ket qua gop cua cong cu do?}; chi cong cu KHONG tranh chap.
+    khop_theo_cong_cu: dict[str, dict[str, bool]] = {}
     tranh_chap = False
 
     for t in cong_cu:
         ten = t["name"]
-        ket_qua = [n.data[ten] for n in nhan if ten in n.data]
-        if not ket_qua:
+        co_lam = [n for n in nhan if ten in n.data]
+        if not co_lam:
             # Cong cu tuy chon khong ai lam — khong co gi de gop, khong phai tranh chap.
             continue
 
-        if cs.ten != "majority" and _lua_chon(t) is not None:
-            gop, du = _gop_theo_hau_nghiem(t, nhan, cs)
-            final[ten] = gop
+        if cs.ten != "majority" and t["kind"] in ("classification", "pairwise") and _lua_chon(t) is not None:
+            ket_qua, du = _gop_theo_hau_nghiem(t, nhan, cs)
+            final[ten] = ket_qua
             if not du:
                 tranh_chap = True
+            else:
+                khop_theo_cong_cu[ten] = {n.annotation_id: _khop(t["kind"], n.data[ten], ket_qua) for n in co_lam}
             continue
 
-        gop = _gop_classification(ket_qua) if t["kind"] == "classification" else _gop_pairwise(ket_qua)
-        final[ten] = gop
-        if gop is None:
+        kq = gop.gop_cong_cu(t, [n.data[ten] for n in co_lam], ts.mau, ts.nguong.get(t["kind"]), ts.f1_toi_thieu)
+        final[ten] = kq["final"]
+        if kq["disputed"]:
             tranh_chap = True
+        else:
+            khop_theo_cong_cu[ten] = {n.annotation_id: dong_y for n, dong_y in zip(co_lam, kq["agrees"])}
 
     if tranh_chap and target < max_redundancy:
         return KetQua(status="disputed", final=final, xin_them=target + 1)
 
+    # Mot nhan khop khi khop MOI cong cu da co ket qua ma nguoi do co lam; cong cu tranh chap khong cham.
     agrees: dict[str, bool | None] = {}
-    kind_theo_ten = {t["name"]: t["kind"] for t in cong_cu}
     for n in nhan:
-        da_xet = False
-        khop_het = True
-        for ten, gop in final.items():
-            if gop is None or ten not in n.data:
-                continue
-            da_xet = True
-            if not _khop(kind_theo_ten[ten], n.data[ten], gop):
-                khop_het = False
-        agrees[n.annotation_id] = khop_het if da_xet else None
+        cham = [bang[n.annotation_id] for bang in khop_theo_cong_cu.values() if n.annotation_id in bang]
+        agrees[n.annotation_id] = all(cham) if cham else None
 
     return KetQua(status="disputed" if tranh_chap else "agreed", final=final, agrees=agrees)

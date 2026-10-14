@@ -251,6 +251,7 @@ services:
       ConnectionStrings__ProjectDb: Host=db-project;Port=5432;Database=project_db;Username=project_user;Password=${DB_PROJECT_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       InternalApi__TaskUrl: http://task:8103
       InternalApi__AnnotationUrl: http://annotation:8104
+      InternalApi__IdentityUrl: http://identity:8101
 
   task:
     <<: *dotnet-service

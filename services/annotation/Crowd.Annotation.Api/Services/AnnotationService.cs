@@ -18,6 +18,7 @@ using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Annotation;
 using Crowd.Labeling;
+using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace Crowd.Annotation.Api.Services
@@ -429,16 +430,23 @@ namespace Crowd.Annotation.Api.Services
                 .Where(a => a.ProjectId == projectId && a.Status == AnnotationStatus.Approved)
                 .ToListAsync(ct);
 
-            IReadOnlyList<SampleResult> ketQua = ResultAggregator.Chot(tapNhan, daDuyet);
+            Dictionary<Guid, AnnotationSample> mauGoc = await _db.Samples.AsNoTracking()
+                .Where(m => m.ProjectId == projectId).ToDictionaryAsync(m => m.SampleId, ct);
+
+            Dictionary<Guid, SampleMetadata> thongTinMau = new Dictionary<Guid, SampleMetadata>();
+            foreach (KeyValuePair<Guid, AnnotationSample> m in mauGoc)
+            {
+                thongTinMau[m.Key] = SampleMetadata.Tu(m.Value.Metadata);
+            }
+
+            IReadOnlyList<SampleResult> ketQua = ResultAggregator.Chot(
+                tapNhan, daDuyet, NguongKhopTuSetting.Doc(_settings), thongTinMau, _settings.SoThuc(SettingKeys.QualityConsensusMinF1));
 
             Dictionary<Guid, TaskConsensus> dongThuan = new Dictionary<Guid, TaskConsensus>();
             foreach (TaskConsensus c in await _db.Consensus.AsNoTracking().Where(c => c.ProjectId == projectId).ToListAsync(ct))
             {
                 dongThuan[c.SampleId] = c;
             }
-
-            Dictionary<Guid, AnnotationSample> mauGoc = await _db.Samples.AsNoTracking()
-                .Where(m => m.ProjectId == projectId).ToDictionaryAsync(m => m.SampleId, ct);
 
             List<SampleResultResponse> mau = new List<SampleResultResponse>();
             foreach (SampleResult r in ketQua)

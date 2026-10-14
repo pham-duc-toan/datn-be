@@ -131,7 +131,7 @@ namespace Crowd.Annotation.Api.Dtos
 
         public required int ApprovedCount { get; init; }
 
-        /// <summary>Co cong cu gop theo da so ma khong lua chon nao qua ban (FB-22).</summary>
+        /// <summary>Co cong cu gop ma khong ra ket qua duoc qua nua so nguoi ung ho (FB-22).</summary>
         public required bool Disputed { get; init; }
 
         /// <summary>
@@ -144,8 +144,9 @@ namespace Crowd.Annotation.Api.Dtos
         public RawJson? ConsensusFinal { get; init; }
 
         /// <summary>
-        /// Ket qua gop theo TUNG CONG CU: {"ten":{"kind","method","final","votes","disputed"}}.
-        /// method "none" = chua gop tu dong, xem Labels.
+        /// Ket qua gop theo TUNG CONG CU tu cac nhan DA DUYET: {"ten":{"kind","method","final","agrees","disputed",...}}.
+        /// method: majority | cluster | medoid | median | borda | none. final = null khi tranh chap.
+        /// "none" = cong cu khong gop tu dong (freeText) hoac chua ai lam, xem Labels.
         /// </summary>
         public required RawJson Tools { get; init; }
 

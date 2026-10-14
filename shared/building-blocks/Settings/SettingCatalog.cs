@@ -47,6 +47,9 @@ namespace Crowd.BuildingBlocks.Settings
         public const string GuidelineExplanationMaxLength = "guideline.explanation_max_length";
         public const string EntranceMaxAttempts = "entrance.max_attempts";
         public const string EntranceDuration = "entrance.duration";
+        public const string ProjectMemberBatchMax = "project.member_batch_max";
+        public const string ProjectInviteCodeMaxTtl = "project.invite_code_max_ttl";
+        public const string ProjectJoinRequestCooldown = "project.join_request_cooldown";
 
         // ---- Du lieu va file ----
         public const string DatasetZipMaxBytes = "dataset.zip_max_bytes";
@@ -109,6 +112,13 @@ namespace Crowd.BuildingBlocks.Settings
         public const string LabelingThresholdSpan = "labeling.threshold.span";
         public const string LabelingThresholdTranscription = "labeling.threshold.transcription";
         public const string LabelingThresholdTemporalSegment = "labeling.threshold.temporal_segment";
+        public const string LabelingThresholdKeypoint = "labeling.threshold.keypoint";
+        public const string LabelingThresholdPolyline = "labeling.threshold.polyline";
+        public const string LabelingThresholdMask = "labeling.threshold.mask";
+        public const string LabelingThresholdTrack = "labeling.threshold.track";
+        public const string LabelingThresholdRelation = "labeling.threshold.relation";
+        public const string LabelingThresholdRanking = "labeling.threshold.ranking";
+        public const string QualityConsensusMinF1 = "quality.consensus_min_f1";
 
         // ---- Tai khoan ----
         public const string IdentityAccessTokenLifetime = "identity.access_token_lifetime";
@@ -329,6 +339,12 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Int(SettingKeys.GuidelineExplanationMaxLength, NhomDuAn, 1000, 10, 10000, "ky tu", "Do dai giai thich moi vi du."));
             ds.Add(Int(SettingKeys.EntranceMaxAttempts, NhomDuAn, 3, 1, 100, "lan", "So lan lam bai test dau vao toi da moi du an."));
             ds.Add(Seconds(SettingKeys.EntranceDuration, NhomDuAn, 30 * 60, 60, Ngay, "Thoi gian lam mot bai test dau vao."));
+            ds.Add(Int(SettingKeys.ProjectMemberBatchMax, NhomDuAn, 100, 1, 1000, "nguoi",
+                "So nguoi toi da trong mot lan chu du an moi nhieu nguoi (theo email / userId)."));
+            ds.Add(Seconds(SettingKeys.ProjectInviteCodeMaxTtl, NhomDuAn, 30 * Ngay, 3600, 365 * Ngay,
+                "Han dung toi da cua mot ma moi tham gia du an (chu du an khong dat han thi lay 7 ngay, khong vuot muc nay)."));
+            ds.Add(Seconds(SettingKeys.ProjectJoinRequestCooldown, NhomDuAn, Ngay, 0, 30 * Ngay,
+                "Don xin tham gia bi tu choi: labeler phai cho bao lau moi duoc gui don moi vao cung du an. 0 = gui lai ngay."));
 
             // ================= DU LIEU VA FILE =================
             ds.Add(Long(SettingKeys.DatasetZipMaxBytes, NhomDuLieu, 200 * MB, MB, 2048 * MB, "byte",
@@ -434,6 +450,19 @@ namespace Crowd.BuildingBlocks.Settings
                 "Ti le loi ky tu toi da cho ban chep (nho hon = khat khe hon)."));
             ds.Add(Double(SettingKeys.LabelingThresholdTemporalSegment, NhomChatLuong, 0.5, 0, 1, "IoU",
                 "Nguong cham mac dinh cho doan thoi gian."));
+            ds.Add(Double(SettingKeys.LabelingThresholdKeypoint, NhomChatLuong, 0.98, 0, 1, "do giong",
+                "Nguong mac dinh cho diem moc: 1 − (do lech / duong cheo anh). 0.98 = lech toi da 2% duong cheo."));
+            ds.Add(Double(SettingKeys.LabelingThresholdPolyline, NhomChatLuong, 0.97, 0, 1, "do giong",
+                "Nguong mac dinh cho duong gap khuc: 1 − (do lech trung binh / duong cheo anh)."));
+            ds.Add(Double(SettingKeys.LabelingThresholdMask, NhomChatLuong, 0.5, 0, 1, "IoU", "Nguong mac dinh cho mat na phan vung."));
+            ds.Add(Double(SettingKeys.LabelingThresholdTrack, NhomChatLuong, 0.5, 0, 1, "IoU",
+                "Nguong mac dinh cho chuoi khung theo doi trong video (IoU khong-thoi gian)."));
+            ds.Add(Double(SettingKeys.LabelingThresholdRelation, NhomChatLuong, 1.0, 0, 1, "F1", "Nguong cham mac dinh cho quan he giua cac doan van ban."));
+            ds.Add(Double(SettingKeys.LabelingThresholdRanking, NhomChatLuong, 0.8, 0, 1, "Kendall",
+                "Nguong mac dinh cho xep hang: ti le cap muc duoc xep cung thu tu."));
+            ds.Add(Double(SettingKeys.QualityConsensusMinF1, NhomChatLuong, 0.8, 0, 1, "F1",
+                "Gop nhan cong cu dang danh sach (khung, da giac, doan...): mot nguoi tinh la KHOP ket qua gop khi F1 giua cac doi tuong cua ho "
+                + "va cac doi tuong da gop dat muc nay. Khong qua mot nua so nguoi khop thi mau la tranh chap."));
 
             // ================= TAI KHOAN =================
             ds.Add(Seconds(SettingKeys.IdentityAccessTokenLifetime, NhomTaiKhoan, 15 * 60, 60, Ngay, "Access token song bao lau."));

@@ -7,13 +7,57 @@
   "items": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["labelId", "x", "y", "w", "h"],
+    "required": [
+      "labelId",
+      "x",
+      "y",
+      "w",
+      "h"
+    ],
     "properties": {
-      "labelId": { "type": "string", "minLength": 1, "maxLength": 50 },
-      "x": { "type": "number", "minimum": 0 },
-      "y": { "type": "number", "minimum": 0 },
-      "w": { "type": "number", "exclusiveMinimum": 0 },
-      "h": { "type": "number", "exclusiveMinimum": 0 }
+      "labelId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 50
+      },
+      "x": {
+        "type": "number",
+        "minimum": 0
+      },
+      "y": {
+        "type": "number",
+        "minimum": 0
+      },
+      "w": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      },
+      "h": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      },
+      "attributes": {
+        "description": "Thuoc tinh cua doi tuong, theo 'attributes' cua cong cu trong tap nhan (kiem ngu nghia trong code).",
+        "type": "object",
+        "maxProperties": 20,
+        "propertyNames": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$"
+        },
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 5000
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        }
+      }
     }
   }
 }

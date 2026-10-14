@@ -7,14 +7,50 @@
   "items": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["labelId", "points"],
+    "required": [
+      "labelId",
+      "points"
+    ],
     "properties": {
-      "labelId": { "type": "string", "minLength": 1, "maxLength": 50 },
+      "labelId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 50
+      },
       "points": {
-        "type": "array", "minItems": 3, "maxItems": 500,
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 500,
         "items": {
-          "type": "array", "minItems": 2, "maxItems": 2,
-          "items": { "type": "number", "minimum": 0 }
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "attributes": {
+        "description": "Thuoc tinh cua doi tuong, theo 'attributes' cua cong cu trong tap nhan (kiem ngu nghia trong code).",
+        "type": "object",
+        "maxProperties": 20,
+        "propertyNames": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$"
+        },
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 5000
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            }
+          ]
         }
       }
     }

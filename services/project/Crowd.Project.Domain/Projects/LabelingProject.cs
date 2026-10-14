@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Crowd.Labeling;
 using Crowd.Project.Domain.Common;
+using Crowd.Project.Domain.Members;
 
 namespace Crowd.Project.Domain.Projects
 {
@@ -661,10 +662,26 @@ namespace Crowd.Project.Domain.Projects
         // =====================================================================
 
         /// <summary>
-        /// Labeler tu tham gia (khong qua loi moi). Chi du an cong khai, dang
-        /// chay, co kenh chuyen nghiep.
+        /// Labeler tu tham gia THANG (POST /join, khong qua loi moi). Chi du an cong khai
+        /// khong can duyet, dang chay, co kenh chuyen nghiep.
         /// </summary>
         public void KiemTraChoTuThamGia()
+        {
+            KiemTraChoXinThamGia();
+
+            if (Visibility == ProjectVisibility.Approval)
+            {
+                throw new RuleViolationException(
+                    "can_xin_duyet",
+                    "Du an can chu du an duyet — gui don xin tham gia (POST /projects/{id}/join-requests).");
+            }
+        }
+
+        /// <summary>
+        /// Labeler tu tim den du an: lam bai test dau vao, gui don xin tham gia, hoac join
+        /// thang. Du an phai dang chay, khong rieng tu, co kenh chuyen nghiep.
+        /// </summary>
+        public void KiemTraChoXinThamGia()
         {
             if (Status != ProjectStatus.Running)
             {
@@ -676,11 +693,90 @@ namespace Crowd.Project.Domain.Projects
                 throw new RuleViolationException("du_an_rieng_tu", "Du an rieng tu chi tham gia qua loi moi.");
             }
 
-            if (!AllowProfessional)
+            KiemTraKenhChuyenNghiep();
+        }
+
+        /// <summary>
+        /// Vao bang MA MOI cua chu du an: duoc o moi trang thai chua ket thuc (moi truoc khi
+        /// publish cung duoc, nhu moi truc tiep), bo qua che do hien thi va bai test — ma moi
+        /// la loi moi cua chu du an.
+        /// </summary>
+        public void KiemTraChoVaoBangMaMoi()
+        {
+            if (DaKetThuc())
             {
-                throw new RuleViolationException(
-                    "khong_mo_kenh_chuyen_nghiep",
-                    "Du an khong nhan labeler chuyen nghiep.");
+                throw new RuleViolationException("du_an_da_ket_thuc", "Du an da ket thuc.");
+            }
+
+            KiemTraKenhChuyenNghiep();
+        }
+
+        /// <summary>
+        /// Labeler nay du dieu kien cua du an khong — CUNG luat va CUNG ma loi voi task-svc khi
+        /// cap task (EligibilityPolicy), de nguoi khong du dieu kien bi chan ngay luc vao chu
+        /// khong phai vao roi moi bi tu choi o moi lan nhan task. null = du dieu kien.
+        /// </summary>
+        public string? LyDoLabelerKhongDuDieuKien(HoSoNguoiDung hoSo)
+        {
+            if (hoSo == null)
+            {
+                throw new ArgumentNullException(nameof(hoSo));
+            }
+
+            if (hoSo.BiKhoa)
+            {
+                return "tai_khoan_bi_khoa";
+            }
+
+            if (!hoSo.LaLabeler)
+            {
+                return "khong_phai_labeler";
+            }
+
+            if (MinLevel.HasValue && hoSo.CapDo < MinLevel.Value)
+            {
+                return "chua_du_cap_do";
+            }
+
+            if (MinReputation.HasValue && (!hoSo.UyTin.HasValue || hoSo.UyTin.Value < MinReputation.Value))
+            {
+                return "chua_du_uy_tin";
+            }
+
+            return null;
+        }
+
+        /// <summary>Nhu LyDoLabelerKhongDuDieuKien nhung nem 409 kem ma va loi giai thich.</summary>
+        public void KiemTraLabelerDuDieuKien(HoSoNguoiDung hoSo)
+        {
+            string? lyDo = LyDoLabelerKhongDuDieuKien(hoSo);
+            if (lyDo != null)
+            {
+                throw new RuleViolationException(lyDo, GiaiThichKhongDuDieuKien(lyDo, hoSo));
+            }
+        }
+
+        public string GiaiThichKhongDuDieuKien(string lyDo, HoSoNguoiDung hoSo)
+        {
+            if (hoSo == null)
+            {
+                throw new ArgumentNullException(nameof(hoSo));
+            }
+
+            switch (lyDo)
+            {
+                case "tai_khoan_bi_khoa":
+                    return "Tai khoan dang bi khoa.";
+                case "khong_phai_labeler":
+                    return "Tai khoan khong co vai tro labeler.";
+                case "chua_du_cap_do":
+                    return "Du an yeu cau cap do toi thieu " + MinLevel + ", hien tai la " + hoSo.CapDo + ".";
+                case "chua_du_uy_tin":
+                    return hoSo.UyTin.HasValue
+                        ? "Du an yeu cau uy tin toi thieu " + MinReputation + ", hien tai la " + hoSo.UyTin.Value + "."
+                        : "Du an yeu cau uy tin toi thieu " + MinReputation + ", tai khoan chua co diem uy tin.";
+                default:
+                    return "Khong du dieu kien tham gia du an.";
             }
         }
 
@@ -734,6 +830,16 @@ namespace Crowd.Project.Domain.Projects
         /// Dong du an DA CHAY (ky quy sap tra ve doanh nghiep) phai qua Tam dung truoc: ngung
         /// cap task moi, cho nguoi dang lam nop xong, duyet het — roi moi dong (xem DongDuAnService).
         /// </summary>
+        private void KiemTraKenhChuyenNghiep()
+        {
+            if (!AllowProfessional)
+            {
+                throw new RuleViolationException(
+                    "khong_mo_kenh_chuyen_nghiep",
+                    "Du an khong nhan labeler chuyen nghiep.");
+            }
+        }
+
         private static RuleViolationException CanTamDungTruoc(string hanhDong)
         {
             return new RuleViolationException(

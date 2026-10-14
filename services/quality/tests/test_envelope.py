@@ -23,6 +23,7 @@ TU_CSHARP = (
     '"projectId":"3d904a1a-3920-530b-b055-793baae64f1b","sampleId":"25bb3dd9-5900-5e1c-9d57-f84ed2c72645",'
     '"labelerId":"1f5e19a7-9f58-589b-8c74-45334ff35d05",'
     '"labelPayload":{"taskType":"image","schemaVersion":1,"data":{"label":{"labelIds":["do"]}}},'
+    '"sampleMetadata":{"width":64,"height":48},'
     '"source":"professional"}}'
 )
 
@@ -33,6 +34,18 @@ def test_doc_duoc_envelope_csharp_ghi():
     assert env.actor is not None and env.actor.role == "labeler"
     assert env.payload.label_payload.data == {"label": {"labelIds": ["do"]}}
     assert env.payload.source == "professional"
+    assert env.payload.sample_metadata == {"width": 64, "height": 48}
+
+
+def test_message_phat_truoc_khi_co_sample_metadata_van_doc_duoc():
+    # Nang cap khong dung he thong: message annotation.submitted do ban cu phat (con trong queue / outbox)
+    # chua co sampleMetadata. Phai doc duoc — gop nhan khi do dung thuoc do du phong (gop.duong_cheo).
+    cu = TU_CSHARP.replace('"sampleMetadata":{"width":64,"height":48},', "")
+    assert "sampleMetadata" not in cu
+
+    env = doc(cu.encode(), AnnotationSubmitted)
+
+    assert env.payload.sample_metadata is None
 
 
 def test_envelope_python_ghi_ra_dung_schema_chung_va_camel_case():

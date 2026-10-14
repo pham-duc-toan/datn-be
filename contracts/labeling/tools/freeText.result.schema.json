@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ket qua cong cu freeText",
+  "description": "Van ban tu do (mo ta anh, dich, tom tat, viet lai...). Vd {\"text\": \"mot con meo nam tren ghe\"}",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "text"
+  ],
+  "properties": {
+    "text": {
+      "type": "string",
+      "maxLength": 100000
+    }
+  }
+}

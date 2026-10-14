@@ -110,6 +110,7 @@ namespace Crowd.Annotation.Api.Consumers
                 SampleId = a.SampleId,
                 LabelerId = a.LabelerId,
                 LabelPayload = p.LabelPayload,
+                SampleMetadata = p.SampleMetadata,
                 Source = AnnotationSource.Professional,
             });
         }

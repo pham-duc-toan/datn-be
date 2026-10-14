@@ -76,7 +76,7 @@ namespace Crowd.Labeling
             JsonNode? seg = o["segmentSeconds"];
             if (seg != null)
             {
-                segment = seg.GetValue<int>();
+                segment = Crowd.Labeling.Tools.HinhHoc.SoNguyen(seg, "tap_nhan_sai_dinh_dang");
             }
 
             // 2. Ngu nghia.
@@ -109,7 +109,32 @@ namespace Crowd.Labeling
                     throw Loi("Cong cu '" + t.Name + "': minItems lon hon maxItems.");
                 }
 
+                KiemThuocTinh(t);
+                KiemSo(t);
                 tools.Add(t);
+            }
+
+            // Quan he tro toi mot cong cu span CUNG tap nhan (khai truoc hay sau deu duoc).
+            foreach (ToolDefinition t in tools)
+            {
+                if (t.Kind != ToolKinds.Relation)
+                {
+                    continue;
+                }
+
+                ToolDefinition? dich = null;
+                foreach (ToolDefinition k in tools)
+                {
+                    if (k.Name == t.SpanTool)
+                    {
+                        dich = k;
+                    }
+                }
+
+                if (dich == null || dich.Kind != ToolKinds.Span)
+                {
+                    throw Loi("Cong cu '" + t.Name + "': spanTool '" + t.SpanTool + "' phai la mot cong cu span trong tap nhan.");
+                }
             }
 
             return new LabelSchema(modality, segment, tools);
@@ -182,6 +207,45 @@ namespace Crowd.Labeling
                 {
                     throw Loi("Cong cu '" + t.Name + "': lop '" + lop + "' bi trung.");
                 }
+            }
+        }
+
+        private static void KiemThuocTinh(ToolDefinition t)
+        {
+            HashSet<string> tenDaCo = new HashSet<string>(StringComparer.Ordinal);
+            foreach (AttributeDefinition a in t.Attributes)
+            {
+                if (!tenDaCo.Add(a.Name))
+                {
+                    throw Loi("Cong cu '" + t.Name + "': thuoc tinh '" + a.Name + "' bi trung.");
+                }
+
+                HashSet<string> luaChon = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (string l in a.Options)
+                {
+                    if (l.Length == 0 || !luaChon.Add(l))
+                    {
+                        throw Loi("Cong cu '" + t.Name + "', thuoc tinh '" + a.Name + "': lua chon rong hoac trung.");
+                    }
+                }
+            }
+        }
+
+        private static void KiemSo(ToolDefinition t)
+        {
+            if (t.Kind != ToolKinds.Number)
+            {
+                return;
+            }
+
+            if (t.Min.HasValue && t.Max.HasValue && t.Min.Value > t.Max.Value)
+            {
+                throw Loi("Cong cu '" + t.Name + "': min lon hon max.");
+            }
+
+            if (t.IntegerOnly && ((t.Min.HasValue && t.Min.Value != Math.Floor(t.Min.Value)) || (t.Max.HasValue && t.Max.Value != Math.Floor(t.Max.Value))))
+            {
+                throw Loi("Cong cu '" + t.Name + "': so nguyen thi min / max cung phai nguyen.");
             }
         }
 

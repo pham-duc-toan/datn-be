@@ -56,6 +56,22 @@ OUTBOX_RETENTION = "outbox.retention"
 OUTBOX_CLEANUP_INTERVAL = "outbox.cleanup_interval"
 CONSUMERS_PROCESSED_RETENTION = "consumers.processed_retention"
 PROJECT_CLOSED_DATA_RETENTION = "project.closed_data_retention"
+CONSENSUS_MIN_F1 = "quality.consensus_min_f1"
+
+# Loai cong cu → setting nguong mac dinh (trung NguongKhopTuSetting ben C#).
+LABELING_THRESHOLD = {
+    "bbox": "labeling.threshold.bbox",
+    "polygon": "labeling.threshold.polygon",
+    "span": "labeling.threshold.span",
+    "transcription": "labeling.threshold.transcription",
+    "temporalSegment": "labeling.threshold.temporal_segment",
+    "keypoint": "labeling.threshold.keypoint",
+    "polyline": "labeling.threshold.polyline",
+    "mask": "labeling.threshold.mask",
+    "track": "labeling.threshold.track",
+    "relation": "labeling.threshold.relation",
+    "ranking": "labeling.threshold.ranking",
+}
 
 
 def _nap_catalog() -> dict[str, dict[str, Any]]:
@@ -154,6 +170,11 @@ def so_thuc(key: str) -> float:
 
 def chuoi(key: str) -> str:
     return str(_lay(key))
+
+
+def nguong_gop() -> dict[str, float]:
+    """Nguong mac dinh theo loai cong cu (doc MOI lan gop — admin doi la task sau dung gia tri moi)."""
+    return {loai: so_thuc(key) for loai, key in LABELING_THRESHOLD.items()}
 
 
 def giay(key: str) -> float:

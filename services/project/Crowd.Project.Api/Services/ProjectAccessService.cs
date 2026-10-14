@@ -39,7 +39,10 @@ namespace Crowd.Project.Api.Services
             _db = db;
         }
 
-        /// <summary>Tap du an nguoi goi duoc thay. EF dich thanh MOT cau SQL co EXISTS.</summary>
+        /// <summary>
+        /// Tap du an nguoi goi duoc thay: du an minh la thanh vien, va du an dang chay khong rieng
+        /// tu (public + approval). EF dich thanh MOT cau SQL co EXISTS.
+        /// </summary>
         public IQueryable<LabelingProject> XemDuoc(Caller caller)
         {
             if (caller == null)
@@ -57,7 +60,7 @@ namespace Crowd.Project.Api.Services
             return _db.Projects.Where(p =>
                 _db.ProjectMembers.Any(m =>
                     m.ProjectId == p.Id && m.UserId == userId && m.State == MemberState.Active)
-                || (p.Status == ProjectStatus.Running && p.Visibility == ProjectVisibility.Public));
+                || (p.Status == ProjectStatus.Running && p.Visibility != ProjectVisibility.Private));
         }
 
         /// <summary>Lay mot du an de XEM. Khong xem duoc thi 404 — khong tiet lo no ton tai.</summary>

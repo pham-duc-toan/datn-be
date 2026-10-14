@@ -42,6 +42,82 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
         }
     }
 
+    public sealed class InviteCodeConfiguration : IEntityTypeConfiguration<InviteCode>
+    {
+        public void Configure(EntityTypeBuilder<InviteCode> builder)
+        {
+            if (builder == null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
+            builder.ToTable("invite_codes");
+
+            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            builder.HasKey(x => x.Id);
+
+            builder.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
+            builder.Property(x => x.Code).HasColumnName("code").HasMaxLength(InviteCode.DoDaiMa).IsRequired();
+            builder.Property(x => x.Note).HasColumnName("note").HasMaxLength(InviteCode.DoDaiGhiChuToiDa);
+            builder.Property(x => x.MaxUses).HasColumnName("max_uses");
+            builder.Property(x => x.UsedCount).HasColumnName("used_count").IsRequired();
+            builder.Property(x => x.ExpiresAt).HasColumnName("expires_at").IsRequired();
+            builder.Property(x => x.CreatedBy).HasColumnName("created_by").IsRequired();
+            builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.RevokedAt).HasColumnName("revoked_at");
+
+            // Hai nguoi cung dung LUOT CUOI cua ma: UPDATE ... WHERE xmin = cu chi khop mot
+            // dong, nguoi kia nhan DbUpdateConcurrencyException va thu lai (thay ma da het luot).
+            builder.Property<uint>("RowVersion").IsRowVersion();
+
+            builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasIndex(x => x.Code).IsUnique().HasDatabaseName("ux_invite_codes_code");
+            builder.HasIndex(x => x.ProjectId).HasDatabaseName("ix_invite_codes_project");
+        }
+    }
+
+    public sealed class JoinRequestConfiguration : IEntityTypeConfiguration<JoinRequest>
+    {
+        public void Configure(EntityTypeBuilder<JoinRequest> builder)
+        {
+            if (builder == null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
+            builder.ToTable("join_requests");
+
+            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            builder.HasKey(x => x.Id);
+
+            builder.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
+            builder.Property(x => x.UserId).HasColumnName("user_id").IsRequired();
+            builder.Property(x => x.Message).HasColumnName("message").HasMaxLength(JoinRequest.DoDaiLoiNhanToiDa);
+            builder.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
+            builder.Property(x => x.EntranceAttemptId).HasColumnName("entrance_attempt_id");
+            builder.Property(x => x.ScorePercent).HasColumnName("score_percent");
+            builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.DecidedAt).HasColumnName("decided_at");
+            builder.Property(x => x.DecidedBy).HasColumnName("decided_by");
+            builder.Property(x => x.RejectReason).HasColumnName("reject_reason").HasMaxLength(JoinRequest.DoDaiLoiNhanToiDa);
+
+            // Duyet / tu choi / rut don cung luc: chi mot thao tac thang.
+            builder.Property<uint>("RowVersion").IsRowVersion();
+
+            builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+
+            // Moi nguoi toi da MOT don dang cho moi du an — hai request gui don cung luc, DB chon mot.
+            builder.HasIndex(x => new { x.ProjectId, x.UserId })
+                .IsUnique()
+                .HasFilter("status = 'Pending'")
+                .HasDatabaseName("ux_join_requests_dang_cho");
+
+            // Hang doi duyet cua chu du an + "don cua toi".
+            builder.HasIndex(x => new { x.ProjectId, x.Status, x.CreatedAt }).HasDatabaseName("ix_join_requests_project_status");
+            builder.HasIndex(x => new { x.UserId, x.CreatedAt }).HasDatabaseName("ix_join_requests_user");
+        }
+    }
+
     public sealed class DatasetConfiguration : IEntityTypeConfiguration<Dataset>
     {
         public void Configure(EntityTypeBuilder<Dataset> builder)

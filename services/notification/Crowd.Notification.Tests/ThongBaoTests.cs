@@ -231,7 +231,23 @@ namespace Crowd.Notification.Tests
         {
             Assert.True(LoaiThongBao.Tim(LoaiThongBao.TranhChap)!.BatBuoc);
             Assert.False(LoaiThongBao.Tim(LoaiThongBao.CapDo)!.GuiEmail(null));
-            Assert.Equal(11, LoaiThongBao.TatCa.Count);
+            Assert.Equal(13, LoaiThongBao.TatCa.Count);
+        }
+
+        [Fact]
+        public void Thanh_vien_du_an_co_ten_va_ly_do()
+        {
+            Guid p = Guid.NewGuid();
+
+            Assert.Contains("“Gán nhãn chó mèo”", NoiDungThongBao.DuocThemVaoDuAn(p, "Gán nhãn chó mèo").NoiDungChinh, StringComparison.Ordinal);
+            Assert.Contains("dự án.", NoiDungThongBao.DuocThemVaoDuAn(p, null).NoiDungChinh, StringComparison.Ordinal);
+            Assert.Contains("đạt 90%", NoiDungThongBao.DonThamGiaMoi(p, "X", 90).NoiDungChinh, StringComparison.Ordinal);
+            Assert.EndsWith("Lý do: thiếu kinh nghiệm.", NoiDungThongBao.KetQuaDonThamGia(p, "X", false, "thiếu kinh nghiệm").NoiDungChinh, StringComparison.Ordinal);
+            Assert.Equal("Đơn xin tham gia được duyệt", NoiDungThongBao.KetQuaDonThamGia(p, "X", true, null).TieuDe);
+
+            // Chu du an co the nhan rat nhieu don: mac dinh khong gui email.
+            Assert.False(LoaiThongBao.Tim(LoaiThongBao.DonThamGia)!.GuiEmail(null));
+            Assert.True(LoaiThongBao.Tim(LoaiThongBao.ThanhVien)!.GuiEmail(null));
         }
     }
 }

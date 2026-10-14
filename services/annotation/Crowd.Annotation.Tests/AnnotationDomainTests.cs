@@ -253,22 +253,48 @@ namespace Crowd.Annotation.Tests
         }
 
         [Fact]
-        public void Khung_chua_gop_tu_dong_nhung_van_dem_phan_bo()
+        public void Khung_duoc_gop_theo_cum_va_van_dem_phan_bo()
         {
             LabelAnnotation a = Nhan(
                 "{\"loai\":{\"labelIds\":[\"cho\"]},\"vat\":[{\"labelId\":\"mat\",\"x\":1,\"y\":1,\"w\":10,\"h\":10},"
                 + "{\"labelId\":\"mat\",\"x\":50,\"y\":50,\"w\":10,\"h\":10}]}");
-            LabelAnnotation b = Lop("cho");
+            LabelAnnotation b = Lop("cho");   // khong lam cong cu khung (tuy chon) — khong tinh vao so nguoi cua cong cu do
+            LabelAnnotation c = Nhan(
+                "{\"loai\":{\"labelIds\":[\"cho\"]},\"vat\":[{\"labelId\":\"mat\",\"x\":2,\"y\":1,\"w\":10,\"h\":10},"
+                + "{\"labelId\":\"mat\",\"x\":50,\"y\":51,\"w\":10,\"h\":10},{\"labelId\":\"mat\",\"x\":80,\"y\":80,\"w\":5,\"h\":5}]}");
 
-            IReadOnlyList<SampleResult> kq = ResultAggregator.Chot(TapNhan, new[] { a, b });
+            IReadOnlyList<SampleResult> kq = ResultAggregator.Chot(TapNhan, new[] { a, b, c });
             SampleResult r = kq.Single();
 
-            Assert.Equal("none", r.Tools["vat"]!["method"]!.GetValue<string>());
-            Assert.Equal(2, r.Approved.Count);
+            // Hai khung ca hai nguoi cung ve duoc giu (trung vi toa do); khung thu ba chi mot nguoi ve bi bo.
+            Assert.Equal("cluster", r.Tools["vat"]!["method"]!.GetValue<string>());
+            JsonArray khung = (JsonArray)r.Tools["vat"]!["final"]!;
+            Assert.Equal(2, khung.Count);
+            Assert.Equal(1.5, khung[0]!["x"]!.GetValue<double>());
+            Assert.Equal(50.5, khung[1]!["y"]!.GetValue<double>());
+            Assert.Equal("[2,2]", r.Tools["vat"]!["supports"]!.ToJsonString());
+            // Nguoi ve thua mot khung: F1 = 2 x 2 / (3 + 2) = 0.8 — van tinh la khop.
+            Assert.Equal("[true,true]", r.Tools["vat"]!["agrees"]!.ToJsonString());
+            Assert.False(r.Disputed);
+            Assert.Equal(3, r.Approved.Count);
 
             SortedDictionary<string, SortedDictionary<string, int>> phanBo = ResultAggregator.PhanBo(TapNhan, kq);
             Assert.Equal(1, phanBo["loai"]["cho"]);
-            Assert.Equal(2, phanBo["vat"]["mat"]);
+            Assert.Equal(5, phanBo["vat"]["mat"]);
+        }
+
+        [Fact]
+        public void Hai_nguoi_ve_khung_o_hai_cho_khac_nhau_la_tranh_chap()
+        {
+            LabelAnnotation a = Nhan("{\"loai\":{\"labelIds\":[\"cho\"]},\"vat\":[{\"labelId\":\"mat\",\"x\":1,\"y\":1,\"w\":10,\"h\":10}]}");
+            LabelAnnotation b = Nhan("{\"loai\":{\"labelIds\":[\"cho\"]},\"vat\":[{\"labelId\":\"mat\",\"x\":60,\"y\":60,\"w\":10,\"h\":10}]}");
+
+            SampleResult r = ResultAggregator.Chot(TapNhan, new[] { a, b }).Single();
+
+            Assert.True(r.Disputed);
+            Assert.Null(r.Tools["vat"]!["final"]);
+            // Cong cu phan loai cua cung mau van co ket qua.
+            Assert.Equal(ChiCho, Chot(r));
         }
     }
 }

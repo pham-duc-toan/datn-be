@@ -49,6 +49,21 @@ namespace Crowd.Project.Api.Helpers
             };
         }
 
+        public static QuyDinhThanhVien ThanhVien(ISettings s)
+        {
+            if (s == null)
+            {
+                throw new ArgumentNullException(nameof(s));
+            }
+
+            return new QuyDinhThanhVien
+            {
+                SoNguoiMoiToiDa = s.SoNguyen(SettingKeys.ProjectMemberBatchMax),
+                HanMaMoiToiDa = s.ThoiGian(SettingKeys.ProjectInviteCodeMaxTtl),
+                ChoXinLaiSauTuChoi = s.ThoiGian(SettingKeys.ProjectJoinRequestCooldown),
+            };
+        }
+
         public static QuyDinhBaiTest BaiTest(ISettings s)
         {
             if (s == null)

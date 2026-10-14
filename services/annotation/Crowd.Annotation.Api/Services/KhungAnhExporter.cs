@@ -17,8 +17,8 @@ namespace Crowd.Annotation.Api.Services
     /// Xuat khung chu nhat cua du an anh sang hai dinh dang huan luyen pho bien (FB-25), dong goi zip:
     ///   - YOLO: labels/{sampleId}.txt "lop cx cy w h" (chuan hoa 0-1 theo kich thuoc anh), data.yaml.
     ///   - Pascal VOC: Annotations/{sampleId}.xml (toa do pixel, goc 1 theo quy uoc VOC).
-    /// Chi cong cu bbox (hai dinh dang nay khong co da giac). Giong COCO: moi khung cua moi nhan DA
-    /// DUYET la mot dong — chua gop khung giua nguoi gan. Anh khong co kich thuoc (metadata) bi bo qua
+    /// Chi cong cu bbox (hai dinh dang nay khong co da giac). Giong COCO: moi khung DA GOP tu cac nhan
+    /// da duyet la mot dong (mau tranh chap khong co khung). Anh khong co kich thuoc (metadata) bi bo qua
     /// va dem trong README.txt. File anh KHONG nam trong zip: images.txt anh xa sampleId → khoa file.
     /// </summary>
     public static class KhungAnhExporter
@@ -125,7 +125,7 @@ namespace Crowd.Annotation.Api.Services
                                 new XElement("pose", "Unspecified"),
                                 new XElement("truncated", 0),
                                 new XElement("difficult", 0),
-                                new XElement("annotator_index", k.NguoiGan),
+                                new XElement("support", k.SoNguoi),
                                 new XElement("bndbox",
                                     new XElement("xmin", xmin),
                                     new XElement("ymin", ymin),
@@ -203,31 +203,23 @@ namespace Crowd.Annotation.Api.Services
 
         private static List<KhungNhan> CacKhung(SampleResultResponse s, List<ToolDefinition> congCu)
         {
+            // Khung DA GOP cua tung cong cu (tools[ten].final) — xem ResultAggregator.
             List<KhungNhan> ds = new List<KhungNhan>();
-            for (int nguoi = 0; nguoi < s.Labels.Count; nguoi++)
+            foreach (ToolDefinition t in congCu)
             {
-                JsonObject nhan = (JsonObject)s.Labels[nguoi].Node();
-                foreach (ToolDefinition t in congCu)
+                foreach (ResultExporter.DoiTuongChot d in ResultExporter.DoiTuongDaGop(s, t))
                 {
-                    JsonArray? muc = nhan[t.Name] as JsonArray;
-                    if (muc == null)
+                    JsonObject m = d.DoiTuong;
+                    ds.Add(new KhungNhan
                     {
-                        continue;
-                    }
-
-                    foreach (JsonNode? m in muc)
-                    {
-                        ds.Add(new KhungNhan
-                        {
-                            CongCu = t.Name,
-                            Lop = m!["labelId"]!.GetValue<string>(),
-                            X = m["x"]!.GetValue<double>(),
-                            Y = m["y"]!.GetValue<double>(),
-                            W = m["w"]!.GetValue<double>(),
-                            H = m["h"]!.GetValue<double>(),
-                            NguoiGan = nguoi,
-                        });
-                    }
+                        CongCu = t.Name,
+                        Lop = m["labelId"]!.GetValue<string>(),
+                        X = m["x"]!.GetValue<double>(),
+                        Y = m["y"]!.GetValue<double>(),
+                        W = m["w"]!.GetValue<double>(),
+                        H = m["h"]!.GetValue<double>(),
+                        SoNguoi = d.SoNguoi,
+                    });
                 }
             }
 
@@ -248,7 +240,7 @@ namespace Crowd.Annotation.Api.Services
         {
             return dinhDang + " — " + soAnh + " anh, " + soKhung + " khung.\n"
                 + moTa + "\n"
-                + "Moi khung cua moi nhan DA DUYET la mot muc (chua gop khung giua nguoi gan; annotator_index / thu tu dong cho biet nguoi gan).\n"
+                + "Moi khung la mot doi tuong DA GOP tu cac nhan da duyet (ghep cum theo IoU, lay trung vi toa do). Mau tranh chap khong co khung.\n"
                 + "File anh khong nam trong zip — images.txt: sampleId <TAB> khoa file trong kho.\n"
                 + (boQua > 0 ? "Bo qua " + boQua + " anh khong co kich thuoc trong metadata.\n" : string.Empty);
         }
@@ -282,7 +274,8 @@ namespace Crowd.Annotation.Api.Services
 
             public double H { get; init; }
 
-            public int NguoiGan { get; init; }
+            /// <summary>So nguoi ve khung nay (trong cac nhan da duyet).</summary>
+            public int SoNguoi { get; init; }
         }
     }
 }
