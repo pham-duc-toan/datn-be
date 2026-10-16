@@ -2001,7 +2001,7 @@ GET  /admin/announcements?limit=20      (mới nhất trước)
 
 ## 8. Dữ liệu cập nhật trễ: khi nào phải hỏi lại
 
-Các service trao đổi với nhau qua hàng đợi sự kiện, nên một số thay đổi **xuất hiện ở service khác sau vài trăm ms đến vài giây**. Backend **chưa có WebSocket / thông báo đẩy**; frontend hỏi lại (polling) có giới hạn số lần. Kết quả của các việc chạy nền (dự án được duyệt, nhãn bị từ chối, rút tiền xong…) cũng được gửi thành **thông báo** (mục 14) — màn hình đang mở thì polling, còn người dùng ở trang khác thì thấy qua chuông thông báo:
+Các service trao đổi với nhau qua hàng đợi sự kiện, nên một số thay đổi **xuất hiện ở service khác sau vài trăm ms đến vài giây**. Backend chỉ đẩy realtime **thông báo** (WebSocket, mục 17.9); trạng thái của từng màn hình (dự án, dataset, task, số dư…) không được đẩy, nên frontend hỏi lại (polling) có giới hạn số lần. Kết quả của các việc chạy nền (dự án được duyệt, nhãn bị từ chối, rút tiền xong…) cũng được gửi thành **thông báo** (mục 14) — màn hình đang mở thì polling, còn người dùng ở trang khác thấy ngay qua chuông thông báo (đẩy qua WebSocket). Chưa có push lên thiết bị (Firebase / Web Push): đóng tab thì chỉ còn email:
 
 | Sau khi | Chờ thấy ở | Cách làm |
 |---|---|---|
@@ -2020,7 +2020,7 @@ Các service trao đổi với nhau qua hàng đợi sự kiện, nên một s�
 | Xác thực email | Rút tiền / publish hết trả 409 `chua_xac_thuc_email` | **Làm mới token** ngay sau `POST /auth/verify-email` — có hiệu lực ngay với token mới |
 | Nhãn được duyệt | `GET /me/level` tăng `approvedCount`, có thể lên cấp / có huy hiệu | Vài giây |
 | Đổi mật khẩu, đăng xuất mọi nơi, bị khoá | Token cũ bị 401 `phien_da_bi_thu_hoi` | Vài trăm ms |
-| Bất kỳ sự kiện nào ở trên | Thông báo mới ở `GET /notifications/me/unread-count` | Hỏi mỗi 30 giây khi tab đang mở (mục 14) |
+| Bất kỳ sự kiện nào ở trên | Thông báo mới | Đẩy qua WebSocket (mục 17.9); `unread-count` hỏi thưa làm dự phòng (mục 14) |
 
 ---
 
@@ -2360,7 +2360,7 @@ Gọi lại lần hai trả `purgedNow: false` (không xoá gì thêm). Nhãn đ
 
 ## 14. Thông báo trong ứng dụng và email
 
-notification-svc ghi lại các sự kiện liên quan tới người dùng thành **thông báo trong ứng dụng** (luôn có) và gửi **email** theo tuỳ chọn. Backend không đẩy: frontend hỏi số chưa đọc định kỳ.
+notification-svc ghi lại các sự kiện liên quan tới người dùng thành **thông báo trong ứng dụng** (luôn có) và gửi **email** theo tuỳ chọn. Thông báo mới được **đẩy realtime qua WebSocket** khi người dùng đang mở web (mục 17.9); chưa có push lên thiết bị (Firebase / Web Push).
 
 ```http
 GET  /notifications/me/unread-count                        → { "count": 3 }
@@ -2375,8 +2375,8 @@ POST /notifications/me/read-all     → { "updated": 3 }
 
 Cách làm khuyến nghị:
 
-- Chuông trên thanh điều hướng: gọi `unread-count` khi tải trang, rồi **mỗi 30 giây khi tab đang hiển thị** (dừng khi `document.hidden`). Mở danh sách thì gọi `GET /notifications/me`.
-- `title` và `body` đã là tiếng Việt có dấu, hiện nguyên văn. `link` là **đường dẫn tài nguyên của backend** (`/projects/{id}`, `/kyb/me`, `/ledger/me`, `/ledger/withdrawals`) — frontend ánh xạ sang route màn hình tương ứng; `null` thì không có nút "Xem".
+- Chuông trên thanh điều hướng: gọi `unread-count` khi tải trang, rồi mở WebSocket (mục 17.9) — mỗi khung `notification` thì tăng số chưa đọc / hiện toast. Mất kết nối thì xin vé mới, mở lại và gọi lại `unread-count`. Giữ polling `unread-count` **thưa** (vd 5 phút, dừng khi `document.hidden`) làm dự phòng. Mở danh sách thì gọi `GET /notifications/me`.
+- `title` và `body` đã được dịch theo ngôn ngữ người dùng chọn lúc tạo thông báo (`vi` / `en`, mục 17.9), hiện nguyên văn. `link` là **đường dẫn tài nguyên của backend** (`/projects/{id}`, `/kyb/me`, `/ledger/me`, `/ledger/withdrawals`) — frontend ánh xạ sang route màn hình tương ứng; `null` thì không có nút "Xem".
 - Bấm vào một thông báo: `POST .../{id}/read` rồi điều hướng theo `link`.
 
 **Loại thông báo** (`type`) và email:

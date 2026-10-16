@@ -553,7 +553,7 @@ admin-svc: nhận → phát settings.snapshot (toàn bộ); cũng phát lúc kh�
 | K7 | Biết gửi cho ai | **Bản sao** địa chỉ (`user.registered`), chủ dự án (`project.publish_requested`), chủ lệnh rút (`payout.requested`) | Event tiền / dự án không mang email hay chủ sở hữu; notification không gọi ngược service khác |
 | K8 | Tuỳ chọn email | Theo **loại**; 3 loại **bắt buộc** (KYB, tài khoản, rút tiền — ảnh hưởng tài khoản hoặc tiền đã rời ví) không tắt được | Loại bán nhiều (`nhan_duyet`, `tien_kha_dung`) mặc định tắt email |
 | K9 | Loại bán nhiều | **Gộp**: sự kiện mới cộng dồn vào dòng cùng loại (và cùng đường dẫn) còn chưa đọc, chưa gửi email, sự kiện gần nhất trong 24 giờ; khoá dòng `FOR UPDATE` | Với sharer, **mỗi lượt click** sinh một khoản treo → không gộp thì nghìn thông báo / ngày. Khoá dòng: hai instance không cộng mất nhau; `EmailWorker` đang gửi dòng đó thì consumer chờ, Postgres kiểm lại điều kiện → dòng đã gửi không còn khớp → mở dòng mới |
-| K10 | Đẩy hay hỏi | Frontend **hỏi** `unread-count` mỗi 30 giây khi tab đang mở | Truy vấn rẻ (index một phần `read_at IS NULL`). WebSocket để sau khi có nhu cầu thời gian thực thật |
+| K10 | Đẩy hay hỏi | **Đẩy** thông báo mới qua WebSocket (vé dùng một lần, `pg_notify` sau commit — mục 3.17); frontend vẫn hỏi `unread-count` thưa làm dự phòng | Ban đầu chỉ hỏi mỗi 30 giây (truy vấn rẻ nhờ index một phần `read_at IS NULL`); đợt 10/2026 thêm WebSocket. Chưa có push lên thiết bị (Firebase / Web Push) |
 
 ### 3.12. Tài khoản, tranh chấp, chống gian lận, audit, bảo mật phiên
 
