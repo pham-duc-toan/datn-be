@@ -31,6 +31,10 @@ namespace Crowd.Notification.Api.Persistence
 
         public DbSet<ChuLenhRut> ChuLenhRuts => Set<ChuLenhRut>();
 
+        public DbSet<NgonNguNguoiDung> NgonNgus => Set<NgonNguNguoiDung>();
+
+        public DbSet<VeRealtime> VeRealtimes => Set<VeRealtime>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -70,6 +74,27 @@ namespace Crowd.Notification.Api.Persistence
                 // EmailWorker: chi quet dong dang cho gui.
                 b.HasIndex(x => x.EmailNextAt).HasFilter("email_state = 'Pending'").HasDatabaseName("ix_notifications_email_cho");
             });
+
+            modelBuilder.Entity<NgonNguNguoiDung>(b =>
+            {
+                b.ToTable("language_preferences");
+                b.HasKey(x => x.UserId);
+                b.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
+                b.Property(x => x.Language).HasColumnName("language").HasMaxLength(5).IsRequired();
+                b.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            });
+
+            modelBuilder.Entity<VeRealtime>(b =>
+            {
+                b.ToTable("realtime_tickets");
+                b.HasKey(x => x.TokenHash);
+                b.Property(x => x.TokenHash).HasColumnName("token_hash").HasMaxLength(64);
+                b.Property(x => x.UserId).HasColumnName("user_id").IsRequired();
+                b.Property(x => x.ExpiresAt).HasColumnName("expires_at").IsRequired();
+            });
+
+            // Han giu thong bao (RetentionWorker) quet theo thoi gian tao.
+            modelBuilder.Entity<ThongBao>().HasIndex(x => x.CreatedAt).HasDatabaseName("ix_notifications_thoi_gian");
 
             modelBuilder.Entity<LienHe>(b =>
             {

@@ -59,6 +59,15 @@ namespace Crowd.Project.Domain.Datasets
         /// <summary>Khoa file manifest (.jsonl) trong MinIO, khi manifest lon. null khi gui kem request.</summary>
         public string? ManifestKey { get; private set; }
 
+        /// <summary>Nguon ngoai (FB-11): urls | s3 | gdrive. null = file da upload thang len MinIO.</summary>
+        public string? ImportSource { get; private set; }
+
+        /// <summary>
+        /// Thong so nguon ngoai (JSON). Bi mat S3 nam o day DANG MA HOA va bi XOA ngay khi nhap xong (xem
+        /// XongNhapNguonNgoai) — database khong giu khoa cua doanh nghiep lau hon thoi gian can.
+        /// </summary>
+        public string? ImportSpec { get; private set; }
+
         public DateTimeOffset CreatedAt { get; private set; }
 
         public DateTimeOffset? FinishedAt { get; private set; }
@@ -92,6 +101,44 @@ namespace Crowd.Project.Domain.Datasets
             d.Manifest = manifest;
             d.ManifestKey = coFile ? manifestKey : null;
             return d;
+        }
+
+        /// <summary>Lo nhap tu nguon ngoai (S3 / Google Drive / danh sach URL) — worker tai ve roi nap nhu manifest.</summary>
+        public static Dataset TaoTuNguonNgoai(Guid projectId, string name, string nguon, string specJson, DateTimeOffset luc, QuyDinhDuLieu quyDinh)
+        {
+            if (nguon != "urls" && nguon != "s3" && nguon != "gdrive")
+            {
+                throw new InvalidValueException("nguon_khong_ho_tro", "Nguon: urls | s3 | gdrive.");
+            }
+
+            if (string.IsNullOrWhiteSpace(specJson))
+            {
+                throw new InvalidValueException("thieu_thong_so_nguon", "Thieu thong so nguon.");
+            }
+
+            Dataset d = TaoKhung(projectId, name, luc, quyDinh);
+            d.Status = DatasetStatus.Pending;
+            d.ImportSource = nguon;
+            d.ImportSpec = specJson;
+            return d;
+        }
+
+        /// <summary>Lo nay can tai tu nguon ngoai truoc khi nap (chua co manifest).</summary>
+        public bool CanTaiNguonNgoai()
+        {
+            return ImportSource != null && Manifest == null && ManifestKey == null;
+        }
+
+        /// <summary>Tai xong: gan manifest (cac file vua dua vao MinIO) va thay spec bang ban DA BO bi mat.</summary>
+        public void XongNhapNguonNgoai(RawJson manifest, string specKhongBiMat)
+        {
+            if (manifest == null)
+            {
+                throw new ArgumentNullException(nameof(manifest));
+            }
+
+            Manifest = manifest;
+            ImportSpec = specKhongBiMat;
         }
 
         public void GhiNhanKetQuaNap(int soMau, int soBoQua)

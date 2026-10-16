@@ -104,7 +104,51 @@ namespace Crowd.Identity.Api.Controllers
                 return Loi(StatusCodes.Status403Forbidden, "tai_khoan_bi_khoa", "Tai khoan dang bi khoa.");
             }
 
+            // Tai khoan bat 2FA (FC-04): 200 nhung CHUA co token — { twoFactorRequired, challengeToken, expiresIn }.
+            if (ketQua.TrangThai == DangNhapTrangThai.CanHaiLop)
+            {
+                return Ok(ketQua.ThuThach);
+            }
+
             return Ok(ketQua.Token);
+        }
+
+        /// <summary>
+        /// POST /auth/2fa/verify { challengeToken, code | recoveryCode } — buoc 2 cua dang nhap khi bat 2FA.
+        /// Sai ma → 401 ma_2fa_sai (kem attemptsLeft); sai qua so lan → 401 het_luot_2fa (dang nhap lai).
+        /// </summary>
+        [HttpPost("2fa/verify")]
+        public async Task<IActionResult> XacThucHaiLop([FromBody] TwoFactorVerifyRequest body, CancellationToken ct)
+        {
+            XacThucHaiLopKetQua kq = await _authService.XacThucHaiLopAsync(
+                body == null ? null : body.ChallengeToken,
+                body == null ? null : body.Code,
+                body == null ? null : body.RecoveryCode,
+                ct);
+
+            if (kq.TrangThai == XacThucHaiLopTrangThai.ThanhCong)
+            {
+                return Ok(kq.Token);
+            }
+
+            if (kq.TrangThai == XacThucHaiLopTrangThai.SaiMa)
+            {
+                ObjectResult loi = Loi(StatusCodes.Status401Unauthorized, "ma_2fa_sai", "Ma xac thuc khong dung.");
+                ((ProblemDetails)loi.Value!).Extensions["attemptsLeft"] = kq.ConLai;
+                return loi;
+            }
+
+            if (kq.TrangThai == XacThucHaiLopTrangThai.HetLuot)
+            {
+                return Loi(StatusCodes.Status401Unauthorized, "het_luot_2fa", "Nhap sai qua nhieu lan — dang nhap lai bang mat khau.");
+            }
+
+            if (kq.TrangThai == XacThucHaiLopTrangThai.BiKhoa)
+            {
+                return Loi(StatusCodes.Status403Forbidden, "tai_khoan_bi_khoa", "Tai khoan dang bi khoa.");
+            }
+
+            return Loi(StatusCodes.Status401Unauthorized, "thu_thach_khong_hop_le", "Phien xac thuc 2 lop het han — dang nhap lai.");
         }
 
         /// <summary>POST /auth/refresh</summary>

@@ -49,6 +49,13 @@ builder.Services.AddHostedService<AuditConsumer>();
 builder.Services.AddHostedService<AuditRetentionWorker>();
 builder.Services.AddHostedService<SnapshotWorker>();
 
+// Hang doi duyet chung (read model tu event), mau bai toan (FM-03), canh bao do sau DLQ (VD-D-06/12).
+builder.Services.AddScoped<HangDoiDuyet>();
+builder.Services.AddScoped<MauBaiToanService>();
+builder.Services.AddSingleton<TrangThaiDlq>();
+builder.Services.AddHttpClient("rabbitmq-management", c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHostedService<DlqMonitorWorker>();
+
 builder.Services.AddCrowdJwtAuthentication(builder.Configuration);
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
@@ -76,6 +83,13 @@ using (IServiceScope scope = app.Services.CreateScope())
     await service.PhatSnapshotAsync(Guid.CreateVersion7(), null, true, CancellationToken.None);
 
     app.Logger.LogInformation("Setting: khoi tao {Moi} khoa moi, {Tong} khoa trong danh muc", moi, SettingCatalog.TatCa.Count);
+
+    // Mau bai toan co san (FM-03) cho moi truong dev.
+    if (SeedSwitch.DuocChay(app.Environment, app.Configuration))
+    {
+        int soMau = await scope.ServiceProvider.GetRequiredService<MauBaiToanService>().SeedAsync(KichBanSeed.User("admin").Id, CancellationToken.None);
+        app.Logger.LogInformation("Seed mau bai toan: them {So}", soMau);
+    }
 }
 
 app.UseExceptionHandler();

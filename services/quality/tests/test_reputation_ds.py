@@ -52,16 +52,15 @@ def test_dawid_skene_phat_hien_labeler_kem():
         dong.append((f"t{i}", "w3", "b" if t == "a" else "a"))
     df = pd.DataFrame(dong, columns=["task", "worker", "label"])
 
-    ky_nang, alpha = uoc_luong(df, min_nhan=5)
+    ky_nang = uoc_luong(df, min_nhan=5)
 
     assert ky_nang["w1"][0] > 0.9
     assert ky_nang["w3"][0] < 0.2
     assert ky_nang["w1"][1] == 6
-    assert alpha is not None
 
 
 def test_labeler_it_nhan_chua_duoc_cham_ds():
     df = pd.DataFrame([("t1", "w1", "a"), ("t1", "w2", "b"), ("t2", "w1", "a"), ("t2", "w2", "a")],
                       columns=["task", "worker", "label"])
-    ky_nang, _ = uoc_luong(df, min_nhan=5)
+    ky_nang = uoc_luong(df, min_nhan=5)
     assert ky_nang == {}

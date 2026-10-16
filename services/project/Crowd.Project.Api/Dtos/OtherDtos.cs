@@ -35,6 +35,9 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>So nguoi da them.</summary>
         public required int Added { get; init; }
 
+        /// <summary>So loi moi cho vua gui (email chua co tai khoan / du an can tu dong y dieu khoan).</summary>
+        public int Invited { get; init; }
+
         /// <summary>Moi dau vao mot dong, cung thu tu (userIds truoc, emails sau).</summary>
         public required IReadOnlyList<AddMemberResult> Results { get; init; }
     }
@@ -53,6 +56,9 @@ namespace Crowd.Project.Api.Dtos
         /// tai_khoan_bi_khoa | khong_phai_labeler | chua_du_cap_do | chua_du_uy_tin
         /// </summary>
         public required string Status { get; init; }
+
+        /// <summary>Co khi Status = invited | pending_consent.</summary>
+        public Guid? InvitationId { get; init; }
 
         public string? Message { get; init; }
     }
@@ -365,5 +371,56 @@ namespace Crowd.Project.Api.Dtos
         public int? ScorePercent { get; init; }
 
         public bool? Passed { get; init; }
+    }
+
+    /// <summary>
+    /// POST /projects/{id}/datasets/import — nhap tu nguon ngoai (FB-11), chi du an anh / am thanh / video.
+    /// source = urls | s3 | gdrive, kem dung MOT khoi thong so tuong ung.
+    /// </summary>
+    public sealed class ImportDatasetRequest
+    {
+        public string? Name { get; init; }
+
+        public string? Source { get; init; }
+
+        /// <summary>source = urls: danh sach link http / https cong khai.</summary>
+        public IReadOnlyList<string>? Urls { get; init; }
+
+        public ImportS3Request? S3 { get; init; }
+
+        public ImportGoogleDriveRequest? GoogleDrive { get; init; }
+    }
+
+    public sealed class ImportS3Request
+    {
+        /// <summary>Bo trong = AWS S3 that; dien de dung MinIO / dich vu tuong thich S3.</summary>
+        public string? Endpoint { get; init; }
+
+        public string? Region { get; init; }
+
+        public string? Bucket { get; init; }
+
+        public string? Prefix { get; init; }
+
+        public string? AccessKey { get; init; }
+
+        /// <summary>Chi luu dang ma hoa toi khi nhap xong roi xoa.</summary>
+        public string? SecretKey { get; init; }
+    }
+
+    public sealed class ImportGoogleDriveRequest
+    {
+        /// <summary>Link chia se file hoac thu muc (thu muc can khoa API Google cau hinh o server).</summary>
+        public IReadOnlyList<string>? Links { get; init; }
+    }
+
+    // ---- Noi bo ----
+
+    /// <summary>GET /internal/projects/{id}/published-terms: dung payload project.published + luc publish.</summary>
+    public sealed class PublishedTermsResponse
+    {
+        public required DateTimeOffset PublishedAt { get; init; }
+
+        public required Crowd.Contracts.Project.ProjectPublished Terms { get; init; }
     }
 }

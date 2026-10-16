@@ -5,21 +5,29 @@
                 (userId, hoac ma phien vuot link cua khach). Anh ro ri ra ngoai → admin giai ma → biet
                 ai. Khong luu gi: nguoi xem nam trong token, giai ma doc nguoc tu anh.
 
-Am thanh / video: phat nguyen qua proxy (giau khoa MinIO, ho tro Range de tua), khong watermark.
+Am thanh / video (watermarked): nhung watermark (watermark_av.py) — am thanh ra FLAC, video ma hoa lai H.264 —
+luu bo dem dia theo (file, nguoi xem, do manh) roi phat co Range de tua. Lan dau mo mat thoi gian tao
+(ty le voi do dai file); cac lan sau / tua la phat ngay. Ban goc (original) phat nguyen qua proxy.
 """
 
 import asyncio
+import hashlib
 import logging
 import mimetypes
+import os
+import tempfile
+from functools import lru_cache
+from pathlib import Path
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
 
 import cv2
 import numpy as np
 from fastapi import Request
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
-from app import settings_store, watermark
+from app import settings_store, watermark, watermark_av
+from app.bo_dem import BoDem
 from app.config import settings
 from app.errors import LoiApi
 from app.grant import QuyenXem, TokenKhongHopLe, doc_khoa, giai_ma
@@ -60,6 +68,12 @@ def nguoi_xem(q: QuyenXem) -> watermark.NguoiXem:
     raise LoiApi(403, "link_khong_hop_le", "Link xem thieu nguoi xem.")
 
 
+@lru_cache
+def bo_dem() -> BoDem:
+    cfg = settings()
+    return BoDem(cfg.av_cache_dir, cfg.av_cache_ttl_seconds, cfg.av_cache_max_bytes)
+
+
 def _loai_noi_dung(khoa: str) -> str:
     return mimetypes.guess_type(khoa)[0] or "application/octet-stream"
 
@@ -81,10 +95,12 @@ async def phuc_vu(token: str, request: Request) -> Response:
     if q.het_han(datetime.now(timezone.utc)):
         raise LoiApi(410, "link_het_han", "Link xem da het han — tai lai trang de lay link moi.")
 
-    can_watermark = (q.modality == "image" and q.mode == "watermarked"
+    can_watermark = (q.modality in ("image", "audio", "video") and q.mode == "watermarked"
                      and settings_store.dung_sai(settings_store.WATERMARK_ENABLED))
     if not can_watermark:
         return await _phat_goc(q.storage_key, request)
+    if q.modality in ("audio", "video"):
+        return await _phat_av(q, request)
 
     try:
         du_lieu = await asyncio.to_thread(kho().doc, q.storage_key)
@@ -97,6 +113,64 @@ async def phuc_vu(token: str, request: Request) -> Response:
     except ValueError as ex:
         raise LoiApi(409, "anh_hong", "Anh hong, khong hien thi duoc.") from ex
     return Response(moi, media_type=loai, headers=HEADER_CHONG_LUU)
+
+
+async def _phat_av(q: QuyenXem, request: Request) -> Response:
+    nguoi = nguoi_xem(q)
+    buoc = settings_store.so_nguyen(settings_store.WATERMARK_STRENGTH)
+    khoa_wm = khoa_watermark()
+    la_video = q.modality == "video"
+    # Khoa bo dem: file, nguoi xem, do manh, dau khoa watermark (doi khoa → ban cu vo hieu).
+    khoa = BoDem.khoa(q.storage_key, str(nguoi.loai), str(nguoi.id), str(buoc) if la_video else "am",
+                      hashlib.sha256(khoa_wm).hexdigest()[:16])
+
+    def tao(dich: Path) -> None:
+        fd, tam = tempfile.mkstemp(prefix="media-goc-", suffix=PurePosixPath(q.storage_key).suffix)
+        os.close(fd)
+        try:
+            kho().tai_ve(q.storage_key, tam)
+            if la_video:
+                watermark_av.nhung_file_video(Path(tam), dich, nguoi, khoa_wm, buoc)
+            else:
+                watermark_av.nhung_file_am(Path(tam), dich, nguoi, khoa_wm)
+        finally:
+            os.unlink(tam)
+
+    try:
+        duong_dan = await bo_dem().lay(khoa, ".mp4" if la_video else ".flac", tao)
+    except KhongCoFile as ex:
+        raise LoiApi(404, "khong_co_file", "File mau khong con.") from ex
+    except watermark_av.LoiMedia as ex:
+        log.warning("Khong nhung duoc watermark cho %s: %s", q.storage_key, ex)
+        raise LoiApi(409, "media_hong", "File hong, khong phat duoc.") from ex
+    return _phat_tep(duong_dan, "video/mp4" if la_video else "audio/flac", request)
+
+
+def _phat_tep(duong_dan: Path, loai: str, request: Request) -> Response:
+    """Phat file tren dia, ho tro Range (giong _phat_goc)."""
+    kich = duong_dan.stat().st_size
+    headers = dict(HEADER_CHONG_LUU)
+    headers["Accept-Ranges"] = "bytes"
+    pham_vi = _doc_range(request.headers.get("Range"), kich)
+    if pham_vi is None:
+        return FileResponse(duong_dan, media_type=loai, headers=headers)
+
+    dau, cuoi = pham_vi
+
+    def doc():
+        with open(duong_dan, "rb") as f:
+            f.seek(dau)
+            con = cuoi - dau + 1
+            while con > 0:
+                khuc = f.read(min(256 * 1024, con))
+                if not khuc:
+                    break
+                con -= len(khuc)
+                yield khuc
+
+    headers["Content-Range"] = f"bytes {dau}-{cuoi}/{kich}"
+    headers["Content-Length"] = str(cuoi - dau + 1)
+    return StreamingResponse(doc(), status_code=206, media_type=loai, headers=headers)
 
 
 async def _phat_goc(khoa: str, request: Request) -> Response:

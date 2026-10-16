@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Annotation.Api.Dtos;
@@ -406,6 +408,18 @@ namespace Crowd.Annotation.Api.Services
                     });
                 }
 
+                if (a.LabelerId.HasValue)
+                {
+                    _events.Phat(caller, new AppealResolved
+                    {
+                        AnnotationId = a.Id,
+                        ProjectId = a.ProjectId,
+                        LabelerId = a.LabelerId.Value,
+                        Accepted = chapNhan,
+                        Note = body.Note,
+                    });
+                }
+
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
                 return await TaoResponseAsync(a, bayGio, await GocXemDuAnAsync(a.ProjectId, caller, ct), ct);
@@ -439,8 +453,8 @@ namespace Crowd.Annotation.Api.Services
                 thongTinMau[m.Key] = SampleMetadata.Tu(m.Value.Metadata);
             }
 
-            IReadOnlyList<SampleResult> ketQua = ResultAggregator.Chot(
-                tapNhan, daDuyet, NguongKhopTuSetting.Doc(_settings), thongTinMau, _settings.SoThuc(SettingKeys.QualityConsensusMinF1));
+            KeyValuePair<IReadOnlyList<SampleResult>, int[]> coDem = await ChotCoBoNhoDemAsync(projectId, tapNhan, daDuyet, thongTinMau, ct);
+            IReadOnlyList<SampleResult> ketQua = coDem.Key;
 
             Dictionary<Guid, TaskConsensus> dongThuan = new Dictionary<Guid, TaskConsensus>();
             foreach (TaskConsensus c in await _db.Consensus.AsNoTracking().Where(c => c.ProjectId == projectId).ToListAsync(ct))
@@ -482,8 +496,98 @@ namespace Crowd.Annotation.Api.Services
                 LabelDistribution = phanBo,
                 ImbalanceWarnings = CanhBaoLech(tapNhan, phanBo),
                 Samples = mau,
+                CacheHits = coDem.Value[0],
+                CacheMisses = coDem.Value[1],
             };
         }
+
+        /// <summary>
+        /// Chot ket qua tung mau, DUNG LAI ket qua da tinh khi dau van tay dau vao khong doi (KetQuaMauDem).
+        /// Tra (ket qua theo thu tu sampleId, [so mau dung lai, so mau tinh moi]).
+        /// </summary>
+        private async Task<KeyValuePair<IReadOnlyList<SampleResult>, int[]>> ChotCoBoNhoDemAsync(
+            Guid projectId,
+            LabelSchema tapNhan,
+            List<LabelAnnotation> daDuyet,
+            Dictionary<Guid, SampleMetadata> thongTinMau,
+            CancellationToken ct)
+        {
+            NguongKhop nguong = NguongKhopTuSetting.Doc(_settings);
+            double f1 = _settings.SoThuc(SettingKeys.QualityConsensusMinF1);
+
+            // Phan chung cua dau van tay: tap nhan + moi nguong + F1 toi thieu.
+            StringBuilder chung = new StringBuilder(tapNhan.ToRawJson().Json);
+            foreach (string khoa in KhoaNguong)
+            {
+                chung.Append('|').Append(_settings.SoThuc(khoa).ToString("R", CultureInfo.InvariantCulture));
+            }
+
+            chung.Append('|').Append(f1.ToString("R", CultureInfo.InvariantCulture));
+            string dauChung = chung.ToString();
+
+            Dictionary<Guid, KetQuaMauDem> dem = await _db.KetQuaMauDems.AsNoTracking()
+                .Where(k => k.ProjectId == projectId)
+                .ToDictionaryAsync(k => k.SampleId, ct);
+
+            List<SampleResult> dungLai = new List<SampleResult>();
+            List<LabelAnnotation> canTinh = new List<LabelAnnotation>();
+            Dictionary<Guid, string> dauMoi = new Dictionary<Guid, string>();
+            foreach (IGrouping<Guid, LabelAnnotation> nhom in daDuyet.GroupBy(a => a.SampleId))
+            {
+                List<LabelAnnotation> ds = nhom.OrderBy(a => a.SubmittedAt).ToList();
+                string dau = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(
+                    dauChung + "|" + string.Join(",", ds.Select(a => a.Id.ToString("N")).OrderBy(s => s, StringComparer.Ordinal)))));
+                KetQuaMauDem? cu;
+                JsonObject? tools = null;
+                if (dem.TryGetValue(nhom.Key, out cu) && cu.Fingerprint == dau)
+                {
+                    tools = JsonNode.Parse(cu.ToolsJson) as JsonObject;
+                }
+
+                if (tools != null)
+                {
+                    dungLai.Add(new SampleResult(nhom.Key, ds.Count, tools, ds));
+                }
+                else
+                {
+                    canTinh.AddRange(ds);
+                    dauMoi[nhom.Key] = dau;
+                }
+            }
+
+            IReadOnlyList<SampleResult> moi = ResultAggregator.Chot(tapNhan, canTinh, nguong, thongTinMau, f1);
+            DateTimeOffset luc = _clock.GetUtcNow();
+            foreach (SampleResult r in moi)
+            {
+                string json = r.Tools.ToJsonString();
+                string dau = dauMoi[r.SampleId];
+                // Hai nguoi xem ket qua cung luc cung ghi: ON CONFLICT → ban ghi sau thang, ca hai deu dung.
+                await _db.Database.ExecuteSqlInterpolatedAsync($@"
+                    INSERT INTO sample_results (project_id, sample_id, fingerprint, tools, computed_at)
+                    VALUES ({projectId}, {r.SampleId}, {dau}, {json}::jsonb, {luc})
+                    ON CONFLICT (project_id, sample_id) DO UPDATE
+                    SET fingerprint = EXCLUDED.fingerprint, tools = EXCLUDED.tools, computed_at = EXCLUDED.computed_at", ct);
+            }
+
+            // Mau khong con nhan da duyet nao (tranh chap doanh nghiep thang...) → bo dong cu.
+            List<Guid> conNhan = daDuyet.Select(a => a.SampleId).Distinct().ToList();
+            List<Guid> thua = dem.Keys.Where(k => !conNhan.Contains(k)).ToList();
+            if (thua.Count > 0)
+            {
+                await _db.KetQuaMauDems.Where(k => k.ProjectId == projectId && thua.Contains(k.SampleId)).ExecuteDeleteAsync(ct);
+            }
+
+            List<SampleResult> tatCa = dungLai.Concat(moi).OrderBy(r => r.SampleId).ToList();
+            return new KeyValuePair<IReadOnlyList<SampleResult>, int[]>(tatCa, new int[] { dungLai.Count, moi.Count });
+        }
+
+        private static readonly string[] KhoaNguong = new string[]
+        {
+            SettingKeys.LabelingThresholdBbox, SettingKeys.LabelingThresholdPolygon, SettingKeys.LabelingThresholdSpan,
+            SettingKeys.LabelingThresholdTranscription, SettingKeys.LabelingThresholdTemporalSegment, SettingKeys.LabelingThresholdKeypoint,
+            SettingKeys.LabelingThresholdPolyline, SettingKeys.LabelingThresholdMask, SettingKeys.LabelingThresholdTrack,
+            SettingKeys.LabelingThresholdRelation, SettingKeys.LabelingThresholdRanking,
+        };
 
         /// <summary>Phan bo nhan + canh bao lech (FB-24) — nhu ket qua nhung khong kem tung mau.</summary>
         public async Task<DistributionResponse> PhanBoAsync(Guid projectId, Caller caller, CancellationToken ct)
@@ -518,7 +622,10 @@ namespace Crowd.Annotation.Api.Services
                 .ToList();
         }
 
-        /// <summary>Xuat ket qua (FB-25): "json" (mac dinh), "csv", "coco" / "yolo" / "voc" (anh co khung).</summary>
+        /// <summary>
+        /// Xuat ket qua (FB-25): json (mac dinh), csv, coco / yolo / voc / yolo-seg / yolo-obb / coco-keypoints (anh),
+        /// conll (van ban co span), mot (video co track).
+        /// </summary>
         public async Task<ExportFile> XuatAsync(
             Guid projectId, string? dinhDang, Caller caller, CancellationToken ct)
         {
@@ -546,9 +653,34 @@ namespace Crowd.Annotation.Api.Services
                 return new ExportFile(KhungAnhExporter.PascalVoc(kq, tapNhan), "application/zip", ten + ".voc.zip");
             }
 
+            if (string.Equals(dinhDang, "yolo-seg", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ExportFile(DinhDangMoRongExporter.YoloSeg(kq, tapNhan), "application/zip", ten + ".yolo-seg.zip");
+            }
+
+            if (string.Equals(dinhDang, "yolo-obb", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ExportFile(DinhDangMoRongExporter.YoloObb(kq, tapNhan), "application/zip", ten + ".yolo-obb.zip");
+            }
+
+            if (string.Equals(dinhDang, "coco-keypoints", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ExportFile(DinhDangMoRongExporter.CocoKeypoints(kq, tapNhan), "application/json", ten + ".coco-keypoints.json");
+            }
+
+            if (string.Equals(dinhDang, "conll", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ExportFile(DinhDangMoRongExporter.Conll(kq, tapNhan), "text/plain; charset=utf-8", ten + ".conll");
+            }
+
+            if (string.Equals(dinhDang, "mot", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ExportFile(DinhDangMoRongExporter.Mot(kq, tapNhan), "application/zip", ten + ".mot.zip");
+            }
+
             if (dinhDang != null && !string.Equals(dinhDang, "json", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidValueException("dinh_dang_chua_ho_tro", "Ho tro json, csv, coco, yolo, voc.");
+                throw new InvalidValueException("dinh_dang_chua_ho_tro", "Ho tro json, csv, coco, yolo, voc, yolo-seg, yolo-obb, coco-keypoints, conll, mot.");
             }
 
             return new ExportFile(JsonSerializer.SerializeToUtf8Bytes(kq, JsonXuat), "application/json", ten + ".json");

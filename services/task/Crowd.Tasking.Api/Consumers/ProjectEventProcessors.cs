@@ -150,6 +150,7 @@ namespace Crowd.Tasking.Api.Consumers
                 p.IsPrivate,
                 p.MinLevel,
                 p.MinReputation,
+                p.SensitiveContent == true,
                 envelope.OccurredAt);
 
             // Hang loat, mot cau UPDATE: nap 10.000 task vao bo nho chi de gan mot

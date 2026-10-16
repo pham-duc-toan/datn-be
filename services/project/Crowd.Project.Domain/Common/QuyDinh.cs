@@ -31,6 +31,9 @@ namespace Crowd.Project.Domain.Common
         public required int SoViDuToiDa { get; init; }
 
         public required int DoDaiGiaiThichToiDa { get; init; }
+
+        /// <summary>Don gia toi thieu moi nhan (FM-04, setting project.min_unit_price_vnd). 0 = khong gioi han.</summary>
+        public long DonGiaToiThieu { get; init; }
     }
 
     /// <summary>Quy dinh khi nap du lieu.</summary>
@@ -79,5 +82,7 @@ namespace Crowd.Project.Domain.Common
         public const int TomTatLoi = 4000;
 
         public const int TenMau = 500;
+        public const int CanhBaoNoiDung = 1000;
+        public const int VanBanNda = 20000;
     }
 }

@@ -91,6 +91,9 @@ namespace Crowd.Tasking.Domain.Projects
 
         public int? MinReputation { get; private set; }
 
+        /// <summary>Noi dung nhay cam (muc 2.9): ep nghi giua phien, frontend lam mo mac dinh.</summary>
+        public bool SensitiveContent { get; private set; }
+
         /// <summary>occurredAt cua gold_set.updated gan nhat da ap dung.</summary>
         public DateTimeOffset GoldSetAt { get; private set; }
 
@@ -130,6 +133,25 @@ namespace Crowd.Tasking.Domain.Projects
             int? minReputation,
             DateTimeOffset occurredAt)
         {
+            ApDungPublished(ownerId, labelSchema, unitPriceVnd, redundancy, maxRedundancy, goldCheckPercent, deadline,
+                allowProfessional, isPrivate, minLevel, minReputation, false, occurredAt);
+        }
+
+        public void ApDungPublished(
+            Guid ownerId,
+            LabelSchema labelSchema,
+            long unitPriceVnd,
+            int redundancy,
+            int maxRedundancy,
+            int goldCheckPercent,
+            DateTimeOffset deadline,
+            bool allowProfessional,
+            bool isPrivate,
+            int? minLevel,
+            int? minReputation,
+            bool sensitiveContent,
+            DateTimeOffset occurredAt)
+        {
             if (labelSchema == null)
             {
                 throw new ArgumentNullException(nameof(labelSchema));
@@ -148,6 +170,7 @@ namespace Crowd.Tasking.Domain.Projects
             IsPrivate = isPrivate;
             MinLevel = minLevel;
             MinReputation = minReputation;
+            SensitiveContent = sensitiveContent;
             IsConfigured = true;
 
             DoiTrangThaiNeuMoiHon(SnapshotStatus.Running, occurredAt);

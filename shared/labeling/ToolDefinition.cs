@@ -77,6 +77,9 @@ namespace Crowd.Labeling
         /// <summary>number: lech toi da so voi dap an / ket qua gop van tinh la khop (mac dinh 0 = phai bang).</summary>
         public double Tolerance { get; private set; }
 
+        /// <summary>Chi bbox: cho phep khung XOAY ("angle" do quanh tam) — giay to chup nghieng, bien so, van ban xien.</summary>
+        public bool Rotatable { get; private set; }
+
         public AttributeDefinition? ThuocTinh(string ten)
         {
             foreach (AttributeDefinition a in Attributes)
@@ -148,6 +151,7 @@ namespace Crowd.Labeling
             t.Max = DocSoThuc(o, "max");
             t.IntegerOnly = DocBool(o, "integer", false);
             t.Tolerance = DocSoThuc(o, "tolerance") ?? 0;
+            t.Rotatable = DocBool(o, "rotatable", false);
 
             return t;
         }
@@ -228,6 +232,11 @@ namespace Crowd.Labeling
                 {
                     o["max"] = Max.Value;
                 }
+            }
+
+            if (Rotatable)
+            {
+                o["rotatable"] = true;
             }
 
             return o;

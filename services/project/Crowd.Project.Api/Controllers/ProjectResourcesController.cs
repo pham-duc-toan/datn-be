@@ -43,7 +43,14 @@ namespace Crowd.Project.Api.Controllers
         [HttpPost("members")]
         public async Task<IActionResult> Them(Guid projectId, [FromBody] AddMemberRequest body, CancellationToken ct)
         {
-            return Ok(await _service.ThemAsync(projectId, body, ChuDuAn(), ct));
+            ThemMotKetQua kq = await _service.ThemAsync(projectId, body, ChuDuAn(), ct);
+            if (kq.Invitation != null)
+            {
+                // Chua them thang duoc (email chua co tai khoan / du an can nguoi do tu dong y): 202 + loi moi cho.
+                return Accepted(kq.Invitation);
+            }
+
+            return Ok(kq.Member);
         }
 
         /// <summary>POST /projects/{id}/members/batch — moi nhieu nguoi (userIds / emails), ket qua tung nguoi.</summary>
@@ -70,6 +77,14 @@ namespace Crowd.Project.Api.Controllers
         public async Task<IActionResult> Xoa(Guid projectId, Guid userId, CancellationToken ct)
         {
             await _service.XoaAsync(projectId, userId, ChuDuAn(), ct);
+            return NoContent();
+        }
+
+        /// <summary>POST /projects/{id}/leave — labeler / reviewer tu roi du an (muc 2.9: bat ky luc nao, khong bi phat).</summary>
+        [HttpPost("leave")]
+        public async Task<IActionResult> Roi(Guid projectId, CancellationToken ct)
+        {
+            await _service.RoiAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Labeler), ct);
             return NoContent();
         }
 
@@ -254,6 +269,19 @@ namespace Crowd.Project.Api.Controllers
         /// {"name":..., "rows":[...]} hoac {"name":..., "manifestKey":"&lt;key file .jsonl&gt;"}.
         /// Tra 202: lo o trang thai Pending, worker xu ly nen — xem GET /datasets.
         /// </summary>
+        /// <summary>
+        /// POST /projects/{id}/datasets/import — nhap tu nguon ngoai (FB-11): { name, source: urls|s3|gdrive,
+        /// urls | s3 {endpoint?, region?, bucket, prefix?, accessKey, secretKey} | googleDrive {links} }.
+        /// 202: lo Pending, worker tai ve roi nap; theo doi o GET datasets.
+        /// </summary>
+        [HttpPost("datasets/import")]
+        public async Task<IActionResult> NhapNguonNgoai(
+            Guid projectId, [FromBody] ImportDatasetRequest body, [FromServices] NhapNguonNgoaiService nhap, CancellationToken ct)
+        {
+            DatasetResponse lo = await _service.TaoTuNguonNgoaiAsync(projectId, body, nhap, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
+            return Accepted(lo);
+        }
+
         [HttpPost("datasets/manifest")]
         public async Task<IActionResult> NapManifest(Guid projectId, [FromBody] CreateManifestDatasetRequest body, CancellationToken ct)
         {

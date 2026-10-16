@@ -129,6 +129,7 @@ namespace Crowd.Seeding
             ds.Add(TaoP5());
             ds.Add(TaoP6());
             ds.Add(TaoP7());
+            ds.Add(TaoP8());
             return ds;
         }
 
@@ -300,6 +301,50 @@ namespace Crowd.Seeding
                 EntranceQuestionCount = 10,
                 EntrancePassPercent = 80,
                 CreatedAgo = TimeSpan.FromHours(2),
+                EscrowedAgo = null,
+                PublishedAgo = null,
+                Samples = BonMau(id, k),
+                Members = Array.Empty<SeedMember>(),
+                Gold = Array.Empty<SeedGold>(),
+                Submissions = Array.Empty<SeedSubmission>(),
+            };
+        }
+
+        /// <summary>
+        /// P8 — NHAP, cong cu hinh hoc moi: khung XOAY (rotatable), da giac, diem moc. Doanh nghiep bam publish
+        /// de thu ca luong (ky quy, gop nhan khung xoay theo trung vi goc, xuat yolo-obb / yolo-seg / coco-keypoints).
+        /// Nhap thi chi project-svc seed — cac service khac khong co ban sao.
+        /// </summary>
+        private static SeedProject TaoP8()
+        {
+            const string k = "p8";
+            Guid id = SeedIds.Tu("project:" + k);
+
+            return new SeedProject
+            {
+                Key = k,
+                Id = id,
+                OwnerId = User("biz2").Id,
+                DatasetId = SeedIds.Tu("dataset:" + k),
+                Name = "[Seed] Anh - khung xoay, da giac, diem moc - nhap",
+                Description = "Du an nhap dung cac cong cu hinh hoc: khung xoay (goc), vung da giac, diem moc.",
+                GuidelineMarkdown = "# Huong dan\n\n- `khung`: ve khung bao vat the, XOAY khung theo huong vat the (goc do).\n"
+                    + "- `vung`: khoanh vung mau chinh bang da giac.\n- `diem`: dat diem `tam` vao giua anh.",
+                Stage = SeedStage.Draft,
+                IsPrivate = false,
+                Modality = Modalities.Image,
+                LabelSchemaJson = "{\"modality\":\"image\",\"tools\":["
+                    + "{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"vat_the\"],\"rotatable\":true},"
+                    + "{\"name\":\"vung\",\"kind\":\"polygon\",\"classes\":[\"mau_chinh\"]},"
+                    + "{\"name\":\"diem\",\"kind\":\"keypoint\",\"classes\":[\"tam\"]}]}",
+                UnitPriceVnd = 20000,
+                Redundancy = 2,
+                BudgetVnd = 300000,
+                DeadlineInDays = 30,
+                RequireEntranceTest = false,
+                EntranceQuestionCount = 10,
+                EntrancePassPercent = 80,
+                CreatedAgo = TimeSpan.FromHours(1),
                 EscrowedAgo = null,
                 PublishedAgo = null,
                 Samples = BonMau(id, k),

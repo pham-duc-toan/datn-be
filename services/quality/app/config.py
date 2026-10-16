@@ -43,7 +43,32 @@ class Settings(BaseSettings):
     # Chu ky DS, trong so uy tin, outbox, prefetch... la SETTING DONG (admin-svc) — xem settings_store.py.
     settings_catalog_path: str | None = None
 
+    # project-svc noi bo: bu ban sao du an khi thieu (du an publish truoc khi quality-svc ton tai).
+    # Trong = khong bu (bo qua dong thuan kem canh bao nhu truoc).
+    project_url: str | None = None
+    internal_api_key: str | None = None
+
+
+# S-08: gia tri DEV cong khai trong repo — chi duoc dung o moi truong Development.
+_KHOA_DEV = ("pgZwtqPVxGvu3oA5esvFaUio+ltJ2sSfgOWqYQNHwyU=", "TUmrnIsOHHdHl7BEEngcDqPfPQW6v956RTfgOEOlILo=", "demo_internal_key")
+
+
+def vi_pham_bi_mat_dev(cfg: BaseSettings) -> list[str]:
+    """Ten truong cau hinh dang mang mat khau / khoa dev. Ham thuan — test duoc."""
+    import re
+    ra = []
+    for ten, gia_tri in cfg.model_dump().items():
+        if isinstance(gia_tri, str) and (re.search(r"dev_[a-z0-9]+_pw", gia_tri, re.I) or any(k in gia_tri for k in _KHOA_DEV)):
+            ra.append(ten)
+    return sorted(ra)
+
 
 @lru_cache
 def settings() -> Settings:
-    return Settings()
+    cfg = Settings()
+    if cfg.environment != "Development":
+        vi_pham = vi_pham_bi_mat_dev(cfg)
+        if vi_pham:
+            # Fail closed: khong chay moi truong that voi bi mat dev.
+            raise RuntimeError("S-08: moi truong " + cfg.environment + " dang dung mat khau / khoa DEV o: " + ", ".join(vi_pham))
+    return cfg

@@ -94,6 +94,15 @@ namespace Crowd.Identity.Api.Services
             });
         }
 
+        /// <summary>
+        /// Phat ma thu thach dang nhap 2FA (FC-04): client da nhap dung mat khau, cam ma nay de gui kem
+        /// ma 6 so. Thu thach cu cua user bi huy (moi lan dang nhap mot thu thach).
+        /// </summary>
+        public Task<string> PhatThuThachHaiLopAsync(Guid userId, TimeSpan song, CancellationToken ct)
+        {
+            return PhatMaAsync(userId, MucDichMa.TwoFactorLogin, song, ct);
+        }
+
         /// <summary>Lan phat ma gan nhat cua muc dich nay (chong spam "gui lai").</summary>
         public Task<DateTimeOffset?> LanPhatGanNhatAsync(Guid userId, MucDichMa mucDich, CancellationToken ct)
         {

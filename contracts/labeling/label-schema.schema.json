@@ -68,9 +68,14 @@
         "min": { "type": "number" },
         "max": { "type": "number" },
         "integer": { "type": "boolean" },
-        "tolerance": { "type": "number", "minimum": 0 }
+        "tolerance": { "type": "number", "minimum": 0 },
+        "rotatable": { "type": "boolean" }
       },
       "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "bbox" } } },
+          "else": { "properties": { "rotatable": false } }
+        },
         {
           "if": { "properties": { "kind": { "const": "classification" } } },
           "then": {

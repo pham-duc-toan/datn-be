@@ -4,6 +4,18 @@ using Crowd.Link.Api.Entities;
 
 namespace Crowd.Link.Api.Dtos
 {
+    public sealed class FlaggedReferralResponse
+    {
+        public required Guid ReferrerId { get; init; }
+
+        public required Guid ReferredId { get; init; }
+
+        /// <summary>trung_ip_nguoi_gioi_thieu, nhieu_tai_khoan_cung_ip, dot_bien (ngan cach dau phay).</summary>
+        public required string Reasons { get; init; }
+
+        public required DateTimeOffset CreatedAt { get; init; }
+    }
+
     public sealed class CreateLinkRequest
     {
         public string? Url { get; init; }

@@ -80,6 +80,15 @@ namespace Crowd.Payment.Domain.Deposits
 
         public string? RejectReason { get; private set; }
 
+        /// <summary>Link trang thanh toan cua cong (MoMo tra ve tu API nen phai luu); null voi chuyen khoan.</summary>
+        public string? CheckoutUrl { get; private set; }
+
+        /// <summary>Ly do that bai: ma ket qua cua cong, cong_loi (tao lenh loi), het_han (doi soat).</summary>
+        public string? FailureCode { get; private set; }
+
+        /// <summary>Lan doi soat gan nhat hoi nguoc cong (VD-M-09) — gian cach cac lan hoi.</summary>
+        public DateTimeOffset? LastCheckedAt { get; private set; }
+
         public bool LaChuyenKhoanThuCong
         {
             get { return string.Equals(Provider, ChuyenKhoanThuCong, StringComparison.Ordinal); }
@@ -240,11 +249,33 @@ namespace Crowd.Payment.Domain.Deposits
 
         public void ThatBai(DateTimeOffset luc)
         {
+            ThatBai(luc, null);
+        }
+
+        /// <summary>Cong bao that bai / tao lenh loi / het han. Chi tu Pending; da chot thi bo qua.</summary>
+        public void ThatBai(DateTimeOffset luc, string? maLoi)
+        {
             if (Status == PaymentIntentStatus.Pending)
             {
                 Status = PaymentIntentStatus.Failed;
                 CompletedAt = luc;
+                FailureCode = maLoi == null ? null : (maLoi.Length > 50 ? maLoi.Substring(0, 50) : maLoi);
             }
+        }
+
+        public void GanLinkThanhToan(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url) || url.Length > 2000)
+            {
+                throw new InvalidValueException("link_thanh_toan_khong_hop_le", "Link thanh toan cua cong khong hop le.");
+            }
+
+            CheckoutUrl = url;
+        }
+
+        public void DanhDauDaHoi(DateTimeOffset luc)
+        {
+            LastCheckedAt = luc;
         }
     }
 }

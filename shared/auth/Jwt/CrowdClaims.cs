@@ -21,6 +21,16 @@ namespace Crowd.BuildingBlocks.Auth.Jwt
         public const string EmailVerified = "email_verified";
         public const string KybVerified = "kyb_verified";
 
+        /// <summary>
+        /// Xac minh danh tinh ca nhan (identity-svc, admin duyet anh giay to):
+        ///   identity_verified — da xac minh: dieu kien vao du an rieng tu doi xac minh (FP-05);
+        ///   adult             — da xac minh VA du tuoi (identity.adult_age) tinh tai luc phat token:
+        ///                       dieu kien xem du an noi dung nhay cam (muc 2.9, VD-P-04).
+        /// Tinh lai moi lan phat token nen nguoi vua du tuoi chi can lam moi token.
+        /// </summary>
+        public const string IdentityVerified = "identity_verified";
+        public const string Adult = "adult";
+
         public static bool DaXacThucEmail(ClaimsPrincipal user)
         {
             return LaTrue(user, EmailVerified);
@@ -29,6 +39,16 @@ namespace Crowd.BuildingBlocks.Auth.Jwt
         public static bool DaXacMinhDoanhNghiep(ClaimsPrincipal user)
         {
             return LaTrue(user, KybVerified);
+        }
+
+        public static bool DaXacMinhDanhTinh(ClaimsPrincipal user)
+        {
+            return LaTrue(user, IdentityVerified);
+        }
+
+        public static bool DuTuoi(ClaimsPrincipal user)
+        {
+            return LaTrue(user, Adult);
         }
 
         private static bool LaTrue(ClaimsPrincipal user, string claim)

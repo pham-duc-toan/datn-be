@@ -84,7 +84,12 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                     "ck_tasks_file_hoac_noi_dung",
                     "(storage_key IS NULL) <> (content IS NULL)"));
                 b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
-                b.HasKey(x => x.Id);
+
+                // T-07: bang tasks PHAN VUNG HASH(project_id) 16 phan (migration PhanVungTasks, SQL tay — EF khong
+                // tu tao partition). Khoa chinh cua bang phan vung phai chua cot phan vung → (project_id, id).
+                // Cau lay task luon loc theo du an nen chi cham MOT phan vung; tra theo id (it gap) di qua ix_tasks_id.
+                b.HasKey(x => new { x.ProjectId, x.Id });
+                b.HasIndex(x => x.Id).HasDatabaseName("ix_tasks_id");
                 b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
                 b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
                 b.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
@@ -146,7 +151,8 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 // nhan 0 dong thay vi ghi de (VD-D-11).
                 b.Property<uint>("RowVersion").IsRowVersion();
 
-                b.HasOne<LabelingTask>().WithMany().HasForeignKey(x => x.TaskId).OnDelete(DeleteBehavior.Cascade);
+                // Khoa ngoai tro toi bang phan vung phai gom cot phan vung (project_id).
+                b.HasOne<LabelingTask>().WithMany().HasForeignKey(x => new { x.ProjectId, x.TaskId }).OnDelete(DeleteBehavior.Cascade);
 
                 // MOT NGUOI KHONG GAN CUNG MOT TASK HAI LAN — neu khong redundancy=3
                 // co the la cung mot nguoi 3 lan, dong thuan gia. Chi tinh luot dang
@@ -234,6 +240,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property(x => x.IsPrivate).HasColumnName("is_private").IsRequired();
                 b.Property(x => x.MinLevel).HasColumnName("min_level");
                 b.Property(x => x.MinReputation).HasColumnName("min_reputation");
+                b.Property(x => x.SensitiveContent).HasColumnName("sensitive_content").IsRequired().HasDefaultValue(false);
                 b.Property(x => x.GoldSetAt).HasColumnName("gold_set_at").IsRequired();
 
                 // Don du lieu van hanh cua du an da dong (project.closed_data_retention).

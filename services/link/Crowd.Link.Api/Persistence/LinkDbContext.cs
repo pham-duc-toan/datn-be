@@ -132,7 +132,14 @@ namespace Crowd.Link.Api.Persistence
                 b.Property(x => x.ReferredId).HasColumnName("referred_id").ValueGeneratedNever();
                 b.Property(x => x.ReferrerId).HasColumnName("referrer_id").IsRequired();
                 b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+                b.Property(x => x.ClaimIpHash).HasColumnName("claim_ip_hash").HasMaxLength(64);
+                b.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue(TrangThaiGioiThieu.Active).IsRequired();
+                b.Property(x => x.FlagReasons).HasColumnName("flag_reasons").HasMaxLength(200);
+                b.Property(x => x.DecidedAt).HasColumnName("decided_at");
+                b.Property(x => x.DecidedBy).HasColumnName("decided_by");
                 b.HasIndex(x => x.ReferrerId).HasDatabaseName("ix_referrals_referrer");
+                b.HasIndex(x => new { x.ReferrerId, x.CreatedAt }).HasDatabaseName("ix_referrals_referrer_thoi_gian");
+                b.HasIndex(x => x.Status).HasFilter("status = 'flagged'").HasDatabaseName("ix_referrals_nghi_ngo");
             });
 
             modelBuilder.Entity<KnownUser>(b =>

@@ -20,15 +20,63 @@ namespace Crowd.Identity.Api.Controllers
     public sealed class UsersAdminController : ControllerBase
     {
         private readonly TaiKhoanAdminService _service;
+        private readonly HaiLopService _haiLop;
+        private readonly XacMinhDanhTinhService _xacMinh;
 
-        public UsersAdminController(TaiKhoanAdminService service)
+        public UsersAdminController(TaiKhoanAdminService service, HaiLopService haiLop, XacMinhDanhTinhService xacMinh)
         {
             if (service == null)
             {
                 throw new ArgumentNullException(nameof(service));
             }
 
+            if (haiLop == null)
+            {
+                throw new ArgumentNullException(nameof(haiLop));
+            }
+
+            if (xacMinh == null)
+            {
+                throw new ArgumentNullException(nameof(xacMinh));
+            }
+
             _service = service;
+            _haiLop = haiLop;
+            _xacMinh = xacMinh;
+        }
+
+        /// <summary>POST /users/admin/{userId}/2fa/reset — go 2FA cho nguoi mat ca dien thoai lan ma du phong.</summary>
+        [HttpPost("{userId:guid}/2fa/reset")]
+        public async Task<IActionResult> GoHaiLop(Guid userId, CancellationToken ct)
+        {
+            await _haiLop.AdminGoAsync(userId, Caller.TuHttp(HttpContext, ActorRole.Admin), ct);
+            return NoContent();
+        }
+
+        /// <summary>GET /users/admin/identity-verifications?status=submitted&amp;page=&amp;pageSize=</summary>
+        [HttpGet("identity-verifications")]
+        public async Task<IActionResult> HangDoiXacMinh([FromQuery] string? status, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
+        {
+            return Ok(await _xacMinh.HangDoiAsync(status, page, pageSize, ct));
+        }
+
+        /// <summary>GET /users/admin/identity-verifications/{userId} — kem link xem anh giay to (song ngan).</summary>
+        [HttpGet("identity-verifications/{userId:guid}")]
+        public async Task<IActionResult> ChiTietXacMinh(Guid userId, CancellationToken ct)
+        {
+            return Ok(await _xacMinh.ChiTietAsync(userId, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
+        }
+
+        [HttpPost("identity-verifications/{userId:guid}/approve")]
+        public async Task<IActionResult> DuyetXacMinh(Guid userId, CancellationToken ct)
+        {
+            return Ok(await _xacMinh.DuyetAsync(userId, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
+        }
+
+        [HttpPost("identity-verifications/{userId:guid}/reject")]
+        public async Task<IActionResult> TuChoiXacMinh(Guid userId, [FromBody] KybRejectRequest body, CancellationToken ct)
+        {
+            return Ok(await _xacMinh.TuChoiAsync(userId, body == null ? null : body.Reason, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
         }
 
         /// <summary>GET /users/admin?search=&amp;role=&amp;status=&amp;page=&amp;pageSize=</summary>

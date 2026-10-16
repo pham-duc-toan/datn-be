@@ -16,6 +16,11 @@ namespace Crowd.BuildingBlocks.Settings
         public const string PaymentManualTransferBankInfo = "payment.manual_transfer_bank_info";
         public const string PaymentPayoutInterval = "payment.payout_interval";
         public const string PaymentPayoutLookupAfter = "payment.payout_lookup_after";
+        public const string PaymentEnabledProviders = "payment.enabled_providers";
+        public const string PaymentDepositLookupAfter = "payment.deposit_lookup_after";
+        public const string PaymentDepositExpireAfter = "payment.deposit_expire_after";
+        public const string PaymentDepositReconcileInterval = "payment.deposit_reconcile_interval";
+        public const string PaymentDepositReconcileBatch = "payment.deposit_reconcile_batch";
         public const string LedgerHoldDuration = "ledger.hold_duration";
         public const string LedgerHoldReleaseInterval = "ledger.hold_release_interval";
         public const string LedgerHoldReleaseBatchSize = "ledger.hold_release_batch_size";
@@ -27,6 +32,14 @@ namespace Crowd.BuildingBlocks.Settings
         public const string LedgerWithdrawTaxPercent = "ledger.withdraw_tax_percent";
         public const string LedgerWithdrawAutoApprove = "ledger.withdraw_auto_approve";
         public const string LedgerWithdrawAutoApproveMaxVnd = "ledger.withdraw_auto_approve_max_vnd";
+        public const string InvoiceVatPercent = "invoice.vat_percent";
+        public const string InvoiceSellerName = "invoice.seller_name";
+        public const string InvoiceSellerTaxCode = "invoice.seller_tax_code";
+        public const string InvoiceSellerAddress = "invoice.seller_address";
+        public const string InvoiceSerialTemplate = "invoice.serial_template";
+        public const string InvoiceAutoIssue = "invoice.auto_issue";
+        public const string InvoiceAutoIssueInterval = "invoice.auto_issue_interval";
+        public const string InvoiceAllowOpenPeriod = "invoice.allow_open_period";
 
         // ---- Du an ----
         public const string ProjectAutoApprove = "project.auto_approve";
@@ -50,6 +63,13 @@ namespace Crowd.BuildingBlocks.Settings
         public const string ProjectMemberBatchMax = "project.member_batch_max";
         public const string ProjectInviteCodeMaxTtl = "project.invite_code_max_ttl";
         public const string ProjectJoinRequestCooldown = "project.join_request_cooldown";
+        public const string ProjectMinUnitPriceVnd = "project.min_unit_price_vnd";
+        public const string ProjectJoinRequestTtl = "project.join_request_ttl";
+        public const string ProjectInvitationTtl = "project.invitation_ttl";
+        public const string ProjectEmailInviteDailyMax = "project.email_invite_daily_max";
+        public const string ProjectHousekeepingInterval = "project.housekeeping_interval";
+        public const string WelfareMaxContinuousMinutes = "welfare.max_continuous_minutes";
+        public const string WelfareBreakMinutes = "welfare.break_minutes";
 
         // ---- Du lieu va file ----
         public const string DatasetZipMaxBytes = "dataset.zip_max_bytes";
@@ -63,6 +83,9 @@ namespace Crowd.BuildingBlocks.Settings
         public const string DatasetEventBatchSize = "dataset.event_batch_size";
         public const string DatasetWorkerIdle = "dataset.worker_idle";
         public const string DatasetNameMaxLength = "dataset.name_max_length";
+        public const string DatasetImportMaxFiles = "dataset.import_max_files";
+        public const string DatasetImportFileMaxBytes = "dataset.import_file_max_bytes";
+        public const string DatasetImportTimeout = "dataset.import_timeout";
         public const string DatasetErrorSummaryMaxLength = "dataset.error_summary_max_length";
         public const string DatasetErrorSampleCount = "dataset.error_sample_count";
         public const string SampleNameMaxLength = "sample.name_max_length";
@@ -86,6 +109,8 @@ namespace Crowd.BuildingBlocks.Settings
         public const string AnnotationImbalanceThresholdPercent = "annotation.imbalance_threshold_percent";
         public const string AnnotationImbalanceMinLabels = "annotation.imbalance_min_labels";
         public const string AnnotationAutoApproveAgreed = "annotation.auto_approve_agreed";
+        public const string AnnotationHistoryRetention = "annotation.history_retention";
+        public const string AnnotationHistoryCleanupInterval = "annotation.history_cleanup_interval";
 
         // ---- Chat luong ----
         public const string QualityDsInterval = "quality.ds_interval";
@@ -132,10 +157,20 @@ namespace Crowd.BuildingBlocks.Settings
         public const string IdentityPasswordResetTtl = "identity.password_reset_ttl";
         public const string IdentityAvatarMaxBytes = "identity.avatar_max_bytes";
         public const string IdentityLevelRules = "identity.level_rules";
+        public const string IdentityTwoFactorIssuer = "identity.two_factor_issuer";
+        public const string IdentityTwoFactorChallengeTtl = "identity.two_factor_challenge_ttl";
+        public const string IdentityTwoFactorMaxAttempts = "identity.two_factor_max_attempts";
+        public const string IdentityAdultAge = "identity.adult_age";
 
         // ---- Admin: nhat ky audit (FP-06 / VD-S-10), thong ke (FM-09) ----
         public const string AdminAuditExcludedTypes = "admin.audit_excluded_types";
         public const string AdminAuditRetentionDays = "admin.audit_retention_days";
+
+        // ---- Van hanh: canh bao do sau DLQ (VD-D-06, VD-D-12) ----
+        public const string OpsDlqAlertThreshold = "ops.dlq_alert_threshold";
+        public const string OpsDlqCheckInterval = "ops.dlq_check_interval";
+        public const string OpsAlertRepeat = "ops.alert_repeat";
+        public const string OpsAlertEmail = "ops.alert_email";
 
         // ---- Bao ve du lieu: media-svc (FP-02, FP-03) ----
         public const string MediaWatermarkEnabled = "media.watermark_enabled";
@@ -152,9 +187,13 @@ namespace Crowd.BuildingBlocks.Settings
         public const string NotificationEmailInterval = "notification.email_interval";
         public const string NotificationEmailBatchSize = "notification.email_batch_size";
         public const string NotificationEmailMaxAttempts = "notification.email_max_attempts";
+        public const string NotificationRetentionDays = "notification.retention_days";
+        public const string NotificationCleanupInterval = "notification.cleanup_interval";
+        public const string NotificationRealtimeTicketTtl = "notification.realtime_ticket_ttl";
 
         // ---- Cong link (P2) ----
         public const string GateEnabled = "gate.enabled";
+        public const string GateAllowedTools = "gate.allowed_tools";
         public const string GateCountdown = "gate.countdown";
         public const string GateGoldPerSession = "gate.gold_per_session";
         public const string GateRealPerSession = "gate.real_per_session";
@@ -172,6 +211,8 @@ namespace Crowd.BuildingBlocks.Settings
         public const string LinkReferralPercent = "link.referral_percent";
         public const string LinkReferralMinEarningsVnd = "link.referral_min_earnings_vnd";
         public const string LinkReferralClaimWindow = "link.referral_claim_window";
+        public const string LinkReferralMaxPerIp = "link.referral_max_per_ip";
+        public const string LinkReferralBurstPerHour = "link.referral_burst_per_hour";
 
         // ---- Ky thuat ----
         public const string OutboxPollInterval = "outbox.poll_interval";
@@ -284,6 +325,16 @@ namespace Crowd.BuildingBlocks.Settings
                 "Chu ky worker gui lenh chi tien ra cong thanh toan."));
             ds.Add(Seconds(SettingKeys.PaymentPayoutLookupAfter, NhomKyThuat, 15 * 60, 60, Ngay,
                 "Lenh chi treo qua lau thi hoi nguoc cong ve trang thai (doi soat)."));
+            ds.Add(Text(SettingKeys.PaymentEnabledProviders, NhomTien, "sandbox,vnpay,momo", 100,
+                "Cong nap tien dang mo (sandbox, vnpay, momo — ngan cach dau phay). Cong phai CO cau hinh khoa moi dung duoc; tat mot cong khi cong do su co."));
+            ds.Add(Seconds(SettingKeys.PaymentDepositLookupAfter, NhomKyThuat, 15 * 60, 60, Ngay,
+                "Lenh nap qua cong chua co ket qua sau bay nhieu thi hoi nguoc cong (doi soat, VD-M-09) — phong khi IPN bi lac."));
+            ds.Add(Seconds(SettingKeys.PaymentDepositExpireAfter, NhomTien, Ngay, 15 * 60, 30 * Ngay,
+                "Lenh nap qua cong qua thoi gian nay ma cong van chua bao da thu tien thi danh dau het han (that bai)."));
+            ds.Add(Seconds(SettingKeys.PaymentDepositReconcileInterval, NhomKyThuat, 60, 5, 3600,
+                "Chu ky worker doi soat lenh nap treo."));
+            ds.Add(Int(SettingKeys.PaymentDepositReconcileBatch, NhomKyThuat, 50, 1, 1000, "lenh",
+                "So lenh nap treo hoi nguoc cong moi lan doi soat."));
             ds.Add(Seconds(SettingKeys.LedgerHoldDuration, NhomTien, 3 * Ngay, 0, 90 * Ngay,
                 "Tien cong vua duyet bi TREO bao lau truoc khi labeler rut duoc (de xu ly khieu nai, gian lan)."));
             ds.Add(Seconds(SettingKeys.LedgerHoldReleaseInterval, NhomKyThuat, 60, 5, 3600,
@@ -298,6 +349,19 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Long(SettingKeys.LedgerWithdrawTaxThresholdVnd, NhomTien, 2000000, 0, 1e13, "dong",
                 "Rut tu muc nay tro len thi khau tru thue TNCN."));
             ds.Add(Int(SettingKeys.LedgerWithdrawTaxPercent, NhomTien, 10, 0, 50, "%", "Thue suat khau tru khi rut tien."));
+            ds.Add(Int(SettingKeys.InvoiceVatPercent, NhomTien, 10, 0, 20, "%",
+                "Thue suat GTGT tren phi nen tang (FB-05). Phi da thu la gia DA GOM thue; hoa don tach nguoc ra phan chua thue + thue. Ap cho hoa don xuat sau khi doi."));
+            ds.Add(Text(SettingKeys.InvoiceSellerName, NhomTien, "CONG TY TNHH NEN TANG GAN NHAN DATN", 200, "Ten don vi ban hang in tren hoa don."));
+            ds.Add(Text(SettingKeys.InvoiceSellerTaxCode, NhomTien, "0109999999", 20, "Ma so thue don vi ban hang."));
+            ds.Add(Text(SettingKeys.InvoiceSellerAddress, NhomTien, "So 1 Dai Co Viet, Hai Ba Trung, Ha Noi", 300, "Dia chi don vi ban hang."));
+            ds.Add(Text(SettingKeys.InvoiceSerialTemplate, NhomTien, "1C{yy}TDN", 20,
+                "Ky hieu hoa don; {yy} = 2 so cuoi nam. 1 = hoa don GTGT, C = co ma cua co quan thue, T = dien tu, DN = ma rieng."));
+            ds.Add(Bool(SettingKeys.InvoiceAutoIssue, NhomTien, true,
+                "Bat: dau moi thang tu xuat hoa don thang truoc cho moi doanh nghiep co phat sinh phi nen tang (da xac minh KYB)."));
+            ds.Add(Seconds(SettingKeys.InvoiceAutoIssueInterval, NhomKyThuat, 3600, 60, Ngay,
+                "Chu ky worker kiem tra va tu xuat hoa don thang truoc."));
+            ds.Add(Bool(SettingKeys.InvoiceAllowOpenPeriod, NhomKyThuat, false,
+                "CHI DE KIEM THU: cho xuat hoa don cho thang CHUA ket thuc. Bat tren moi truong that se chiem mat ky cua thang (moi thang mot hoa don)."));
 
             // ================= TU DONG DUYET =================
             ds.Add(Bool(SettingKeys.ProjectAutoApprove, NhomDuyet, false,
@@ -319,6 +383,24 @@ namespace Crowd.BuildingBlocks.Settings
                 "Chu ky quet du an cho duyet qua han."));
             ds.Add(Int(SettingKeys.ProjectRedundancyMax, NhomDuAn, 10, 1, 50, "nguoi",
                 "So nguoi gan / tran redundancy toi da doanh nghiep duoc dat cho moi mau."));
+            ds.Add(Long(SettingKeys.ProjectMinUnitPriceVnd, NhomDuAn, 100, 0, 1e9, "dong",
+                "Don gia toi thieu moi nhan (FM-04) — chan doanh nghiep tra cong qua re. Ap khi cau hinh gia VA khi publish (nang muc thi du an nhap gia cu phai sua). 0 = khong gioi han."));
+            ds.Add(Seconds(SettingKeys.ProjectJoinRequestTtl, NhomDuAn, 14 * Ngay, Ngay, 180 * Ngay,
+                "Don xin tham gia chu du an khong duyet qua thoi gian nay thi tu het han (labeler gui lai duoc ngay)."));
+            ds.Add(Seconds(SettingKeys.ProjectInvitationTtl, NhomDuAn, 14 * Ngay, Ngay, 180 * Ngay,
+                "Loi moi cho (email chua co tai khoan, hoac du an can labeler tu dong y dieu khoan) song bao lau."));
+            ds.Add(Int(SettingKeys.ProjectEmailInviteDailyMax, NhomDuAn, 200, 1, 100000, "loi moi",
+                "So email toi da mot nguoi duoc moi vao du an trong 24 gio (VD-S-16) — chan dung o moi de do danh sach email. Vuot → 429."));
+            ds.Add(Seconds(SettingKeys.ProjectHousekeepingInterval, NhomKyThuat, 10 * 60, 10, Ngay,
+                "Chu ky worker don don xin tham gia / loi moi qua han."));
+            ds.Add(Seconds(SettingKeys.AnnotationHistoryRetention, NhomGanNhan, 365 * Ngay, 0, 3650 * Ngay,
+                "Han giu nhat ky vong doi nhan (annotation_history): dong cu hon bi xoa, tru dong moi nhat cua moi nhan. 0 = khong bao gio xoa."));
+            ds.Add(Seconds(SettingKeys.AnnotationHistoryCleanupInterval, NhomKyThuat, 3600, 10, Ngay,
+                "Chu ky worker don annotation_history."));
+            ds.Add(Int(SettingKeys.WelfareMaxContinuousMinutes, NhomGanNhan, 45, 5, 480, "phut",
+                "Du an noi dung nhay cam (muc 2.9): lam lien tuc toi da bay nhieu phut thi bi ep nghi."));
+            ds.Add(Int(SettingKeys.WelfareBreakMinutes, NhomGanNhan, 10, 1, 240, "phut",
+                "Thoi gian nghi bat buoc sau mot phien lam du an nhay cam; nghi it hon so nay giua hai task thi tinh la lam lien tuc."));
             ds.Add(Int(SettingKeys.ProjectGoldCheckPercentDefault, NhomDuAn, 10, 0, 100, "%",
                 "Ti le cau vang kiem tra mac dinh cua du an moi tao."));
             ds.Add(Seconds(SettingKeys.ProjectClosedDataRetention, NhomDuAn, 90 * Ngay, 0, 3650 * Ngay,
@@ -363,6 +445,12 @@ namespace Crowd.BuildingBlocks.Settings
                 "Kich thuoc toi da mot anh nap qua manifest."));
             ds.Add(Int(SettingKeys.DatasetEventBatchSize, NhomKyThuat, 500, 1, 10000, "mau",
                 "So mau moi event dataset.ingested (chia lo khi nap nhieu)."));
+            ds.Add(Int(SettingKeys.DatasetImportMaxFiles, NhomDuLieu, 500, 1, 100000, "file",
+                "Nhap tu nguon ngoai (S3 / Google Drive / danh sach URL, FB-11): so file toi da moi lo."));
+            ds.Add(Long(SettingKeys.DatasetImportFileMaxBytes, NhomDuLieu, 500 * MB, MB, 10240 * MB, "byte",
+                "Nhap tu nguon ngoai: kich thuoc toi da moi file am thanh / video (anh theo dataset.image_max_bytes)."));
+            ds.Add(Seconds(SettingKeys.DatasetImportTimeout, NhomKyThuat, 120, 5, 3600,
+                "Nhap tu nguon ngoai: thoi gian toi da tai MOT file."));
             ds.Add(Seconds(SettingKeys.DatasetWorkerIdle, NhomKyThuat, 2, 0.1, 600, "Worker nap du lieu nghi bao lau khi het viec."));
             ds.Add(Int(SettingKeys.DatasetNameMaxLength, NhomDuLieu, 200, 10, 200, "ky tu", "Do dai ten lo du lieu (cot DB toi da 200)."));
             ds.Add(Int(SettingKeys.DatasetErrorSummaryMaxLength, NhomDuLieu, 4000, 100, 4000, "ky tu",
@@ -481,12 +569,28 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Long(SettingKeys.IdentityAvatarMaxBytes, NhomTaiKhoan, 2 * MB, 50 * 1024, 20 * MB, "byte", "Kich thuoc toi da anh dai dien."));
             ds.Add(Text(SettingKeys.IdentityLevelRules, NhomTaiKhoan, "2=50/50;3=200/65;4=1000/75;5=5000/85", 200,
                 "Dieu kien len cap: cap=so nhan duoc duyet/uy tin toi thieu, ngan cach bang ';'. Sai dinh dang thi dung mac dinh."));
+            ds.Add(Text(SettingKeys.IdentityTwoFactorIssuer, NhomTaiKhoan, "DATN Crowd", 50,
+                "Ten hien trong ung dung xac thuc (Google Authenticator...) khi nguoi dung bat 2FA (FC-04)."));
+            ds.Add(Seconds(SettingKeys.IdentityTwoFactorChallengeTtl, NhomTaiKhoan, 5 * 60, 60, 30 * 60,
+                "Dang nhap dung mat khau cua tai khoan bat 2FA: co bao lau de nhap ma 6 so."));
+            ds.Add(Int(SettingKeys.IdentityTwoFactorMaxAttempts, NhomTaiKhoan, 5, 1, 20, "lan",
+                "So lan nhap sai ma 2FA toi da cho MOT lan dang nhap; het luot phai dang nhap lai bang mat khau (chong do ma 6 so)."));
+            ds.Add(Int(SettingKeys.IdentityAdultAge, NhomTaiKhoan, 18, 16, 21, "tuoi",
+                "Tuoi toi thieu de xem du an noi dung nhay cam (muc 2.9, VD-P-04). Tinh tu ngay sinh tren giay to da duoc admin xac minh."));
 
             // ================= ADMIN =================
             ds.Add(Text(SettingKeys.AdminAuditExcludedTypes, NhomKyThuat, AuditLoaiTruMacDinh, 1000,
                 "Loai event KHONG luu chi tiet vao nhat ky audit (tan suat cao, do he thong / luong gan nhan sinh ra — van duoc DEM cho bao cao tong quan), ngan cach bang dau phay."));
             ds.Add(Int(SettingKeys.AdminAuditRetentionDays, NhomKyThuat, 365, 7, 3650, "ngay",
                 "Giu nhat ky audit bao nhieu ngay."));
+            ds.Add(Int(SettingKeys.OpsDlqAlertThreshold, NhomKyThuat, 1, 1, 1000000, "message",
+                "Mot hang doi DLQ co tu bay nhieu message tro len thi canh bao (message vao DLQ = tien / trang thai co the dang dung)."));
+            ds.Add(Seconds(SettingKeys.OpsDlqCheckInterval, NhomKyThuat, 60, 10, 3600,
+                "Chu ky admin-svc doc do sau cac DLQ qua RabbitMQ management API."));
+            ds.Add(Seconds(SettingKeys.OpsAlertRepeat, NhomKyThuat, 3600, 60, 86400,
+                "DLQ van con message sau khoang nay thi canh bao lai (tranh spam moi chu ky)."));
+            ds.Add(Text(SettingKeys.OpsAlertEmail, NhomKyThuat, "", 200,
+                "Email nhan canh bao van hanh (DLQ). Trong = chi ghi log va hien tren man hinh admin."));
 
             // ================= MEDIA (bao ve du lieu) =================
             ds.Add(Bool(SettingKeys.MediaWatermarkEnabled, NhomBaoVeDuLieu, true,
@@ -509,6 +613,12 @@ namespace Crowd.BuildingBlocks.Settings
                 "Dia chi nguoi gui email thong bao."));
             ds.Add(Seconds(SettingKeys.NotificationEmailInterval, NhomKyThuat, 5, 1, 3600, "Chu ky worker gui email thong bao."));
             ds.Add(Int(SettingKeys.NotificationEmailBatchSize, NhomKyThuat, 50, 1, 1000, "email", "So email moi lo gui."));
+            ds.Add(Int(SettingKeys.NotificationRetentionDays, NhomThongBao, 180, 7, 3650, "ngay",
+                "Giu thong bao / email giao dich bao nhieu ngay (dong con email cho gui khong bi xoa)."));
+            ds.Add(Seconds(SettingKeys.NotificationCleanupInterval, NhomKyThuat, 3600, 60, 86400,
+                "Chu ky job xoa thong bao qua han giu va ve realtime het han."));
+            ds.Add(Seconds(SettingKeys.NotificationRealtimeTicketTtl, NhomKyThuat, 30, 5, 300,
+                "Ve mo WebSocket thong bao realtime song bao lau (dung mot lan)."));
             ds.Add(Int(SettingKeys.NotificationEmailMaxAttempts, NhomKyThuat, 5, 1, 50, "lan",
                 "Gui email loi bao nhieu lan thi bo (thong bao trong ung dung van con)."));
 
@@ -534,6 +644,8 @@ namespace Crowd.BuildingBlocks.Settings
 
             // ================= CONG LINK (P2) =================
             ds.Add(Bool(SettingKeys.GateEnabled, NhomCongLink, true, "Tat = trang vuot link chi chuyen thang toi dich, khong phat cau hoi, khong tra tien sharer."));
+            ds.Add(Text(SettingKeys.GateAllowedTools, NhomCongLink, "classification,pairwise,number,bbox,keypoint,span", 200,
+                "Loai cong cu khach vang lai lam duoc o trang vuot link (vai giay, khong uy tin). Du an bat cong link ma co cong cu ngoai danh sach thi KHONG publish duoc."));
             ds.Add(Seconds(SettingKeys.GateCountdown, NhomCongLink, 8, 0, 120, "Dem nguoc toi thieu truoc khi khach nop bai (server kiem, khong chi la giao dien)."));
             ds.Add(Int(SettingKeys.GateGoldPerSession, NhomCongLink, 1, 1, 5, "cau", "So cau vang (da biet dap an) moi luot vuot link."));
             ds.Add(Int(SettingKeys.GateRealPerSession, NhomCongLink, 2, 1, 10, "cau", "So cau that (can thu thap nhan) moi luot vuot link."));
@@ -551,6 +663,10 @@ namespace Crowd.BuildingBlocks.Settings
                 "Link bi bao cao tu bay nhieu IP khac nhau thi vao hang doi kiem duyet."));
             ds.Add(Seconds(SettingKeys.LinkScanInterval, NhomKyThuat, 2, 1, 3600, "Worker quet link cho kiem duyet (Safe Browsing) sau moi khoang nay."));
             ds.Add(Int(SettingKeys.LinkReferralPercent, NhomCongLink, 10, 0, 50, "%", "Nguoi gioi thieu huong phan tram nay tren doanh thu cong link cua nguoi duoc moi (FS-08). Lay tu phan cua nen tang."));
+            ds.Add(Int(SettingKeys.LinkReferralMaxPerIp, NhomCongLink, 2, 1, 1000, "tai khoan",
+                "Mot nguoi gioi thieu da co bay nhieu nguoi nhap ma tu CUNG mot IP trong 24 gio thi nguoi tiep theo bi danh dau nghi lam dung (chua tinh hoa hong, cho admin xet)."));
+            ds.Add(Int(SettingKeys.LinkReferralBurstPerHour, NhomCongLink, 10, 1, 100000, "tai khoan",
+                "Mot nguoi gioi thieu da co bay nhieu nguoi nhap ma trong 1 gio thi nguoi tiep theo bi danh dau nghi lam dung (dot bien)."));
             ds.Add(Long(SettingKeys.LinkReferralMinEarningsVnd, NhomCongLink, 50000, 0, 1e12, "dong",
                 "Chi tra hoa hong sau khi nguoi duoc moi da tu kiem duoc tong bay nhieu (chong tai khoan clone tu moi nhau — VD-L-05)."));
             ds.Add(Seconds(SettingKeys.LinkReferralClaimWindow, NhomCongLink, 7 * Ngay, 0, 365 * Ngay,

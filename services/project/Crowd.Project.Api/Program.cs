@@ -6,6 +6,7 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
 using Crowd.Project.Api.Consumers;
 using Crowd.Project.Api.Exceptions;
@@ -14,6 +15,7 @@ using Crowd.Project.Api.Seeding;
 using Crowd.Project.Api.Services;
 using Crowd.Project.Api.Settings;
 using Crowd.Project.Api.Workers;
+using Crowd.Project.Infrastructure.Import;
 using Crowd.Project.Infrastructure.Media;
 using Crowd.Project.Infrastructure.Persistence;
 using Crowd.Seeding;
@@ -44,6 +46,10 @@ builder.Services.AddEventConsumer<ProjectDbContext, EscrowReserved, EscrowReserv
     builder.Configuration, "project-svc.escrow-reserved");
 builder.Services.AddEventConsumer<ProjectDbContext, EscrowRejected, EscrowRejectedProcessor>(
     builder.Configuration, "project-svc.escrow-rejected");
+
+// Email vua xac thuc → nhan loi moi cho gui toi email do.
+builder.Services.AddEventConsumer<ProjectDbContext, UserEmailVerified, UserEmailVerifiedProcessor>(
+    builder.Configuration, "project-svc.user-email-verified");
 // ---- Kho anh MinIO ----
 builder.Services.Configure<ObjectStorageOptions>(builder.Configuration.GetSection(ObjectStorageOptions.SectionName));
 builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
@@ -58,12 +64,28 @@ builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<MemberService>();
 builder.Services.AddScoped<InviteCodeService>();
 builder.Services.AddScoped<JoinRequestService>();
+
+// Bao ve (muc 2.9, FP-01, FP-05), loi moi cho, quan he doanh nghiep - labeler (FB-23), goi y du an (FL-02).
+builder.Services.AddScoped<BaoVeService>();
+builder.Services.AddScoped<InvitationService>();
+builder.Services.AddScoped<QuanHeLabelerService>();
+builder.Services.AddScoped<GoiYService>();
+builder.Services.AddHostedService<DonDepThanhVienWorker>();
 builder.Services.AddScoped<DatasetService>();
 builder.Services.AddScoped<GioiHanZipFilter>();
 builder.Services.AddScoped<UploadService>();
 builder.Services.Configure<MediaOptions>(builder.Configuration.GetSection(MediaOptions.SectionName));
 builder.Services.AddSingleton<IMediaProbe, FfprobeMediaProbe>();
 builder.Services.AddScoped<DatasetIngestor>();
+
+// Nhap tu nguon ngoai (FB-11): HttpClient rieng di qua cua chong SSRF (ChanSsrf), bi mat S3 ma hoa tam.
+builder.Services.Configure<NhapNgoaiOptions>(builder.Configuration.GetSection(NhapNgoaiOptions.SectionName));
+NhapNgoaiOptions nhapNgoai = new NhapNgoaiOptions();
+builder.Configuration.GetSection(NhapNgoaiOptions.SectionName).Bind(nhapNgoai);
+builder.Services.AddHttpClient(NhapNguonNgoaiService.TenHttpClient)
+    .ConfigurePrimaryHttpMessageHandler(() => ChanSsrf.TaoHandler(nhapNgoai.AllowedPrivateHosts));
+builder.Services.AddSingleton<BiMatNguon>();
+builder.Services.AddScoped<NhapNguonNgoaiService>();
 builder.Services.AddHostedService<DatasetIngestWorker>();
 builder.Services.AddScoped<GoldSetService>();
 builder.Services.AddScoped<EntranceTestService>();

@@ -135,7 +135,9 @@ namespace Crowd.Ledger.Api.Services
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
             await _writer.GhiAsync(Postings.DatKyQuy(p.ProjectId, p.OwnerId, p.EscrowAmountVnd, bayGio), ct);
-            _db.Escrows.Add(ProjectEscrow.Tao(p.ProjectId, p.OwnerId, p.EscrowAmountVnd, bayGio));
+            ProjectEscrow kyQuy = ProjectEscrow.Tao(p.ProjectId, p.OwnerId, p.EscrowAmountVnd, bayGio);
+            kyQuy.DatTen(p.ProjectName);
+            _db.Escrows.Add(kyQuy);
 
             _events.Phat(caller, new EscrowReserved { ProjectId = p.ProjectId, AmountVnd = p.EscrowAmountVnd });
         }

@@ -119,6 +119,11 @@ namespace Crowd.Payment.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("business_id");
 
+                    b.Property<string>("CheckoutUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("checkout_url");
+
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("completed_at");
@@ -127,11 +132,20 @@ namespace Crowd.Payment.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("failure_code");
+
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("idempotency_key");
+
+                    b.Property<DateTimeOffset?>("LastCheckedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_checked_at");
 
                     b.Property<string>("Provider")
                         .IsRequired()
@@ -176,10 +190,6 @@ namespace Crowd.Payment.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("ix_intents_cho_duyet")
-                        .HasFilter("status = 'AwaitingApproval'");
-
                     b.HasIndex("TransferCode")
                         .IsUnique()
                         .HasDatabaseName("ux_intents_transfer_code")
@@ -193,6 +203,12 @@ namespace Crowd.Payment.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_intents_provider_txn")
                         .HasFilter("provider_txn_id IS NOT NULL");
+
+                    b.HasIndex(new[] { "CreatedAt" }, "ix_intents_cho_duyet")
+                        .HasFilter("status = 'AwaitingApproval'");
+
+                    b.HasIndex(new[] { "CreatedAt" }, "ix_intents_doi_soat")
+                        .HasFilter("status = 'Pending' AND provider <> 'manual_transfer'");
 
                     b.ToTable("payment_intents", (string)null);
                 });

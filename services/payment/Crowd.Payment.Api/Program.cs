@@ -1,11 +1,13 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Contracts.Ledger;
 using Crowd.Payment.Api.Consumers;
+using Crowd.Payment.Api.Controllers;
 using Crowd.Payment.Api.Exceptions;
 using Crowd.Payment.Api.Seeding;
 using Crowd.Payment.Api.Services;
@@ -15,6 +17,7 @@ using Crowd.Payment.Infrastructure.Providers;
 using Crowd.Seeding;
 using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,16 +38,51 @@ builder.Services.AddCrowdSettings<PaymentDbContext>(cfg, "payment-svc");
 builder.Services.AddOutbox<PaymentDbContext>(cfg);
 builder.Services.AddEventConsumer<PaymentDbContext, PayoutRequested, PayoutRequestedProcessor>(cfg, "payment-svc.payout-requested");
 
-// ---- Cong thanh toan: doi sang VNPay chi can dang ky adapter khac o day ----
+// ---- Cong thanh toan ----
+// Sandbox: vua la cong NAP gia lap vua la cong CHI tien ra (lenh rut).
 builder.Services.Configure<SandboxOptions>(cfg.GetSection(SandboxOptions.SectionName));
-builder.Services.AddSingleton<IPaymentProvider, SandboxPaymentProvider>();
+builder.Services.AddSingleton<SandboxPaymentProvider>();
+builder.Services.AddSingleton<IPaymentProvider>(sp => sp.GetRequiredService<SandboxPaymentProvider>());
+builder.Services.AddSingleton<ICongNap>(sp => sp.GetRequiredService<SandboxPaymentProvider>());
+
+// VNPay / MoMo (FB-03): chi dang ky khi CO DU khoa (bien moi truong / appsettings). Thieu khoa thi
+// cong do khong xuat hien trong GET /payments/deposits/providers.
+builder.Services.Configure<VnPayOptions>(cfg.GetSection(VnPayOptions.SectionName));
+builder.Services.Configure<MoMoOptions>(cfg.GetSection(MoMoOptions.SectionName));
+VnPayOptions vnpay = new VnPayOptions();
+cfg.GetSection(VnPayOptions.SectionName).Bind(vnpay);
+if (vnpay.DuCauHinh)
+{
+    builder.Services.AddHttpClient<VnPayProvider>(c => c.Timeout = TimeSpan.FromSeconds(15));
+    builder.Services.AddTransient<ICongNap>(sp => sp.GetRequiredService<VnPayProvider>());
+}
+
+MoMoOptions momo = new MoMoOptions();
+cfg.GetSection(MoMoOptions.SectionName).Bind(momo);
+if (momo.DuCauHinh)
+{
+    builder.Services.AddHttpClient<MoMoProvider>(c => c.Timeout = TimeSpan.FromSeconds(15));
+    builder.Services.AddTransient<ICongNap>(sp => sp.GetRequiredService<MoMoProvider>());
+}
+
+builder.Services.AddScoped<DanhBaCongNap>();
+
+// Cong gia lap VNPay / MoMo (chi Development — xem CongGiaLapController).
+builder.Services.AddSingleton<KhoCongGiaLap>();
+builder.Services.AddHttpClient();
 
 builder.Services.AddScoped<PaymentEventPublisher>();
 builder.Services.AddScoped<DepositService>();
 builder.Services.AddHostedService<PayoutWorker>();
+
+// Doi soat lenh nap qua cong con treo — IPN bi lac / den tre (VD-M-09).
+builder.Services.AddHostedService<DepositReconcileWorker>();
 builder.Services.AddScoped<PaymentSeeder>();
 
 builder.Services.AddCrowdJwtAuthentication(cfg);
+
+// IP that cua doanh nghiep tu X-Forwarded-For cua gateway (VNPay bat buoc vnp_IpAddr).
+builder.Services.Configure<ForwardedHeadersOptions>(o => ProxyTinCay.CauHinh(o, cfg));
 builder.Services
     .AddControllers()
     .AddJsonOptions(options =>
@@ -69,6 +107,7 @@ using (IServiceScope scope = app.Services.CreateScope())
     }
 }
 
+app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();

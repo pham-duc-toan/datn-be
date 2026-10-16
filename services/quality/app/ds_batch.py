@@ -1,11 +1,12 @@
-"""Dawid-Skene + Krippendorff alpha chay THEO LO (docs 3.7), khong trong request.
+"""Dawid-Skene + chi so do tin cay chay THEO LO (docs 3.7), khong trong request.
 
-Moi lo, moi du an, moi cong cu chon MOT gia tri roi rac (classification mot lop,
-pairwise): dung crowd-kit uoc luong
-  - ma tran nham lan tung labeler → do tin cay = trung binh P(chon dung | dap an that);
-  - Krippendorff alpha ca du an — muc dong thuan da tru phan trung hop ngau nhien.
+Moi lo, moi du an co nhan moi:
+  - MOI cong cu do duoc (tru freeText): Krippendorff alpha voi ham khoang cach theo loai du lieu
+    (chi_so.py), Fleiss' kappa cho cong cu chon mot gia tri, STAPLE (do nhay / dac hieu) cho mat na;
+  - cong cu chon MOT gia tri roi rac (classification mot lop, pairwise): them crowd-kit Dawid-Skene —
+    ma tran nham lan tung labeler → do tin cay = trung binh P(chon dung | dap an that).
 Labeler co it hon setting quality.ds_min_labels nhan trong du an thi chua tin uoc
-luong cua ho (VD-Q-07). Xong thi tinh lai uy tin cho labeler bi anh huong.
+luong DS cua ho (VD-Q-07). Xong thi tinh lai uy tin cho labeler bi anh huong (STAPLE KHONG vao uy tin).
 """
 
 import asyncio
@@ -18,7 +19,7 @@ from typing import Any
 import pandas as pd
 from sqlalchemy import text
 
-from app import settings_store
+from app import chi_so, settings_store
 from app.db import session_factory
 from app.processors import cap_nhat_uy_tin
 
@@ -47,23 +48,15 @@ def cong_cu_dung_duoc(label_schema: dict[str, Any]) -> list[dict[str, Any]]:
     return ra
 
 
-def uoc_luong(df: pd.DataFrame, min_nhan: int) -> tuple[dict[str, tuple[float, int]], float | None]:
-    """df(task, worker, label) → ({worker: (do_tin_cay, so_nhan)}, alpha). Chay trong thread."""
+def uoc_luong(df: pd.DataFrame, min_nhan: int) -> dict[str, tuple[float, int]]:
+    """df(task, worker, label) → {worker: (do_tin_cay, so_nhan)}. Chay trong thread."""
     from crowdkit.aggregation import DawidSkene
-    from crowdkit.metrics.data import alpha_krippendorff
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        alpha: float | None = None
-        if df["task"].nunique() >= 2 and df["worker"].nunique() >= 2:
-            try:
-                alpha = float(alpha_krippendorff(df))
-            except Exception:  # noqa: BLE001 — du lieu suy bien (mot gia tri duy nhat...)
-                alpha = None
-
         so_nhan = df.groupby("worker").size()
         if df["worker"].nunique() < 2 or df["label"].nunique() < 2:
-            return {}, alpha
+            return {}
 
         ds = DawidSkene(n_iter=100).fit(df)
         loi = ds.errors_  # index (worker, nhan quan sat), cot = nhan that; gia tri P(quan sat | that)
@@ -78,7 +71,19 @@ def uoc_luong(df: pd.DataFrame, min_nhan: int) -> tuple[dict[str, tuple[float, i
                 diem.append(float(loi.loc[(w, that), that]))
         if diem:
             ky_nang[str(w)] = (sum(diem) / len(diem), int(n))
-    return ky_nang, alpha
+    return ky_nang
+
+
+def _moi_nguoi_mot_dong(nhan: list) -> list:
+    """Moi (mau, labeler) giu nhan NHAN SAU CUNG (labeler lam lai sau khi bi tu choi)."""
+    cuoi: dict[tuple, Any] = {}
+    for n in nhan:
+        cuoi[(n.sample_id, n.labeler_id)] = n
+    return list(cuoi.values())
+
+
+def _json(v: Any) -> Any:
+    return json.loads(v) if isinstance(v, str) else v
 
 
 # Du an can tinh: so nhan hien tai khac so nhan da dung o lan tinh truoc (ds_state). tat_ca = bo qua dieu
@@ -99,42 +104,58 @@ async def chay_mot_lo(tat_ca: bool = False) -> int:
         du_an = (await s.execute(_SQL_DU_AN_CAN_TINH, {"tat_ca": tat_ca})).all()
 
     for d in du_an:
-        schema = d.label_schema if isinstance(d.label_schema, dict) else json.loads(d.label_schema)
-        cong_cu = cong_cu_dung_duoc(schema)
-        if not cong_cu:
-            continue
+        schema = _json(d.label_schema)
+        ds_ten = {t["name"] for t in cong_cu_dung_duoc(schema)}
 
         async with session_factory()() as s:
             nhan = (await s.execute(
-                text("SELECT sample_id, labeler_id, data FROM labels WHERE project_id = :p AND labeler_id IS NOT NULL"),
+                text("SELECT sample_id, labeler_id, data, sample_metadata FROM labels "
+                     "WHERE project_id = :p AND labeler_id IS NOT NULL ORDER BY received_at, annotation_id"),
                 {"p": d.project_id})).all()
         if not nhan:
             continue
+        du_lieu = [(n, _json(n.data), _json(n.sample_metadata)) for n in _moi_nguoi_mot_dong(nhan)]
+        nguong = settings_store.nguong_gop()
 
         anh_huong: set[uuid.UUID] = set()
-        for t in cong_cu:
-            dong = []
-            for n in nhan:
-                data = n.data if isinstance(n.data, dict) else json.loads(n.data)
-                v = gia_tri_roi_rac(t["kind"], data.get(t["name"]))
-                if v is not None:
-                    dong.append((str(n.sample_id), str(n.labeler_id), v))
-            if not dong:
+        for t in schema.get("tools", []):
+            vao = [(str(n.sample_id), str(n.labeler_id), data.get(t["name"]), md or None) for n, data, md in du_lieu]
+            chi = await asyncio.to_thread(chi_so.tinh_cho_cong_cu, t, vao, nguong)
+            if chi is None:
                 continue
 
-            df = pd.DataFrame(dong, columns=["task", "worker", "label"])
-            ky_nang, alpha = await asyncio.to_thread(uoc_luong, df, settings_store.so_nguyen(settings_store.DS_MIN_LABELS))
+            ky_nang: dict[str, tuple[float, int]] = {}
+            if t["name"] in ds_ten:
+                dong = []
+                for sample_id, labeler_id, ket_qua, _md in vao:
+                    v = gia_tri_roi_rac(t["kind"], ket_qua)
+                    if v is not None:
+                        dong.append((sample_id, labeler_id, v))
+                if dong:
+                    df = pd.DataFrame(dong, columns=["task", "worker", "label"])
+                    ky_nang = await asyncio.to_thread(uoc_luong, df, settings_store.so_nguyen(settings_store.DS_MIN_LABELS))
 
             async with session_factory()() as s, s.begin():
                 await s.execute(
                     text(
-                        "INSERT INTO project_metrics (project_id, tool, alpha, item_count, label_count, computed_at) "
-                        "VALUES (:p, :t, :a, :i, :n, now()) ON CONFLICT (project_id, tool) DO UPDATE SET "
-                        "alpha = EXCLUDED.alpha, item_count = EXCLUDED.item_count, label_count = EXCLUDED.label_count, "
-                        "computed_at = EXCLUDED.computed_at"
+                        "INSERT INTO project_metrics (project_id, tool, alpha, kappa, metric, item_count, label_count, computed_at) "
+                        "VALUES (:p, :t, :a, :k, :m, :i, :n, now()) ON CONFLICT (project_id, tool) DO UPDATE SET "
+                        "alpha = EXCLUDED.alpha, kappa = EXCLUDED.kappa, metric = EXCLUDED.metric, "
+                        "item_count = EXCLUDED.item_count, label_count = EXCLUDED.label_count, computed_at = EXCLUDED.computed_at"
                     ),
-                    {"p": d.project_id, "t": t["name"], "a": alpha, "i": int(df["task"].nunique()), "n": len(df)},
+                    {"p": d.project_id, "t": t["name"], "a": chi["alpha"], "k": chi["kappa"], "m": chi["metric"],
+                     "i": chi["item_count"], "n": chi["label_count"]},
                 )
+                for w, (nhay, dac_hieu, so_mau) in chi["staple"].items():
+                    await s.execute(
+                        text(
+                            "INSERT INTO staple_skills (labeler_id, project_id, tool, sensitivity, specificity, sample_count, computed_at) "
+                            "VALUES (:l, :p, :t, :se, :sp, :n, now()) ON CONFLICT (labeler_id, project_id, tool) DO UPDATE SET "
+                            "sensitivity = EXCLUDED.sensitivity, specificity = EXCLUDED.specificity, "
+                            "sample_count = EXCLUDED.sample_count, computed_at = EXCLUDED.computed_at"
+                        ),
+                        {"l": uuid.UUID(w), "p": d.project_id, "t": t["name"], "se": nhay, "sp": dac_hieu, "n": so_mau},
+                    )
                 for w, (skill, n) in ky_nang.items():
                     await s.execute(
                         text(

@@ -34,6 +34,7 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
             builder.Property(x => x.JoinedAt).HasColumnName("joined_at").IsRequired();
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            builder.Property(x => x.BlockedByOwnerList).HasColumnName("blocked_by_owner_list").IsRequired().HasDefaultValue(false);
 
             builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
 
@@ -128,6 +129,8 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             }
 
             builder.ToTable("datasets");
+            builder.Property(x => x.ImportSource).HasColumnName("import_source").HasMaxLength(20);
+            builder.Property(x => x.ImportSpec).HasColumnName("import_spec").HasColumnType("jsonb");
 
             builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
             builder.HasKey(x => x.Id);
@@ -255,6 +258,114 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
 
             builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             builder.HasIndex(x => new { x.ProjectId, x.UserId }).HasDatabaseName("ix_entrance_attempts_project_user");
+        }
+    }
+
+    /// <summary>Dong y canh bao / chu ky NDA (muc 2.9, FP-01).</summary>
+    public sealed class ProjectConsentConfiguration : IEntityTypeConfiguration<ProjectConsent>
+    {
+        public void Configure(EntityTypeBuilder<ProjectConsent> builder)
+        {
+            if (builder == null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
+            builder.ToTable("project_consents");
+            builder.Property(x => x.ProjectId).HasColumnName("project_id");
+            builder.Property(x => x.UserId).HasColumnName("user_id");
+            builder.HasKey(x => new { x.ProjectId, x.UserId });
+            builder.Property(x => x.ContentWarningAcceptedAt).HasColumnName("content_warning_accepted_at");
+            builder.Property(x => x.NdaVersion).HasColumnName("nda_version");
+            builder.Property(x => x.NdaTextHash).HasColumnName("nda_text_hash").HasMaxLength(64);
+            builder.Property(x => x.NdaSignedName).HasColumnName("nda_signed_name").HasMaxLength(ProjectConsent.DoDaiTenToiDa);
+            builder.Property(x => x.NdaSignedAt).HasColumnName("nda_signed_at");
+            builder.Property(x => x.Ip).HasColumnName("ip").HasMaxLength(64);
+            builder.Property(x => x.UserAgent).HasColumnName("user_agent").HasMaxLength(300);
+            builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        }
+    }
+
+    /// <summary>Loi moi cho (email chua co tai khoan / du an can dong y rieng).</summary>
+    public sealed class ProjectInvitationConfiguration : IEntityTypeConfiguration<ProjectInvitation>
+    {
+        public void Configure(EntityTypeBuilder<ProjectInvitation> builder)
+        {
+            if (builder == null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
+            builder.ToTable("project_invitations");
+            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            builder.HasKey(x => x.Id);
+            builder.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
+            builder.Property(x => x.Email).HasColumnName("email").HasMaxLength(320).IsRequired();
+            builder.Property(x => x.UserId).HasColumnName("user_id");
+            builder.Property(x => x.Role).HasColumnName("role").HasConversion<string>().HasMaxLength(20).IsRequired();
+            builder.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
+            builder.Property(x => x.InvitedBy).HasColumnName("invited_by").IsRequired();
+            builder.Property(x => x.ByEmail).HasColumnName("by_email").IsRequired();
+            builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.ExpiresAt).HasColumnName("expires_at").IsRequired();
+            builder.Property(x => x.DecidedAt).HasColumnName("decided_at");
+            builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+
+            // Moi (du an, email, cach moi) mot loi moi dang cho. Tach theo cach moi (VD-S-16): loi moi theo email
+            // va theo userId cua cung mot nguoi la hai dong — gop lai thi trung invitationId lo email ↔ tai khoan.
+            builder.HasIndex(x => new { x.ProjectId, x.Email, x.ByEmail }).IsUnique().HasFilter("status = 'Pending'").HasDatabaseName("ux_project_invitations_cho");
+            builder.HasIndex(x => x.Email).HasFilter("status = 'Pending'").HasDatabaseName("ix_project_invitations_email");
+            builder.HasIndex(x => x.UserId).HasFilter("status = 'Pending'").HasDatabaseName("ix_project_invitations_user");
+            builder.HasIndex(x => x.ExpiresAt).HasFilter("status = 'Pending'").HasDatabaseName("ix_project_invitations_het_han");
+            // Han muc loi moi email moi nguoi / 24 gio (VD-S-16).
+            builder.HasIndex(x => new { x.InvitedBy, x.CreatedAt }).HasFilter("by_email").HasDatabaseName("ix_project_invitations_han_muc");
+        }
+    }
+
+    /// <summary>Danh sach uu tien / chan cua doanh nghiep (FB-23).</summary>
+    public sealed class OwnerLabelerEntryConfiguration : IEntityTypeConfiguration<OwnerLabelerEntry>
+    {
+        public void Configure(EntityTypeBuilder<OwnerLabelerEntry> builder)
+        {
+            if (builder == null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
+            builder.ToTable("owner_labeler_lists");
+            builder.Property(x => x.OwnerId).HasColumnName("owner_id");
+            builder.Property(x => x.LabelerId).HasColumnName("labeler_id");
+            builder.HasKey(x => new { x.OwnerId, x.LabelerId });
+            builder.Property(x => x.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(20).IsRequired();
+            builder.Property(x => x.Note).HasColumnName("note").HasMaxLength(OwnerLabelerEntry.DoDaiGhiChuToiDa);
+            builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+        }
+    }
+
+    /// <summary>Danh gia labeler theo du an (FB-23).</summary>
+    public sealed class LabelerRatingConfiguration : IEntityTypeConfiguration<LabelerRating>
+    {
+        public void Configure(EntityTypeBuilder<LabelerRating> builder)
+        {
+            if (builder == null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
+            builder.ToTable("labeler_ratings");
+            builder.Property(x => x.ProjectId).HasColumnName("project_id");
+            builder.Property(x => x.LabelerId).HasColumnName("labeler_id");
+            builder.HasKey(x => new { x.ProjectId, x.LabelerId });
+            builder.Property(x => x.OwnerId).HasColumnName("owner_id").IsRequired();
+            builder.Property(x => x.Stars).HasColumnName("stars").IsRequired();
+            builder.Property(x => x.Comment).HasColumnName("comment").HasMaxLength(LabelerRating.DoDaiNhanXetToiDa);
+            builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            builder.ToTable(t => t.HasCheckConstraint("ck_labeler_ratings_sao", "stars BETWEEN 1 AND 5"));
+            builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasIndex(x => x.LabelerId).HasDatabaseName("ix_labeler_ratings_labeler");
         }
     }
 }

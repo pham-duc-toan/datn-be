@@ -76,11 +76,23 @@ builder.Services.AddEventConsumer<NotificationDbContext, SystemAnnouncement, Sys
 builder.Services.AddEventConsumer<NotificationDbContext, MemberAdded, MemberAddedProcessor>(cfg, "notification-svc.member-added");
 builder.Services.AddEventConsumer<NotificationDbContext, JoinRequestSubmitted, JoinRequestSubmittedProcessor>(cfg, "notification-svc.join-request-submitted");
 builder.Services.AddEventConsumer<NotificationDbContext, JoinRequestDecided, JoinRequestDecidedProcessor>(cfg, "notification-svc.join-request-decided");
+// Bao mat tai khoan, xac minh danh tinh, loi moi du an, canh bao van hanh.
+builder.Services.AddEventConsumer<NotificationDbContext, UserTwoFactorChanged, TwoFactorChangedProcessor>(cfg, "notification-svc.two-factor-changed");
+builder.Services.AddEventConsumer<NotificationDbContext, IdentityVerificationSubmitted, IdentityVerificationSubmittedProcessor>(cfg, "notification-svc.identity-verification-submitted");
+builder.Services.AddEventConsumer<NotificationDbContext, UserIdentityVerified, IdentityVerifiedProcessor>(cfg, "notification-svc.identity-verified");
+builder.Services.AddEventConsumer<NotificationDbContext, UserIdentityRejected, IdentityRejectedProcessor>(cfg, "notification-svc.identity-rejected");
+builder.Services.AddEventConsumer<NotificationDbContext, ProjectInvitationCreated, InvitationCreatedProcessor>(cfg, "notification-svc.invitation-created");
+builder.Services.AddEventConsumer<NotificationDbContext, OpsDlqAlert, OpsDlqAlertProcessor>(cfg, "notification-svc.ops-dlq-alert");
 
 // ---- Gui email ----
 builder.Services.Configure<SmtpOptions>(cfg.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IGuiEmail, SmtpGuiEmail>();
 builder.Services.AddHostedService<EmailWorker>();
+
+// Realtime (WebSocket + LISTEN/NOTIFY), han giu thong bao.
+builder.Services.AddSingleton<RealtimeHub>();
+builder.Services.AddHostedService<RealtimeListener>();
+builder.Services.AddHostedService<RetentionWorker>();
 
 builder.Services.AddScoped<ThongBaoWriter>();
 builder.Services.AddScoped<ThongBaoService>();
@@ -105,6 +117,7 @@ using (IServiceScope scope = app.Services.CreateScope())
 }
 
 app.UseExceptionHandler();
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

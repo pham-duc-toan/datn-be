@@ -105,11 +105,20 @@ namespace Crowd.Identity.Api.Controllers
                 .Where(t => tim.Contains(t.UserId))
                 .ToDictionaryAsync(t => t.UserId, ct);
 
+            // Xac minh danh tinh / du tuoi (FP-05, muc 2.9): project kiem khi moi vao du an rieng tu / nhay cam.
+            Dictionary<Guid, XacMinhDanhTinh> xacMinh = await _db.XacMinhDanhTinhs.AsNoTracking()
+                .Where(x => tim.Contains(x.UserId) && x.Status == KybStatus.Verified)
+                .ToDictionaryAsync(x => x.UserId, ct);
+            int tuoi = _settings.SoNguyen(SettingKeys.IdentityAdultAge);
+            DateOnly homNay = Crowd.Identity.Api.Services.XacMinhDanhTinhService.HomNayVietNam(_clock.GetUtcNow());
+
             List<UserLookupDto> ds = new List<UserLookupDto>();
             foreach (Crowd.Identity.Api.Entities.User u in users)
             {
                 ThongKeLabeler? tk;
                 thongKe.TryGetValue(u.Id, out tk);
+                XacMinhDanhTinh? xm;
+                xacMinh.TryGetValue(u.Id, out xm);
                 ds.Add(new UserLookupDto
                 {
                     UserId = u.Id,
@@ -119,10 +128,40 @@ namespace Crowd.Identity.Api.Controllers
                     Locked = u.Status == UserStatus.Blocked,
                     Level = tk == null ? 1 : tk.Level,
                     Reputation = tk == null ? null : tk.Reputation,
+                    IdentityVerified = xm != null,
+                    Adult = xm != null && xm.DuTuoi(tuoi, homNay),
+                    Domains = u.Domains,
+                    Languages = u.Languages,
+                    Modalities = u.Modalities,
                 });
             }
 
             return Ok(ds);
+        }
+
+        /// <summary>
+        /// GET /internal/businesses/{id} — ho so doanh nghiep (KYB) de ledger in len hoa don VAT (FB-05).
+        /// Hoi CHU du lieu dung luc xuat hoa don va CHUP vao hoa don (doi ten sau nay khong sua hoa don cu).
+        /// </summary>
+        [HttpGet("businesses/{businessId:guid}")]
+        public async Task<IActionResult> DoanhNghiep(Guid businessId, CancellationToken ct)
+        {
+            BusinessProfile? p = await _db.BusinessProfiles.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == businessId, ct);
+            Crowd.Identity.Api.Entities.User? u = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == businessId, ct);
+            if (p == null || u == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(new BusinessInternalDto
+            {
+                BusinessId = p.UserId,
+                Status = Crowd.Identity.Api.Services.KybService.TenTrangThai(p.Status),
+                CompanyName = p.CompanyName,
+                TaxCode = p.TaxCode,
+                Address = p.Address,
+                Email = u.Email,
+            });
         }
 
         /// <summary>Tran so id + email moi lan tra cuu (project-svc chia lo theo setting moi nhieu nguoi).</summary>

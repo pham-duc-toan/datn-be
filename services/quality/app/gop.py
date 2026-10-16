@@ -132,6 +132,27 @@ def iou_hop(x1, y1, w1, h1, x2, y2, w2, h2) -> float:
     return 0.0 if hop <= 0 else giao / hop
 
 
+def dinh_khung_xoay(x, y, w, h, goc) -> list[list[float]]:
+    """Bon dinh khung xoay goc (do) quanh tam: tren-trai → tren-phai → duoi-phai → duoi-trai (BboxTool.Dinh)."""
+    cx, cy = x + (w / 2), y + (h / 2)
+    rad = goc * math.pi / 180
+    c, s = math.cos(rad), math.sin(rad)
+    return [[cx + (dx * c) - (dy * s), cy + (dx * s) + (dy * c)]
+            for dx, dy in ((-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2))]
+
+
+def iou_khung(a: dict, b: dict) -> float:
+    """IoU hai khung; co khung xoay thi IoU da giac bon dinh (BboxTool.DoGiongDaPhanTich)."""
+    ga, gb = a.get("angle", 0) or 0, b.get("angle", 0) or 0
+    if abs(ga) <= 1e-9 and abs(gb) <= 1e-9:
+        return iou_hop(a["x"], a["y"], a["w"], a["h"], b["x"], b["y"], b["w"], b["h"])
+    d1 = dinh_khung_xoay(a["x"], a["y"], a["w"], a["h"], ga)
+    d2 = dinh_khung_xoay(b["x"], b["y"], b["w"], b["h"], gb)
+    if not hinh_bao_giao_nhau(d1, d2):
+        return 0.0
+    return iou_da_giac(d1, d2)
+
+
 def iou_doan(a1, b1, a2, b2) -> float:
     giao = max(0, min(b1, b2) - max(a1, a2))
     hop = (b1 - a1) + (b2 - a2) - giao
@@ -357,16 +378,20 @@ def rle_da_so(ds: list[list[int]]) -> list[int]:
 
 
 def _khung_tai(moc: list[dict[str, Any]], t: float) -> tuple[float, float, float, float] | None:
-    """Khung (x, y, w, h) tai thoi diem t, noi suy tuyen tinh; None neu doi tuong khong ton tai luc do."""
+    """Khung (x, y, w, h) tai thoi diem t, noi suy tuyen tinh; None neu khong ton tai / dang an (visible = false)."""
     if t < moc[0]["t"] or t > moc[-1]["t"]:
         return None
     for i in range(1, len(moc)):
         if t <= moc[i]["t"]:
             truoc, sau = moc[i - 1], moc[i]
+            if truoc.get("visible", True) is False:
+                return None
             f = (t - truoc["t"]) / (sau["t"] - truoc["t"])
             return (truoc["x"] + (f * (sau["x"] - truoc["x"])), truoc["y"] + (f * (sau["y"] - truoc["y"])),
                     truoc["w"] + (f * (sau["w"] - truoc["w"])), truoc["h"] + (f * (sau["h"] - truoc["h"])))
     chot = moc[-1]
+    if chot.get("visible", True) is False:
+        return None
     return chot["x"], chot["y"], chot["w"], chot["h"]
 
 
@@ -530,6 +555,13 @@ def _trung_vi_cac_truong(*truong: str) -> Callable[[list[dict], float], dict]:
     return lam
 
 
+def _khung_dai_dien(thanh_vien: list[dict], _ty_le: float) -> dict:
+    ra = {t: lam_tron(trung_vi([m[t] for m in thanh_vien])) for t in ("x", "y", "w", "h")}
+    if any("angle" in m for m in thanh_vien):
+        ra["angle"] = lam_tron(trung_vi([m.get("angle", 0) or 0 for m in thanh_vien]))
+    return ra
+
+
 def _mat_na_dai_dien(thanh_vien: list[dict], _ty_le: float) -> dict | None:
     da_so = rle_da_so([m["rle"]["counts"] for m in thanh_vien])
     if len(da_so) < 2:
@@ -557,9 +589,9 @@ def _khoa_quan_he(p: dict) -> str:
 
 _LOAI: dict[str, _Loai] = {
     "bbox": _Loai(
-        do_giong=lambda a, b, _t: iou_hop(a["x"], a["y"], a["w"], a["h"], b["x"], b["y"], b["w"], b["h"]),
+        do_giong=lambda a, b, _t: iou_khung(a, b),
         khoa=lambda p: "|".join([p["labelId"]] + [_so_de_sap_xep(p[k]) for k in ("x", "y", "w", "h")]),
-        dai_dien=_trung_vi_cac_truong("x", "y", "w", "h")),
+        dai_dien=_khung_dai_dien),
     "polygon": _Loai(
         do_giong=_do_giong_da_giac,
         khoa=lambda p: f'{p["labelId"]}|{_so_de_sap_xep(_diem(p)[0][0])}|{_so_de_sap_xep(_diem(p)[0][1])}|{len(_diem(p))}'),

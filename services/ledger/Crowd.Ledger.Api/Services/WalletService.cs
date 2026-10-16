@@ -240,6 +240,11 @@ namespace Crowd.Ledger.Api.Services
                     w.Duyet(null, bayGio);
                     _events.PhatYeuCauChi(w, caller);
                 }
+                else
+                {
+                    // Vao hang doi duyet chung cua admin-svc.
+                    _events.Phat(caller, new WithdrawalReviewRequested { WithdrawalId = w.Id, LabelerId = uid, AmountVnd = w.AmountVnd });
+                }
 
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);

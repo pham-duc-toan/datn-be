@@ -44,6 +44,9 @@ namespace Crowd.Contracts.Project
         public const string Join = "join";
         public const string EntranceTest = "entrance_test";
         public const string JoinRequest = "join_request";
+
+        /// <summary>Nguoi duoc moi chap nhan loi moi cho (sau khi dang ky / dong y dieu khoan).</summary>
+        public const string Invitation = "invitation";
     }
 
     /// <summary>Labeler gui don xin tham gia du an che do duyet → bao chu du an.</summary>
@@ -149,5 +152,40 @@ namespace Crowd.Contracts.Project
         public required Guid ProjectId { get; init; }
 
         public required Guid UserId { get; init; }
+    }
+
+    /// <summary>
+    /// Chu du an moi nguoi nhung CHUA them thang duoc (email chua co tai khoan, hoac du an can nguoi do tu
+    /// dong y canh bao / ky NDA). Nguoi nghe: notification — gui email moi (kem link dang ky neu chua co tai
+    /// khoan) va thong bao trong ung dung neu da co.
+    /// </summary>
+    public sealed record ProjectInvitationCreated : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "project.invitation_created"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid InvitationId { get; init; }
+
+        public required Guid ProjectId { get; init; }
+
+        public required string ProjectName { get; init; }
+
+        /// <summary>Dia chi nhan thu moi (da chuan hoa).</summary>
+        public required string Email { get; init; }
+
+        /// <summary>null = email chua co tai khoan.</summary>
+        public Guid? UserId { get; init; }
+
+        /// <summary>Phai tu dong y canh bao noi dung / ky NDA truoc khi chap nhan.</summary>
+        public required bool RequiresConsent { get; init; }
+
+        public required DateTimeOffset ExpiresAt { get; init; }
     }
 }

@@ -12,7 +12,7 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import consensus, reputation, settings_store
+from app import consensus, project_client, reputation, settings_store
 from app.contracts import (
     AnnotationSubmitted,
     ConsensusReached,
@@ -30,7 +30,10 @@ log = logging.getLogger(__name__)
 
 
 async def project_published(s: AsyncSession, env: Envelope[ProjectPublished]) -> None:
-    p = env.payload
+    await _ghi_ban_sao(s, env.payload, env.occurred_at)
+
+
+async def _ghi_ban_sao(s: AsyncSession, p: ProjectPublished, luc) -> None:
     # Dieu khoan bat bien sau publish: da co thi thoi.
     await s.execute(
         text(
@@ -38,8 +41,22 @@ async def project_published(s: AsyncSession, env: Envelope[ProjectPublished]) ->
             "VALUES (:id, :owner, :modality, CAST(:schema AS jsonb), :r, :max_r, :at) ON CONFLICT (project_id) DO NOTHING"
         ),
         {"id": p.project_id, "owner": p.owner_id, "modality": p.modality, "schema": json.dumps(p.label_schema),
-         "r": p.redundancy, "max_r": max(p.max_redundancy, p.redundancy), "at": env.occurred_at},
+         "r": p.redundancy, "max_r": max(p.max_redundancy, p.redundancy), "at": luc},
     )
+
+
+async def _bu_ban_sao(s: AsyncSession, project_id: uuid.UUID):
+    """Thieu ban sao du an → hoi project-svc roi ghi. None = khong bu duoc (chua cau hinh / chua publish)."""
+    try:
+        kq = await project_client.lay_dieu_khoan(project_id)
+    except project_client.ChuaCauHinh:
+        return None
+    if kq is None:
+        return None
+    await _ghi_ban_sao(s, kq[0], kq[1])
+    log.info("Bu ban sao du an %s tu project-svc", project_id)
+    return (await s.execute(
+        text("SELECT label_schema, max_redundancy FROM projects WHERE project_id = :p"), {"p": project_id})).first()
 
 
 async def project_dong(s: AsyncSession, env: Envelope) -> None:
@@ -130,9 +147,12 @@ async def danh_gia_task(s: AsyncSession, task_id: uuid.UUID, env: Envelope) -> N
     du_an = (await s.execute(
         text("SELECT label_schema, max_redundancy FROM projects WHERE project_id = :p"), {"p": muc_tieu.project_id})).first()
     if du_an is None:
-        # Du an publish TRUOC khi quality-svc ton tai (hoac truoc khi quality nhan
-        # project.published) — khong co tap nhan va tran redundancy thi khong tinh
-        # duoc. Bo qua kem canh bao thay vi nem loi: nem loi la moi nhan cua du an cu
+        # Du an publish TRUOC khi quality-svc ton tai (hoac event project.published bi mat):
+        # hoi project-svc (noi bo) lay dieu khoan roi ghi ban sao. Loi mang → nem, consumer thu lai.
+        du_an = await _bu_ban_sao(s, muc_tieu.project_id)
+    if du_an is None:
+        # Khong bu duoc (chua cau hinh project_url, hoac du an chua publish) — khong co tap nhan
+        # va tran redundancy thi khong tinh duoc. Bo qua kem canh bao thay vi nem loi: nem loi la moi nhan cua du an cu
         # quay vong 5 lan roi vao DLQ, ma thu lai bao nhieu lan cung khong co du an.
         log.warning("Bo qua dong thuan task %s: chua co ban sao du an %s", task_id, muc_tieu.project_id)
         return

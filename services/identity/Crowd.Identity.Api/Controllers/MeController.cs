@@ -26,9 +26,24 @@ namespace Crowd.Identity.Api.Controllers
         private readonly HoSoService _hoSo;
         private readonly TaiKhoanService _taiKhoan;
         private readonly CapDoService _capDo;
+        private readonly HaiLopService _haiLop;
+        private readonly XacMinhDanhTinhService _xacMinh;
 
-        public MeController(HoSoService hoSo, TaiKhoanService taiKhoan, CapDoService capDo)
+        public MeController(HoSoService hoSo, TaiKhoanService taiKhoan, CapDoService capDo, HaiLopService haiLop, XacMinhDanhTinhService xacMinh)
         {
+            if (haiLop == null)
+            {
+                throw new ArgumentNullException(nameof(haiLop));
+            }
+
+            if (xacMinh == null)
+            {
+                throw new ArgumentNullException(nameof(xacMinh));
+            }
+
+            _haiLop = haiLop;
+            _xacMinh = xacMinh;
+
             if (hoSo == null)
             {
                 throw new ArgumentNullException(nameof(hoSo));
@@ -137,6 +152,79 @@ namespace Crowd.Identity.Api.Controllers
         public async Task<IActionResult> CapDo(CancellationToken ct)
         {
             return Ok(await _capDo.CuaToiAsync(UserId(), ct));
+        }
+
+        // ---------------- Xac thuc hai lop (FC-04) ----------------
+
+        /// <summary>GET /me/2fa — dang bat chua, con bao nhieu ma du phong.</summary>
+        [HttpGet("2fa")]
+        public async Task<IActionResult> TrangThaiHaiLop(CancellationToken ct)
+        {
+            return Ok(await _haiLop.TrangThaiAsync(UserId(), ct));
+        }
+
+        /// <summary>POST /me/2fa/setup → { secret, otpauthUri } (CHUA bat — phai xac nhan bang enable).</summary>
+        [HttpPost("2fa/setup")]
+        public async Task<IActionResult> CaiDatHaiLop(CancellationToken ct)
+        {
+            return Ok(await _haiLop.CaiDatAsync(UserId(), ct));
+        }
+
+        /// <summary>POST /me/2fa/enable { code } → bat, tra 10 ma du phong (hien mot lan).</summary>
+        [HttpPost("2fa/enable")]
+        public async Task<IActionResult> BatHaiLop([FromBody] TwoFactorCodeRequest body, CancellationToken ct)
+        {
+            return Ok(await _haiLop.BatAsync(body == null ? null : body.Code, Nguoi(), ct));
+        }
+
+        /// <summary>POST /me/2fa/disable { password, code | recoveryCode }</summary>
+        [HttpPost("2fa/disable")]
+        public async Task<IActionResult> TatHaiLop([FromBody] TwoFactorDisableRequest body, CancellationToken ct)
+        {
+            await _haiLop.TatAsync(
+                body == null ? null : body.Password,
+                body == null ? null : body.Code,
+                body == null ? null : body.RecoveryCode,
+                Nguoi(),
+                ct);
+            return NoContent();
+        }
+
+        /// <summary>POST /me/2fa/recovery-codes { code } → bo ma du phong moi (bo cu het hieu luc).</summary>
+        [HttpPost("2fa/recovery-codes")]
+        public async Task<IActionResult> TaoLaiMaDuPhong([FromBody] TwoFactorCodeRequest body, CancellationToken ct)
+        {
+            return Ok(await _haiLop.TaoLaiMaDuPhongAsync(body == null ? null : body.Code, Nguoi(), ct));
+        }
+
+        // ---------------- Xac minh danh tinh (muc 2.9, FP-05) ----------------
+
+        /// <summary>GET /me/identity-verification</summary>
+        [HttpGet("identity-verification")]
+        public async Task<IActionResult> XacMinhDanhTinh(CancellationToken ct)
+        {
+            return Ok(await _xacMinh.CuaToiAsync(UserId(), ct));
+        }
+
+        /// <summary>PUT /me/identity-verification { fullName, dateOfBirth, idNumber }</summary>
+        [HttpPut("identity-verification")]
+        public async Task<IActionResult> SuaXacMinhDanhTinh([FromBody] UpdateIdentityVerificationRequest body, CancellationToken ct)
+        {
+            return Ok(await _xacMinh.CapNhatAsync(UserId(), body, ct));
+        }
+
+        /// <summary>POST /me/identity-verification/upload-url { side: front|back, fileName, sizeBytes }</summary>
+        [HttpPost("identity-verification/upload-url")]
+        public async Task<IActionResult> XinLinkAnhGiayTo([FromBody] IdentityDocumentUploadRequest body, CancellationToken ct)
+        {
+            return Ok(await _xacMinh.XinLinkTaiAnhAsync(UserId(), body, ct));
+        }
+
+        /// <summary>POST /me/identity-verification/submit — nop cho admin duyet.</summary>
+        [HttpPost("identity-verification/submit")]
+        public async Task<IActionResult> NopXacMinhDanhTinh(CancellationToken ct)
+        {
+            return Ok(await _xacMinh.NopAsync(Nguoi(), ct));
         }
 
         private Guid UserId()

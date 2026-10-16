@@ -256,6 +256,35 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
+        /// POST /projects/{id}/datasets/import — nhap tu S3 / Google Drive / danh sach URL (FB-11). Chi kiem
+        /// thong so va tao lo Pending; worker tai ve + nap (co the lau, xem trang thai o GET datasets).
+        /// </summary>
+        public async Task<DatasetResponse> TaoTuNguonNgoaiAsync(
+            Guid projectId, ImportDatasetRequest body, NhapNguonNgoaiService nhap, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            if (nhap == null)
+            {
+                throw new ArgumentNullException(nameof(nhap));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
+            duAn.KiemTraCoTheNapDuLieu();
+
+            KeyValuePair<string, string> spec = nhap.TaoSpec(body, duAn);
+            Dataset lo = Dataset.TaoTuNguonNgoai(projectId, body.Name ?? string.Empty, spec.Key, spec.Value, _clock.GetUtcNow(), QuyDinhTuSetting.DuLieu(_settings));
+            _db.Datasets.Add(lo);
+            await _db.SaveChangesAsync(ct);
+
+            _logger.LogInformation("Tao lo nhap nguon ngoai {DatasetId} ({Nguon}) cho du an {ProjectId}", lo.Id, spec.Key, projectId);
+            return TaoResponse(lo);
+        }
+
+        /// <summary>
         /// Mau kem link xem file. CHI chu du an: link cho phep xem du lieu goc, va du
         /// lieu goc la tai san cua doanh nghiep (P-01).
         /// </summary>

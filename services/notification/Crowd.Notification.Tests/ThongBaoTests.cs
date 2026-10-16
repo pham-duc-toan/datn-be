@@ -231,7 +231,7 @@ namespace Crowd.Notification.Tests
         {
             Assert.True(LoaiThongBao.Tim(LoaiThongBao.TranhChap)!.BatBuoc);
             Assert.False(LoaiThongBao.Tim(LoaiThongBao.CapDo)!.GuiEmail(null));
-            Assert.Equal(13, LoaiThongBao.TatCa.Count);
+            Assert.Equal(16, LoaiThongBao.TatCa.Count);
         }
 
         [Fact]
@@ -248,6 +248,75 @@ namespace Crowd.Notification.Tests
             // Chu du an co the nhan rat nhieu don: mac dinh khong gui email.
             Assert.False(LoaiThongBao.Tim(LoaiThongBao.DonThamGia)!.GuiEmail(null));
             Assert.True(LoaiThongBao.Tim(LoaiThongBao.ThanhVien)!.GuiEmail(null));
+        }
+    }
+    public sealed class NgonNguVaRealtimeTests
+    {
+        [Fact]
+        public void Moi_mau_deu_co_ban_tieng_Anh()
+        {
+            Guid p = Guid.NewGuid();
+            NoiDung[] ds = new NoiDung[]
+            {
+                NoiDungThongBao.DoanhNghiepDaXacMinh(), NoiDungThongBao.DoanhNghiepBiTuChoi("x"), NoiDungThongBao.TaiKhoanBiKhoa(null),
+                NoiDungThongBao.TaiKhoanMoKhoa(), NoiDungThongBao.NapTienThanhCong(1000), NoiDungThongBao.DuAnDangChay(p),
+                NoiDungThongBao.DuAnThieuKyQuy(p, "x"), NoiDungThongBao.DuAnBiHuy(p, "x"), NoiDungThongBao.HoanKyQuy(p, 1),
+                NoiDungThongBao.NhanDuocDuyet(p, 1, 2), NoiDungThongBao.NhanBiTuChoi(p, "x", true), NoiDungThongBao.TienKhaDung(1, 1),
+                NoiDungThongBao.RutThanhCong(1), NoiDungThongBao.RutThatBai("x"), NoiDungThongBao.RutBiTuChoi(1, "x"),
+                NoiDungThongBao.TranhChapMo(p, 1, "x"), NoiDungThongBao.TranhChapKetQua(p, 1, true, true, "x"), NoiDungThongBao.CapDoMoi(2),
+                NoiDungThongBao.HuyHieuMoi("x"), NoiDungThongBao.DuocThemVaoDuAn(p, "x"), NoiDungThongBao.DonThamGiaMoi(p, "x", null),
+                NoiDungThongBao.KetQuaDonThamGia(p, "x", false, "het_han"), NoiDungThongBao.LoiMoiDuAn(p, "x", true, DateTimeOffset.UnixEpoch),
+                NoiDungThongBao.EmailLoiMoiNguoiMoi("x", "http://l", DateTimeOffset.UnixEpoch), NoiDungThongBao.HaiLopThayDoi(false, "disabled"),
+                NoiDungThongBao.XacMinhDanhTinhDaNop(), NoiDungThongBao.XacMinhDanhTinhDuyet(), NoiDungThongBao.XacMinhDanhTinhTuChoi("x"),
+                NoiDungThongBao.ThuXacThuc("A", "http://l", DateTimeOffset.UnixEpoch), NoiDungThongBao.ThuDatLaiMatKhau("A", "http://l", DateTimeOffset.UnixEpoch),
+            };
+            foreach (NoiDung n in ds)
+            {
+                NoiDung en = n.TheoNgonNgu(NgonNgu.TiengAnh);
+                Assert.NotEqual(n.TieuDe, en.TieuDe);
+                Assert.Equal(n.DuongDan, en.DuongDan);
+                Assert.Same(n, n.TheoNgonNgu(NgonNgu.TiengViet));
+                Assert.Same(n, n.TheoNgonNgu(null));
+            }
+
+            Assert.Contains("VND", NoiDungThongBao.NapTienThanhCong(1500000).TheoNgonNgu("en").NoiDungChinh, StringComparison.Ordinal);
+            Assert.True(NgonNgu.HopLe("en") && NgonNgu.HopLe("vi") && !NgonNgu.HopLe("fr") && !NgonNgu.HopLe(null));
+        }
+
+        [Fact]
+        public void Don_het_han_va_bao_mat_bat_buoc_email()
+        {
+            NoiDung h = NoiDungThongBao.KetQuaDonThamGia(Guid.NewGuid(), "X", false, "het_han");
+            Assert.Equal("Đơn xin tham gia đã hết hạn", h.TieuDe);
+            Assert.True(LoaiThongBao.Tim(LoaiThongBao.BaoMat)!.GuiEmail(false));
+            Assert.Contains("đặt lại", NoiDungThongBao.HaiLopThayDoi(false, "admin_reset").NoiDungChinh, StringComparison.Ordinal);
+            Assert.Contains("TẮT", NoiDungThongBao.HaiLopThayDoi(false, "disabled").NoiDungChinh, StringComparison.Ordinal);
+            Assert.Equal(NoiDungThongBao.ThuXacThuc("A", "http://l", DateTimeOffset.UnixEpoch).NoiDungChinh,
+                NoiDungThongBao.EmailXacThuc("A", "http://l", DateTimeOffset.UnixEpoch));
+        }
+
+        [Fact]
+        public void Tach_noi_dung_listen_notify()
+        {
+            Guid u = Guid.NewGuid();
+            Guid t = Guid.NewGuid();
+            Guid a;
+            Guid b;
+            Assert.True(RealtimeListener.TachNoiDung(u.ToString("N") + ":" + t.ToString("N"), out a, out b));
+            Assert.Equal(u, a);
+            Assert.Equal(t, b);
+            Assert.False(RealtimeListener.TachNoiDung("rac", out a, out b));
+            Assert.False(RealtimeListener.TachNoiDung(string.Empty, out a, out b));
+        }
+
+        [Fact]
+        public void Ve_realtime_chi_luu_bam()
+        {
+            string token = VeRealtime.TaoToken();
+            Assert.True(token.Length >= 40);
+            Assert.DoesNotContain("+", token, StringComparison.Ordinal);
+            Assert.Equal(64, VeRealtime.Bam(token).Length);
+            Assert.NotEqual(VeRealtime.Bam(token), VeRealtime.Bam(VeRealtime.TaoToken()));
         }
     }
 }

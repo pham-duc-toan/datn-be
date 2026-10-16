@@ -33,6 +33,9 @@ namespace Crowd.Project.Infrastructure.Media
         public bool CoVideo { get; init; }
 
         public bool CoAudio { get; init; }
+
+        /// <summary>Khung / giay cua stream video dau tien (avg_frame_rate, vd "10/1").</summary>
+        public double? Fps { get; init; }
     }
 
     public interface IMediaProbe
@@ -173,6 +176,7 @@ namespace Crowd.Project.Infrastructure.Media
 
                 int? rong = null;
                 int? cao = null;
+                double? fps = null;
                 bool coVideo = false;
                 bool coAudio = false;
 
@@ -208,6 +212,12 @@ namespace Crowd.Project.Infrastructure.Media
                                 rong = w.GetInt32();
                                 cao = h.GetInt32();
                             }
+
+                            JsonElement tanSo;
+                            if (s.TryGetProperty("avg_frame_rate", out tanSo) || s.TryGetProperty("r_frame_rate", out tanSo))
+                            {
+                                fps = PhanSo(tanSo.GetString());
+                            }
                         }
 
                         if (!thoiLuong.HasValue)
@@ -230,8 +240,30 @@ namespace Crowd.Project.Infrastructure.Media
                     FormatName = dinhDang,
                     CoVideo = coVideo,
                     CoAudio = coAudio,
+                    Fps = fps,
                 };
             }
+        }
+
+        /// <summary>"30000/1001" → 29.97; "0/0" / sai → null.</summary>
+        internal static double? PhanSo(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s))
+            {
+                return null;
+            }
+
+            string[] p = s.Split('/');
+            double tu;
+            double mau = 1;
+            if (!double.TryParse(p[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out tu)
+                || (p.Length > 1 && !double.TryParse(p[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out mau))
+                || mau <= 0 || tu <= 0)
+            {
+                return null;
+            }
+
+            return tu / mau;
         }
 
         private static double? SoThuc(JsonElement e, string ten)

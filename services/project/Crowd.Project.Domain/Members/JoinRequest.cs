@@ -11,6 +11,9 @@ namespace Crowd.Project.Domain.Members
 
         /// <summary>Labeler tu rut don.</summary>
         Cancelled,
+
+        /// <summary>Chu du an bo quen qua project.join_request_ttl — tu dong.</summary>
+        Expired,
     }
 
     /// <summary>
@@ -96,6 +99,14 @@ namespace Crowd.Project.Domain.Members
             ChiKhiDangCho();
             Status = JoinRequestStatus.Cancelled;
             DecidedBy = UserId;
+            DecidedAt = luc;
+        }
+
+        /// <summary>Qua han khong ai duyet (worker). Labeler gui lai duoc ngay.</summary>
+        public void HetHan(DateTimeOffset luc)
+        {
+            ChiKhiDangCho();
+            Status = JoinRequestStatus.Expired;
             DecidedAt = luc;
         }
 

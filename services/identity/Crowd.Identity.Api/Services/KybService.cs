@@ -195,6 +195,12 @@ namespace Crowd.Identity.Api.Services
 
         public async Task<KybAdminResponse> ChiTietAsync(Guid businessId, CancellationToken ct)
         {
+            return await ChiTietAsync(businessId, null, ct);
+        }
+
+        /// <summary>caller != null: ghi audit lan xem giay to (S-07) — co cap link xem thi phat sensitive_document.viewed.</summary>
+        public async Task<KybAdminResponse> ChiTietAsync(Guid businessId, Caller? caller, CancellationToken ct)
+        {
             BusinessProfile? p = await _db.BusinessProfiles.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == businessId, ct);
             User? u = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == businessId, ct);
             if (p == null || u == null)
@@ -203,6 +209,12 @@ namespace Crowd.Identity.Api.Services
             }
 
             string? link = p.LicenseKey == null ? null : await _storage.TaoLinkXemAsync(p.LicenseKey);
+            if (link != null && caller != null)
+            {
+                Phat(caller, new SensitiveDocumentViewed { SubjectUserId = businessId, DocumentKind = "kyb_license", LinkCount = 1 });
+                await _db.SaveChangesAsync(ct);
+            }
+
             return TaoAdminResponse(p, u, link);
         }
 

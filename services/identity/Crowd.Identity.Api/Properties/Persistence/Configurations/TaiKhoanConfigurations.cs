@@ -23,6 +23,7 @@ namespace Crowd.Identity.Api.Persistence.Configurations
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
             builder.Property(x => x.ExpiresAt).HasColumnName("expires_at").IsRequired();
             builder.Property(x => x.UsedAt).HasColumnName("used_at");
+            builder.Property(x => x.FailedAttempts).HasColumnName("failed_attempts").IsRequired().HasDefaultValue(0);
 
             // Tra theo hash khi nguoi dung bam link; huy cac ma cu cung muc dich khi phat ma moi.
             builder.HasIndex(x => x.TokenHash).IsUnique().HasDatabaseName("ux_account_tokens_hash");

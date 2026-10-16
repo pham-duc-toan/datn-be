@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Settings;
+using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Project;
 using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
@@ -322,6 +323,78 @@ namespace Crowd.Project.Api.Services
         // DOC
         // =====================================================================
 
+        /// <summary>PUT /projects/{id}/retention { deleteFilesAfterClose } — dong y xoa file goc sau khi dong (muc 3.14).</summary>
+        public async Task<ProjectResponse> DatLuuTruAsync(Guid id, RetentionRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.DatXoaFileSauKhiDong(body.DeleteFilesAfterClose, _clock.GetUtcNow());
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
+        /// <summary>
+        /// Worker: xoa file trong kho cua cac du an da dong qua project.closed_data_retention ma doanh nghiep
+        /// DA DONG Y. Mau trong database giu nguyen (lich su, nhan, ket qua); chi file goc bi xoa — link xem
+        /// mau sau do tra 404. Tra so du an da xoa.
+        /// </summary>
+        public async Task<int> XoaFileDuAnDaDongAsync(IObjectStorage kho, CancellationToken ct)
+        {
+            if (kho == null)
+            {
+                throw new ArgumentNullException(nameof(kho));
+            }
+
+            TimeSpan hanGiu = _settings.ThoiGian(SettingKeys.ProjectClosedDataRetention);
+            if (hanGiu <= TimeSpan.Zero)
+            {
+                return 0;
+            }
+
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            DateTimeOffset moc = bayGio - hanGiu;
+            List<LabelingProject> ds = await _db.Projects
+                .Where(p => p.DeleteFilesAfterClose && p.FilesPurgedAt == null && p.ClosedAt != null && p.ClosedAt < moc
+                    && (p.Status == ProjectStatus.Completed || p.Status == ProjectStatus.Cancelled))
+                .Take(20)
+                .ToListAsync(ct);
+
+            int n = 0;
+            foreach (LabelingProject p in ds)
+            {
+                if (!p.DenHanXoaFile(hanGiu, bayGio))
+                {
+                    continue;
+                }
+
+                int soFile = await kho.XoaTheoTienToAsync(p.Id + "/", ct);
+                p.DanhDauDaXoaFile(bayGio);
+                await _db.SaveChangesAsync(ct);
+                _logger.LogInformation("Xoa {SoFile} file cua du an da dong {ProjectId} (doanh nghiep dong y)", soFile, p.Id);
+                n++;
+            }
+
+            return n;
+        }
+
+        /// <summary>PUT /projects/{id}/tags { domains, languages } — nhan goi y du an (FL-02).</summary>
+        public async Task<ProjectResponse> DatNhanAsync(Guid id, TagsRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.DatNhan(body.Domains, body.Languages, _clock.GetUtcNow());
+            await _db.SaveChangesAsync(ct);
+            return TaoResponse(duAn, caller);
+        }
+
         public async Task<ProjectResponse> ChiTietAsync(Guid id, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeXemAsync(id, caller, ct);
@@ -385,6 +458,11 @@ namespace Crowd.Project.Api.Services
                     Deadline = p.Deadline,
                     RequireEntranceTest = p.RequireEntranceTest,
                     IsOwner = caller.UserId != null && p.OwnerId == caller.UserId.Value,
+                    SensitiveContent = p.SensitiveContent,
+                    ConsentRequired = p.CanDongYCaNhan(),
+                    RequireVerifiedIdentity = p.RequireVerifiedIdentity,
+                    Domains = p.Domains,
+                    Languages = p.Languages,
                 });
             }
 
@@ -407,7 +485,8 @@ namespace Crowd.Project.Api.Services
             bool dangXuLy = await CoDuLieuDangXuLyAsync(id, ct);
 
             int phi = _settings.SoNguyen(SettingKeys.FeePlatformPercent);
-            IReadOnlyList<string> thieu = duAn.NhungGiConThieu(soMau, soVangTest, phi, dangXuLy, _clock.GetUtcNow());
+            IReadOnlyList<string> thieu = duAn.NhungGiConThieu(
+                soMau, soVangTest, phi, dangXuLy, _settings.SoLon(SettingKeys.ProjectMinUnitPriceVnd), CongCuChoCongLink(), _clock.GetUtcNow());
 
             return new ReadinessResponse
             {
@@ -457,7 +536,16 @@ namespace Crowd.Project.Api.Services
 
             bool dangXuLy = await CoDuLieuDangXuLyAsync(id, ct);
 
-            duAn.YeuCauPublish(soMau, soVangTest, _settings.SoNguyen(SettingKeys.FeePlatformPercent), dangXuLy, bayGio);
+            IReadOnlyList<string> congCuSai = duAn.CongCuKhongHopCongLink(CongCuChoCongLink());
+            if (congCuSai.Count > 0)
+            {
+                throw new RuleViolationException(
+                    "cong_cu_khong_hop_cong_link",
+                    "Cong link chi cho cong cu lam nhanh (" + string.Join(", ", CongCuChoCongLink()) + "). Tat cong link hoac bo cong cu: "
+                    + string.Join(", ", congCuSai) + ".");
+            }
+
+            duAn.YeuCauPublish(soMau, soVangTest, _settings.SoNguyen(SettingKeys.FeePlatformPercent), dangXuLy, _settings.SoLon(SettingKeys.ProjectMinUnitPriceVnd), bayGio);
 
             if (_saga.BoQuaKyQuy)
             {
@@ -475,6 +563,7 @@ namespace Crowd.Project.Api.Services
                     ProjectId = duAn.Id,
                     OwnerId = duAn.OwnerId,
                     EscrowAmountVnd = duAn.BudgetVnd,
+                    ProjectName = duAn.Name,
                 });
             }
 
@@ -729,6 +818,34 @@ namespace Crowd.Project.Api.Services
             return soDaHuy;
         }
 
+        /// <summary>
+        /// Dieu khoan luc publish (dung payload project.published) — cho service ban sao tu bu khi lo mat event
+        /// (vd quality-svc ra doi sau khi du an da publish). Du an chua tung publish → 404.
+        /// </summary>
+        public async Task<PublishedTermsResponse> DieuKhoanDaPublishAsync(Guid id, CancellationToken ct)
+        {
+            LabelingProject? duAn = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
+            if (duAn == null || duAn.PublishedAt == null || duAn.LabelSchema == null || duAn.Deadline == null)
+            {
+                throw new NotFoundException("Du an chua publish.");
+            }
+
+            int soMau = await DemMauAsync(id, ct);
+            return new PublishedTermsResponse
+            {
+                PublishedAt = duAn.PublishedAt.Value,
+                Terms = TaoProjectPublished(duAn, soMau),
+            };
+        }
+
+        /// <summary>Loai cong cu khach vang lai lam duoc o cong link (setting gate.allowed_tools).</summary>
+        private HashSet<string> CongCuChoCongLink()
+        {
+            return _settings.Chuoi(SettingKeys.GateAllowedTools)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToHashSet(StringComparer.Ordinal);
+        }
+
         // =====================================================================
         // Ham dung chung (cung duoc consumer dung)
         // =====================================================================
@@ -765,6 +882,7 @@ namespace Crowd.Project.Api.Services
                 MinReputation = duAn.MinReputation,
                 RequireEntranceTest = duAn.RequireEntranceTest,
                 SampleCount = soMau,
+                SensitiveContent = duAn.SensitiveContent,
             };
         }
 
@@ -893,6 +1011,16 @@ namespace Crowd.Project.Api.Services
                 EntrancePassPercent = p.EntrancePassPercent,
                 PublishedAt = p.PublishedAt,
                 IsOwner = caller.UserId != null && p.OwnerId == caller.UserId.Value,
+                SensitiveContent = p.SensitiveContent,
+                ContentWarning = p.ContentWarning,
+                NdaRequired = p.NdaRequired,
+                NdaVersion = p.NdaVersion,
+                RequireVerifiedIdentity = p.RequireVerifiedIdentity,
+                ConsentRequired = p.CanDongYCaNhan(),
+                Domains = p.Domains,
+                Languages = p.Languages,
+                DeleteFilesAfterClose = laChu && p.DeleteFilesAfterClose,
+                FilesPurgedAt = laChu ? p.FilesPurgedAt : null,
 
                 OwnerId = laChu ? p.OwnerId : null,
                 BudgetVnd = laChu ? p.BudgetVnd : null,

@@ -51,11 +51,17 @@ namespace Crowd.Payment.Infrastructure.Persistence
                 b.Property(x => x.TransferredAt).HasColumnName("transferred_at");
                 b.Property(x => x.ReviewedBy).HasColumnName("reviewed_by");
                 b.Property(x => x.RejectReason).HasColumnName("reject_reason").HasMaxLength(PaymentIntent.DoDaiLyDoToiDa);
+                b.Property(x => x.CheckoutUrl).HasColumnName("checkout_url").HasMaxLength(2000);
+                b.Property(x => x.FailureCode).HasColumnName("failure_code").HasMaxLength(50);
+                b.Property(x => x.LastCheckedAt).HasColumnName("last_checked_at");
                 b.Property<uint>("RowVersion").IsRowVersion();
+
+                // Doi soat lenh nap qua cong con treo (VD-M-09): chi quet dong Pending.
+                b.HasIndex(x => x.CreatedAt, "ix_intents_doi_soat").HasFilter("status = 'Pending' AND provider <> 'manual_transfer'");
 
                 b.HasIndex(x => new { x.BusinessId, x.IdempotencyKey }).IsUnique().HasDatabaseName("ux_intents_idempotency");
                 b.HasIndex(x => x.TransferCode).IsUnique().HasFilter("transfer_code IS NOT NULL").HasDatabaseName("ux_intents_transfer_code");
-                b.HasIndex(x => x.CreatedAt).HasFilter("status = 'AwaitingApproval'").HasDatabaseName("ix_intents_cho_duyet");
+                b.HasIndex(x => x.CreatedAt, "ix_intents_cho_duyet").HasFilter("status = 'AwaitingApproval'");
 
                 // Webhook den 3 lan chi ghi MOT lan (docs 3.3).
                 b.HasIndex(x => new { x.Provider, x.ProviderTxnId })

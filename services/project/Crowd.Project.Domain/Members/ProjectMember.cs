@@ -43,6 +43,12 @@ namespace Crowd.Project.Domain.Members
 
         public DateTimeOffset UpdatedAt { get; private set; }
 
+        /// <summary>
+        /// Bi chan VI doanh nghiep dua labeler vao danh sach chan chung (FB-23), khong phai chan rieng du an
+        /// nay — bo khoi danh sach thi tu mo lai; chan rieng thi giu.
+        /// </summary>
+        public bool BlockedByOwnerList { get; private set; }
+
         public static ProjectMember TaoChuSoHuu(Guid projectId, Guid ownerId, DateTimeOffset luc)
         {
             return Tao(projectId, ownerId, MemberRole.Owner, luc);
@@ -62,6 +68,48 @@ namespace Crowd.Project.Domain.Members
         public bool LaHoatDong()
         {
             return State == MemberState.Active;
+        }
+
+        /// <summary>Chan vi danh sach chan cua doanh nghiep; da bi chan rieng thi giu nguyen (tra false).</summary>
+        public bool ChanTheoDanhSach(DateTimeOffset luc)
+        {
+            if (Role == MemberRole.Owner || State == MemberState.Blocked)
+            {
+                return false;
+            }
+
+            State = MemberState.Blocked;
+            BlockedByOwnerList = true;
+            UpdatedAt = luc;
+            return true;
+        }
+
+        /// <summary>Bo khoi danh sach chan: chi mo nhung dong bi chan VI danh sach.</summary>
+        public bool BoChanTheoDanhSach(DateTimeOffset luc)
+        {
+            if (State != MemberState.Blocked || !BlockedByOwnerList)
+            {
+                return false;
+            }
+
+            State = MemberState.Active;
+            BlockedByOwnerList = false;
+            UpdatedAt = luc;
+            return true;
+        }
+
+        /// <summary>Labeler tu roi du an (muc 2.9: roi bat ky luc nao, khong bi phat). Dang bi chan thi khong roi duoc — roi la xoa dau vet chan.</summary>
+        public void KiemTraTuRoiDuoc()
+        {
+            if (Role == MemberRole.Owner)
+            {
+                throw new RuleViolationException("chu_du_an_khong_roi", "Chu du an khong roi du an cua minh.");
+            }
+
+            if (State == MemberState.Blocked)
+            {
+                throw new RuleViolationException("bi_chan", "Ban dang bi chan khoi du an nay.");
+            }
         }
 
         public void Chan(DateTimeOffset luc)
@@ -88,6 +136,7 @@ namespace Crowd.Project.Domain.Members
             }
 
             State = MemberState.Active;
+            BlockedByOwnerList = false;
             UpdatedAt = luc;
         }
 

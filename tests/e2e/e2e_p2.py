@@ -239,9 +239,10 @@ try:
     kiem("tu nhap ma cua minh → 409", r.status_code == 409, r.text)
     sh2, sh2_id = dang_ky(["sharer", "labeler"])
     time.sleep(1.5)  # user.registered toi link-svc
-    r = requests.post(G + "/links/referrals/claim", headers=sh2, json={"code": ref["code"]})
+    # Nhap ma tu IP KHAC nguoi gioi thieu (cung IP = tu moi chinh minh → bi danh dau, xem e2e_hang_doi_duyet).
+    r = requests.post(LINK + "/links/referrals/claim", headers=dict(sh2, **khach("203.0.113.99")), json={"code": ref["code"]})
     kiem("tai khoan moi nhap ma gioi thieu", r.status_code == 204, r.text)
-    r = requests.post(G + "/links/referrals/claim", headers=sh2, json={"code": ref["code"]})
+    r = requests.post(LINK + "/links/referrals/claim", headers=dict(sh2, **khach("203.0.113.99")), json={"code": ref["code"]})
     kiem("nhap lan 2 → 409", r.status_code == 409, r.text)
     kiem("ledger ghi quan he gioi thieu", cho(lambda: sql("ledger", f"select referrer_id from referrals where referred_id='{sh2_id}'") == sh_id, 15))
     l2 = requests.post(G + "/links", headers=sh2, json={"url": "https://example.com/cua-sharer-2"}).json()

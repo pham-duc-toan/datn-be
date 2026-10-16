@@ -48,6 +48,9 @@ namespace Crowd.Tasking.Api.Dtos
         /// <summary>Ban nhap da luu cua luot nay (FL-05) — cung hinh dang payload khi nop; null = chua luu.</summary>
         public RawJson? Draft { get; init; }
 
+        /// <summary>Du an noi dung nhay cam (muc 2.9): frontend LAM MO mac dinh, labeler bam de xem ro.</summary>
+        public bool SensitiveContent { get; init; }
+
         public DateTimeOffset? DraftSavedAt { get; init; }
     }
 

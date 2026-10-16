@@ -20,6 +20,8 @@ DB = ["identity", "project", "task", "annotation", "ledger", "payment", "link", 
 KHOA_DEV = {
     "MEDIA_GRANT_KEY": "pgZwtqPVxGvu3oA5esvFaUio+ltJ2sSfgOWqYQNHwyU=",
     "MEDIA_WATERMARK_KEY": "TUmrnIsOHHdHl7BEEngcDqPfPQW6v956RTfgOEOlILo=",
+    # identity-svc: ma hoa bi mat 2FA, bam co khoa so giay to (IdentityData:Key).
+    "IDENTITY_DATA_KEY": "q5Ec0b2l2b0mW3Yw2kOQ7mR6x8H1sZ9vT4nJ3cP0aUo=",
 }
 
 
@@ -46,7 +48,8 @@ def gia_tri(ten: str, dev: bool) -> str:
 
 
 def danh_sach_bien() -> list[str]:
-    return ["RABBIT_PASSWORD", "MINIO_PASSWORD", "INTERNAL_API_KEY", "MEDIA_GRANT_KEY", "MEDIA_WATERMARK_KEY"] + \
+    return ["RABBIT_PASSWORD", "MINIO_PASSWORD", "INTERNAL_API_KEY", "MEDIA_GRANT_KEY", "MEDIA_WATERMARK_KEY",
+            "IDENTITY_DATA_KEY"] + \
         [f"DB_{d.upper()}_PASSWORD" for d in DB]
 
 

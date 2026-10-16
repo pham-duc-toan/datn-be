@@ -34,6 +34,7 @@ namespace Crowd.Project.Api.Services
         private readonly IdentityClient _identity;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
+        private readonly BaoVeService _baoVe;
 
         public MemberService(
             ProjectDbContext db,
@@ -41,8 +42,16 @@ namespace Crowd.Project.Api.Services
             ProjectEventPublisher events,
             IdentityClient identity,
             ISettings settings,
-            TimeProvider clock)
+            TimeProvider clock,
+            BaoVeService baoVe)
         {
+            if (baoVe == null)
+            {
+                throw new ArgumentNullException(nameof(baoVe));
+            }
+
+            _baoVe = baoVe;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -104,8 +113,9 @@ namespace Crowd.Project.Api.Services
         /// POST /members — chu du an moi MOT nguoi theo userId HOAC email (FP-05 private pool, hoac
         /// them reviewer). Khong can bai test — chu du an tu chiu trach nhiem nguoi minh moi; dieu
         /// kien cap do / uy tin van ap cho labeler. Loi tra dung ma nhu ban nhieu nguoi.
+        /// Theo email: LUON 202 + loi moi (VD-S-16) — xem ThemNhieuAsync.
         /// </summary>
-        public async Task<MemberResponse> ThemAsync(Guid projectId, AddMemberRequest body, Caller caller, CancellationToken ct)
+        public async Task<ThemMotKetQua> ThemAsync(Guid projectId, AddMemberRequest body, Caller caller, CancellationToken ct)
         {
             if (body == null)
             {
@@ -132,7 +142,14 @@ namespace Crowd.Project.Api.Services
             {
                 ProjectMember m = await _db.ProjectMembers.AsNoTracking()
                     .FirstAsync(x => x.ProjectId == projectId && x.UserId == r.UserId!.Value, ct);
-                return TaoResponse(m);
+                return new ThemMotKetQua { Member = TaoResponse(m) };
+            }
+
+            if (r.InvitationId.HasValue)
+            {
+                ProjectInvitation moi = await _db.ProjectInvitations.AsNoTracking().FirstAsync(x => x.Id == r.InvitationId.Value, ct);
+                LabelingProject duAn = await _db.Projects.AsNoTracking().FirstAsync(p => p.Id == projectId, ct);
+                return new ThemMotKetQua { Invitation = TaoLoiMoiResponse(moi, duAn, true) };
             }
 
             if (r.Status == KetQuaMoi.KhongTimThay)
@@ -149,9 +166,16 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// POST /members/batch — moi NHIEU nguoi mot lan theo userId va / hoac email. Tung nguoi mot
-        /// ket qua (them duoc, khong tim thay, da la thanh vien, bi chan, chua du cap do...); nguoi
-        /// hop le duoc them het trong MOT transaction cung cac event member.added.
+        /// POST /members/batch — moi NHIEU nguoi mot lan theo userId va / hoac email, trong MOT transaction.
+        ///
+        /// Theo userId: tung nguoi mot ket qua chi tiet (them duoc, khong tim thay, da la thanh vien, bi chan,
+        /// chua du cap do...) — chu du an da biet nguoi do (bang xep hang, ho so cong khai, du an truoc).
+        ///
+        /// Theo email (VD-S-16): moi email hop le deu ra CUNG mot ket qua "invited" kem loi moi, khong kem
+        /// userId / ten — o moi khong con la cach do email nao co tai khoan. Nguoi co tai khoan nhan loi moi
+        /// trong ung dung va tu chap nhan (khong them thang nua); email chua co tai khoan nhan thu moi dang ky.
+        /// Nguoi da la thanh vien / dang bi chan: loi moi "cam" (khong gui gi) de ket qua van giong het.
+        /// So email moi trong 24 gio co han muc rieng (project.email_invite_daily_max).
         /// </summary>
         public async Task<AddMembersBatchResponse> ThemNhieuAsync(
             Guid projectId, AddMembersBatchRequest body, Caller caller, CancellationToken ct)
@@ -191,7 +215,12 @@ namespace Crowd.Project.Api.Services
             }
 
             List<Guid> ids = dauVao.Where(d => d.UserId.HasValue).Select(d => d.UserId!.Value).ToList();
-            List<string> emails = dauVao.Where(d => d.Email != null && d.Loi == null).Select(d => d.Email!).ToList();
+            List<string> emails = dauVao.Where(d => d.Email != null && d.Loi == null).Select(d => d.Email!).Distinct(StringComparer.Ordinal).ToList();
+            if (emails.Count > 0)
+            {
+                await KiemHanMucMoiEmailAsync(caller.UserId ?? duAn.OwnerId, emails.Count, ct);
+            }
+
             IReadOnlyList<NguoiDungTraCuu> tim = await _identity.TraCuuAsync(ids, emails, ct);
 
             // Hai request moi cung mot nguoi cung luc: khoa chinh (project_id, user_id) chon mot,
@@ -202,7 +231,8 @@ namespace Crowd.Project.Api.Services
                 {
                     return await ThemTheoKetQuaTraCuuAsync(duAn, body.Role.Value, dauVao, tim, caller, ct);
                 }
-                catch (DbUpdateException ex) when (lan == 0 && PostgresErrors.IsUniqueViolation(ex, "PK_project_members"))
+                catch (DbUpdateException ex) when (lan == 0
+                    && (PostgresErrors.IsUniqueViolation(ex, "PK_project_members") || PostgresErrors.IsUniqueViolation(ex, "ux_project_invitations_cho")))
                 {
                     _db.ChangeTracker.Clear();
                 }
@@ -231,6 +261,20 @@ namespace Crowd.Project.Api.Services
             await LuuThanhVienMoiAsync(moi, MemberJoinVia.Join, duAn, caller, ct);
 
             return TaoResponse(moi);
+        }
+
+        /// <summary>
+        /// POST /projects/{id}/leave — labeler / reviewer tu roi du an bat ky luc nao (muc 2.9: khong bi
+        /// phat — uy tin chi tinh tu nhan da nop). Luot giu task dang do bi task-svc thu hoi qua member.removed.
+        /// </summary>
+        public async Task RoiAsync(Guid projectId, Caller caller, CancellationToken ct)
+        {
+            Guid uid = caller.LayUserId();
+            ProjectMember m = await LayThanhVienAsync(projectId, uid, ct);
+            m.KiemTraTuRoiDuoc();
+            _db.ProjectMembers.Remove(m);
+            _events.Phat(caller, new MemberRemoved { ProjectId = projectId, UserId = uid });
+            await _db.SaveChangesAsync(ct);
         }
 
         public async Task<MemberResponse> ChanAsync(Guid projectId, Guid userId, Caller caller, CancellationToken ct)
@@ -340,7 +384,107 @@ namespace Crowd.Project.Api.Services
             }
 
             duAn.KiemTraLabelerDuDieuKien(nguoi.HoSo());
+
+            // FB-23: bi doanh nghiep dua vao danh sach chan → khong vao duoc moi du an cua doanh nghiep do.
+            if (await BiDoanhNghiepChanAsync(duAn.OwnerId, userId, ct))
+            {
+                throw new RuleViolationException("bi_chan_boi_doanh_nghiep", "Doanh nghiep so huu du an da chan tai khoan nay.");
+            }
+
+            // Muc 2.9 / FP-01 / FP-05: xac minh danh tinh, du tuoi (lay tu identity luc vao — moi hon claim
+            // trong token), da dong y canh bao / ky NDA phien ban hien hanh.
+            string? lyDo = duAn.LyDoKhongDuDieuKienBaoVe(nguoi.IdentityVerified, nguoi.Adult, await _baoVe.DaDongYAsync(duAn, userId, ct));
+            if (lyDo != null)
+            {
+                throw new RuleViolationException(lyDo, LabelingProject.GiaiThichBaoVe(lyDo));
+            }
+
             return nguoi;
+        }
+
+        public Task<bool> BiDoanhNghiepChanAsync(Guid ownerId, Guid labelerId, CancellationToken ct)
+        {
+            return _db.OwnerLabelerEntries.AnyAsync(
+                e => e.OwnerId == ownerId && e.LabelerId == labelerId && e.Kind == OwnerListKind.Blocked, ct);
+        }
+
+        /// <summary>
+        /// Tao loi moi cho + phat project.invitation_created (notification gui thu / thong bao). Chi theo doi,
+        /// SaveChanges o noi goi. Da co loi moi dang cho cung (du an, email) → tra loi moi cu.
+        /// guiThu = false: loi moi "cam" (VD-S-16) — co dong de chu du an thay ket qua giong het, nhung khong gan
+        /// tai khoan, khong gui gi (nguoi da la thanh vien / dang bi chan).
+        /// </summary>
+        public async Task<ProjectInvitation> TaoLoiMoiAsync(
+            LabelingProject duAn, string email, Guid? userId, MemberRole role, bool quaEmail, bool guiThu, Caller caller, CancellationToken ct)
+        {
+            if (duAn == null)
+            {
+                throw new ArgumentNullException(nameof(duAn));
+            }
+
+            DateTimeOffset luc = _clock.GetUtcNow();
+            ProjectInvitation? cu = await _db.ProjectInvitations.FirstOrDefaultAsync(
+                i => i.ProjectId == duAn.Id && i.Email == email && i.ByEmail == quaEmail && i.Status == InvitationStatus.Pending, ct);
+            if (cu != null && cu.ExpiresAt > luc)
+            {
+                if (guiThu && userId.HasValue && !cu.UserId.HasValue)
+                {
+                    // Loi moi cu la loi moi "cam" (luc do nguoi nay dang bi chan / da la thanh vien), nay moi lai
+                    // hop le → gan tai khoan va gui that.
+                    cu.GanTaiKhoan(userId.Value);
+                    PhatLoiMoi(cu, duAn, caller);
+                }
+
+                return cu;
+            }
+
+            if (cu != null)
+            {
+                cu.HetHan(luc);
+            }
+
+            ProjectInvitation moi = ProjectInvitation.Tao(
+                duAn.Id, email, guiThu ? userId : null, role, caller.UserId ?? duAn.OwnerId, quaEmail, luc,
+                _settings.ThoiGian(SettingKeys.ProjectInvitationTtl));
+            _db.ProjectInvitations.Add(moi);
+            if (guiThu)
+            {
+                PhatLoiMoi(moi, duAn, caller);
+            }
+
+            return moi;
+        }
+
+        /// <summary>
+        /// Loi moi nhin tu phia nao. choChuDuAn = true (chu du an): moi bang email thi an userId cho toi khi chap
+        /// nhan (khong lo email nao co tai khoan); moi bang userId thi an email (khong lo email cua nguoi do).
+        /// </summary>
+        public static InvitationResponse TaoLoiMoiResponse(ProjectInvitation i, LabelingProject duAn, bool choChuDuAn)
+        {
+            if (i == null)
+            {
+                throw new ArgumentNullException(nameof(i));
+            }
+
+            if (duAn == null)
+            {
+                throw new ArgumentNullException(nameof(duAn));
+            }
+
+            return new InvitationResponse
+            {
+                InvitationId = i.Id,
+                ProjectId = i.ProjectId,
+                ProjectName = duAn.Name,
+                Email = choChuDuAn && !i.ByEmail ? null : i.Email,
+                UserId = choChuDuAn && i.ByEmail && i.Status != InvitationStatus.Accepted ? null : i.UserId,
+                ByEmail = i.ByEmail,
+                Role = i.Role,
+                Status = i.Status,
+                RequiresConsent = duAn.CanDongYCaNhan(),
+                CreatedAt = i.CreatedAt,
+                ExpiresAt = i.ExpiresAt,
+            };
         }
 
         /// <summary>
@@ -432,9 +576,28 @@ namespace Crowd.Project.Api.Services
             Dictionary<Guid, JoinRequest> donDangCho = await _db.JoinRequests
                 .Where(x => x.ProjectId == duAn.Id && x.Status == JoinRequestStatus.Pending && timThay.Contains(x.UserId))
                 .ToDictionaryAsync(x => x.UserId, ct);
+            HashSet<Guid> biChanDn = new HashSet<Guid>(await _db.OwnerLabelerEntries.AsNoTracking()
+                .Where(e => e.OwnerId == duAn.OwnerId && e.Kind == OwnerListKind.Blocked && timThay.Contains(e.LabelerId))
+                .Select(e => e.LabelerId)
+                .ToListAsync(ct));
+            HashSet<Guid> daDongY = new HashSet<Guid>();
+            if (duAn.CanDongYCaNhan())
+            {
+                foreach (ProjectConsent c in await _db.ProjectConsents.AsNoTracking()
+                    .Where(c => c.ProjectId == duAn.Id && timThay.Contains(c.UserId)).ToListAsync(ct))
+                {
+                    if (c.ConHieuLuc(duAn))
+                    {
+                        daDongY.Add(c.UserId);
+                    }
+                }
+            }
+
+            int soMoi = 0;
 
             DateTimeOffset luc = _clock.GetUtcNow();
             HashSet<Guid> daXet = new HashSet<Guid>();
+            HashSet<string> daXetEmail = new HashSet<string>(StringComparer.Ordinal);
             List<AddMemberResult> ketQua = new List<AddMemberResult>();
             int soThem = 0;
 
@@ -455,15 +618,41 @@ namespace Crowd.Project.Api.Services
 
                 string trangThai;
                 string? loiGiai = null;
+                Guid? loiMoiId = null;
                 if (d.Loi != null)
                 {
                     trangThai = d.Loi;
                     loiGiai = d.Loi == KetQuaMoi.EmailKhongHopLe ? "Email khong hop le." : "userId khong hop le.";
                 }
+                else if (d.Email != null)
+                {
+                    // VD-S-16: moi nhanh email ra CUNG mot ket qua — trung lap chi xet theo chuoi email (xet theo
+                    // tai khoan se lo email nao trung voi userId da gui). Co tai khoan: loi moi trong ung dung,
+                    // nguoi do tu chap nhan (cua kiem dieu kien o InvitationService). Chua co: thu moi dang ky,
+                    // dang ky + xac thuc email xong thi loi moi gan voi tai khoan moi (GanTaiKhoanAsync).
+                    if (!daXetEmail.Add(d.Email))
+                    {
+                        trangThai = KetQuaMoi.TrungLap;
+                        loiGiai = "Email nay da co o dong khac trong cung lan moi.";
+                    }
+                    else
+                    {
+                        bool cam = n != null
+                            && (daXet.Contains(n.UserId) || daCo.ContainsKey(n.UserId) || biChanDn.Contains(n.UserId));
+                        ProjectInvitation moi = await TaoLoiMoiAsync(
+                            duAn, d.Email, n == null ? null : n.UserId, role, true, !cam, caller, ct);
+                        trangThai = KetQuaMoi.DaGuiLoiMoi;
+                        loiGiai = "Da gui loi moi toi email nay.";
+                        loiMoiId = moi.Id;
+                        soMoi++;
+                    }
+
+                    n = null;
+                }
                 else if (n == null)
                 {
                     trangThai = KetQuaMoi.KhongTimThay;
-                    loiGiai = "Khong co tai khoan voi " + (d.UserId.HasValue ? "userId" : "email") + " nay.";
+                    loiGiai = "Khong co tai khoan voi userId nay.";
                 }
                 else if (!daXet.Add(n.UserId))
                 {
@@ -484,10 +673,30 @@ namespace Crowd.Project.Api.Services
                         ? duAn.LyDoLabelerKhongDuDieuKien(hoSo)
                         : (hoSo.BiKhoa ? "tai_khoan_bi_khoa" : null);
 
+                    string? lyDoBaoVe = duAn.LyDoKhongDuDieuKienBaoVe(n.IdentityVerified, n.Adult, true);
                     if (lyDo != null)
                     {
                         trangThai = lyDo;
                         loiGiai = duAn.GiaiThichKhongDuDieuKien(lyDo, hoSo);
+                    }
+                    else if (biChanDn.Contains(n.UserId))
+                    {
+                        trangThai = "bi_chan_boi_doanh_nghiep";
+                        loiGiai = "Nguoi nay nam trong danh sach chan cua doanh nghiep — bo khoi danh sach truoc.";
+                    }
+                    else if (lyDoBaoVe != null)
+                    {
+                        trangThai = lyDoBaoVe;
+                        loiGiai = LabelingProject.GiaiThichBaoVe(lyDoBaoVe);
+                    }
+                    else if (duAn.CanDongYCaNhan() && !daDongY.Contains(n.UserId))
+                    {
+                        // Chu du an khong dong y canh bao / ky NDA thay nguoi khac duoc: loi moi cho nguoi do tu dong y.
+                        ProjectInvitation moi = await TaoLoiMoiAsync(duAn, n.Email, n.UserId, role, false, true, caller, ct);
+                        trangThai = KetQuaMoi.ChoDongY;
+                        loiGiai = "Du an can nguoi duoc moi tu dong y dieu khoan — da gui loi moi.";
+                        loiMoiId = moi.Id;
+                        soMoi++;
                     }
                     else
                     {
@@ -512,15 +721,62 @@ namespace Crowd.Project.Api.Services
                     DisplayName = n == null ? null : n.DisplayName,
                     Status = trangThai,
                     Message = loiGiai,
+                    InvitationId = loiMoiId,
                 });
             }
 
-            if (soThem > 0)
+            if (soThem > 0 || soMoi > 0)
             {
                 await _db.SaveChangesAsync(ct);
             }
 
-            return new AddMembersBatchResponse { Added = soThem, Results = ketQua };
+            return new AddMembersBatchResponse { Added = soThem, Invited = soMoi, Results = ketQua };
+        }
+
+        /// <summary>
+        /// VD-S-16: so email mot nguoi moi trong 24 gio (dem loi moi by_email da tao) cong lan nay khong vuot
+        /// project.email_invite_daily_max. Vuot → 429, Retry-After = luc loi moi cu nhat trong cua so het tinh.
+        /// </summary>
+        private async Task KiemHanMucMoiEmailAsync(Guid nguoiMoi, int soLanNay, CancellationToken ct)
+        {
+            int toiDa = _settings.SoNguyen(SettingKeys.ProjectEmailInviteDailyMax);
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            DateTimeOffset tu = bayGio - TimeSpan.FromDays(1);
+            IQueryable<ProjectInvitation> trongCua = _db.ProjectInvitations.AsNoTracking()
+                .Where(i => i.ByEmail && i.InvitedBy == nguoiMoi && i.CreatedAt > tu);
+            int daMoi = await trongCua.CountAsync(ct);
+            if (daMoi + soLanNay <= toiDa)
+            {
+                return;
+            }
+
+            // Cho bao lau thi du cho lan nay: bo di (daMoi + soLanNay - toiDa) loi moi cu nhat khoi cua so.
+            int canNha = daMoi + soLanNay - toiDa;
+            TimeSpan cho = TimeSpan.FromDays(1);
+            if (canNha <= daMoi)
+            {
+                DateTimeOffset moc = await trongCua.OrderBy(i => i.CreatedAt).Skip(canNha - 1).Select(i => i.CreatedAt).FirstAsync(ct);
+                cho = moc + TimeSpan.FromDays(1) - bayGio;
+            }
+
+            throw new VuotHanMucException(
+                "vuot_han_muc_moi_email",
+                "Moi toi da " + toiDa + " email trong 24 gio (da moi " + daMoi + ", lan nay " + soLanNay + ").",
+                cho);
+        }
+
+        private void PhatLoiMoi(ProjectInvitation moi, LabelingProject duAn, Caller caller)
+        {
+            _events.Phat(caller, new ProjectInvitationCreated
+            {
+                InvitationId = moi.Id,
+                ProjectId = duAn.Id,
+                ProjectName = duAn.Name,
+                Email = moi.Email,
+                UserId = moi.UserId,
+                RequiresConsent = duAn.CanDongYCaNhan(),
+                ExpiresAt = moi.ExpiresAt,
+            });
         }
 
         /// <summary>userId truoc, email sau, giu thu tu nguoi dung gui; email chuan hoa trim + chu thuong.</summary>
@@ -590,5 +846,19 @@ namespace Crowd.Project.Api.Services
         public const string KhongTimThay = "khong_tim_thay";
         public const string TrungLap = "trung_lap";
         public const string EmailKhongHopLe = "email_khong_hop_le";
+
+        /// <summary>Moi theo email — da tao loi moi cho (giong het du email co tai khoan hay khong, VD-S-16).</summary>
+        public const string DaGuiLoiMoi = "invited";
+
+        /// <summary>Du an can tu dong y dieu khoan — da gui loi moi cho nguoi do chap nhan.</summary>
+        public const string ChoDongY = "pending_consent";
+    }
+
+    /// <summary>Ket qua moi MOT nguoi: hoac da them (Member), hoac da tao loi moi cho (Invitation).</summary>
+    public sealed class ThemMotKetQua
+    {
+        public MemberResponse? Member { get; init; }
+
+        public InvitationResponse? Invitation { get; init; }
     }
 }

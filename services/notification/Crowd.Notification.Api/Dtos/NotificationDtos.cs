@@ -20,6 +20,27 @@ namespace Crowd.Notification.Api.Dtos
         public DateTimeOffset? ReadAt { get; init; }
     }
 
+    public sealed class RealtimeTicketResponse
+    {
+        public required string Ticket { get; init; }
+
+        public required DateTimeOffset ExpiresAt { get; init; }
+    }
+
+    /// <summary>Khung WebSocket: kind = connected | notification.</summary>
+    public sealed class RealtimeMessage
+    {
+        public required string Kind { get; init; }
+
+        public NotificationResponse? Notification { get; init; }
+    }
+
+    public sealed class LanguageResponse
+    {
+        /// <summary>vi | en</summary>
+        public string? Language { get; init; }
+    }
+
     public sealed class NotificationPageResponse
     {
         public required IReadOnlyList<NotificationResponse> Items { get; init; }

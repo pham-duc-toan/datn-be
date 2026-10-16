@@ -8,6 +8,7 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Identity;
 using Crowd.Identity.Api.Dtos;
 using Crowd.Identity.Api.Entities;
@@ -36,6 +37,8 @@ namespace Crowd.Identity.Api.Services
         private readonly MaTaiKhoanService _maTaiKhoan;
         private readonly TimeProvider _clock;
         private readonly ILogger<AuthService> _logger;
+        private readonly KhoaDuLieu _khoa;
+        private readonly ISettings _settings;
 
         public AuthService(
             IdentityDbContext db,
@@ -44,8 +47,23 @@ namespace Crowd.Identity.Api.Services
             TokenIssuer tokenIssuer,
             MaTaiKhoanService maTaiKhoan,
             TimeProvider clock,
-            ILogger<AuthService> logger)
+            ILogger<AuthService> logger,
+            KhoaDuLieu khoa,
+            ISettings settings)
         {
+            if (khoa == null)
+            {
+                throw new ArgumentNullException(nameof(khoa));
+            }
+
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            _khoa = khoa;
+            _settings = settings;
+
             if (maTaiKhoan == null)
             {
                 throw new ArgumentNullException(nameof(maTaiKhoan));
@@ -201,12 +219,123 @@ namespace Crowd.Identity.Api.Services
                 user.DatPasswordHash(_matKhau.Bam(user, body.Password!));
             }
 
+            // 2FA (FC-04): mat khau dung moi qua MOT lop. Chua cap token — tra ma thu thach, client gui
+            // kem ma 6 so o POST /auth/2fa/verify. Thu thach song ngan va gioi han so lan sai.
+            bool batHaiLop = await _db.HaiLops.AnyAsync(h => h.UserId == user.Id && h.EnabledAt != null, ct);
+            if (batHaiLop)
+            {
+                TimeSpan song = _settings.ThoiGian(SettingKeys.IdentityTwoFactorChallengeTtl);
+                string thuThach = await _maTaiKhoan.PhatThuThachHaiLopAsync(user.Id, song, ct);
+                await _db.SaveChangesAsync(ct);
+
+                return DangNhapKetQua.CanHaiLop(new TwoFactorChallengeResponse
+                {
+                    TwoFactorRequired = true,
+                    ChallengeToken = thuThach,
+                    ExpiresIn = (int)song.TotalSeconds,
+                });
+            }
+
             // Moi lan dang nhap mo mot PHIEN moi (mot dong login_sessions).
             TokenResponse cap = await MoPhienAsync(user, ct);
 
             await _db.SaveChangesAsync(ct);
 
             return DangNhapKetQua.ThanhCong(cap);
+        }
+
+        // =====================================================================
+        // DANG NHAP — BUOC 2: MA 2FA (FC-04)
+        // =====================================================================
+
+        /// <summary>
+        /// Doi ma thu thach + ma 6 so (hoac ma du phong) lay cap token. Khoa dong thu thach (FOR UPDATE)
+        /// de hai request do ma song song khong vuot gioi han so lan sai.
+        /// </summary>
+        public async Task<XacThucHaiLopKetQua> XacThucHaiLopAsync(string? thuThachGoc, string? ma, string? maDuPhong, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(thuThachGoc) || thuThachGoc.Length > 200)
+            {
+                return XacThucHaiLopKetQua.Loi(XacThucHaiLopTrangThai.ThuThachKhongHopLe);
+            }
+
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            string hash = TokenIssuer.BamRefreshToken(thuThachGoc);
+            string mucDich = MucDichMa.TwoFactorLogin.ToString();
+
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                MaTaiKhoan? thuThach = await _db.MaTaiKhoans
+                    .FromSqlInterpolated($"SELECT * FROM account_tokens WHERE token_hash = {hash} AND purpose = {mucDich} FOR UPDATE")
+                    .FirstOrDefaultAsync(ct);
+                if (thuThach == null || !thuThach.DungDuoc(bayGio))
+                {
+                    return XacThucHaiLopKetQua.Loi(XacThucHaiLopTrangThai.ThuThachKhongHopLe);
+                }
+
+                User? user = await _db.Users.FirstOrDefaultAsync(u => u.Id == thuThach.UserId, ct);
+                HaiLop? haiLop = await _db.HaiLops.FirstOrDefaultAsync(h => h.UserId == thuThach.UserId, ct);
+                if (user == null || haiLop == null || !haiLop.DangBat)
+                {
+                    // Vua tat 2FA giua hai buoc: thu thach cu khong con y nghia.
+                    thuThach.Dung(bayGio);
+                    await _db.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
+                    return XacThucHaiLopKetQua.Loi(XacThucHaiLopTrangThai.ThuThachKhongHopLe);
+                }
+
+                if (user.Status == UserStatus.Blocked)
+                {
+                    return XacThucHaiLopKetQua.Loi(XacThucHaiLopTrangThai.BiKhoa);
+                }
+
+                bool dung = false;
+                if (!string.IsNullOrWhiteSpace(maDuPhong))
+                {
+                    string? sach = HaiLopService.ChuanHoaMaDuPhong(maDuPhong);
+                    dung = sach != null && haiLop.DungMaDuPhong(HaiLopService.BamMaDuPhong(_khoa, sach));
+                    if (dung)
+                    {
+                        _logger.LogInformation("User {UserId} dang nhap bang ma du phong, con {ConLai} ma", user.Id, haiLop.RecoveryHashes.Count);
+                    }
+                }
+                else
+                {
+                    byte[] biMat = _khoa.GiaiMa(haiLop.SecretCipher);
+                    long buoc = Totp.Kiem(biMat, ma, bayGio, haiLop.LastUsedStep);
+                    if (buoc >= 0)
+                    {
+                        haiLop.GhiBuocDaDung(buoc);
+                        dung = true;
+                    }
+                }
+
+                if (!dung)
+                {
+                    int toiDa = _settings.SoNguyen(SettingKeys.IdentityTwoFactorMaxAttempts);
+                    bool hetLuot = thuThach.GhiSai(toiDa, bayGio);
+                    await _db.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
+                    if (hetLuot)
+                    {
+                        _logger.LogWarning("User {UserId} nhap sai ma 2FA {SoLan} lan — huy thu thach", user.Id, toiDa);
+                        return XacThucHaiLopKetQua.Loi(XacThucHaiLopTrangThai.HetLuot);
+                    }
+
+                    return XacThucHaiLopKetQua.SaiMa(toiDa - thuThach.FailedAttempts);
+                }
+
+                thuThach.Dung(bayGio);
+                TokenResponse cap = await MoPhienAsync(user, ct);
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return XacThucHaiLopKetQua.ThanhCong(cap);
+            }
+            finally
+            {
+                await tx.DisposeAsync();
+            }
         }
 
         // =====================================================================
@@ -336,9 +465,16 @@ namespace Crowd.Identity.Api.Services
             bool kybDaDuyet = user.Roles.Contains(CrowdRoles.Business)
                 && await _db.BusinessProfiles.AnyAsync(p => p.UserId == user.Id && p.Status == KybStatus.Verified, ct);
 
+            // Claim identity_verified / adult (muc 2.9, FP-05): tinh tuoi tai LUC PHAT token theo ngay Viet Nam.
+            XacMinhDanhTinh? xacMinh = await _db.XacMinhDanhTinhs.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UserId == user.Id && x.Status == KybStatus.Verified, ct);
+            bool daXacMinh = xacMinh != null;
+            bool duTuoi = xacMinh != null
+                && xacMinh.DuTuoi(_settings.SoNguyen(SettingKeys.IdentityAdultAge), XacMinhDanhTinhService.HomNayVietNam(_clock.GetUtcNow()));
+
             return new TokenResponse
             {
-                AccessToken = _tokenIssuer.TaoAccessToken(user, kybDaDuyet),
+                AccessToken = _tokenIssuer.TaoAccessToken(user, kybDaDuyet, daXacMinh, duTuoi),
                 RefreshToken = refreshToken,
                 TokenType = "Bearer",
                 ExpiresIn = (int)_tokenIssuer.AccessTokenLifetime.TotalSeconds,

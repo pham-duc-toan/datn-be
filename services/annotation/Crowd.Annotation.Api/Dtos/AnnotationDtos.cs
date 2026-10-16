@@ -158,6 +158,13 @@ namespace Crowd.Annotation.Api.Dtos
     {
         public required Guid ProjectId { get; init; }
 
+        /// <summary>So mau dung lai ket qua da tinh (bo nho dem) — chi de do, khong ghi vao file xuat.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public int CacheHits { get; init; }
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public int CacheMisses { get; init; }
+
         public required string Modality { get; init; }
 
         public required RawJson LabelSchema { get; init; }

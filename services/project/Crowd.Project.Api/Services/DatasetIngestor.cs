@@ -57,6 +57,7 @@ namespace Crowd.Project.Api.Services
         private readonly TimeProvider _clock;
         private readonly ILogger<DatasetIngestor> _logger;
         private readonly ISettings _settings;
+        private readonly NhapNguonNgoaiService _nhapNgoai;
 
         public DatasetIngestor(
             ProjectDbContext db,
@@ -65,8 +66,16 @@ namespace Crowd.Project.Api.Services
             ProjectEventPublisher events,
             TimeProvider clock,
             ILogger<DatasetIngestor> logger,
-            ISettings settings)
+            ISettings settings,
+            NhapNguonNgoaiService nhapNgoai)
         {
+            if (nhapNgoai == null)
+            {
+                throw new ArgumentNullException(nameof(nhapNgoai));
+            }
+
+            _nhapNgoai = nhapNgoai;
+
             if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
@@ -172,6 +181,18 @@ namespace Crowd.Project.Api.Services
             LabelingProject duAn = await _db.Projects.AsNoTracking().FirstAsync(p => p.Id == lo.ProjectId, ct);
             DateTimeOffset bayGio = _clock.GetUtcNow();
 
+            // FB-11: lo nhap tu nguon ngoai → tai ve MinIO truoc, roi nap nhu manifest thuong. Loi tai tung
+            // file (qua lon, dia chi noi bo, het gio...) tinh vao so bo qua va tom tat loi cua lo.
+            List<string> loiNguon = new List<string>();
+            int boQuaNguon = 0;
+            if (lo.CanTaiNguonNgoai())
+            {
+                KetQuaNhapNgoai kq = await _nhapNgoai.TaiVeAsync(lo, duAn, ct);
+                lo.XongNhapNguonNgoai(RawJson.Tu(kq.Dong), kq.SpecKhongBiMat);
+                loiNguon = kq.Loi;
+                boQuaNguon = kq.SoBoQua;
+            }
+
             List<JsonNode?> dong = await DocManifestAsync(lo, ct);
 
             HashSet<string> daCo = new HashSet<string>(
@@ -179,8 +200,8 @@ namespace Crowd.Project.Api.Services
                 StringComparer.Ordinal);
 
             List<Sample> moi = new List<Sample>();
-            List<string> loi = new List<string>();
-            int boQua = 0;
+            List<string> loi = new List<string>(loiNguon);
+            int boQua = boQuaNguon;
 
             for (int i = 0; i < dong.Count; i++)
             {
@@ -488,6 +509,7 @@ namespace Crowd.Project.Api.Services
             double? thoiLuong = media != null && media.DurationSec.HasValue ? media.DurationSec : SoTuyChon(o, "durationSec");
             int? rong = media != null && media.Width.HasValue ? media.Width : (int?)SoTuyChon(o, "width");
             int? cao = media != null && media.Height.HasValue ? media.Height : (int?)SoTuyChon(o, "height");
+            double? fps = laVideo ? (media != null && media.Fps.HasValue ? media.Fps : SoTuyChon(o, "fps")) : null;
 
             if (!thoiLuong.HasValue || thoiLuong.Value <= 0)
             {
@@ -505,7 +527,7 @@ namespace Crowd.Project.Api.Services
 
             if (doan.Count == 1)
             {
-                SampleMetadata md = new SampleMetadata { DurationSec = thoiLuong.Value, Width = rong, Height = cao };
+                SampleMetadata md = new SampleMetadata { DurationSec = thoiLuong.Value, Width = rong, Height = cao, Fps = fps };
                 ds.Add(Sample.TaoTuFile(duAn.Id, lo.Id, duAn.Modality, khoa, ten, loai, tt.SizeBytes, bamFile, md, bayGio, QuyDinhTuSetting.DuLieu(_settings)));
                 return ds;
             }
@@ -520,6 +542,7 @@ namespace Crowd.Project.Api.Services
                     SourceDurationSec = thoiLuong.Value,
                     Width = rong,
                     Height = cao,
+                    Fps = fps,
                 };
 
                 // Moi doan mot dau van tay rieng: bam cua (file + vi tri doan).

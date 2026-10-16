@@ -3,7 +3,7 @@
 # Tu tao tai khoan + du an moi. Cap do / uy tin dat thang trong identity_db (bang labeler_stats) — chinh
 # nguon project-svc hoi qua POST /internal/users/lookup.
 # Chay: python e2e_thanh_vien.py   (stack demo: E2E_PROFILE=demo)
-import os, sys, threading, uuid
+import os, sys, threading, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -88,28 +88,57 @@ try:
     publish_va_duyet(biz, P1)
 
     r = requests.post(G + f"/projects/{P1}/members", headers=biz["h"], json={"email": "  " + L["l1"]["email"].upper() + " ", "role": "labeler"})
-    kiem("moi 1 nguoi theo email (hoa / khoang trang) → 200", r.status_code == 200 and r.json()["userId"] == L["l1"]["id"], r.text)
+    co_tk = r.json() if r.status_code == 202 else {}
+    kiem("moi 1 nguoi theo email (hoa / khoang trang) → 202 loi moi, KHONG kem userId (S-16)",
+         r.status_code == 202 and co_tk["userId"] is None and co_tk["email"] == L["l1"]["email"].lower() and co_tk["byEmail"], r.text)
     r = requests.post(G + f"/projects/{P1}/members", headers=biz["h"], json={"email": f"khong-co-{TAG}@crowd.local", "role": "labeler"})
-    kiem("email khong ton tai → 404", r.status_code == 404, r.text)
+    chua_tk = r.json() if r.status_code == 202 else {}
+    kiem("email chua co tai khoan → 202 loi moi, cung dang voi email co tai khoan (S-16)",
+         r.status_code == 202 and sorted(chua_tk) == sorted(co_tk) and chua_tk["userId"] is None and chua_tk["status"] == "pending", r.text)
+    kiem("l1 chua thanh thanh vien (phai tu chap nhan)", L["l1"]["id"] not in thanh_vien(biz, P1))
+    lm = cho(lambda: [x for x in requests.get(G + "/projects/invitations/mine", headers=L["l1"]["h"]).json() if x["projectId"] == P1], 10)
+    kiem("l1 thay loi moi trong ung dung (kem email cua minh)", lm and lm[0]["invitationId"] == co_tk.get("invitationId") and lm[0]["userId"] == L["l1"]["id"], lm)
+    r = requests.post(G + f"/projects/invitations/{co_tk.get('invitationId')}/accept", headers=L["l1"]["h"])
+    kiem("l1 chap nhan → thanh vien", r.status_code == 200 and L["l1"]["id"] in thanh_vien(biz, P1), r.text)
+    ds_moi = requests.get(G + f"/projects/{P1}/invitations", headers=biz["h"]).json()
+    kiem("chu du an: loi moi da chap nhan moi hien userId, loi moi dang cho thi khong",
+         any(x["invitationId"] == co_tk.get("invitationId") and x["status"] == "accepted" and x["userId"] == L["l1"]["id"] for x in ds_moi)
+         and all(x["userId"] is None for x in ds_moi if x["status"] == "pending"), ds_moi)
     r = requests.post(G + f"/projects/{P1}/members", headers=biz["h"], json={"email": L["l2"]["email"], "userId": L["l2"]["id"], "role": "labeler"})
     kiem("ca userId lan email → 400 thieu_thong_tin", r.status_code == 400 and code(r) == "thieu_thong_tin", r.text)
     r = requests.post(G + f"/projects/{P1}/members", headers=biz["h"], json={"userId": str(uuid.uuid4()), "role": "labeler"})
     kiem("userId khong ton tai → 404 (truoc day van them duoc)", r.status_code == 404, r.text)
     r = requests.post(G + f"/projects/{P1}/members", headers=biz["h"], json={"email": L["l1"]["email"], "role": "labeler"})
-    kiem("moi lai nguoi da la thanh vien → 409 da_la_thanh_vien", r.status_code == 409 and code(r) == "da_la_thanh_vien", r.text)
+    kiem("moi lai thanh vien theo email → van 202 nhu moi nguoi khac (khong lo, S-16)", r.status_code == 202 and r.json()["userId"] is None, r.text)
+    time.sleep(2)
+    kiem("... nhung la loi moi 'cam': thanh vien khong nhan them loi moi",
+         not [x for x in requests.get(G + "/projects/invitations/mine", headers=L["l1"]["h"]).json() if x["projectId"] == P1])
+    r = requests.post(G + f"/projects/{P1}/members", headers=biz["h"], json={"userId": L["l1"]["id"], "role": "labeler"})
+    kiem("theo userId thi van bao chi tiet: 409 da_la_thanh_vien", r.status_code == 409 and code(r) == "da_la_thanh_vien", r.text)
 
     lo = {"role": "labeler",
           "userIds": [L["l2"]["id"], str(uuid.uuid4())],
-          "emails": [L["l3"]["email"], L["l1"]["email"], L["l2"]["email"].upper(), "khong-phai-email", biz2["email"]]}
+          "emails": [L["l3"]["email"], L["l1"]["email"], L["l2"]["email"].upper(), "khong-phai-email", biz2["email"], L["l3"]["email"].upper()]}
     r = requests.post(G + f"/projects/{P1}/members/batch", headers=biz["h"], json=lo)
-    st = [x["status"] for x in r.json()["results"]] if r.status_code == 200 else r.text
-    kiem("moi nhieu nguoi → ket qua tung dong, dung thu tu",
-         st == ["added", "khong_tim_thay", "added", "da_la_thanh_vien", "trung_lap", "email_khong_hop_le", "khong_phai_labeler"], st)
-    kiem("added = 2, kem displayName", r.status_code == 200 and r.json()["added"] == 2 and r.json()["results"][0]["displayName"] == "l2", r.text)
+    kq = r.json()["results"] if r.status_code == 200 else []
+    st = [x["status"] for x in kq] if kq else r.text
+    kiem("moi nhieu nguoi → userId chi tiet; MOI email hop le deu 'invited' (S-16); trung email → trung_lap",
+         st == ["added", "khong_tim_thay", "invited", "invited", "invited", "email_khong_hop_le", "invited", "trung_lap"], st)
+    kiem("added = 1 (kem displayName), invited = 4",
+         r.status_code == 200 and r.json()["added"] == 1 and r.json()["invited"] == 4 and kq[0]["displayName"] == "l2", r.text)
+    dong_email = [kq[i] for i in (2, 3, 4, 6)] if len(kq) == 8 else []
+    kiem("dong email: khong userId / displayName, cung message — khong phan biet co tai khoan, da la thanh vien hay khong",
+         dong_email and all(x["userId"] is None and x["displayName"] is None and x["message"] == dong_email[0]["message"] for x in dong_email), dong_email)
+    lm3 = cho(lambda: [x for x in requests.get(G + "/projects/invitations/mine", headers=L["l3"]["h"]).json() if x["projectId"] == P1], 10)
+    requests.post(G + f"/projects/invitations/{lm3[0]['invitationId']}/accept", headers=L["l3"]["h"]).raise_for_status()
     tv = thanh_vien(biz, P1)
-    kiem("danh sach thanh vien co l1, l2, l3", all(L[k]["id"] in tv for k in ("l1", "l2", "l3")), list(tv))
+    kiem("danh sach thanh vien co l1, l2, l3 (l3 sau khi tu chap nhan)", all(L[k]["id"] in tv for k in ("l1", "l2", "l3")), list(tv))
+    lb = cho(lambda: [x for x in requests.get(G + "/projects/invitations/mine", headers=biz2["h"]).json() if x["projectId"] == P1], 10)
+    r = requests.post(G + f"/projects/invitations/{lb[0]['invitationId']}/accept", headers=biz2["h"]) if lb else None
+    kiem("doanh nghiep (khong phai labeler) chap nhan loi moi labeler → 409 khong_phai_labeler",
+         r is not None and r.status_code == 409 and code(r) == "khong_phai_labeler", r.text if r is not None else lb)
 
-    r = requests.post(G + f"/projects/{P1}/members/batch", headers=biz["h"], json={"role": "reviewer", "emails": [biz2["email"]]})
+    r = requests.post(G + f"/projects/{P1}/members/batch", headers=biz["h"], json={"role": "reviewer", "userIds": [biz2["id"]]})
     kiem("doanh nghiep khac lam reviewer (khong can vai tro labeler)",
          r.status_code == 200 and r.json()["results"][0]["status"] == "added" and tv.get(biz2["id"]) is None, r.text)
     kiem("reviewer thay du an rieng tu", requests.get(G + f"/projects/{P1}", headers=biz2["h"]).status_code == 200)
@@ -205,7 +234,7 @@ try:
     r = requests.post(G + f"/projects/{P3}/join", headers=L["chuaut"]["h"])
     kiem("du dieu kien → join 200", r.status_code == 200, r.text)
     kiem("khong co dong thanh vien cho nguoi bi tu choi", L["thap"]["id"] not in thanh_vien(biz, P3))
-    r = requests.post(G + f"/projects/{P3}/members/batch", headers=biz["h"], json={"role": "labeler", "emails": [L["thap"]["email"], L["l8"]["email"]]})
+    r = requests.post(G + f"/projects/{P3}/members/batch", headers=biz["h"], json={"role": "labeler", "userIds": [L["thap"]["id"], L["l8"]["id"]]})
     kiem("chu du an moi nguoi chua du cap → tung dong bao chua_du_cap_do, nguoi du thi them",
          r.status_code == 200 and [x["status"] for x in r.json()["results"]] == ["chua_du_cap_do", "added"], r.text)
     ma_dk = tao_ma(biz, P3).json()["code"]
@@ -262,7 +291,7 @@ try:
     kiem("rut lan hai → 404", requests.delete(G + f"/projects/{P4}/join-requests/mine", headers=L["l3"]["h"]).status_code == 404)
 
     d5 = xin(L["l5"], P4).json()
-    r = requests.post(G + f"/projects/{P4}/members", headers=biz["h"], json={"email": L["l5"]["email"], "role": "labeler"})
+    r = requests.post(G + f"/projects/{P4}/members", headers=biz["h"], json={"userId": L["l5"]["id"], "role": "labeler"})
     kiem("chu du an moi thang nguoi dang co don → don tu chuyen approved",
          r.status_code == 200 and any(x["id"] == d5["id"] for x in hang_doi(biz, P4, "approved")), r.text)
     d6 = xin(L["l6"], P4).json()
@@ -323,6 +352,41 @@ try:
     r = requests.post(G + f"/projects/{P7}/entrance-test/attempts/{at['attemptId']}/submit", headers=L["l3"]["h"],
                       json={"answers": [{"sampleId": q["sampleId"], "payload": {"nhan": {"labelIds": [dung[q["sampleId"]]]}}} for q in at["questions"]]})
     kiem("public + test: dau → thanh vien ngay, khong co don", r.status_code == 200 and r.json()["joinedProject"] and r.json()["joinRequestId"] is None, r.text)
+
+    # =================================================================================
+    print("\n[8] VD-S-16: o moi theo email khong do duoc tai khoan; han muc moi email rieng")
+
+    def cua_toi(u, pid):
+        return [x for x in requests.get(G + "/projects/invitations/mine", headers=u["h"]).json() if x["projectId"] == pid]
+
+    biz3 = dang_ky(["business"], "s16")
+    P8, _ = du_an(biz3, "S16", "private")
+    chan = dang_ky(["labeler"], "s16-chan")
+    requests.put(G + f"/projects/labeler-lists/{chan['id']}", headers=biz3["h"], json={"kind": "blocked"}).raise_for_status()
+    dat_va_cho("project.email_invite_daily_max", 4, ("project",))
+    r = requests.post(G + f"/projects/{P8}/members/batch", headers=biz3["h"], json={
+        "role": "labeler", "emails": [L["l4"]["email"], chan["email"], f"s16-khong-co-{TAG}@crowd.local"]})
+    kq = r.json()["results"] if r.status_code == 200 else []
+    kiem("co tai khoan / bi doanh nghiep chan / chua co tai khoan → 3 dong giong het",
+         len(kq) == 3 and all(x["status"] == "invited" and x["userId"] is None and x["displayName"] is None
+                              and x["message"] == kq[0]["message"] and x["invitationId"] for x in kq), r.text)
+    kiem("l4 nhan loi moi trong ung dung", cho(lambda: cua_toi(L["l4"], P8), 10))
+    time.sleep(1)
+    kiem("nguoi bi doanh nghiep chan KHONG nhan gi (loi moi cam)", not cua_toi(chan, P8))
+    ds = requests.get(G + f"/projects/{P8}/invitations", headers=biz3["h"]).json()
+    kiem("chu du an thay 3 loi moi pending nhu nhau, khong userId",
+         len(ds) == 3 and all(x["status"] == "pending" and x["userId"] is None and x["byEmail"] for x in ds), ds)
+
+    r = requests.post(G + f"/projects/{P8}/members/batch", headers=biz3["h"], json={"role": "labeler", "emails": ["s16a@x.vn", "s16b@x.vn"]})
+    kiem("3 + 2 > project.email_invite_daily_max = 4 → 429 vuot_han_muc_moi_email kem Retry-After",
+         r.status_code == 429 and code(r) == "vuot_han_muc_moi_email" and int(r.headers.get("Retry-After", "0")) > 0
+         and r.json().get("retryAfterSeconds", 0) > 0, (r.status_code, r.headers.get("Retry-After"), r.text))
+    kiem("bi 429 thi khong tao loi moi nao", len(requests.get(G + f"/projects/{P8}/invitations", headers=biz3["h"]).json()) == 3)
+    r = requests.post(G + f"/projects/{P8}/members", headers=biz3["h"], json={"role": "labeler", "email": "s16a@x.vn"})
+    kiem("con dung 1 suat → 202", r.status_code == 202, r.text)
+    r = requests.post(G + f"/projects/{P8}/members", headers=biz3["h"], json={"role": "labeler", "userId": L["l5"]["id"]})
+    kiem("moi theo userId khong tinh vao han muc email → 200", r.status_code == 200 and r.json()["userId"] == L["l5"]["id"], r.text)
+    dat_va_cho("project.email_invite_daily_max", 200, ("project",))
 
 finally:
     for key, v in GOC.items():

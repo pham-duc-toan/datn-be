@@ -229,6 +229,11 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("gate_spent_vnd");
 
+                    b.Property<string>("Name")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
@@ -424,6 +429,145 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                     b.HasKey("ReferredId");
 
                     b.ToTable("referrals", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Ledger.Domain.Invoices.Invoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AmountInWords")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("amount_in_words");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("business_id");
+
+                    b.Property<string>("BuyerAddress")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("buyer_address");
+
+                    b.Property<string>("BuyerEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("buyer_email");
+
+                    b.Property<string>("BuyerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("buyer_name");
+
+                    b.Property<string>("BuyerTaxCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("buyer_tax_code");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<long>("PassThroughVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("pass_through_vnd");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("period");
+
+                    b.Property<string>("SellerAddress")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("seller_address");
+
+                    b.Property<string>("SellerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("seller_name");
+
+                    b.Property<string>("SellerTaxCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("seller_tax_code");
+
+                    b.Property<string>("Serial")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("serial");
+
+                    b.Property<long>("TotalNetVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("total_net_vnd");
+
+                    b.Property<long>("TotalVatVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("total_vat_vnd");
+
+                    b.Property<long>("TotalVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("total_vnd");
+
+                    b.Property<int>("VatPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("vat_percent");
+
+                    b.Property<string>("_items")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("items");
+
+                    b.Property<string>("_passThrough")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("pass_through");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Period")
+                        .HasDatabaseName("ix_invoices_period");
+
+                    b.HasIndex("BusinessId", "Period")
+                        .IsUnique()
+                        .HasDatabaseName("ux_invoices_business_period");
+
+                    b.HasIndex("Serial", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ux_invoices_so");
+
+                    b.ToTable("invoices", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Ledger.Domain.Invoices.InvoiceCounter", b =>
+                {
+                    b.Property<int>("Year")
+                        .HasColumnType("integer")
+                        .HasColumnName("year");
+
+                    b.Property<int>("LastNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_number");
+
+                    b.HasKey("Year");
+
+                    b.ToTable("invoice_counters", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Ledger.Domain.Journal.JournalEntry", b =>

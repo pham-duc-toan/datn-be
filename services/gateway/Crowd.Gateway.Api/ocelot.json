@@ -94,11 +94,13 @@
     {
       // media-svc: xem file mẫu qua token trong URL (thẻ <img> không gửi được Authorization).
       // Token mã hoá AES-GCM, sống 5 phút, gắn người xem — chính nó là quyền xem (FP-02/03, FP-06).
+      // Timeout 600 s: lần đầu mở video / âm thanh có watermark, media-svc mã hoá lại cả file (sau đó lấy từ bộ đệm).
       "UpstreamPathTemplate": "/media/v/{everything}",
       "UpstreamHttpMethod": ["Get", "Post"],
       "DownstreamPathTemplate": "/media/v/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8109 }],
+      "Timeout": 600,
       "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
     },
     {
@@ -129,6 +131,23 @@
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {
+      // admin-svc: danh mục mẫu bài toán (FM-03) cho mọi người đăng nhập — doanh nghiệp chọn khi tạo dự án.
+      "UpstreamPathTemplate": "/templates",
+      "UpstreamHttpMethod": ["Get"],
+      "DownstreamPathTemplate": "/templates",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8111 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
+      "UpstreamPathTemplate": "/templates/{everything}",
+      "UpstreamHttpMethod": ["Get"],
+      "DownstreamPathTemplate": "/templates/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8111 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
       // identity-svc: xác minh doanh nghiệp (KYB) — doanh nghiệp nộp hồ sơ, admin duyệt (/kyb/admin...).
       // Không đặt dưới /admin vì /admin/* thuộc admin-svc.
       "UpstreamPathTemplate": "/kyb/{everything}",
@@ -146,6 +165,17 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8101 }],
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
+      // notification-svc: WebSocket thông báo realtime. Trình duyệt không gửi được Authorization khi mở
+      // WebSocket → không xác thực ở gateway; vé dùng một lần (?ticket=, xin qua /notifications/me/realtime-ticket)
+      // do notification-svc kiểm. Priority cao hơn route /notifications/{everything} (có JWT).
+      "UpstreamPathTemplate": "/notifications/realtime",
+      "UpstreamHttpMethod": ["Get"],
+      "DownstreamPathTemplate": "/notifications/realtime",
+      "DownstreamScheme": "ws",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8110 }],
+      "Priority": 2
     },
     {
       // notification-svc: thông báo trong ứng dụng + tuỳ chọn email (FC-06).
@@ -184,10 +214,11 @@
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {
-      // Webhook cổng thanh toán: KHÔNG kiểm JWT (cổng không có token của ta),
-      // payment-svc kiểm CHỮ KÝ HMAC. Priority cao hơn route /payments/{everything}.
+      // Webhook / IPN cổng thanh toán: KHÔNG kiểm JWT (cổng không có token của ta),
+      // payment-svc kiểm CHỮ KÝ. VNPay gọi IPN bằng GET, MoMo / sandbox bằng POST.
+      // Priority cao hơn route /payments/{everything}.
       "UpstreamPathTemplate": "/payments/webhooks/{everything}",
-      "UpstreamHttpMethod": ["Post"],
+      "UpstreamHttpMethod": ["Get", "Post"],
       "DownstreamPathTemplate": "/payments/webhooks/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8106 }],
@@ -209,6 +240,8 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8106 }],
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] },
+      // IP that cua doanh nghiep: VNPay bat buoc vnp_IpAddr.
+      "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" },
       "Priority": 1
     }
   ],

@@ -45,6 +45,31 @@ namespace Crowd.Identity.Api.Dtos
         public required int ExpiresIn { get; init; }
     }
 
+    /// <summary>
+    /// Dang nhap dung mat khau cua tai khoan bat 2FA (FC-04): CHUA co token, client hoi ma 6 so roi
+    /// goi POST /auth/2fa/verify kem challengeToken.
+    /// </summary>
+    public sealed class TwoFactorChallengeResponse
+    {
+        public required bool TwoFactorRequired { get; init; }
+
+        public required string ChallengeToken { get; init; }
+
+        /// <summary>Ma thu thach con song bao nhieu giay.</summary>
+        public required int ExpiresIn { get; init; }
+    }
+
+    public sealed class TwoFactorVerifyRequest
+    {
+        public string? ChallengeToken { get; init; }
+
+        /// <summary>Ma 6 so tu ung dung xac thuc. Gui MOT trong hai: code hoac recoveryCode.</summary>
+        public string? Code { get; init; }
+
+        /// <summary>Ma du phong (dung mot lan) khi mat dien thoai.</summary>
+        public string? RecoveryCode { get; init; }
+    }
+
     public sealed class RegisterResponse
     {
         public required Guid UserId { get; init; }

@@ -31,6 +31,7 @@ namespace Crowd.Project.Api.Helpers
                 DoDaiHuongDanToiDa = s.SoNguyen(SettingKeys.GuidelineMarkdownMaxLength),
                 SoViDuToiDa = s.SoNguyen(SettingKeys.GuidelineExamplesMax),
                 DoDaiGiaiThichToiDa = s.SoNguyen(SettingKeys.GuidelineExplanationMaxLength),
+                DonGiaToiThieu = s.SoLon(SettingKeys.ProjectMinUnitPriceVnd),
             };
         }
 

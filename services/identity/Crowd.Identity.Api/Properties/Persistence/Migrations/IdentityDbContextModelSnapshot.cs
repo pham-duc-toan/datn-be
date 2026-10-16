@@ -175,6 +175,40 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                     b.ToTable("business_profiles", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Identity.Api.Entities.HaiLop", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("EnabledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("enabled_at");
+
+                    b.Property<long>("LastUsedStep")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_used_step");
+
+                    b.Property<string>("SecretCipher")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("secret_cipher");
+
+                    b.PrimitiveCollection<List<string>>("_recoveryHashes")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("recovery_hashes");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("two_factor", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Identity.Api.Entities.HuyHieuDaDat", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -208,6 +242,12 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
+
+                    b.Property<int>("FailedAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("failed_attempts");
 
                     b.Property<string>("Purpose")
                         .IsRequired()
@@ -451,6 +491,84 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Identity.Api.Entities.XacMinhDanhTinh", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("BackKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("back_key");
+
+                    b.Property<DateOnly?>("DateOfBirth")
+                        .HasColumnType("date")
+                        .HasColumnName("date_of_birth");
+
+                    b.Property<string>("FrontKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("front_key");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("full_name");
+
+                    b.Property<string>("IdNumberHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("id_number_hash");
+
+                    b.Property<string>("IdNumberLast4")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("id_number_last4");
+
+                    b.Property<string>("RejectReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reject_reason");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("IdNumberHash")
+                        .IsUnique()
+                        .HasDatabaseName("ux_identity_verifications_giay_to")
+                        .HasFilter("status = 'Verified'");
+
+                    b.HasIndex("Status", "SubmittedAt")
+                        .HasDatabaseName("ix_identity_verifications_hang_doi");
+
+                    b.ToTable("identity_verifications", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
                 {
                     b.Property<string>("Key")
@@ -485,11 +603,29 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Crowd.Identity.Api.Entities.HaiLop", b =>
+                {
+                    b.HasOne("Crowd.Identity.Api.Entities.User", null)
+                        .WithOne()
+                        .HasForeignKey("Crowd.Identity.Api.Entities.HaiLop", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Crowd.Identity.Api.Entities.MaTaiKhoan", b =>
                 {
                     b.HasOne("Crowd.Identity.Api.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Crowd.Identity.Api.Entities.XacMinhDanhTinh", b =>
+                {
+                    b.HasOne("Crowd.Identity.Api.Entities.User", null)
+                        .WithOne()
+                        .HasForeignKey("Crowd.Identity.Api.Entities.XacMinhDanhTinh", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

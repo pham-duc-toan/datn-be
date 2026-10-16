@@ -40,10 +40,37 @@ namespace Crowd.Notification.Api.Services
 
         public async Task GhiAsync(Guid userId, string loai, NoiDung noiDung, CancellationToken ct)
         {
+            if (noiDung == null)
+            {
+                throw new ArgumentNullException(nameof(noiDung));
+            }
+
             LoaiThongBao l = TimLoai(loai);
             bool guiEmail = l.GuiEmail(await TuyChonAsync(userId, loai, ct));
-            _db.ThongBaos.Add(ThongBao.Tao(userId, loai, noiDung, guiEmail, _clock.GetUtcNow()));
+            ThongBao t = ThongBao.Tao(userId, loai, noiDung.TheoNgonNgu(await NgonNguAsync(userId, ct)), guiEmail, _clock.GetUtcNow());
+            _db.ThongBaos.Add(t);
+            await BaoRealtimeAsync(userId, t.Id, ct);
         }
+
+        /// <summary>Ngon ngu thong bao cua nguoi dung (FC-08); chua chon → tieng Viet.</summary>
+        public async Task<string> NgonNguAsync(Guid userId, CancellationToken ct)
+        {
+            NgonNguNguoiDung? n = await _db.NgonNgus.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == userId, ct);
+            return n == null ? NgonNgu.TiengViet : n.Language;
+        }
+
+        /// <summary>
+        /// Bao cac instance co WebSocket cua nguoi nay (RealtimeHub) — pg_notify trong CUNG transaction voi
+        /// consumer: Postgres chi phat khi COMMIT, nen khong bao thong bao chua luu / bi rollback.
+        /// </summary>
+        private Task<int> BaoRealtimeAsync(Guid userId, Guid thongBaoId, CancellationToken ct)
+        {
+            return _db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_notify({KenhRealtime}, {userId.ToString("N") + ":" + thongBaoId.ToString("N")})", ct);
+        }
+
+        /// <summary>Kenh LISTEN / NOTIFY cua thong bao moi.</summary>
+        public const string KenhRealtime = "thong_bao_moi";
 
         /// <summary>
         /// Mot thong bao cho NHIEU nguoi (thong bao toan he thong, FM-09). Email chi khi
@@ -57,17 +84,29 @@ namespace Crowd.Notification.Api.Services
                 throw new ArgumentNullException(nameof(userIds));
             }
 
+            if (noiDung == null)
+            {
+                throw new ArgumentNullException(nameof(noiDung));
+            }
+
             LoaiThongBao l = TimLoai(loai);
             Dictionary<Guid, bool> tuyChon = await _db.TuyChonEmails.AsNoTracking()
                 .Where(x => x.Type == loai && userIds.Contains(x.UserId))
                 .ToDictionaryAsync(x => x.UserId, x => x.EmailEnabled, ct);
+            Dictionary<Guid, string> ngonNgu = await _db.NgonNgus.AsNoTracking()
+                .Where(x => userIds.Contains(x.UserId))
+                .ToDictionaryAsync(x => x.UserId, x => x.Language, ct);
             DateTimeOffset bayGio = _clock.GetUtcNow();
 
             foreach (Guid u in userIds)
             {
                 bool rieng;
                 bool? chon = tuyChon.TryGetValue(u, out rieng) ? rieng : null;
-                _db.ThongBaos.Add(ThongBao.Tao(u, loai, noiDung, choPhepEmail && l.GuiEmail(chon), bayGio));
+                string? nn;
+                ngonNgu.TryGetValue(u, out nn);
+                ThongBao t = ThongBao.Tao(u, loai, noiDung.TheoNgonNgu(nn), choPhepEmail && l.GuiEmail(chon), bayGio);
+                _db.ThongBaos.Add(t);
+                await BaoRealtimeAsync(u, t.Id, ct);
             }
 
             return userIds.Count;
@@ -77,6 +116,21 @@ namespace Crowd.Notification.Api.Services
         public void GhiEmailGiaoDich(Guid userId, string toEmail, string ten, string tieuDe, string noiDung)
         {
             _db.EmailGiaoDichs.Add(EmailGiaoDich.Tao(userId, toEmail, ten, tieuDe, noiDung, _clock.GetUtcNow()));
+        }
+
+        /// <summary>
+        /// Email giao dich theo ngon ngu nguoi nhan (FC-08). userId null = nguoi chua co tai khoan (loi moi qua
+        /// email) / dia chi van hanh — tieng Viet.
+        /// </summary>
+        public async Task GhiEmailGiaoDichAsync(Guid? userId, string toEmail, string ten, NoiDung email, CancellationToken ct)
+        {
+            if (email == null)
+            {
+                throw new ArgumentNullException(nameof(email));
+            }
+
+            NoiDung chon = userId.HasValue ? email.TheoNgonNgu(await NgonNguAsync(userId.Value, ct)) : email;
+            _db.EmailGiaoDichs.Add(EmailGiaoDich.Tao(userId ?? Guid.Empty, toEmail, ten, chon.TieuDe, chon.NoiDungChinh, _clock.GetUtcNow()));
         }
 
         /// <summary>
@@ -100,8 +154,9 @@ namespace Crowd.Notification.Api.Services
             }
 
             bool guiEmail = l.GuiEmail(await TuyChonAsync(userId, loai, ct));
+            string nn = await NgonNguAsync(userId, ct);
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            NoiDung motLan = taoNoiDung(soTien, 1);
+            NoiDung motLan = taoNoiDung(soTien, 1).TheoNgonNgu(nn);
             string duongDan = motLan.DuongDan ?? string.Empty;
             string cheDo = guiEmail ? nameof(EmailState.Pending) : nameof(EmailState.Skipped);
             DateTimeOffset tu = bayGio - CuaSoGop;
@@ -115,13 +170,16 @@ namespace Crowd.Notification.Api.Services
 
             if (cu.Count == 0)
             {
-                _db.ThongBaos.Add(ThongBao.TaoGop(userId, loai, motLan, soTien, guiEmail, bayGio));
+                ThongBao moi = ThongBao.TaoGop(userId, loai, motLan, soTien, guiEmail, bayGio);
+                _db.ThongBaos.Add(moi);
+                await BaoRealtimeAsync(userId, moi.Id, ct);
                 return;
             }
 
             ThongBao t = cu[0];
             long tong = (t.AmountVnd ?? 0) + soTien;
-            t.GopThem(soTien, taoNoiDung(tong, t.MergedCount + 1), bayGio);
+            t.GopThem(soTien, taoNoiDung(tong, t.MergedCount + 1).TheoNgonNgu(nn), bayGio);
+            await BaoRealtimeAsync(userId, t.Id, ct);
         }
 
         private static LoaiThongBao TimLoai(string loai)

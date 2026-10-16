@@ -47,6 +47,8 @@ namespace Crowd.Annotation.Infrastructure.Persistence
 
         public DbSet<MemberCache> Members => Set<MemberCache>();
 
+        public DbSet<KetQuaMauDem> KetQuaMauDems => Set<KetQuaMauDem>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -179,6 +181,18 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.Property(x => x.Role).HasColumnName("role").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            });
+
+            // Bo nho dem ket qua gop theo mau (dau van tay dau vao) — xem KetQuaMauDem.
+            modelBuilder.Entity<KetQuaMauDem>(b =>
+            {
+                b.ToTable("sample_results");
+                b.Property(x => x.ProjectId).HasColumnName("project_id");
+                b.Property(x => x.SampleId).HasColumnName("sample_id");
+                b.HasKey(x => new { x.ProjectId, x.SampleId });
+                b.Property(x => x.Fingerprint).HasColumnName("fingerprint").HasMaxLength(64).IsRequired();
+                b.Property(x => x.ToolsJson).HasColumnName("tools").HasColumnType("jsonb").IsRequired();
+                b.Property(x => x.ComputedAt).HasColumnName("computed_at").IsRequired();
             });
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());

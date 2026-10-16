@@ -3381,5 +3381,261 @@
         "kind": "transcription"
       }
     }
+  },
+  {
+    "name": "bbox xoay: hai nguoi ve khung nghieng gan nhau, mot nguoi ve khung thang lech",
+    "schema": {
+      "modality": "image",
+      "tools": [
+        {
+          "name": "bien_so",
+          "kind": "bbox",
+          "classes": [
+            "bien"
+          ],
+          "rotatable": true
+        }
+      ]
+    },
+    "metadata": {
+      "width": 400,
+      "height": 300
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "bien_so": [
+          {
+            "labelId": "bien",
+            "x": 100,
+            "y": 100,
+            "w": 120,
+            "h": 40,
+            "angle": 20
+          }
+        ]
+      },
+      {
+        "bien_so": [
+          {
+            "labelId": "bien",
+            "x": 102,
+            "y": 101,
+            "w": 118,
+            "h": 40,
+            "angle": 18
+          }
+        ]
+      },
+      {
+        "bien_so": [
+          {
+            "labelId": "bien",
+            "x": 100,
+            "y": 100,
+            "w": 120,
+            "h": 40
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "bien_so": {
+        "method": "cluster",
+        "final": [
+          {
+            "x": 100,
+            "y": 100,
+            "w": 120,
+            "h": 40,
+            "angle": 18,
+            "labelId": "bien"
+          }
+        ],
+        "supports": [
+          3
+        ],
+        "agrees": [
+          true,
+          true,
+          true
+        ],
+        "disputed": false,
+        "kind": "bbox"
+      }
+    }
+  },
+  {
+    "name": "track: doi tuong bi che giua chung roi xuat hien lai (visible false), ba nguoi",
+    "schema": {
+      "modality": "video",
+      "tools": [
+        {
+          "name": "doi_tuong",
+          "kind": "track",
+          "classes": [
+            "nguoi"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "width": 640,
+      "height": 360,
+      "durationSec": 10
+    },
+    "minF1": 0.8,
+    "labels": [
+      {
+        "doi_tuong": [
+          {
+            "labelId": "nguoi",
+            "keyframes": [
+              {
+                "t": 0,
+                "x": 10,
+                "y": 10,
+                "w": 50,
+                "h": 80
+              },
+              {
+                "t": 3,
+                "x": 100,
+                "y": 10,
+                "w": 50,
+                "h": 80,
+                "visible": false
+              },
+              {
+                "t": 6,
+                "x": 300,
+                "y": 10,
+                "w": 50,
+                "h": 80
+              },
+              {
+                "t": 9,
+                "x": 400,
+                "y": 10,
+                "w": 50,
+                "h": 80
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "doi_tuong": [
+          {
+            "labelId": "nguoi",
+            "keyframes": [
+              {
+                "t": 0,
+                "x": 12,
+                "y": 11,
+                "w": 50,
+                "h": 80
+              },
+              {
+                "t": 3,
+                "x": 102,
+                "y": 11,
+                "w": 50,
+                "h": 80,
+                "visible": false
+              },
+              {
+                "t": 6,
+                "x": 302,
+                "y": 11,
+                "w": 50,
+                "h": 80
+              },
+              {
+                "t": 9,
+                "x": 402,
+                "y": 11,
+                "w": 50,
+                "h": 80
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "doi_tuong": [
+          {
+            "labelId": "nguoi",
+            "keyframes": [
+              {
+                "t": 0,
+                "x": 10,
+                "y": 10,
+                "w": 50,
+                "h": 80
+              },
+              {
+                "t": 9,
+                "x": 400,
+                "y": 10,
+                "w": 50,
+                "h": 80
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "doi_tuong": {
+        "method": "cluster",
+        "final": [
+          {
+            "keyframes": [
+              {
+                "h": 80,
+                "t": 0,
+                "w": 50,
+                "x": 10,
+                "y": 10
+              },
+              {
+                "h": 80,
+                "t": 3,
+                "visible": false,
+                "w": 50,
+                "x": 100,
+                "y": 10
+              },
+              {
+                "h": 80,
+                "t": 6,
+                "w": 50,
+                "x": 300,
+                "y": 10
+              },
+              {
+                "h": 80,
+                "t": 9,
+                "w": 50,
+                "x": 400,
+                "y": 10
+              }
+            ],
+            "labelId": "nguoi"
+          }
+        ],
+        "supports": [
+          2
+        ],
+        "agrees": [
+          true,
+          true,
+          false
+        ],
+        "disputed": false,
+        "kind": "track"
+      }
+    }
   }
 ]

@@ -87,7 +87,10 @@ namespace Crowd.Annotation.Api.Controllers
         [HttpGet("projects/{projectId:guid}/results")]
         public async Task<IActionResult> KetQua(Guid projectId, CancellationToken ct)
         {
-            return Ok(await _service.KetQuaAsync(projectId, NguoiDuyet(), ct));
+            ProjectResultsResponse kq = await _service.KetQuaAsync(projectId, NguoiDuyet(), ct);
+            // Bo nho dem ket qua gop: bao bao nhieu mau dung lai / tinh moi (do hieu nang, kiem thu).
+            Response.Headers["X-Results-Cache"] = "hits=" + kq.CacheHits + "; misses=" + kq.CacheMisses;
+            return Ok(kq);
         }
 
         /// <summary>GET /annotations/projects/{projectId}/distribution — phan bo nhan + canh bao lech (FB-24).</summary>

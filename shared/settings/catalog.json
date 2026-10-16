@@ -77,6 +77,61 @@
     "description": "Lenh chi treo qua lau thi hoi nguoc cong ve trang thai (doi soat)."
   },
   {
+    "key": "payment.enabled_providers",
+    "group": "Phi va tien",
+    "type": "text",
+    "default": "sandbox,vnpay,momo",
+    "min": null,
+    "max": 100,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Cong nap tien dang mo (sandbox, vnpay, momo — ngan cach dau phay). Cong phai CO cau hinh khoa moi dung duoc; tat mot cong khi cong do su co."
+  },
+  {
+    "key": "payment.deposit_lookup_after",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 900,
+    "min": 60,
+    "max": 86400,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Lenh nap qua cong chua co ket qua sau bay nhieu thi hoi nguoc cong (doi soat, VD-M-09) — phong khi IPN bi lac."
+  },
+  {
+    "key": "payment.deposit_expire_after",
+    "group": "Phi va tien",
+    "type": "durationSeconds",
+    "default": 86400,
+    "min": 900,
+    "max": 2592000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Lenh nap qua cong qua thoi gian nay ma cong van chua bao da thu tien thi danh dau het han (that bai)."
+  },
+  {
+    "key": "payment.deposit_reconcile_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 60,
+    "min": 5,
+    "max": 3600,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Chu ky worker doi soat lenh nap treo."
+  },
+  {
+    "key": "payment.deposit_reconcile_batch",
+    "group": "Ky thuat",
+    "type": "int",
+    "default": 50,
+    "min": 1,
+    "max": 1000,
+    "unit": "lenh",
+    "effect": "newOperations",
+    "description": "So lenh nap treo hoi nguoc cong moi lan doi soat."
+  },
+  {
     "key": "ledger.hold_duration",
     "group": "Phi va tien",
     "type": "durationSeconds",
@@ -180,6 +235,94 @@
     "description": "Thue suat khau tru khi rut tien."
   },
   {
+    "key": "invoice.vat_percent",
+    "group": "Phi va tien",
+    "type": "int",
+    "default": 10,
+    "min": 0,
+    "max": 20,
+    "unit": "%",
+    "effect": "newOperations",
+    "description": "Thue suat GTGT tren phi nen tang (FB-05). Phi da thu la gia DA GOM thue; hoa don tach nguoc ra phan chua thue + thue. Ap cho hoa don xuat sau khi doi."
+  },
+  {
+    "key": "invoice.seller_name",
+    "group": "Phi va tien",
+    "type": "text",
+    "default": "CONG TY TNHH NEN TANG GAN NHAN DATN",
+    "min": null,
+    "max": 200,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Ten don vi ban hang in tren hoa don."
+  },
+  {
+    "key": "invoice.seller_tax_code",
+    "group": "Phi va tien",
+    "type": "text",
+    "default": "0109999999",
+    "min": null,
+    "max": 20,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Ma so thue don vi ban hang."
+  },
+  {
+    "key": "invoice.seller_address",
+    "group": "Phi va tien",
+    "type": "text",
+    "default": "So 1 Dai Co Viet, Hai Ba Trung, Ha Noi",
+    "min": null,
+    "max": 300,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Dia chi don vi ban hang."
+  },
+  {
+    "key": "invoice.serial_template",
+    "group": "Phi va tien",
+    "type": "text",
+    "default": "1C{yy}TDN",
+    "min": null,
+    "max": 20,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Ky hieu hoa don; {yy} = 2 so cuoi nam. 1 = hoa don GTGT, C = co ma cua co quan thue, T = dien tu, DN = ma rieng."
+  },
+  {
+    "key": "invoice.auto_issue",
+    "group": "Phi va tien",
+    "type": "bool",
+    "default": true,
+    "min": null,
+    "max": null,
+    "unit": "",
+    "effect": "newOperations",
+    "description": "Bat: dau moi thang tu xuat hoa don thang truoc cho moi doanh nghiep co phat sinh phi nen tang (da xac minh KYB)."
+  },
+  {
+    "key": "invoice.auto_issue_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 3600,
+    "min": 60,
+    "max": 86400,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Chu ky worker kiem tra va tu xuat hoa don thang truoc."
+  },
+  {
+    "key": "invoice.allow_open_period",
+    "group": "Ky thuat",
+    "type": "bool",
+    "default": false,
+    "min": null,
+    "max": null,
+    "unit": "",
+    "effect": "newOperations",
+    "description": "CHI DE KIEM THU: cho xuat hoa don cho thang CHUA ket thuc. Bat tren moi truong that se chiem mat ky cua thang (moi thang mot hoa don)."
+  },
+  {
     "key": "project.auto_approve",
     "group": "Tu dong duyet",
     "type": "bool",
@@ -266,6 +409,105 @@
     "unit": "nguoi",
     "effect": "newOperations",
     "description": "So nguoi gan / tran redundancy toi da doanh nghiep duoc dat cho moi mau."
+  },
+  {
+    "key": "project.min_unit_price_vnd",
+    "group": "Du an",
+    "type": "long",
+    "default": 100,
+    "min": 0,
+    "max": 1000000000,
+    "unit": "dong",
+    "effect": "newOperations",
+    "description": "Don gia toi thieu moi nhan (FM-04) — chan doanh nghiep tra cong qua re. Ap khi cau hinh gia VA khi publish (nang muc thi du an nhap gia cu phai sua). 0 = khong gioi han."
+  },
+  {
+    "key": "project.join_request_ttl",
+    "group": "Du an",
+    "type": "durationSeconds",
+    "default": 1209600,
+    "min": 86400,
+    "max": 15552000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Don xin tham gia chu du an khong duyet qua thoi gian nay thi tu het han (labeler gui lai duoc ngay)."
+  },
+  {
+    "key": "project.invitation_ttl",
+    "group": "Du an",
+    "type": "durationSeconds",
+    "default": 1209600,
+    "min": 86400,
+    "max": 15552000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Loi moi cho (email chua co tai khoan, hoac du an can labeler tu dong y dieu khoan) song bao lau."
+  },
+  {
+    "key": "project.email_invite_daily_max",
+    "group": "Du an",
+    "type": "int",
+    "default": 200,
+    "min": 1,
+    "max": 100000,
+    "unit": "loi moi",
+    "effect": "newOperations",
+    "description": "So email toi da mot nguoi duoc moi vao du an trong 24 gio (VD-S-16) — chan dung o moi de do danh sach email. Vuot → 429."
+  },
+  {
+    "key": "project.housekeeping_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 600,
+    "min": 10,
+    "max": 86400,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Chu ky worker don don xin tham gia / loi moi qua han."
+  },
+  {
+    "key": "annotation.history_retention",
+    "group": "Gan nhan va duyet nhan",
+    "type": "durationSeconds",
+    "default": 31536000,
+    "min": 0,
+    "max": 315360000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Han giu nhat ky vong doi nhan (annotation_history): dong cu hon bi xoa, tru dong moi nhat cua moi nhan. 0 = khong bao gio xoa."
+  },
+  {
+    "key": "annotation.history_cleanup_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 3600,
+    "min": 10,
+    "max": 86400,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Chu ky worker don annotation_history."
+  },
+  {
+    "key": "welfare.max_continuous_minutes",
+    "group": "Gan nhan va duyet nhan",
+    "type": "int",
+    "default": 45,
+    "min": 5,
+    "max": 480,
+    "unit": "phut",
+    "effect": "newOperations",
+    "description": "Du an noi dung nhay cam (muc 2.9): lam lien tuc toi da bay nhieu phut thi bi ep nghi."
+  },
+  {
+    "key": "welfare.break_minutes",
+    "group": "Gan nhan va duyet nhan",
+    "type": "int",
+    "default": 10,
+    "min": 1,
+    "max": 240,
+    "unit": "phut",
+    "effect": "newOperations",
+    "description": "Thoi gian nghi bat buoc sau mot phien lam du an nhay cam; nghi it hon so nay giua hai task thi tinh la lam lien tuc."
   },
   {
     "key": "project.gold_check_percent_default",
@@ -552,6 +794,39 @@
     "unit": "mau",
     "effect": "newOperations",
     "description": "So mau moi event dataset.ingested (chia lo khi nap nhieu)."
+  },
+  {
+    "key": "dataset.import_max_files",
+    "group": "Du lieu va file",
+    "type": "int",
+    "default": 500,
+    "min": 1,
+    "max": 100000,
+    "unit": "file",
+    "effect": "newOperations",
+    "description": "Nhap tu nguon ngoai (S3 / Google Drive / danh sach URL, FB-11): so file toi da moi lo."
+  },
+  {
+    "key": "dataset.import_file_max_bytes",
+    "group": "Du lieu va file",
+    "type": "long",
+    "default": 524288000,
+    "min": 1048576,
+    "max": 10737418240,
+    "unit": "byte",
+    "effect": "newOperations",
+    "description": "Nhap tu nguon ngoai: kich thuoc toi da moi file am thanh / video (anh theo dataset.image_max_bytes)."
+  },
+  {
+    "key": "dataset.import_timeout",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 120,
+    "min": 5,
+    "max": 3600,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Nhap tu nguon ngoai: thoi gian toi da tai MOT file."
   },
   {
     "key": "dataset.worker_idle",
@@ -1263,6 +1538,50 @@
     "description": "Dieu kien len cap: cap=so nhan duoc duyet/uy tin toi thieu, ngan cach bang ';'. Sai dinh dang thi dung mac dinh."
   },
   {
+    "key": "identity.two_factor_issuer",
+    "group": "Tai khoan",
+    "type": "text",
+    "default": "DATN Crowd",
+    "min": null,
+    "max": 50,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Ten hien trong ung dung xac thuc (Google Authenticator...) khi nguoi dung bat 2FA (FC-04)."
+  },
+  {
+    "key": "identity.two_factor_challenge_ttl",
+    "group": "Tai khoan",
+    "type": "durationSeconds",
+    "default": 300,
+    "min": 60,
+    "max": 1800,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Dang nhap dung mat khau cua tai khoan bat 2FA: co bao lau de nhap ma 6 so."
+  },
+  {
+    "key": "identity.two_factor_max_attempts",
+    "group": "Tai khoan",
+    "type": "int",
+    "default": 5,
+    "min": 1,
+    "max": 20,
+    "unit": "lan",
+    "effect": "newOperations",
+    "description": "So lan nhap sai ma 2FA toi da cho MOT lan dang nhap; het luot phai dang nhap lai bang mat khau (chong do ma 6 so)."
+  },
+  {
+    "key": "identity.adult_age",
+    "group": "Tai khoan",
+    "type": "int",
+    "default": 18,
+    "min": 16,
+    "max": 21,
+    "unit": "tuoi",
+    "effect": "newOperations",
+    "description": "Tuoi toi thieu de xem du an noi dung nhay cam (muc 2.9, VD-P-04). Tinh tu ngay sinh tren giay to da duoc admin xac minh."
+  },
+  {
     "key": "admin.audit_excluded_types",
     "group": "Ky thuat",
     "type": "text",
@@ -1283,6 +1602,50 @@
     "unit": "ngay",
     "effect": "newOperations",
     "description": "Giu nhat ky audit bao nhieu ngay."
+  },
+  {
+    "key": "ops.dlq_alert_threshold",
+    "group": "Ky thuat",
+    "type": "int",
+    "default": 1,
+    "min": 1,
+    "max": 1000000,
+    "unit": "message",
+    "effect": "newOperations",
+    "description": "Mot hang doi DLQ co tu bay nhieu message tro len thi canh bao (message vao DLQ = tien / trang thai co the dang dung)."
+  },
+  {
+    "key": "ops.dlq_check_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 60,
+    "min": 10,
+    "max": 3600,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Chu ky admin-svc doc do sau cac DLQ qua RabbitMQ management API."
+  },
+  {
+    "key": "ops.alert_repeat",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 3600,
+    "min": 60,
+    "max": 86400,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "DLQ van con message sau khoang nay thi canh bao lai (tranh spam moi chu ky)."
+  },
+  {
+    "key": "ops.alert_email",
+    "group": "Ky thuat",
+    "type": "text",
+    "default": "",
+    "min": null,
+    "max": 200,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Email nhan canh bao van hanh (DLQ). Trong = chi ghi log va hien tren man hinh admin."
   },
   {
     "key": "media.watermark_enabled",
@@ -1382,6 +1745,39 @@
     "unit": "email",
     "effect": "newOperations",
     "description": "So email moi lo gui."
+  },
+  {
+    "key": "notification.retention_days",
+    "group": "Thong bao",
+    "type": "int",
+    "default": 180,
+    "min": 7,
+    "max": 3650,
+    "unit": "ngay",
+    "effect": "newOperations",
+    "description": "Giu thong bao / email giao dich bao nhieu ngay (dong con email cho gui khong bi xoa)."
+  },
+  {
+    "key": "notification.cleanup_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 3600,
+    "min": 60,
+    "max": 86400,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Chu ky job xoa thong bao qua han giu va ve realtime het han."
+  },
+  {
+    "key": "notification.realtime_ticket_ttl",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 30,
+    "min": 5,
+    "max": 300,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Ve mo WebSocket thong bao realtime song bao lau (dung mot lan)."
   },
   {
     "key": "notification.email_max_attempts",
@@ -1525,6 +1921,17 @@
     "unit": "",
     "effect": "newOperations",
     "description": "Tat = trang vuot link chi chuyen thang toi dich, khong phat cau hoi, khong tra tien sharer."
+  },
+  {
+    "key": "gate.allowed_tools",
+    "group": "Cong link",
+    "type": "text",
+    "default": "classification,pairwise,number,bbox,keypoint,span",
+    "min": null,
+    "max": 200,
+    "unit": "ky tu",
+    "effect": "newOperations",
+    "description": "Loai cong cu khach vang lai lam duoc o trang vuot link (vai giay, khong uy tin). Du an bat cong link ma co cong cu ngoai danh sach thi KHONG publish duoc."
   },
   {
     "key": "gate.countdown",
@@ -1690,6 +2097,28 @@
     "unit": "%",
     "effect": "newOperations",
     "description": "Nguoi gioi thieu huong phan tram nay tren doanh thu cong link cua nguoi duoc moi (FS-08). Lay tu phan cua nen tang."
+  },
+  {
+    "key": "link.referral_max_per_ip",
+    "group": "Cong link",
+    "type": "int",
+    "default": 2,
+    "min": 1,
+    "max": 1000,
+    "unit": "tai khoan",
+    "effect": "newOperations",
+    "description": "Mot nguoi gioi thieu da co bay nhieu nguoi nhap ma tu CUNG mot IP trong 24 gio thi nguoi tiep theo bi danh dau nghi lam dung (chua tinh hoa hong, cho admin xet)."
+  },
+  {
+    "key": "link.referral_burst_per_hour",
+    "group": "Cong link",
+    "type": "int",
+    "default": 10,
+    "min": 1,
+    "max": 100000,
+    "unit": "tai khoan",
+    "effect": "newOperations",
+    "description": "Mot nguoi gioi thieu da co bay nhieu nguoi nhap ma trong 1 gio thi nguoi tiep theo bi danh dau nghi lam dung (dot bien)."
   },
   {
     "key": "link.referral_min_earnings_vnd",

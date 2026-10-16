@@ -32,7 +32,7 @@ async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, An
         "SELECT COUNT(*) AS tong, COUNT(*) FILTER (WHERE correct) AS dung FROM gold_answers WHERE project_id = :p"),
         {"p": project_id})).one()
     chi_so = (await s.execute(text(
-        "SELECT tool, alpha, item_count, label_count, computed_at FROM project_metrics WHERE project_id = :p ORDER BY tool"),
+        "SELECT tool, alpha, kappa, metric, item_count, label_count, computed_at FROM project_metrics WHERE project_id = :p ORDER BY tool"),
         {"p": project_id})).all()
 
     dem = {r.status: r.n for r in vong}
@@ -48,8 +48,10 @@ async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, An
         "goldAnswers": gold.tong,
         "goldAccuracyPercent": phan_tram(gold.dung, gold.tong),
         "tools": [
-            {"tool": r.tool, "krippendorffAlpha": r.alpha, "itemCount": r.item_count, "labelCount": r.label_count,
-             "computedAt": r.computed_at.isoformat()}
+            {"tool": r.tool, "krippendorffAlpha": r.alpha, "fleissKappa": r.kappa,
+             # Ham khoang cach cua alpha: nominal / interval / cer / kendall / set_f1 (null = ban tinh cu, nominal).
+             "alphaMetric": r.metric or "nominal",
+             "itemCount": r.item_count, "labelCount": r.label_count, "computedAt": r.computed_at.isoformat()}
             for r in chi_so
         ],
         # null = so lieu song; co gia tri = ban chup luc luu tru (du an da dong, nhan tho da xoa).
@@ -71,9 +73,17 @@ async def tinh_labelers(s: AsyncSession, project_id: uuid.UUID) -> list[dict[str
     ky_nang = (await s.execute(text(
         "SELECT labeler_id, tool, skill, label_count FROM ds_skills WHERE project_id = :p"), {"p": project_id})).all()
 
+    staple = (await s.execute(text(
+        "SELECT labeler_id, tool, sensitivity, specificity, sample_count FROM staple_skills WHERE project_id = :p"),
+        {"p": project_id})).all()
+
     ds: dict[uuid.UUID, dict] = {}
     for k in ky_nang:
         ds.setdefault(k.labeler_id, {})[k.tool] = round(k.skill, 3)
+    st: dict[uuid.UUID, dict] = {}
+    for k in staple:
+        st.setdefault(k.labeler_id, {})[k.tool] = {
+            "sensitivity": round(k.sensitivity, 3), "specificity": round(k.specificity, 3), "sampleCount": k.sample_count}
 
     return [
         {
@@ -84,6 +94,8 @@ async def tinh_labelers(s: AsyncSession, project_id: uuid.UUID) -> list[dict[str
             "goldAnswers": d.gold_tong,
             "goldAccuracyPercent": phan_tram(d.gold_dung, d.gold_tong),
             "dawidSkeneSkill": ds.get(d.labeler_id, {}),
+            # STAPLE (mat na): chi de chu du an xem, khong tinh vao uy tin.
+            "stapleMask": st.get(d.labeler_id, {}),
             "reputation": d.uy_tin,
         }
         for d in dong

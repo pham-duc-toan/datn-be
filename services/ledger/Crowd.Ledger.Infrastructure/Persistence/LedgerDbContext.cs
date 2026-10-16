@@ -1,14 +1,19 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Ledger.Domain.Accounts;
 using Crowd.Ledger.Domain.Disputes;
 using Crowd.Ledger.Domain.Escrows;
 using Crowd.Ledger.Domain.Holds;
+using Crowd.Ledger.Domain.Invoices;
 using Crowd.Ledger.Domain.Journal;
 using Crowd.Ledger.Domain.Withdrawals;
 using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Crowd.Ledger.Infrastructure.Persistence
 {
@@ -40,6 +45,10 @@ namespace Crowd.Ledger.Infrastructure.Persistence
         public DbSet<BlockedUser> BlockedUsers => Set<BlockedUser>();
 
         public DbSet<Dispute> Disputes => Set<Dispute>();
+
+        public DbSet<Invoice> Invoices => Set<Invoice>();
+
+        public DbSet<InvoiceCounter> InvoiceCounters => Set<InvoiceCounter>();
 
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
@@ -149,6 +158,7 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.Redundancy).HasColumnName("redundancy").IsRequired();
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.ReservedAt).HasColumnName("reserved_at").IsRequired();
+                b.Property(x => x.Name).HasColumnName("name").HasMaxLength(200);
                 b.Property(x => x.ClosedAt).HasColumnName("closed_at");
                 b.Property(x => x.ExpectedPaidAnnotations).HasColumnName("expected_paid_annotations");
                 b.Property(x => x.ClosingIsCancel).HasColumnName("closing_is_cancel").IsRequired();
@@ -222,9 +232,72 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.HasIndex(x => x.BusinessId).HasDatabaseName("ix_disputes_business");
             });
 
+            // Hoa don GTGT (FB-05): dong hang + bang ke chi ho luu jsonb (chup luc xuat, khong sua).
+            modelBuilder.Entity<Invoice>(b =>
+            {
+                b.ToTable("invoices");
+                b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+                b.HasKey(x => x.Id);
+                b.Property(x => x.BusinessId).HasColumnName("business_id").IsRequired();
+                b.Property(x => x.Period).HasColumnName("period").HasMaxLength(7).IsRequired();
+                b.Property(x => x.Serial).HasColumnName("serial").HasMaxLength(20).IsRequired();
+                b.Property(x => x.Number).HasColumnName("number").IsRequired();
+                b.Property(x => x.IssuedAt).HasColumnName("issued_at").IsRequired();
+                b.Property(x => x.BuyerName).HasColumnName("buyer_name").HasMaxLength(200).IsRequired();
+                b.Property(x => x.BuyerTaxCode).HasColumnName("buyer_tax_code").HasMaxLength(20).IsRequired();
+                b.Property(x => x.BuyerAddress).HasColumnName("buyer_address").HasMaxLength(300).IsRequired();
+                b.Property(x => x.BuyerEmail).HasColumnName("buyer_email").HasMaxLength(320).IsRequired();
+                b.Property(x => x.SellerName).HasColumnName("seller_name").HasMaxLength(200).IsRequired();
+                b.Property(x => x.SellerTaxCode).HasColumnName("seller_tax_code").HasMaxLength(20).IsRequired();
+                b.Property(x => x.SellerAddress).HasColumnName("seller_address").HasMaxLength(300).IsRequired();
+                b.Property(x => x.VatPercent).HasColumnName("vat_percent").IsRequired();
+                b.Property(x => x.TotalNetVnd).HasColumnName("total_net_vnd").IsRequired();
+                b.Property(x => x.TotalVatVnd).HasColumnName("total_vat_vnd").IsRequired();
+                b.Property(x => x.TotalVnd).HasColumnName("total_vnd").IsRequired();
+                b.Property(x => x.AmountInWords).HasColumnName("amount_in_words").HasMaxLength(500).IsRequired();
+                b.Property(x => x.PassThroughVnd).HasColumnName("pass_through_vnd").IsRequired();
+                b.Ignore(x => x.Items);
+                b.Ignore(x => x.PassThrough);
+                b.Ignore(x => x.SoHienThi);
+                b.Property<List<InvoiceItem>>("_items").HasColumnName("items").HasColumnType("jsonb")
+                    .HasConversion(JsonDanhSach<InvoiceItem>(), SoSanhDanhSach<InvoiceItem>()).IsRequired();
+                b.Property<List<PassThroughItem>>("_passThrough").HasColumnName("pass_through").HasColumnType("jsonb")
+                    .HasConversion(JsonDanhSach<PassThroughItem>(), SoSanhDanhSach<PassThroughItem>()).IsRequired();
+
+                b.HasIndex(x => new { x.BusinessId, x.Period }).IsUnique().HasDatabaseName("ux_invoices_business_period");
+                b.HasIndex(x => new { x.Serial, x.Number }).IsUnique().HasDatabaseName("ux_invoices_so");
+                b.HasIndex(x => x.Period).HasDatabaseName("ix_invoices_period");
+            });
+
+            modelBuilder.Entity<InvoiceCounter>(b =>
+            {
+                b.ToTable("invoice_counters");
+                b.Property(x => x.Year).HasColumnName("year").ValueGeneratedNever();
+                b.HasKey(x => x.Year);
+                b.Property(x => x.LastNumber).HasColumnName("last_number").IsRequired();
+            });
+
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
             modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
+        }
+
+        private static readonly JsonSerializerOptions JsonCot = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+        private static Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<List<T>, string> JsonDanhSach<T>()
+        {
+            return new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<List<T>, string>(
+                v => JsonSerializer.Serialize(v, JsonCot),
+                s => JsonSerializer.Deserialize<List<T>>(s, JsonCot) ?? new List<T>());
+        }
+
+        private static ValueComparer<List<T>> SoSanhDanhSach<T>()
+        {
+            // Hoa don khong sua sau khi xuat: so sanh theo chuoi JSON la du.
+            return new ValueComparer<List<T>>(
+                (a, b) => JsonSerializer.Serialize(a, JsonCot) == JsonSerializer.Serialize(b, JsonCot),
+                v => JsonSerializer.Serialize(v, JsonCot).GetHashCode(StringComparison.Ordinal),
+                v => JsonSerializer.Deserialize<List<T>>(JsonSerializer.Serialize(v, JsonCot), JsonCot) ?? new List<T>());
         }
     }
 

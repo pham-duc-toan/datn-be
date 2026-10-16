@@ -17,7 +17,8 @@ namespace Crowd.Annotation.Api.Services
     /// Xuat khung chu nhat cua du an anh sang hai dinh dang huan luyen pho bien (FB-25), dong goi zip:
     ///   - YOLO: labels/{sampleId}.txt "lop cx cy w h" (chuan hoa 0-1 theo kich thuoc anh), data.yaml.
     ///   - Pascal VOC: Annotations/{sampleId}.xml (toa do pixel, goc 1 theo quy uoc VOC).
-    /// Chi cong cu bbox (hai dinh dang nay khong co da giac). Giong COCO: moi khung DA GOP tu cac nhan
+    /// YOLO: cong cu bbox (khung xoay ghi HOP BAO truc — dung yolo-obb de giu goc xoay). VOC: bbox va polygon
+    /// (da giac ghi bndbox = hop bao + &lt;polygon&gt; cac dinh; khung xoay ghi them &lt;angle&gt;). Giong COCO: moi khung DA GOP tu cac nhan
     /// da duyet la mot dong (mau tranh chap khong co khung). Anh khong co kich thuoc (metadata) bi bo qua
     /// va dem trong README.txt. File anh KHONG nam trong zip: images.txt anh xa sampleId → khoa file.
     /// </summary>
@@ -120,7 +121,7 @@ namespace Crowd.Annotation.Api.Services
                             int ymin = KepNguyen((int)Math.Floor(k.Y) + 1, 1, cao);
                             int xmax = KepNguyen((int)Math.Ceiling(k.X + k.W), xmin, rong);
                             int ymax = KepNguyen((int)Math.Ceiling(k.Y + k.H), ymin, cao);
-                            goc.Add(new XElement("object",
+                            XElement doiTuong = new XElement("object",
                                 new XElement("name", nhieuCongCu ? k.CongCu + "/" + k.Lop : k.Lop),
                                 new XElement("pose", "Unspecified"),
                                 new XElement("truncated", 0),
@@ -130,7 +131,24 @@ namespace Crowd.Annotation.Api.Services
                                     new XElement("xmin", xmin),
                                     new XElement("ymin", ymin),
                                     new XElement("xmax", xmax),
-                                    new XElement("ymax", ymax))));
+                                    new XElement("ymax", ymax)));
+                            if (k.DaGiac != null)
+                            {
+                                XElement daGiac = new XElement("polygon");
+                                foreach (double[] p in k.DaGiac)
+                                {
+                                    daGiac.Add(new XElement("pt", new XElement("x", So(p[0])), new XElement("y", So(p[1]))));
+                                }
+
+                                doiTuong.Add(daGiac);
+                            }
+
+                            if (Math.Abs(k.Goc) > 1e-9)
+                            {
+                                doiTuong.Add(new XElement("angle", So(k.Goc)));
+                            }
+
+                            goc.Add(doiTuong);
                             soKhung++;
                         }
 
@@ -161,12 +179,15 @@ namespace Crowd.Annotation.Api.Services
                 throw new ArgumentNullException(nameof(tapNhan));
             }
 
-            List<ToolDefinition> congCu = tapNhan.Tools.Where(t => t.Kind == ToolKinds.Bbox).ToList();
+            List<ToolDefinition> congCu = tapNhan.Tools
+                .Where(t => t.Kind == ToolKinds.Bbox || (dinhDang == "voc" && t.Kind == ToolKinds.Polygon))
+                .ToList();
             if (tapNhan.Modality != Modalities.Image || congCu.Count == 0)
             {
                 throw new InvalidValueException(
                     "khung_chi_cho_anh",
-                    dinhDang + " chi xuat duoc cho du an anh co cong cu bbox (khung chu nhat). Da giac: dung coco.");
+                    dinhDang + " chi xuat duoc cho du an anh co cong cu bbox" + (dinhDang == "voc" ? " / polygon" : string.Empty)
+                    + ". Da giac: dung coco hoac yolo-seg.");
             }
 
             return congCu;
@@ -210,15 +231,38 @@ namespace Crowd.Annotation.Api.Services
                 foreach (ResultExporter.DoiTuongChot d in ResultExporter.DoiTuongDaGop(s, t))
                 {
                     JsonObject m = d.DoiTuong;
+                    List<double[]> dinh;
+                    double goc = 0;
+                    if (t.Kind == ToolKinds.Polygon)
+                    {
+                        dinh = new List<double[]>();
+                        foreach (JsonNode? p in (JsonArray)m["points"]!)
+                        {
+                            dinh.Add(new double[] { p![0]!.GetValue<double>(), p[1]!.GetValue<double>() });
+                        }
+                    }
+                    else
+                    {
+                        dinh = DinhDangMoRongExporter.DinhKhung(m);
+                        goc = m["angle"] == null ? 0 : m["angle"]!.GetValue<double>();
+                    }
+
+                    // Hop bao truc cua cac dinh (khung khong xoay: dung bang x, y, w, h).
+                    double minX = dinh.Min(p => p[0]);
+                    double minY = dinh.Min(p => p[1]);
+                    double maxX = dinh.Max(p => p[0]);
+                    double maxY = dinh.Max(p => p[1]);
                     ds.Add(new KhungNhan
                     {
                         CongCu = t.Name,
                         Lop = m["labelId"]!.GetValue<string>(),
-                        X = m["x"]!.GetValue<double>(),
-                        Y = m["y"]!.GetValue<double>(),
-                        W = m["w"]!.GetValue<double>(),
-                        H = m["h"]!.GetValue<double>(),
+                        X = minX < 0 ? 0 : minX,
+                        Y = minY < 0 ? 0 : minY,
+                        W = maxX - (minX < 0 ? 0 : minX),
+                        H = maxY - (minY < 0 ? 0 : minY),
                         SoNguoi = d.SoNguoi,
+                        DaGiac = t.Kind == ToolKinds.Polygon ? dinh : null,
+                        Goc = goc,
                     });
                 }
             }
@@ -276,6 +320,12 @@ namespace Crowd.Annotation.Api.Services
 
             /// <summary>So nguoi ve khung nay (trong cac nhan da duyet).</summary>
             public int SoNguoi { get; init; }
+
+            /// <summary>Dinh da giac (cong cu polygon, chi VOC); null voi khung.</summary>
+            public List<double[]>? DaGiac { get; init; }
+
+            /// <summary>Goc xoay cua khung (do); 0 = khong xoay.</summary>
+            public double Goc { get; init; }
         }
     }
 }

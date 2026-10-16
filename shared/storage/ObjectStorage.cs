@@ -51,7 +51,13 @@ namespace Crowd.BuildingBlocks.Storage
     {
         Task LuuAsync(string key, byte[] noiDung, string contentType, CancellationToken ct);
 
+        /// <summary>Luu file tu dia (file tai ve tam): khong nap ca file vao RAM — video vai tram MB.</summary>
+        Task LuuTepAsync(string key, string duongDanTep, string contentType, CancellationToken ct);
+
         Task XoaAsync(string key, CancellationToken ct);
+
+        /// <summary>Xoa MOI file co khoa bat dau bang tienTo (vd "{projectId}/"). Tra so file da xoa.</summary>
+        Task<int> XoaTheoTienToAsync(string tienTo, CancellationToken ct);
 
         /// <summary>
         /// Link xem co han (presigned URL). Ai cam link deu xem duoc cho toi khi
@@ -188,6 +194,50 @@ namespace Crowd.BuildingBlocks.Storage
                 yeuCau.AutoCloseStream = false;
 
                 await _client.PutObjectAsync(yeuCau, ct).ConfigureAwait(false);
+            }
+        }
+
+        public async Task LuuTepAsync(string key, string duongDanTep, string contentType, CancellationToken ct)
+        {
+            PutObjectRequest yeuCau = new PutObjectRequest();
+            yeuCau.BucketName = _options.Bucket;
+            yeuCau.Key = key;
+            yeuCau.FilePath = duongDanTep;
+            yeuCau.ContentType = contentType;
+            await _client.PutObjectAsync(yeuCau, ct).ConfigureAwait(false);
+        }
+
+        public async Task<int> XoaTheoTienToAsync(string tienTo, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(tienTo) || !tienTo.EndsWith('/'))
+            {
+                // Chan xoa nham ca bucket ("" hoac "abc" khop "abcdef/...").
+                throw new ArgumentException("Tien to phai khac rong va ket thuc bang '/'.", nameof(tienTo));
+            }
+
+            int tong = 0;
+            ListObjectsV2Request ds = new ListObjectsV2Request { BucketName = _options.Bucket, Prefix = tienTo, MaxKeys = 1000 };
+            while (true)
+            {
+                ListObjectsV2Response r = await _client.ListObjectsV2Async(ds, ct).ConfigureAwait(false);
+                if (r.S3Objects != null && r.S3Objects.Count > 0)
+                {
+                    DeleteObjectsRequest xoa = new DeleteObjectsRequest { BucketName = _options.Bucket };
+                    foreach (S3Object o in r.S3Objects)
+                    {
+                        xoa.AddKey(o.Key);
+                    }
+
+                    await _client.DeleteObjectsAsync(xoa, ct).ConfigureAwait(false);
+                    tong += r.S3Objects.Count;
+                }
+
+                if (r.IsTruncated != true || string.IsNullOrEmpty(r.NextContinuationToken))
+                {
+                    return tong;
+                }
+
+                ds.ContinuationToken = r.NextContinuationToken;
             }
         }
 

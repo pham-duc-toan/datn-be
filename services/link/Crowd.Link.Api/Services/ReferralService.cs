@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
@@ -88,7 +89,7 @@ namespace Crowd.Link.Api.Services
             return new ReferralInfoResponse { Code = ma.Code, ReferredCount = soNguoi, ReferredBy = cuaToi == null ? null : cuaToi.ReferrerId };
         }
 
-        public async Task NhapMaAsync(ClaimReferralRequest body, Caller caller, CancellationToken ct)
+        public async Task NhapMaAsync(ClaimReferralRequest body, Caller caller, string? ipHash, CancellationToken ct)
         {
             string ma = body == null || body.Code == null ? string.Empty : body.Code.Trim();
             Guid toi = caller.LayUserId();
@@ -118,8 +119,18 @@ namespace Crowd.Link.Api.Services
                 throw new LinkException(409, "gioi_thieu_vong", "Hai tai khoan khong the gioi thieu lan nhau.");
             }
 
-            _db.Referrals.Add(Referral.Tao(chu.UserId, toi, bayGio));
-            _events.Phat(caller, new ReferralRegistered { ReferrerId = chu.UserId, ReferredId = toi, RegisteredAt = bayGio });
+            // Chong lam dung (VD-L-05 mo rong): dau hieu nghi ngo → ghi nhan nhung CHUA phat referral.registered
+            // (ledger chua tinh hoa hong) cho admin xet. Khong chan nguoi dung: NAT / wifi chung de bao nham.
+            string? dauHieu = await DanhGiaAsync(chu.UserId, ipHash, bayGio, ct);
+            _db.Referrals.Add(Referral.Tao(chu.UserId, toi, bayGio, ipHash, dauHieu));
+            if (dauHieu == null)
+            {
+                _events.Phat(caller, new ReferralRegistered { ReferrerId = chu.UserId, ReferredId = toi, RegisteredAt = bayGio });
+            }
+            else
+            {
+                _events.Phat(caller, new ReferralFlagged { ReferrerId = chu.UserId, ReferredId = toi, Reasons = dauHieu });
+            }
 
             try
             {
@@ -129,6 +140,102 @@ namespace Crowd.Link.Api.Services
             {
                 throw new LinkException(409, "da_co_nguoi_gioi_thieu", "Ban da nhap ma gioi thieu roi.");
             }
+        }
+
+        /// <summary>Dem so lieu roi goi luat thuan DauHieuLamDung.</summary>
+        private async Task<string?> DanhGiaAsync(Guid nguoiGioiThieu, string? ipHash, DateTimeOffset bayGio, CancellationToken ct)
+        {
+            bool trungIpNguoiGioiThieu = false;
+            int cungIp24h = 0;
+            if (!string.IsNullOrEmpty(ipHash))
+            {
+                trungIpNguoiGioiThieu = await _db.Links.AnyAsync(l => l.OwnerId == nguoiGioiThieu && l.CreatorIpHash == ipHash, ct);
+                DateTimeOffset tu24h = bayGio - TimeSpan.FromHours(24);
+                cungIp24h = await _db.Referrals.CountAsync(
+                    r => r.ReferrerId == nguoiGioiThieu && r.ClaimIpHash == ipHash && r.CreatedAt > tu24h, ct);
+            }
+
+            DateTimeOffset tu1h = bayGio - TimeSpan.FromHours(1);
+            int trongGio = await _db.Referrals.CountAsync(r => r.ReferrerId == nguoiGioiThieu && r.CreatedAt > tu1h, ct);
+            return DauHieuLamDung(trungIpNguoiGioiThieu, cungIp24h, trongGio,
+                _settings.SoNguyen(SettingKeys.LinkReferralMaxPerIp), _settings.SoNguyen(SettingKeys.LinkReferralBurstPerHour));
+        }
+
+        /// <summary>
+        /// Luat thuan (test duoc). So lieu la cac gioi thieu DA CO (chua gom lan nay):
+        ///   trung_ip_nguoi_gioi_thieu  nguoi duoc moi nhap ma tu IP nguoi gioi thieu tung tao link (tu moi chinh minh)
+        ///   nhieu_tai_khoan_cung_ip    trong 24h nguoi gioi thieu da co &gt;= toiDaMoiIp nguoi nhap ma cung IP nay
+        ///   dot_bien                   trong 1 gio nguoi gioi thieu da co &gt;= toiDaMoiGio nguoi nhap ma
+        /// null = binh thuong.
+        /// </summary>
+        public static string? DauHieuLamDung(bool trungIpNguoiGioiThieu, int cungIp24h, int trongGio, int toiDaMoiIp, int toiDaMoiGio)
+        {
+            System.Collections.Generic.List<string> ds = new System.Collections.Generic.List<string>();
+            if (trungIpNguoiGioiThieu)
+            {
+                ds.Add("trung_ip_nguoi_gioi_thieu");
+            }
+
+            if (cungIp24h >= toiDaMoiIp)
+            {
+                ds.Add("nhieu_tai_khoan_cung_ip");
+            }
+
+            if (trongGio >= toiDaMoiGio)
+            {
+                ds.Add("dot_bien");
+            }
+
+            return ds.Count == 0 ? null : string.Join(",", ds);
+        }
+
+        // =====================================================================
+        // ADMIN: xet gioi thieu nghi ngo
+        // =====================================================================
+
+        public async Task<System.Collections.Generic.IReadOnlyList<FlaggedReferralResponse>> NghiNgoAsync(CancellationToken ct)
+        {
+            System.Collections.Generic.List<Referral> ds = await _db.Referrals.AsNoTracking()
+                .Where(r => r.Status == TrangThaiGioiThieu.Flagged)
+                .OrderBy(r => r.CreatedAt).Take(200).ToListAsync(ct);
+            return ds.Select(r => new FlaggedReferralResponse
+            {
+                ReferrerId = r.ReferrerId,
+                ReferredId = r.ReferredId,
+                Reasons = r.FlagReasons ?? string.Empty,
+                CreatedAt = r.CreatedAt,
+            }).ToList();
+        }
+
+        /// <summary>Chap nhan → phat referral.registered (luc nhap ma goc) — ledger bat dau tinh hoa hong. Bac → referral.rejected.</summary>
+        public async Task XetAsync(Guid referredId, bool chapNhan, string? lyDo, Caller caller, CancellationToken ct)
+        {
+            Referral? r = await _db.Referrals.FirstOrDefaultAsync(x => x.ReferredId == referredId, ct);
+            if (r == null)
+            {
+                throw new LinkException(404, "khong_tim_thay", "Khong tim thay gioi thieu.");
+            }
+
+            if (!r.Xet(chapNhan, caller.LayUserId(), _clock.GetUtcNow()))
+            {
+                throw new LinkException(409, "da_xet", "Gioi thieu nay khong o trang thai cho xet.");
+            }
+
+            if (chapNhan)
+            {
+                _events.Phat(caller, new ReferralRegistered { ReferrerId = r.ReferrerId, ReferredId = r.ReferredId, RegisteredAt = r.CreatedAt });
+            }
+            else
+            {
+                _events.Phat(caller, new ReferralRejected
+                {
+                    ReferrerId = r.ReferrerId,
+                    ReferredId = r.ReferredId,
+                    Reason = string.IsNullOrWhiteSpace(lyDo) ? "lam_dung_gioi_thieu" : lyDo.Trim(),
+                });
+            }
+
+            await _db.SaveChangesAsync(ct);
         }
     }
 }

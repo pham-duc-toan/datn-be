@@ -24,6 +24,7 @@ Mục lục:
 14. [Thông báo trong ứng dụng và email](#14-thông-báo-trong-ứng-dụng-và-email)
 15. [Hồ sơ, kỹ năng, cấp độ, bảng xếp hạng](#15-hồ-sơ-kỹ-năng-cấp-độ-bảng-xếp-hạng)
 16. [Bảo vệ dữ liệu: link xem file, watermark](#16-bảo-vệ-dữ-liệu-link-xem-file-watermark)
+17. [Bổ sung đợt hoàn thiện 10/2026](#17-bổ-sung-đợt-hoàn-thiện-102026) — 2FA, xác minh danh tính, VNPay / MoMo, hoá đơn, bảo vệ dự án, lời mời, công cụ / định dạng xuất mới, chỉ số chất lượng, watermark âm thanh / video, thông báo realtime + ngôn ngữ, hàng đợi duyệt chung, mẫu bài toán
 
 ---
 
@@ -617,18 +618,23 @@ Thành viên. Reviewer luôn do chủ dự án thêm; labeler vào bằng một 
 
 ```http
 GET    /projects/{id}/members        → [ { "userId", "role": "labeler", "state": "active", "joinedAt" } ]
-POST   /projects/{id}/members        { "email": "a@b.vn", "role": "labeler" }      (hoặc "userId"; đúng MỘT trong hai)
+POST   /projects/{id}/members        { "userId": "...", "role": "labeler" }   → 200 thành viên
+                                     { "email": "a@b.vn", "role": "labeler" } → 202 lời mời (luôn vậy, xem dưới)
 POST   /projects/{id}/members/batch  { "role": "labeler", "userIds": ["..."], "emails": ["a@b.vn", "c@d.vn"] }
-→ { "added": 1, "results": [
-      { "input": "a@b.vn", "userId": "...", "displayName": "Nguyen Van A", "status": "added" },
-      { "input": "c@d.vn", "userId": null, "status": "khong_tim_thay", "message": "Khong co tai khoan voi email nay." } ] }
+→ { "added": 1, "invited": 2, "results": [
+      { "input": "<userId>", "userId": "...", "displayName": "Nguyen Van A", "status": "added" },
+      { "input": "a@b.vn", "userId": null, "displayName": null, "status": "invited", "invitationId": "...", "message": "Da gui loi moi toi email nay." },
+      { "input": "c@d.vn", "userId": null, "displayName": null, "status": "invited", "invitationId": "...", "message": "Da gui loi moi toi email nay." } ] }
 POST   /projects/{id}/members/{userId}/block | /unblock
 DELETE /projects/{id}/members/{userId}
 ```
 
-- `batch`: tối đa `project.member_batch_max` (mặc định 100) đầu vào; mỗi đầu vào một dòng kết quả, **đúng thứ tự gửi** (userIds trước, emails sau). `status`: `added`, `khong_tim_thay`, `email_khong_hop_le`, `trung_lap` (cùng người hai lần), `da_la_thanh_vien`, `bi_chan` (đang bị chặn — dùng `unblock`), `tai_khoan_bi_khoa`, `khong_phai_labeler`, `chua_du_cap_do`, `chua_du_uy_tin`. Hiện bảng kết quả, cho sửa và gửi lại các dòng lỗi.
-- Email không phân biệt hoa thường, bỏ khoảng trắng hai đầu. Chỉ mời được người **đã có tài khoản**.
-- `POST /members` một người: lỗi trả đúng mã như trên (404 `khong_tim_thay`, 409 cho các mã còn lại, 400 email sai). Người được mời nhận thông báo `thanh_vien`.
+- `batch`: tối đa `project.member_batch_max` (mặc định 100) đầu vào; mỗi đầu vào một dòng kết quả, **đúng thứ tự gửi** (userIds trước, emails sau).
+- **Theo userId** — kết quả chi tiết, thêm thẳng: `added`, `khong_tim_thay`, `trung_lap`, `da_la_thanh_vien`, `bi_chan` (đang bị chặn — dùng `unblock`), `bi_chan_boi_doanh_nghiep`, `tai_khoan_bi_khoa`, `khong_phai_labeler`, `chua_du_cap_do`, `chua_du_uy_tin`, `pending_consent` (dự án cần tự đồng ý điều khoản → đã tạo lời mời).
+- **(đổi, VD-S-16) Theo email** — mọi email đúng dạng đều trả **cùng** `invited` + `invitationId`, **không** kèm `userId` / `displayName`, dù email có tài khoản hay không, đã là thành viên hay đang bị chặn. Ô mời không còn là cách dò email nào có tài khoản. Người có tài khoản nhận lời mời trong ứng dụng và **tự chấp nhận** (`POST /projects/invitations/{id}/accept`, điều kiện cấp độ / uy tín kiểm lúc đó) — không còn được thêm thẳng; email chưa có tài khoản nhận thư mời đăng ký. Chỉ còn hai mã khác: `email_khong_hop_le`, `trung_lap` (cùng một email hai lần, so theo chuỗi). Frontend: hiện "Đã gửi lời mời", người đó xuất hiện trong danh sách thành viên khi họ chấp nhận.
+- Hạn mức riêng: một người mời tối đa `project.email_invite_daily_max` (mặc định 200) email / 24 giờ → vượt thì **429** `vuot_han_muc_moi_email` kèm `Retry-After` và `retryAfterSeconds`, không tạo lời mời nào. Mời theo userId không tính vào hạn mức này.
+- Email không phân biệt hoa thường, bỏ khoảng trắng hai đầu.
+- `POST /members` một người: theo userId lỗi trả đúng mã như trên (404 `khong_tim_thay`, 409 cho các mã còn lại); theo email luôn **202** + lời mời (400 nếu email sai dạng, 429 khi vượt hạn mức). Người được thêm nhận thông báo `thanh_vien`; người được mời nhận `loi_moi_du_an`.
 - Labeler phải đủ `minLevel` / `minReputation` của dự án; reviewer chỉ cần tài khoản không bị khoá.
 
 Mã mời — chia sẻ một mã thay vì gõ từng người (vào được cả dự án riêng tư, kể cả khi còn Nháp):
@@ -2159,11 +2165,11 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 | Mục | Ảnh hưởng tới frontend |
 |---|---|
 | Upload thẳng lên MinIO | Chỉ **tải lên** còn đi thẳng MinIO (xem file thì qua media-svc, mục 16). Link upload trỏ tới `http://localhost:9000` ở dev. Trình duyệt báo lỗi CORS khi `PUT` thì cấu hình MinIO cho phép origin của frontend (biến môi trường `MINIO_API_CORS_ALLOW_ORIGIN`) |
-| Không có WebSocket / thông báo đẩy | Thông báo đã có (mục 14) nhưng frontend phải tự hỏi `unread-count`; trạng thái từng màn hình vẫn polling theo mục 8 |
+| Thông báo đẩy chỉ cho thông báo | WebSocket chỉ đẩy **thông báo** (mục 17.9); trạng thái từng màn hình (tiến độ dự án, số dư…) vẫn hỏi lại theo mục 8 |
 | Chưa xác minh tự động với cơ quan thuế | Admin tự đối chiếu giấy phép và mã số thuế (mục 13.2). Hồ sơ đã xác minh không sửa được qua API |
 | `freeText` không gộp tự động | Câu trả lời mở không có một đáp án đúng: màn hình kết quả hiện câu trả lời của từng người (`labels`), không có `final` |
-| Chưa có: đối tượng **ẩn / hiện lại** trong một chuỗi `track` (tạo chuỗi mới), khung xoay, hình khối 3D / point cloud, quan hệ giữa các khung trên ảnh, xếp hạng một phần (top-k), xuất định dạng MOT / COCO keypoints | Không làm UI cho các dạng này. Kết quả `track`, `keypoint`, `polyline`, `relation`, `ranking` lấy qua `export?format=json` / `csv` |
-| Cổng vượt link chỉ nhận phân loại một lớp / so sánh cặp | Dự án dùng công cụ khác không bật được kênh cổng link (mục 12.3) |
+| Chưa có: hình khối 3D / point cloud, quan hệ giữa các khung trên ảnh, xếp hạng một phần (top-k) | Không làm UI cho các dạng này. Khung xoay, track ẩn / hiện lại, xuất MOT / COCO keypoints đã có (mục 17.6) |
+| Cổng vượt link chỉ cho công cụ làm nhanh | Danh sách là setting `gate.allowed_tools` (mục 17.5) |
 | Hồ sơ người gán trên màn hình duyệt | Gom các `labelerId` trên trang rồi gọi **một lần** `GET /users/public?ids=...` (mục 15) để hiện tên, ảnh, cấp độ |
 | Rate limit đếm theo từng instance gateway | Chạy nhiều gateway thì hạn mức thực tế cao hơn — không ảnh hưởng FE |
 
@@ -2501,3 +2507,243 @@ POST /media/admin/watermark/decode     (multipart: file = ảnh nghi bị lộ; 
 - Watermark chứa thẳng người xem (không lưu gì phía server) → API trả về **ai**, không trả về ảnh nào (nhìn ảnh bị lộ là biết).
 - Chịu được nén JPEG, lưu lại, đổi độ sáng. Ảnh bị **thu nhỏ**: gửi kèm `width` / `height` là kích thước gốc của mẫu (`metadata` của mẫu) để hệ thống phóng lại trước khi giải. **Không** chịu được cắt xén.
 - `confidence` ~0,5 là ngẫu nhiên; `found: true` đã qua kiểm CRC-32 nên tin được. Ảnh lớn không có watermark có thể mất vài giây (thử mọi độ mạnh).
+
+---
+
+## 17. Bổ sung đợt hoàn thiện 10/2026
+
+Các tính năng dưới đây được thêm sau khi các mục 1–16 đã viết. Mục nào thay đổi hành vi cũ có ghi rõ **(đổi)**.
+
+### 17.1 Đăng nhập hai bước và xác thực hai lớp (FC-04) — **(đổi)** mục 2.1
+
+`POST /auth/login` với tài khoản **đã bật 2FA** trả `200` nhưng **không có token**:
+
+```json
+{ "twoFactorRequired": true, "challengeToken": "…", "expiresIn": 300 }
+```
+
+Frontend hiện ô nhập mã 6 số rồi gọi:
+
+```http
+POST /auth/2fa/verify   { "challengeToken": "…", "code": "123456" }        → giống kết quả login thường (accessToken, refreshToken…)
+POST /auth/2fa/verify   { "challengeToken": "…", "recoveryCode": "ABCD-EFGH" }   (mất điện thoại: dùng mã dự phòng, mỗi mã một lần)
+```
+
+Sai mã → `401 ma_2fa_sai` kèm `attemptsLeft`; sai quá `identity.two_factor_max_attempts` lần hoặc quá `expiresIn` giây → `401 het_luot_2fa` (quay lại bước mật khẩu). Cách phân biệt: response có `twoFactorRequired` hay có `accessToken`.
+
+Quản lý 2FA ở trang bảo mật (đã đăng nhập):
+
+| API | Ghi chú |
+|---|---|
+| `GET /me/2fa` | `{ enabled, recoveryCodesLeft }` |
+| `POST /me/2fa/setup` | `{ secret, otpauthUri }` — vẽ QR từ `otpauthUri`. **Chưa bật** cho tới khi `enable` |
+| `POST /me/2fa/enable { code }` | Trả 10 mã dự phòng — **hiện một lần**, nhắc người dùng lưu |
+| `POST /me/2fa/disable { password, code \| recoveryCode }` | |
+| `POST /me/2fa/recovery-codes { code }` | Bộ mã mới, bộ cũ hết hiệu lực |
+| `POST /users/admin/{userId}/2fa/reset` (admin) | Người mất cả điện thoại lẫn mã dự phòng |
+
+Bật / tắt / admin đặt lại 2FA luôn gửi email (không tắt được).
+
+### 17.2 Xác minh danh tính và độ tuổi (FP-05, mục 2.9)
+
+```http
+GET  /me/identity-verification
+PUT  /me/identity-verification               { fullName, dateOfBirth: "2000-05-31", idNumber }
+POST /me/identity-verification/upload-url    { side: "front" | "back", fileName, sizeBytes }  → { uploadUrl, … }  (PUT ảnh thẳng lên uploadUrl)
+POST /me/identity-verification/submit
+```
+
+Response: `{ status: draft|submitted|verified|rejected, fullName, dateOfBirth, idNumberLast4, hasFront, hasBack, adult, rejectReason, submittedAt, reviewedAt }`. Số giấy tờ chỉ trả 4 số cuối. Một số giấy tờ chỉ xác minh được cho **một** tài khoản.
+
+Admin: `GET /users/admin/identity-verifications?status=submitted`, `GET /users/admin/identity-verifications/{userId}` (kèm link xem ảnh 5 phút — **mỗi lần mở được ghi nhật ký audit**), `POST …/{userId}/approve`, `POST …/{userId}/reject { reason }`.
+
+Sau khi được duyệt, **làm mới token** (`/auth/refresh`) để token mang claim `identity_verified` / `adult` — project-svc đọc claim này khi tham gia dự án yêu cầu xác minh / dự án nội dung nhạy cảm.
+
+### 17.3 Nạp tiền qua VNPay / MoMo (FB-03) — **(đổi)** mục 4.1
+
+```http
+GET  /payments/deposits/providers                         → [ "sandbox", "vnpay", "momo" ]  (theo setting payment.enabled_providers)
+POST /payments/deposits   { amountVnd, provider: "vnpay" }  (header Idempotency-Key)  → { intentId, checkoutUrl, … }
+```
+
+Chuyển trình duyệt tới `checkoutUrl`. Cổng trả người dùng về Return URL của frontend — **frontend không tin tham số trên Return URL**: gọi
+
+```http
+POST /payments/deposits/{intentId}/sync     → trạng thái lệnh (backend hỏi ngược cổng bằng API server-to-server)
+GET  /payments/deposits/{intentId}
+```
+
+Tiền chỉ vào ví khi cổng báo qua IPN (`/payments/webhooks/vnpay`, `/payments/webhooks/momo` — cổng gọi, không phải frontend) hoặc khi `sync` / worker đối soát xác nhận. Lệnh treo quá `payment.deposit_expire_after` thành hết hạn. Dev / demo: `checkoutUrl` trỏ tới **cổng giả lập** trong payment-svc (trang "thanh toán" có nút thành công / huỷ, ký đúng thuật toán của VNPay / MoMo).
+
+### 17.4 Hoá đơn VAT phí nền tảng (FB-05)
+
+```http
+GET  /ledger/invoices                          → hoá đơn của tôi (doanh nghiệp)
+GET  /ledger/invoices/preview?period=2026-10   → tạm tính (kể cả tháng đang chạy), không lưu
+POST /ledger/invoices   { period: "2026-09" }  → xuất hoá đơn tháng đã kết thúc (đã có thì trả lại bản cũ)
+GET  /ledger/invoices/{id}
+GET  /ledger/invoices/{id}/html                → bản thể hiện in được (mở tab mới / in)
+GET  /ledger/invoices/{id}/xml                 → dữ liệu hoá đơn điện tử (cấu trúc Thông tư 78)
+GET  /ledger/invoices/admin?period=&page=&pageSize=   (admin)
+```
+
+Phí nền tảng đã thu là giá **đã gồm thuế**; hoá đơn tách tiền hàng + VAT (`invoice.vat_percent`). Đầu tháng hệ thống tự xuất hoá đơn tháng trước (`invoice.auto_issue`). Hoá đơn đã xuất không sửa / xoá được.
+
+### 17.5 Dự án: bảo vệ nội dung, lời mời, quan hệ labeler, nhập nguồn ngoài
+
+**Nội dung nhạy cảm / NDA / yêu cầu xác minh (mục 2.9)** — cấu hình khi dự án còn nháp:
+
+```http
+PUT  /projects/{id}/protection   { sensitiveContent, contentWarning, ndaRequired, ndaText, requireVerifiedIdentity }
+GET  /projects/{id}/terms        → văn bản cảnh báo / NDA + trạng thái đồng ý của tôi
+POST /projects/{id}/consent      { acceptContentWarning, acceptNda, fullName }
+GET  /projects/{id}/consents     (chủ dự án: ai đã đồng ý / ký NDA)
+POST /projects/{id}/leave        (labeler / reviewer tự rời dự án — bất kỳ lúc nào, không bị phạt)
+```
+
+Dự án nhạy cảm: lease có `sensitiveContent: true` — frontend hiện cảnh báo trước khi hiện mẫu. Làm liên tục quá `welfare.max_continuous_minutes` phút → `POST /tasks/projects/{id}/next` trả `429 can_nghi_giai_lao` kèm header `Retry-After` và `retryAfterSeconds` / `breakUntil`; frontend hiện màn hình nghỉ có đồng hồ đếm ngược.
+
+**Lời mời** — **(đổi)** mục 4.9: mời theo email luôn trả `202` + lời mời, kể cả email **chưa có tài khoản** (trước là lỗi `khong_tim_thay`) và email đã có tài khoản (trước là thêm thẳng) — xem VD-S-16 ở mục 4.9. Email chưa có tài khoản nhận thư kèm link `…/dang-ky?email=…&invitation=…`, đăng ký đúng email đó thì lời mời tự gắn vào tài khoản.
+
+Mỗi lời mời có `byEmail`. Chủ dự án xem (`GET /projects/{id}/invitations`): lời mời theo email có `userId: null` cho tới khi được chấp nhận; lời mời theo userId có `email: null` (không lộ email của người đó). Người được mời (`/mine`) luôn thấy đủ.
+
+```http
+GET  /projects/invitations/mine
+POST /projects/invitations/{id}/accept        (dự án cần đồng ý điều khoản: gọi /consent trước)
+POST /projects/invitations/{id}/decline
+GET  /projects/{id}/invitations               (chủ dự án)
+DELETE /projects/{id}/invitations/{invitationId}
+```
+
+Đơn xin tham gia chủ dự án không xử lý trong `project.join_request_ttl` tự hết hạn: labeler nhận thông báo "đơn đã hết hạn" (`join_request.decided`, `reason = "het_han"`).
+
+**Danh sách labeler của doanh nghiệp, đánh giá, gợi ý (FB-23, FL-02):**
+
+```http
+GET    /projects/labeler-lists?kind=preferred|blocked
+PUT    /projects/labeler-lists/{labelerId}   { kind: "preferred" | "blocked", note }
+DELETE /projects/labeler-lists/{labelerId}
+POST   /projects/{id}/members/invite-preferred          → mời cả danh sách ưu tiên
+PUT    /projects/{id}/ratings/{labelerId}  { stars: 1-5, comment }
+GET    /projects/{id}/ratings
+GET    /projects/labelers/{labelerId}/rating-summary
+PUT    /projects/{id}/tags   { domains: [...], languages: [...] }
+GET    /projects/recommended?limit=10                   → dự án hợp hồ sơ kỹ năng của labeler
+PUT    /projects/{id}/retention   { deleteFilesAfterClose }   → đồng ý xoá file gốc khi dự án đóng quá hạn giữ
+```
+
+Labeler trong danh sách chặn của doanh nghiệp không tham gia được mọi dự án của doanh nghiệp đó; danh sách ưu tiên được duyệt đơn tự động.
+
+**Đơn giá tối thiểu (FM-04):** `PUT /projects/{id}/pricing` với đơn giá < `project.min_unit_price_vnd` → `400 don_gia_duoi_toi_thieu`; checklist publish cũng báo mã này khi admin nâng mức sau.
+
+**Nhập dữ liệu từ nguồn ngoài (FB-11):**
+
+```http
+POST /projects/{id}/datasets/import
+{ "name": "lo s3", "source": "s3",  "s3": { "endpoint": null, "region": "ap-southeast-1", "bucket": "…", "prefix": "anh/", "accessKey": "…", "secretKey": "…" } }
+{ "name": "lo url", "source": "urls", "urls": [ "https://…/a.jpg", … ] }
+{ "name": "lo drive", "source": "googleDrive", "googleDrive": { "links": [ "https://drive.google.com/file/d/…" ] } }
+→ 202 { id, status: "pending" }   (theo dõi như lô manifest — mục 4.6)
+```
+
+Chỉ tải từ địa chỉ công khai (chặn IP nội bộ — SSRF); tối đa `dataset.import_max_files` file mỗi lô. Khoá bí mật S3 chỉ lưu dạng mã hoá tới khi nhập xong rồi xoá.
+
+**Cổng link chỉ cho công cụ làm nhanh — (đổi) mục 12.3:** dự án bật cổng link mà tập nhãn có công cụ ngoài `gate.allowed_tools` (mặc định `classification, pairwise, number, bbox, keypoint, span`) → checklist có `cong_cu_khong_hop_cong_link`, publish trả `409` kèm tên công cụ. Frontend: khi bật kênh cổng link, cảnh báo ngay nếu tập nhãn có công cụ khác.
+
+### 17.6 Công cụ gán nhãn và xuất file mới — **(đổi)** mục 6.3, 4.11
+
+- `bbox` có `"rotatable": true` (chỉ bbox): mỗi khung thêm `angle` (độ, chiều kim đồng hồ quanh tâm, -180..180). Kiểm "nằm trong ảnh" theo 4 đỉnh sau khi xoay. Gộp: góc = trung vị.
+- `track`: mỗi keyframe có thể có `"visible": false` — đối tượng **khuất** từ mốc đó tới mốc `visible` kế tiếp (không nội suy qua đoạn khuất).
+- Định dạng xuất mới (`GET /annotations/projects/{id}/export?format=`): `yolo-seg` (đa giác), `yolo-obb` (khung xoay), `coco-keypoints`, `conll` (span → BIO, dự án văn bản), `mot` (track, dự án video; khung hình theo `fps` của mẫu). `yolo` ghi khung xoay thành hộp bao; `voc` có thêm `<polygon>` và `<angle>`. Định dạng không hợp loại dữ liệu → `400`.
+- `GET /annotations/projects/{id}/results` dùng bộ đệm kết quả gộp theo mẫu: header `X-Results-Cache: hits=…; misses=…` (chỉ để đo).
+
+### 17.7 Chỉ số chất lượng mở rộng (FQ-02) — **(đổi)** mục 4.12
+
+`GET /quality/projects/{id}/summary` — mỗi phần tử `tools[]` thêm:
+
+```json
+{ "tool": "khung", "krippendorffAlpha": 0.87, "fleissKappa": null, "alphaMetric": "set_f1", "itemCount": 120, "labelCount": 360, "computedAt": "…" }
+```
+
+`alphaMetric`: `nominal` (phân loại, cặp — có thêm `fleissKappa`), `interval` (số), `cer` (chép lời), `kendall` (xếp hạng), `set_f1` (khung, đa giác, mặt nạ, span, điểm mốc, đường, quan hệ, đoạn thời gian, chuỗi khung). Trước đây chỉ công cụ phân loại / cặp có alpha. `freeText` không có chỉ số.
+
+`GET /quality/projects/{id}/labelers` — mỗi labeler thêm `stapleMask: { "<tên công cụ mask>": { sensitivity, specificity, sampleCount } }` (STAPLE: độ nhạy = tô được bao nhiêu phần vật thật, độ đặc hiệu = không tô lấn ra nền). Chỉ để chủ dự án xem, **không** vào điểm uy tín.
+
+### 17.8 Âm thanh / video có watermark — **(đổi)** mục 16
+
+Link xem của labeler / reviewer / khách cổng link với mẫu **âm thanh** trả `audio/flac`, **video** trả `video/mp4` (H.264) — đã nhúng watermark người xem. Lần mở đầu tiên mất thời gian mã hoá lại (tỉ lệ với độ dài file, video ngắn vài giây); các lần sau và khi tua (`Range`) lấy từ bộ đệm. Frontend dùng `<audio>` / `<video>` như cũ, nên hiện trạng thái "đang chuẩn bị" khi chờ.
+
+`POST /media/admin/watermark/decode` nhận cả file âm thanh / video (tối đa 500 MB); response thêm `mediaType: image | audio | video`. Không chịu được: cắt đầu file âm thanh, đổi tốc độ / tần số lấy mẫu, thu âm lại qua loa, cắt xén / đổi kích thước video.
+
+### 17.9 Thông báo realtime và ngôn ngữ (FC-06, FC-08) — **(đổi)** mục 14
+
+```http
+POST /notifications/me/realtime-ticket        → { ticket, expiresAt }   (vé dùng MỘT lần, sống 30 giây)
+GET  ws://<gateway>/notifications/realtime?ticket=…
+```
+
+Khung đầu `{ "kind": "connected" }`; mỗi thông báo mới là một khung `{ "kind": "notification", "notification": { id, type, title, body, link, createdAt } }`. Vé sai / hết hạn / đã dùng: kết nối mở rồi **đóng ngay với mã 4401** — xin vé mới. Mất kết nối: xin vé mới rồi mở lại, và tải lại `unread-count` (thông báo trong lúc rớt vẫn nằm trong danh sách). Giữ polling `unread-count` thưa (vd 5 phút) làm dự phòng.
+
+```http
+GET /notifications/me/language          → { "language": "vi" }
+PUT /notifications/me/language          { "language": "en" }     (vi | en; khác → 400)
+```
+
+Ngôn ngữ áp cho **thông báo và email tạo sau đó** (thông báo cũ giữ ngôn ngữ lúc tạo). Giao diện frontend tự dịch; mã lỗi `code` của API không phụ thuộc ngôn ngữ.
+
+Loại thông báo mới (mục 14): `bao_mat` (bật / tắt 2FA — email bắt buộc), `xac_minh_danh_tinh`, `loi_moi_du_an`. Thông báo cũ hơn `notification.retention_days` (180 ngày) bị xoá.
+
+### 17.10 Admin: hàng đợi duyệt chung, mẫu bài toán, vận hành
+
+**Hàng đợi duyệt chung** — một màn hình cho mọi loại đơn chờ duyệt (đọc từ event, cập nhật trễ vài giây):
+
+```http
+GET  /admin/approvals?kind=&status=pending&page=&pageSize=
+GET  /admin/approvals/summary            → { totalPending, kinds: [ { kind, pending, oldestOpenedAt, oldestWaitingHours } ] }
+POST /admin/approvals/rebuild            → dựng lại từ nhật ký audit
+```
+
+Mỗi mục `{ id, kind, subjectId, status, title, requesterId, amountVnd, note, openedAt, decidedAt, decidedBy }`; `status`: `pending`, `waiting` (dự án chờ ký quỹ), `approved`, `rejected`, `cancelled`, `resolved`. Bấm vào mục thì gọi API duyệt của service chủ theo `kind`:
+
+| kind | subjectId | Xem / duyệt |
+|---|---|---|
+| `kyb` | businessId | `GET /kyb/admin/{id}`, `POST …/approve`, `POST …/reject` |
+| `identity` | userId | `GET /users/admin/identity-verifications/{id}`, `…/approve`, `…/reject` |
+| `project` | projectId | `GET /projects/{id}`, `POST /projects/{id}/approve`, `POST /projects/{id}/reject` |
+| `withdrawal` | withdrawalId | `POST /ledger/admin/withdrawals/{id}/approve`, `…/reject` |
+| `appeal` | annotationId | `POST /annotations/{id}/appeal/resolve { accept, note }` |
+| `dispute` | disputeId | `POST /ledger/admin/disputes/{id}/resolve` |
+| `link` | linkId | `POST /links/admin/{id}/disable`, `POST /links/admin/{id}/dismiss-reports` |
+| `referral` | referredId | `POST /links/admin/referrals/{id}/approve`, `…/reject { reason }` |
+
+**Giới thiệu nghi lạm dụng (FS-08):** `GET /links/admin/referrals/flagged` → `[ { referrerId, referredId, reasons, createdAt } ]`; `reasons` gồm `trung_ip_nguoi_gioi_thieu`, `nhieu_tai_khoan_cung_ip`, `dot_bien`. Người dùng nhập mã vẫn nhận `204` (không chặn), nhưng hoa hồng chỉ tính sau khi admin chấp nhận.
+
+**Mẫu bài toán / template workspace (FM-03):**
+
+```http
+GET  /templates?modality=image          (mọi người đăng nhập — chỉ mẫu đang bật)
+GET  /templates/{id}
+GET  /admin/templates                   (admin — cả mẫu đã tắt)
+POST /admin/templates   { code, name, description, labelSchema, guidelineMarkdown, suggestedUnitPriceVnd, suggestedRedundancy }
+PUT  /admin/templates/{id}
+POST /admin/templates/{id}/deactivate | /activate
+```
+
+Tạo dự án từ mẫu: frontend tạo dự án với `modality` của mẫu rồi gọi `PUT /projects/{id}/label-schema` với `labelSchema` của mẫu và `PUT /projects/{id}/guideline` với `guidelineMarkdown` — dự án **không** tham chiếu mẫu (sửa mẫu không đổi dự án đã tạo).
+
+**Vận hành:** `GET /admin/ops/queues` → `{ reachable, checkedAt, threshold, deadLetterQueues: [ { queue, messages, overThreshold } ] }`. DLQ vượt `ops.dlq_alert_threshold` thì gửi email tới `ops.alert_email`.
+
+### 17.11 Mã lỗi mới
+
+| HTTP | code | Khi nào |
+|---|---|---|
+| 401 | `ma_2fa_sai` / `het_luot_2fa` | Bước 2 đăng nhập |
+| 429 | `can_nghi_giai_lao` | Dự án nhạy cảm, làm quá lâu liên tục |
+| 400 | `don_gia_duoi_toi_thieu` | Đơn giá dưới mức tối thiểu |
+| 409 | `cong_cu_khong_hop_cong_link` | Bật cổng link với công cụ không cho phép |
+| 400 | `tap_nhan_khong_hop_le` / `ma_khong_hop_le` | Tạo mẫu bài toán |
+| 409 | `ma_da_ton_tai` | Trùng `code` mẫu bài toán |
+| 409 | `da_xet` | Xét lại giới thiệu đã xét |
+| 400 | `ngon_ngu_khong_hop_le` | Ngôn ngữ thông báo khác vi / en |
+| 409 | `media_hong` | File âm thanh / video hỏng, không nhúng watermark được |
+| 429 | `vuot_han_muc_moi_email` | Mời quá `project.email_invite_daily_max` email / 24 giờ (kèm `Retry-After`) |

@@ -181,15 +181,32 @@ namespace Crowd.Project.Api.Services
             }
 
             _db.JoinRequests.Add(don);
-            _events.Phat(caller, new JoinRequestSubmitted
+
+            // FB-23: labeler trong danh sach UU TIEN cua doanh nghiep → don duoc tu duyet, vao luon.
+            bool uuTien = await _db.OwnerLabelerEntries.AnyAsync(
+                e => e.OwnerId == duAn.OwnerId && e.LabelerId == don.UserId && e.Kind == OwnerListKind.Preferred, ct);
+            if (uuTien)
             {
-                RequestId = don.Id,
-                ProjectId = duAn.Id,
-                ProjectName = duAn.Name,
-                OwnerId = duAn.OwnerId,
-                UserId = don.UserId,
-                ScorePercent = don.ScorePercent,
-            });
+                DateTimeOffset luc = _clock.GetUtcNow();
+                don.Duyet(duAn.OwnerId, luc);
+                PhatDaQuyetDinh(don, duAn, caller);
+                ProjectMember moi = ProjectMember.TaoThanhVien(duAn.Id, don.UserId, MemberRole.Labeler, luc);
+                _db.ProjectMembers.Add(moi);
+                _members.PhatDaThem(moi, MemberJoinVia.JoinRequest, duAn, caller);
+                _logger.LogInformation("Don {RequestId} tu duyet: labeler {UserId} trong danh sach uu tien", don.Id, don.UserId);
+            }
+            else
+            {
+                _events.Phat(caller, new JoinRequestSubmitted
+                {
+                    RequestId = don.Id,
+                    ProjectId = duAn.Id,
+                    ProjectName = duAn.Name,
+                    OwnerId = duAn.OwnerId,
+                    UserId = don.UserId,
+                    ScorePercent = don.ScorePercent,
+                });
+            }
 
             try
             {
@@ -338,6 +355,44 @@ namespace Crowd.Project.Api.Services
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(don, duAn.Name, null, don.DuocXinLaiTu(QuyDinhTuSetting.ThanhVien(_settings).ChoXinLaiSauTuChoi));
+        }
+
+        /// <summary>
+        /// Worker: don cho qua project.join_request_ttl → Expired + join_request.decided (approved=false,
+        /// reason het_han) de labeler biet va gui lai. Tra so don vua het han.
+        /// </summary>
+        public async Task<int> HetHanAsync(Caller heThong, CancellationToken ct)
+        {
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            DateTimeOffset moc = bayGio - _settings.ThoiGian(SettingKeys.ProjectJoinRequestTtl);
+            List<JoinRequest> ds = await _db.JoinRequests
+                .Where(d => d.Status == JoinRequestStatus.Pending && d.CreatedAt < moc)
+                .OrderBy(d => d.CreatedAt)
+                .Take(500)
+                .ToListAsync(ct);
+            if (ds.Count == 0)
+            {
+                return 0;
+            }
+
+            List<Guid> ids = ds.Select(d => d.ProjectId).Distinct().ToList();
+            Dictionary<Guid, LabelingProject> duAn = await _db.Projects.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+            foreach (JoinRequest d in ds)
+            {
+                d.HetHan(bayGio);
+                _events.Phat(heThong, new JoinRequestDecided
+                {
+                    RequestId = d.Id,
+                    ProjectId = d.ProjectId,
+                    ProjectName = duAn[d.ProjectId].Name,
+                    UserId = d.UserId,
+                    Approved = false,
+                    Reason = "het_han",
+                });
+            }
+
+            await _db.SaveChangesAsync(ct);
+            return ds.Count;
         }
 
         private void PhatDaQuyetDinh(JoinRequest don, LabelingProject duAn, Caller caller)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Crowd.Labeling;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Members;
@@ -28,11 +29,16 @@ namespace Crowd.Project.Domain.Projects
 
 
         /// <summary>EF Core dung constructor nay de dung lai doi tuong tu database.</summary>
+        private List<string> _domains;
+        private List<string> _languages;
+
         private LabelingProject()
         {
             Modality = string.Empty;
             Name = string.Empty;
             Description = string.Empty;
+            _domains = new List<string>();
+            _languages = new List<string>();
         }
 
         public Guid Id { get; private set; }
@@ -116,6 +122,51 @@ namespace Crowd.Project.Domain.Projects
 
         /// <summary>Phan tram dung toi thieu de dau, 1-100.</summary>
         public int EntrancePassPercent { get; private set; }
+
+        // ---- Bao ve nguoi gan nhan va du lieu (muc 2.9, FP-01, FP-05) ----
+
+        /// <summary>
+        /// Noi dung nhay cam (kiem duyet noi dung bao luc, kinh di...): chi labeler DA XAC MINH DU TUOI
+        /// vao duoc, phai dong y canh bao truoc khi vao, frontend lam mo mac dinh, task-svc ep nghi giua phien.
+        /// </summary>
+        public bool SensitiveContent { get; private set; }
+
+        /// <summary>Loi canh bao hien cho labeler truoc khi dong y (bat buoc khi SensitiveContent).</summary>
+        public string? ContentWarning { get; private set; }
+
+        /// <summary>Phai ky thoa thuan bao mat (NDA dien tu) truoc khi vao du an (FP-01).</summary>
+        public bool NdaRequired { get; private set; }
+
+        public string? NdaText { get; private set; }
+
+        /// <summary>Tang moi lan sua van ban NDA — chu ky gan voi phien ban da ky.</summary>
+        public int NdaVersion { get; private set; }
+
+        /// <summary>Chi labeler da xac minh danh tinh (claim identity_verified) moi vao duoc (FP-05).</summary>
+        public bool RequireVerifiedIdentity { get; private set; }
+
+        // ---- Luu tru sau khi dong (muc 3.14) ----
+
+        /// <summary>
+        /// Doanh nghiep DONG Y xoa file du lieu goc (anh / am thanh / video trong kho) khi du an da dong qua
+        /// project.closed_data_retention. Mac dinh KHONG xoa: du lieu la tai san cua doanh nghiep.
+        /// </summary>
+        public bool DeleteFilesAfterClose { get; private set; }
+
+        /// <summary>Luc da xoa file trong kho; null = chua.</summary>
+        public DateTimeOffset? FilesPurgedAt { get; private set; }
+
+        // ---- Nhan de goi y du an (FL-02): so khop voi ho so ky nang cua labeler ----
+
+        public IReadOnlyList<string> Domains
+        {
+            get { return _domains; }
+        }
+
+        public IReadOnlyList<string> Languages
+        {
+            get { return _languages; }
+        }
 
         // ---- Dau vet vong doi ----
 
@@ -272,6 +323,13 @@ namespace Crowd.Project.Domain.Projects
                 throw new InvalidValueException("don_gia_khong_hop_le", "Don gia phai lon hon 0.");
             }
 
+            if (unitPriceVnd < quyDinh.DonGiaToiThieu)
+            {
+                throw new InvalidValueException(
+                    "don_gia_duoi_toi_thieu",
+                    "Don gia toi thieu cua nen tang la " + quyDinh.DonGiaToiThieu + "d moi nhan.");
+            }
+
             if (redundancy < 1 || redundancy > quyDinh.RedundancyToiDa)
             {
                 throw new InvalidValueException(
@@ -376,6 +434,167 @@ namespace Crowd.Project.Domain.Projects
             UpdatedAt = luc;
         }
 
+        /// <summary>
+        /// Cau hinh bao ve (muc 2.9, FP-01, FP-05) — chi khi Nhap: labeler da dong y / da ky theo dieu
+        /// khoan cu khong duoc doi luat giua chung.
+        /// </summary>
+        public void DatBaoVe(
+            bool sensitiveContent,
+            string? contentWarning,
+            bool ndaRequired,
+            string? ndaText,
+            bool requireVerifiedIdentity,
+            DateTimeOffset luc)
+        {
+            ChiKhiNhap("doi cau hinh bao ve");
+
+            string? canhBao = string.IsNullOrWhiteSpace(contentWarning) ? null : contentWarning.Trim();
+            if (sensitiveContent && canhBao == null)
+            {
+                throw new InvalidValueException("thieu_canh_bao", "Du an noi dung nhay cam phai co loi canh bao cho labeler.");
+            }
+
+            if (canhBao != null && canhBao.Length > CotDb.CanhBaoNoiDung)
+            {
+                throw new InvalidValueException("canh_bao_qua_dai", "Loi canh bao toi da " + CotDb.CanhBaoNoiDung + " ky tu.");
+            }
+
+            string? nda = string.IsNullOrWhiteSpace(ndaText) ? null : ndaText.Trim();
+            if (ndaRequired && nda == null)
+            {
+                throw new InvalidValueException("thieu_van_ban_nda", "Bat NDA thi phai co van ban thoa thuan.");
+            }
+
+            if (nda != null && nda.Length > CotDb.VanBanNda)
+            {
+                throw new InvalidValueException("nda_qua_dai", "Van ban NDA toi da " + CotDb.VanBanNda + " ky tu.");
+            }
+
+            if (!string.Equals(nda, NdaText, StringComparison.Ordinal))
+            {
+                NdaVersion++;
+            }
+
+            SensitiveContent = sensitiveContent;
+            ContentWarning = sensitiveContent ? canhBao : null;
+            NdaRequired = ndaRequired;
+            NdaText = nda;
+            RequireVerifiedIdentity = requireVerifiedIdentity;
+            UpdatedAt = luc;
+        }
+
+        /// <summary>Can dong y CA NHAN truoc khi vao (canh bao noi dung / NDA) — chu du an khong dong y thay duoc.</summary>
+        public bool CanDongYCaNhan()
+        {
+            return SensitiveContent || NdaRequired;
+        }
+
+        /// <summary>
+        /// Dieu kien bao ve cho MOT labeler: null = du. Thu tu: xac minh danh tinh → du tuoi → dong y.
+        /// </summary>
+        public string? LyDoKhongDuDieuKienBaoVe(bool daXacMinhDanhTinh, bool duTuoi, bool daDongYDieuKhoan)
+        {
+            if ((RequireVerifiedIdentity || SensitiveContent) && !daXacMinhDanhTinh)
+            {
+                return "can_xac_minh_danh_tinh";
+            }
+
+            if (SensitiveContent && !duTuoi)
+            {
+                return "chua_du_tuoi";
+            }
+
+            if (CanDongYCaNhan() && !daDongYDieuKhoan)
+            {
+                return "can_dong_y_dieu_khoan";
+            }
+
+            return null;
+        }
+
+        public static string GiaiThichBaoVe(string lyDo)
+        {
+            switch (lyDo)
+            {
+                case "can_xac_minh_danh_tinh":
+                    return "Du an chi nhan labeler da xac minh danh tinh (gui anh giay to o /me/identity-verification).";
+                case "chua_du_tuoi":
+                    return "Du an co noi dung nhay cam, chi nhan nguoi da xac minh du tuoi.";
+                case "can_dong_y_dieu_khoan":
+                    return "Doc va dong y canh bao noi dung / ky NDA truoc (POST /projects/{id}/consent).";
+                default:
+                    return "Khong du dieu kien bao ve cua du an.";
+            }
+        }
+
+        /// <summary>Linh vuc / ngon ngu cua du an (FL-02). Doi duoc moi luc chua ket thuc — chi anh huong goi y.</summary>
+        public void DatNhan(IReadOnlyList<string>? linhVuc, IReadOnlyList<string>? ngonNgu, DateTimeOffset luc)
+        {
+            if (DaKetThuc())
+            {
+                throw KhongTheKhi("doi nhan");
+            }
+
+            _domains = ChuanHoaNhan(linhVuc, "Linh vuc");
+            _languages = ChuanHoaNhan(ngonNgu, "Ngon ngu");
+            UpdatedAt = luc;
+        }
+
+        private static List<string> ChuanHoaNhan(IReadOnlyList<string>? ds, string ten)
+        {
+            List<string> kq = new List<string>();
+            HashSet<string> daCo = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (ds == null)
+            {
+                return kq;
+            }
+
+            foreach (string? muc in ds)
+            {
+                string v = (muc ?? string.Empty).Trim();
+                if (v.Length == 0 || v.Length > 50)
+                {
+                    throw new InvalidValueException("nhan_khong_hop_le", ten + ": moi muc tu 1 den 50 ky tu.");
+                }
+
+                if (daCo.Add(v))
+                {
+                    kq.Add(v);
+                }
+            }
+
+            if (kq.Count > 10)
+            {
+                throw new InvalidValueException("nhan_khong_hop_le", ten + ": toi da 10 muc.");
+            }
+
+            return kq;
+        }
+
+        /// <summary>Bat / tat dong y xoa file sau khi dong. Da xoa roi thi khong doi duoc nua.</summary>
+        public void DatXoaFileSauKhiDong(bool dongY, DateTimeOffset luc)
+        {
+            if (FilesPurgedAt.HasValue)
+            {
+                throw new RuleViolationException("file_da_xoa", "File cua du an da bi xoa.");
+            }
+
+            DeleteFilesAfterClose = dongY;
+            UpdatedAt = luc;
+        }
+
+        /// <summary>Den han xoa file: da dong, doanh nghiep dong y, qua han giu, chua xoa.</summary>
+        public bool DenHanXoaFile(TimeSpan hanGiu, DateTimeOffset luc)
+        {
+            return DaKetThuc() && DeleteFilesAfterClose && !FilesPurgedAt.HasValue
+                && ClosedAt.HasValue && hanGiu > TimeSpan.Zero && luc - ClosedAt.Value >= hanGiu;
+        }
+
+        public void DanhDauDaXoaFile(DateTimeOffset luc)
+        {
+            FilesPurgedAt = luc;
+        }
+
         /// <summary>Nap dataset chi khi Nhap: ky quy tinh theo so mau luc publish.</summary>
         public void KiemTraCoTheNapDuLieu()
         {
@@ -449,7 +668,27 @@ namespace Crowd.Project.Domain.Projects
         public IReadOnlyList<string> NhungGiConThieu(
             int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, DateTimeOffset luc)
         {
+            return NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, 0, luc);
+        }
+
+        /// <param name="donGiaToiThieu">Don gia toi thieu hien hanh (FM-04): admin nang muc sau khi doanh nghiep cau hinh thi chan publish.</param>
+        public IReadOnlyList<string> NhungGiConThieu(
+            int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, long donGiaToiThieu, DateTimeOffset luc)
+        {
+            return NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, donGiaToiThieu, null, luc);
+        }
+
+        /// <param name="congCuChoCongLink">Loai cong cu khach vang lai lam duoc o trang vuot link (setting gate.allowed_tools); null = khong kiem.</param>
+        public IReadOnlyList<string> NhungGiConThieu(
+            int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, long donGiaToiThieu,
+            IReadOnlyCollection<string>? congCuChoCongLink, DateTimeOffset luc)
+        {
             List<string> thieu = new List<string>();
+
+            if (congCuChoCongLink != null && CongCuKhongHopCongLink(congCuChoCongLink).Count > 0)
+            {
+                thieu.Add("cong_cu_khong_hop_cong_link");
+            }
 
             if (coDuLieuDangXuLy)
             {
@@ -481,6 +720,11 @@ namespace Crowd.Project.Domain.Projects
                 {
                     thieu.Add("ngan_sach_khong_du");
                 }
+
+                if (UnitPriceVnd < donGiaToiThieu)
+                {
+                    thieu.Add("don_gia_duoi_toi_thieu");
+                }
             }
 
             if (soMau <= 0)
@@ -507,6 +751,42 @@ namespace Crowd.Project.Domain.Projects
 
         public void YeuCauPublish(int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, DateTimeOffset luc)
         {
+            YeuCauPublish(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, 0, luc);
+        }
+
+        public void YeuCauPublish(int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, long donGiaToiThieu, DateTimeOffset luc)
+        {
+            YeuCauPublish(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, donGiaToiThieu, null, luc);
+        }
+
+        /// <summary>
+        /// Cong cu cua tap nhan ma khach vang lai KHONG lam duoc o trang vuot link (chi khi bat cong link). Khach
+        /// chi co vai giay, khong co huong dan dai, khong co uy tin: ve da giac / mat na / chuoi khung, chep loi dai...
+        /// thi gan nhu chac chan sai — bat cong link cho cac cong cu do chi dot ngan sach. Tra ten cong cu.
+        /// </summary>
+        public IReadOnlyList<string> CongCuKhongHopCongLink(IReadOnlyCollection<string> choPhep)
+        {
+            List<string> ra = new List<string>();
+            if (!AllowLinkGateway || LabelSchema == null || choPhep == null)
+            {
+                return ra;
+            }
+
+            foreach (ToolDefinition t in LabelSchema.Tools)
+            {
+                if (!choPhep.Contains(t.Kind))
+                {
+                    ra.Add(t.Name);
+                }
+            }
+
+            return ra;
+        }
+
+        public void YeuCauPublish(
+            int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, long donGiaToiThieu,
+            IReadOnlyCollection<string>? congCuChoCongLink, DateTimeOffset luc)
+        {
             ChiKhiNhap("publish");
 
             if (phanTramPhi < 0 || phanTramPhi > 100)
@@ -514,7 +794,7 @@ namespace Crowd.Project.Domain.Projects
                 throw new InvalidValueException("phi_khong_hop_le", "Phi nen tang phai tu 0 den 100%.");
             }
 
-            IReadOnlyList<string> thieu = NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, luc);
+            IReadOnlyList<string> thieu = NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, donGiaToiThieu, congCuChoCongLink, luc);
             if (thieu.Count > 0)
             {
                 throw new RuleViolationException(

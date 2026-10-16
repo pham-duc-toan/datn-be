@@ -52,8 +52,9 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<ThuHoiPhienStore>();
 builder.Services.AddHostedService<ThuHoiPhienListener>();
 
-// Gioi han tan suat (VD-S-12), han muc la setting he thong.
-builder.Services.AddGioiHanTanSuat();
+// Gioi han tan suat (VD-S-12), han muc la setting he thong. Co ConnectionStrings:GatewayRedis thi dem
+// chung trong Redis (nhieu instance gateway), khong thi dem trong bo nho.
+builder.Services.AddGioiHanTanSuat(builder.Configuration);
 
 builder.Services.AddOcelot(builder.Configuration);
 
@@ -66,11 +67,14 @@ app.UseCors("frontend");
 app.UseMiddleware<CorrelationIdMiddleware>();
 
 // Gioi han tan suat roi chan token da thu hoi — ca hai truoc khi request toi bat ky service nao.
-app.UseRateLimiter();
+app.UseGioiHanTanSuat();
 app.UseMiddleware<ThuHoiPhienMiddleware>();
 
 // Nang tran body chi cho endpoint upload dataset.
 app.UseMiddleware<UploadLimitMiddleware>();
+
+// WebSocket thong bao realtime (/notifications/realtime): Ocelot chi chuyen tiep ws khi bat middleware nay.
+app.UseWebSockets();
 
 // Ocelot la khau CUOI cua ong xu ly: request khop route thi chuyen
 // tiep, khong khop thi tra 404. Middleware nao can chay truoc

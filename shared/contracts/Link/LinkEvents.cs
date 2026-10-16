@@ -65,6 +65,92 @@ namespace Crowd.Contracts.Link
         public required bool WithholdRevenue { get; init; }
     }
 
+    /// <summary>
+    /// Link vua VUOT nguong bao cao (setting link.report_review_threshold) — vao hang doi kiem duyet cua admin.
+    /// Ket thuc bang link.disabled (vi pham) hoac link.review_dismissed (bo qua bao cao).
+    /// </summary>
+    public sealed record LinkReviewRequested : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "link.review_requested"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid LinkId { get; init; }
+
+        public required Guid OwnerId { get; init; }
+
+        public required string Code { get; init; }
+
+        public required int ReportCount { get; init; }
+    }
+
+    /// <summary>Admin xem xong va BO QUA cac bao cao cua link (link tiep tuc phuc vu).</summary>
+    public sealed record LinkReviewDismissed : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "link.review_dismissed"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid LinkId { get; init; }
+
+        public required Guid OwnerId { get; init; }
+    }
+
+    /// <summary>
+    /// Gioi thieu co dau hieu lam dung (cung IP voi nguoi gioi thieu, nhieu tai khoan mot IP, dot bien) — CHUA
+    /// tinh hoa hong; admin xet (hang doi duyet chung). Chap nhan → referral.registered; bac → referral.rejected.
+    /// </summary>
+    public sealed record ReferralFlagged : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "referral.flagged"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid ReferrerId { get; init; }
+
+        public required Guid ReferredId { get; init; }
+
+        public required string Reasons { get; init; }
+    }
+
+    /// <summary>Admin bac gioi thieu nghi ngo: khong bao gio tinh hoa hong.</summary>
+    public sealed record ReferralRejected : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "referral.rejected"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid ReferrerId { get; init; }
+
+        public required Guid ReferredId { get; init; }
+
+        public required string Reason { get; init; }
+    }
+
     /// <summary>Nguoi dung xac nhan duoc gioi thieu boi mot sharer (FS-08).</summary>
     public sealed record ReferralRegistered : IEventPayload
     {

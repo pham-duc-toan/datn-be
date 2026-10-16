@@ -7,6 +7,15 @@ namespace Crowd.Payment.Api.Dtos
     public sealed class CreateDepositRequest
     {
         public long AmountVnd { get; init; }
+
+        /// <summary>sandbox | vnpay | momo (bo trong = sandbox). Chuyen khoan thu cong di /deposits/manual.</summary>
+        public string? Provider { get; init; }
+    }
+
+    public sealed class PaymentProvidersResponse
+    {
+        /// <summary>Cong nap dang mo (co cau hinh + bat trong setting), kem manual_transfer neu bat.</summary>
+        public required IReadOnlyList<string> Providers { get; init; }
     }
 
     public sealed class DepositResponse
@@ -17,7 +26,7 @@ namespace Crowd.Payment.Api.Dtos
 
         public required long AmountVnd { get; init; }
 
-        /// <summary>"sandbox" (cong) hoac "manual_transfer" (chuyen khoan thu cong).</summary>
+        /// <summary>sandbox | vnpay | momo (cong) hoac manual_transfer (chuyen khoan thu cong).</summary>
         public required string Provider { get; init; }
 
         public required PaymentIntentStatus Status { get; init; }
@@ -34,6 +43,9 @@ namespace Crowd.Payment.Api.Dtos
         public DateTimeOffset? TransferredAt { get; init; }
 
         public string? RejectReason { get; init; }
+
+        /// <summary>That bai vi sao: cong_{ma cua cong} | cong_loi (tao lenh loi) | het_han.</summary>
+        public string? FailureCode { get; init; }
 
         public required DateTimeOffset CreatedAt { get; init; }
 
@@ -60,22 +72,5 @@ namespace Crowd.Payment.Api.Dtos
         public required int PageSize { get; init; }
 
         public required int Total { get; init; }
-    }
-
-    /// <summary>
-    /// Than webhook cua cong sandbox. Chi TIN sau khi kiem chu ky tren CHINH chuoi
-    /// byte goc cua body — khong kiem tren object da parse (thu tu truong, khoang
-    /// trang khac nhau la chu ky lech).
-    /// </summary>
-    public sealed class SandboxWebhookBody
-    {
-        public Guid IntentId { get; init; }
-
-        public long AmountVnd { get; init; }
-
-        /// <summary>"success" | "failed"</summary>
-        public string? Status { get; init; }
-
-        public string? ProviderTxnId { get; init; }
     }
 }

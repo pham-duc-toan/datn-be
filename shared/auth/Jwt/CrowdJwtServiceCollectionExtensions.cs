@@ -29,6 +29,9 @@ namespace Crowd.BuildingBlocks.Auth.Jwt
                 throw new ArgumentNullException(nameof(configuration));
             }
 
+            // S-08: ngoai Development thi khong duoc khoi dong voi mat khau / khoa dev.
+            services.AddHostedService<ChanBiMatDev>();
+
             CrowdJwtOptions tuyChon = new CrowdJwtOptions();
             configuration.GetSection(CrowdJwtOptions.SectionName).Bind(tuyChon);
 

@@ -26,9 +26,7 @@ namespace Crowd.Notification.Api.Consumers
 
         protected override Task XuLyPayloadAsync(EmailVerificationRequested p, CancellationToken ct)
         {
-            Writer.GhiEmailGiaoDich(p.UserId, p.Email, p.DisplayName, "Xác thực email Crowd Label",
-                NoiDungThongBao.EmailXacThuc(p.DisplayName, p.VerifyUrl, p.ExpiresAt));
-            return Task.CompletedTask;
+            return Writer.GhiEmailGiaoDichAsync(p.UserId, p.Email, p.DisplayName, NoiDungThongBao.ThuXacThuc(p.DisplayName, p.VerifyUrl, p.ExpiresAt), ct);
         }
     }
 
@@ -42,9 +40,7 @@ namespace Crowd.Notification.Api.Consumers
 
         protected override Task XuLyPayloadAsync(PasswordResetRequested p, CancellationToken ct)
         {
-            Writer.GhiEmailGiaoDich(p.UserId, p.Email, p.DisplayName, "Đặt lại mật khẩu Crowd Label",
-                NoiDungThongBao.EmailDatLaiMatKhau(p.DisplayName, p.ResetUrl, p.ExpiresAt));
-            return Task.CompletedTask;
+            return Writer.GhiEmailGiaoDichAsync(p.UserId, p.Email, p.DisplayName, NoiDungThongBao.ThuDatLaiMatKhau(p.DisplayName, p.ResetUrl, p.ExpiresAt), ct);
         }
     }
 

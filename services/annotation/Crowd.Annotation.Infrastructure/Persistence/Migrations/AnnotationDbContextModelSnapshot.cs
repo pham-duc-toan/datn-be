@@ -54,6 +54,36 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                     b.ToTable("annotation_samples", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Annotation.Domain.Annotations.KetQuaMauDem", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("SampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sample_id");
+
+                    b.Property<DateTimeOffset>("ComputedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("computed_at");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("fingerprint");
+
+                    b.Property<string>("ToolsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("tools");
+
+                    b.HasKey("ProjectId", "SampleId");
+
+                    b.ToTable("sample_results", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Annotation.Domain.Annotations.LabelAnnotation", b =>
                 {
                     b.Property<Guid>("Id")

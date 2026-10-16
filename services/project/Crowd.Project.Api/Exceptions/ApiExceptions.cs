@@ -52,6 +52,21 @@ namespace Crowd.Project.Api.Exceptions
         public object ChiTiet { get; }
     }
 
+    /// <summary>Vuot han muc (VD: so email moi trong 24 gio) → 429 kem Retry-After.</summary>
+    public sealed class VuotHanMucException : Exception
+    {
+        public VuotHanMucException(string code, string message, TimeSpan thuLaiSau)
+            : base(message)
+        {
+            Code = code;
+            ThuLaiSau = thuLaiSau < TimeSpan.Zero ? TimeSpan.Zero : thuLaiSau;
+        }
+
+        public string Code { get; }
+
+        public TimeSpan ThuLaiSau { get; }
+    }
+
     /// <summary>Goi service noi bo khong duoc (tat, het gio, loi) → 503. Tu choi thay vi doan.</summary>
     public sealed class DichVuKhongSanSangException : Exception
     {
@@ -71,6 +86,7 @@ namespace Crowd.Project.Api.Exceptions
     ///   NotFoundException              → 404
     ///   RuleViolationException         → 409  trang thai khong cho phep
     ///   ChuaTheDongDuAnException       → 409  chua_the_dong, kem closeCheck
+    ///   VuotHanMucException            → 429  kem Retry-After + retryAfterSeconds
     ///   DichVuKhongSanSangException    → 503  goi service noi bo loi
     ///   DbUpdateConcurrencyException   → 409  nguoi khac vua sua cung luc (xmin, VD-D-11)
     ///   con lai                        → 500  (ASP.NET tu xu ly, khong lo chi tiet)
@@ -132,6 +148,12 @@ namespace Crowd.Project.Api.Exceptions
                 code = "chua_the_dong";
                 message = exception.Message;
             }
+            else if (exception is VuotHanMucException hanMuc)
+            {
+                status = StatusCodes.Status429TooManyRequests;
+                code = hanMuc.Code;
+                message = hanMuc.Message;
+            }
             else if (exception is DichVuKhongSanSangException)
             {
                 status = StatusCodes.Status503ServiceUnavailable;
@@ -171,6 +193,14 @@ namespace Crowd.Project.Api.Exceptions
             chiTiet.Title = code;
             chiTiet.Detail = message;
             chiTiet.Extensions["code"] = code;
+
+            VuotHanMucException? vuot = exception as VuotHanMucException;
+            if (vuot != null)
+            {
+                long giay = (long)Math.Ceiling(vuot.ThuLaiSau.TotalSeconds);
+                httpContext.Response.Headers.RetryAfter = giay.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                chiTiet.Extensions["retryAfterSeconds"] = giay;
+            }
 
             ChuaTheDongDuAnException? chuaDong = exception as ChuaTheDongDuAnException;
             if (chuaDong != null)

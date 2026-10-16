@@ -1,6 +1,7 @@
 using System;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
@@ -33,19 +34,13 @@ namespace Crowd.Payment.Infrastructure.Providers
     }
 
     /// <summary>
-    /// Cong thanh toan. payment-svc chi biet interface nay — lop Infrastructure tach
-    /// adapter VNPay/MoMo ra sau no de TEST DUOC ma khong can cong that (ly do
-    /// payment-svc la service 4 project, docs 6.1).
+    /// Cong CHI tien ra (lenh rut cua labeler / sharer). Chieu NAP tien vao nam o ICongNap
+    /// (sandbox / VNPay / MoMo). payment-svc chi biet interface — lop Infrastructure tach adapter
+    /// ra sau no de TEST DUOC ma khong can cong that (ly do payment-svc la service 4 project, docs 6.1).
     /// </summary>
     public interface IPaymentProvider
     {
         string Name { get; }
-
-        /// <summary>Link trang thanh toan cua cong cho doanh nghiep bam vao.</summary>
-        string TaoLinkThanhToan(Guid intentId, long amountVnd);
-
-        /// <summary>Kiem chu ky webhook. Sai → KHONG tin bat cu gi trong body.</summary>
-        bool KiemChuKy(string body, string? chuKy);
 
         /// <summary>Chuyen tien ra. referenceId la khoa idempotency phia cong.</summary>
         Task<ProviderPayoutResult> ChuyenTienAsync(Guid referenceId, long amountVnd, string bankAccount, CancellationToken ct);
@@ -63,6 +58,9 @@ namespace Crowd.Payment.Infrastructure.Providers
 
         /// <summary>Goc URL trang thanh toan gia lap.</summary>
         public string CheckoutBaseUrl { get; set; } = "http://localhost:8080/payments/sandbox/checkout/";
+
+        /// <summary>Dia chi gateway trinh duyet thay — cong gia lap MoMo dung de dung payUrl.</summary>
+        public string PublicUrl { get; set; } = "http://localhost:8080";
     }
 
     /// <summary>
@@ -74,8 +72,10 @@ namespace Crowd.Payment.Infrastructure.Providers
     ///     mang), tra cuu sau do thi thanh cong — de thu duong tra cuu cua VD-M-09.
     /// Ket qua suy ra TAT DINH tu tham so, nen khong can luu trang thai.
     /// </summary>
-    public sealed class SandboxPaymentProvider : IPaymentProvider
+    public sealed class SandboxPaymentProvider : IPaymentProvider, ICongNap
     {
+        private static readonly JsonSerializerOptions JsonWebhook = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
         private readonly SandboxOptions _options;
 
         public SandboxPaymentProvider(IOptions<SandboxOptions> options)
@@ -98,9 +98,60 @@ namespace Crowd.Payment.Infrastructure.Providers
             get { return "sandbox"; }
         }
 
-        public string TaoLinkThanhToan(Guid intentId, long amountVnd)
+        public Task<string> TaoLinkThanhToanAsync(YeuCauThanhToan yeuCau, CancellationToken ct)
         {
-            return _options.CheckoutBaseUrl + intentId + "?amount=" + amountVnd;
+            if (yeuCau == null)
+            {
+                throw new ArgumentNullException(nameof(yeuCau));
+            }
+
+            return Task.FromResult(_options.CheckoutBaseUrl + yeuCau.IntentId + "?amount=" + yeuCau.AmountVnd);
+        }
+
+        /// <summary>
+        /// Cong gia lap khong luu giao dich nen khong tra cuu duoc: KhongRo → lenh treo duoc doi soat
+        /// danh dau het han khi qua payment.deposit_expire_after (khong bao gio tu cong tien).
+        /// </summary>
+        public Task<KetQuaTraCuuNap> TraCuuNapAsync(YeuCauThanhToan yeuCau, CancellationToken ct)
+        {
+            return Task.FromResult(KetQuaTraCuuNap.KhongRo("sandbox_khong_tra_cuu"));
+        }
+
+        /// <summary>
+        /// Doc webhook sandbox: kiem chu ky tren CHINH chuoi byte goc cua body (khong kiem tren object
+        /// da parse — thu tu truong, khoang trang khac nhau la chu ky lech). Sai → null.
+        /// </summary>
+        public ThongBaoNap? DocWebhook(string body, string? chuKy)
+        {
+            if (!KiemChuKy(body, chuKy))
+            {
+                return null;
+            }
+
+            SandboxWebhook? w;
+            try
+            {
+                w = JsonSerializer.Deserialize<SandboxWebhook>(body, JsonWebhook);
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+
+            if (w == null)
+            {
+                return null;
+            }
+
+            bool thanhCong = string.Equals(w.Status, "success", StringComparison.OrdinalIgnoreCase);
+            return new ThongBaoNap
+            {
+                IntentId = w.IntentId,
+                AmountVnd = w.AmountVnd,
+                ThanhCong = thanhCong,
+                ProviderTxnId = w.ProviderTxnId ?? string.Empty,
+                MaKetQua = w.Status ?? string.Empty,
+            };
         }
 
         /// <summary>HMAC-SHA256(secret, body) dang hex thuong.</summary>
@@ -149,5 +200,18 @@ namespace Crowd.Payment.Infrastructure.Providers
 
             return new ProviderPayoutResult(ProviderOutcome.Succeeded, "SBX-P-" + referenceId.ToString("N"), null);
         }
+    }
+
+    /// <summary>Than webhook cong sandbox (dang JSON camelCase).</summary>
+    public sealed class SandboxWebhook
+    {
+        public Guid IntentId { get; init; }
+
+        public long AmountVnd { get; init; }
+
+        /// <summary>"success" | "failed"</summary>
+        public string? Status { get; init; }
+
+        public string? ProviderTxnId { get; init; }
     }
 }

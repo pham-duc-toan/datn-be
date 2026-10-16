@@ -161,6 +161,31 @@ namespace Crowd.Project.Api.Dtos
 
         public DateTimeOffset? PublishedAt { get; init; }
 
+        /// <summary>Noi dung nhay cam (muc 2.9): frontend lam mo mac dinh, labeler phai dong y canh bao.</summary>
+        public bool SensitiveContent { get; init; }
+
+        public string? ContentWarning { get; init; }
+
+        /// <summary>Phai ky NDA truoc khi vao (FP-01); van ban day du o GET /projects/{id}/terms.</summary>
+        public bool NdaRequired { get; init; }
+
+        public int NdaVersion { get; init; }
+
+        /// <summary>Chi labeler da xac minh danh tinh (FP-05).</summary>
+        public bool RequireVerifiedIdentity { get; init; }
+
+        /// <summary>Phai tu dong y dieu khoan (POST /projects/{id}/consent) truoc khi vao.</summary>
+        public bool ConsentRequired { get; init; }
+
+        public IReadOnlyList<string> Domains { get; init; } = new List<string>();
+
+        public IReadOnlyList<string> Languages { get; init; } = new List<string>();
+
+        /// <summary>Chu du an: da dong y xoa file goc sau khi dong (muc 3.14).</summary>
+        public bool DeleteFilesAfterClose { get; init; }
+
+        public DateTimeOffset? FilesPurgedAt { get; init; }
+
         /// <summary>true = nguoi xem la chu du an.</summary>
         public required bool IsOwner { get; init; }
 
@@ -196,6 +221,16 @@ namespace Crowd.Project.Api.Dtos
         public required bool RequireEntranceTest { get; init; }
 
         public required bool IsOwner { get; init; }
+
+        public bool SensitiveContent { get; init; }
+
+        public bool ConsentRequired { get; init; }
+
+        public bool RequireVerifiedIdentity { get; init; }
+
+        public IReadOnlyList<string> Domains { get; init; } = new List<string>();
+
+        public IReadOnlyList<string> Languages { get; init; } = new List<string>();
     }
 
     public sealed class PagedResponse<T>

@@ -62,6 +62,15 @@ class Kho:
     def xoa(self, key: str) -> None:
         self._client.remove_object(self._bucket, key)
 
+    def tai_ve(self, key: str, duong_dan: str) -> None:
+        """Tai ca file ve dia (ban goc am thanh / video de nhung watermark)."""
+        try:
+            self._client.fget_object(self._bucket, key, duong_dan)
+        except S3Error as ex:
+            if ex.code in ("NoSuchKey", "NoSuchBucket"):
+                raise KhongCoFile(key) from ex
+            raise
+
     def luong(self, key: str, bat_dau: int, do_dai: int) -> Iterator[bytes]:
         """Doc tung khuc [bat_dau, bat_dau + do_dai) — cho Range request (tua video)."""
         r = self._client.get_object(self._bucket, key, offset=bat_dau, length=do_dai)

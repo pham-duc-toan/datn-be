@@ -40,6 +40,24 @@ namespace Crowd.Tasking.Api.Exceptions
     ///   InvalidValueException → 400 | ForbiddenException → 403 | NotFoundException → 404
     ///   RuleViolationException, DbUpdateConcurrencyException → 409
     /// </summary>
+    /// <summary>
+    /// Phai nghi giua phien lam du an nhay cam (muc 2.9) → 429 can_nghi_giai_lao + Retry-After +
+    /// retryAfterSeconds / breakUntil de frontend hien dong ho dem nguoc.
+    /// </summary>
+    public sealed class CanNghiException : Exception
+    {
+        public CanNghiException(DateTimeOffset nghiDen, TimeSpan conLai)
+            : base("Ban da xem noi dung nhay cam lien tuc kha lau — hay nghi giai lao truoc khi nhan task tiep.")
+        {
+            NghiDen = nghiDen;
+            ConLai = conLai;
+        }
+
+        public DateTimeOffset NghiDen { get; }
+
+        public TimeSpan ConLai { get; }
+    }
+
     public sealed class ApiExceptionHandler : IExceptionHandler
     {
         private readonly IProblemDetailsService _problemDetails;
@@ -97,6 +115,11 @@ namespace Crowd.Tasking.Api.Exceptions
                 status = StatusCodes.Status409Conflict;
                 code = "xung_dot_dong_thoi";
             }
+            else if (exception is CanNghiException)
+            {
+                status = StatusCodes.Status429TooManyRequests;
+                code = "can_nghi_giai_lao";
+            }
             else
             {
                 return false;
@@ -110,6 +133,15 @@ namespace Crowd.Tasking.Api.Exceptions
             chiTiet.Title = code;
             chiTiet.Detail = exception.Message;
             chiTiet.Extensions["code"] = code;
+
+            CanNghiException? nghi = exception as CanNghiException;
+            if (nghi != null)
+            {
+                int giay = (int)Math.Ceiling(nghi.ConLai.TotalSeconds);
+                httpContext.Response.Headers.RetryAfter = giay.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                chiTiet.Extensions["retryAfterSeconds"] = giay;
+                chiTiet.Extensions["breakUntil"] = nghi.NghiDen;
+            }
 
             ProblemDetailsContext ngucanh = new ProblemDetailsContext
             {

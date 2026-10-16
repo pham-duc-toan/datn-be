@@ -30,6 +30,18 @@ namespace Crowd.Project.Api.Helpers
 
         public int? Reputation { get; init; }
 
+        /// <summary>Da xac minh danh tinh (FP-05).</summary>
+        public bool IdentityVerified { get; init; }
+
+        /// <summary>Da xac minh va du tuoi (muc 2.9).</summary>
+        public bool Adult { get; init; }
+
+        public IReadOnlyList<string> Domains { get; init; } = new List<string>();
+
+        public IReadOnlyList<string> Languages { get; init; } = new List<string>();
+
+        public IReadOnlyList<string> Modalities { get; init; } = new List<string>();
+
         public HoSoNguoiDung HoSo()
         {
             return new HoSoNguoiDung(UserId, Roles.Contains(CrowdRoles.Labeler, StringComparer.Ordinal), Locked, Level, Reputation);

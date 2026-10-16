@@ -7,6 +7,10 @@
 #      1 x RabbitMQ     event bus (dung chung la dung muc dich)
 #      1 x MinIO        object storage, moi service mot bucket + key rieng
 #
+#  S-08: mat khau o day (dev_<ten>_pw) la mat khau DEV, khop appsettings.Development.json, chi cho che do
+#  chay service tren may. Moi cong chi mo tren 127.0.0.1 (khong lo ra mang LAN). Service chay ngoai
+#  Development ma con gia tri dev → tu tu choi khoi dong (ChanBiMatDev / config.py cua quality, media).
+#
 #  Bat theo phase:
 #     docker compose -f docker-compose.infra.yml up -d                # core
 #     docker compose -f docker-compose.infra.yml --profile p0 up -d
@@ -23,7 +27,7 @@ services:
     container_name: datn-redis-gateway
     # gateway: rate limit, Turnstile nonce
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
-    ports: ["6379:6379"]
+    ports: ["127.0.0.1:6379:6379"]
     volumes: [redis-gateway-data:/data]
     healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 20 }
 
@@ -35,7 +39,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: datn
       RABBITMQ_DEFAULT_PASS: dev_rabbit_pw
-    ports: ["5672:5672", "15672:15672"]
+    ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
     volumes: [rabbitdata:/var/lib/rabbitmq]
     healthcheck: { test: ["CMD","rabbitmq-diagnostics","-q","ping"], interval: 10s, timeout: 5s, retries: 20 }
 
@@ -51,7 +55,7 @@ services:
     environment:
       MINIO_ROOT_USER: datn
       MINIO_ROOT_PASSWORD: dev_minio_pw
-    ports: ["9000:9000", "9001:9001"]
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: [miniodata:/data]
     healthcheck: { test: ["CMD","mc","ready","local"], interval: 10s, timeout: 5s, retries: 20 }
 
@@ -74,12 +78,12 @@ services:
     image: jaegertracing/all-in-one:1.57
     container_name: datn-jaeger
     environment: { COLLECTOR_OTLP_ENABLED: "true" }
-    ports: ["16686:16686", "4317:4317", "4318:4318"]
+    ports: ["127.0.0.1:16686:16686", "127.0.0.1:4317:4317", "127.0.0.1:4318:4318"]
 
   mailpit:
     image: axllent/mailpit:latest
     container_name: datn-mailpit
-    ports: ["1025:1025", "8025:8025"]
+    ports: ["127.0.0.1:1025:1025", "127.0.0.1:8025:8025"]
 
   # ================= REDIS rieng tung service =================
 
@@ -89,7 +93,7 @@ services:
     profiles: ["all", "p0"]
     # lease:{taskId} TTL 900s
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
-    ports: ["6380:6379"]
+    ports: ["127.0.0.1:6380:6379"]
     volumes: [redis-task-data:/data]
     healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 20 }
 
@@ -99,7 +103,7 @@ services:
     profiles: ["all", "p2"]
     # jti chong replay, dedupe IP 24h, cache cau vang
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
-    ports: ["6381:6379"]
+    ports: ["127.0.0.1:6381:6379"]
     volumes: [redis-gate-data:/data]
     healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 20 }
 
@@ -109,7 +113,7 @@ services:
     profiles: ["all", "p5"]
     # presence, con tro, khoa mem object
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
-    ports: ["6382:6379"]
+    ports: ["127.0.0.1:6382:6379"]
     volumes: [redis-collab-data:/data]
     healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 20 }
 
@@ -127,8 +131,8 @@ services:
       CLICKHOUSE_DB: gate_db
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     ports:
-      - "8123:8123"     # HTTP
-      - "9010:9000"     # native (9000 host da bi MinIO chiem)
+      - "127.0.0.1:8123:8123"     # HTTP
+      - "127.0.0.1:9010:9000"     # native (9000 host da bi MinIO chiem)
     ulimits:
       nofile: { soft: 262144, hard: 262144 }
     volumes: [ch-gate-data:/var/lib/clickhouse]
@@ -150,7 +154,7 @@ services:
       POSTGRES_USER: identity_user
       POSTGRES_PASSWORD: dev_identity_pw
       POSTGRES_DB: identity_db
-    ports: ["5401:5432"]
+    ports: ["127.0.0.1:5401:5432"]
     volumes: [pgdata-identity:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U identity_user -d identity_db"]
@@ -168,7 +172,7 @@ services:
       POSTGRES_USER: project_user
       POSTGRES_PASSWORD: dev_project_pw
       POSTGRES_DB: project_db
-    ports: ["5402:5432"]
+    ports: ["127.0.0.1:5402:5432"]
     volumes: [pgdata-project:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U project_user -d project_db"]
@@ -186,7 +190,7 @@ services:
       POSTGRES_USER: task_user
       POSTGRES_PASSWORD: dev_task_pw
       POSTGRES_DB: task_db
-    ports: ["5403:5432"]
+    ports: ["127.0.0.1:5403:5432"]
     volumes: [pgdata-task:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U task_user -d task_db"]
@@ -204,7 +208,7 @@ services:
       POSTGRES_USER: annotation_user
       POSTGRES_PASSWORD: dev_annotation_pw
       POSTGRES_DB: annotation_db
-    ports: ["5404:5432"]
+    ports: ["127.0.0.1:5404:5432"]
     volumes: [pgdata-annotation:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U annotation_user -d annotation_db"]
@@ -222,7 +226,7 @@ services:
       POSTGRES_USER: ledger_user
       POSTGRES_PASSWORD: dev_ledger_pw
       POSTGRES_DB: ledger_db
-    ports: ["5405:5432"]
+    ports: ["127.0.0.1:5405:5432"]
     volumes: [pgdata-ledger:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U ledger_user -d ledger_db"]
@@ -240,7 +244,7 @@ services:
       POSTGRES_USER: payment_user
       POSTGRES_PASSWORD: dev_payment_pw
       POSTGRES_DB: payment_db
-    ports: ["5406:5432"]
+    ports: ["127.0.0.1:5406:5432"]
     volumes: [pgdata-payment:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U payment_user -d payment_db"]
@@ -259,7 +263,7 @@ services:
       POSTGRES_USER: gate_user
       POSTGRES_PASSWORD: dev_gate_pw
       POSTGRES_DB: gate_db
-    ports: ["5408:5432"]
+    ports: ["127.0.0.1:5408:5432"]
     volumes: [pgdata-gate:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U gate_user -d gate_db"]
@@ -277,7 +281,7 @@ services:
       POSTGRES_USER: link_user
       POSTGRES_PASSWORD: dev_link_pw
       POSTGRES_DB: link_db
-    ports: ["5407:5432"]
+    ports: ["127.0.0.1:5407:5432"]
     volumes: [pgdata-link:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U link_user -d link_db"]
@@ -295,7 +299,7 @@ services:
       POSTGRES_USER: quality_user
       POSTGRES_PASSWORD: dev_quality_pw
       POSTGRES_DB: quality_db
-    ports: ["5421:5432"]
+    ports: ["127.0.0.1:5421:5432"]
     volumes: [pgdata-quality:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U quality_user -d quality_db"]
@@ -313,7 +317,7 @@ services:
       POSTGRES_USER: ml_user
       POSTGRES_PASSWORD: dev_ml_pw
       POSTGRES_DB: ml_db
-    ports: ["5422:5432"]
+    ports: ["127.0.0.1:5422:5432"]
     volumes: [pgdata-ml:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U ml_user -d ml_db"]
@@ -331,7 +335,7 @@ services:
       POSTGRES_USER: fraud_user
       POSTGRES_PASSWORD: dev_fraud_pw
       POSTGRES_DB: fraud_db
-    ports: ["5423:5432"]
+    ports: ["127.0.0.1:5423:5432"]
     volumes: [pgdata-fraud:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U fraud_user -d fraud_db"]
@@ -349,7 +353,7 @@ services:
       POSTGRES_USER: collab_user
       POSTGRES_PASSWORD: dev_collab_pw
       POSTGRES_DB: collab_db
-    ports: ["5431:5432"]
+    ports: ["127.0.0.1:5431:5432"]
     volumes: [pgdata-collab:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U collab_user -d collab_db"]
@@ -367,7 +371,7 @@ services:
       POSTGRES_USER: media_user
       POSTGRES_PASSWORD: dev_media_pw
       POSTGRES_DB: media_db
-    ports: ["5409:5432"]
+    ports: ["127.0.0.1:5409:5432"]
     volumes: [pgdata-media:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U media_user -d media_db"]
@@ -385,7 +389,7 @@ services:
       POSTGRES_USER: notification_user
       POSTGRES_PASSWORD: dev_notification_pw
       POSTGRES_DB: notification_db
-    ports: ["5410:5432"]
+    ports: ["127.0.0.1:5410:5432"]
     volumes: [pgdata-notification:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U notification_user -d notification_db"]
@@ -404,7 +408,7 @@ services:
       POSTGRES_USER: admin_user
       POSTGRES_PASSWORD: dev_admin_pw
       POSTGRES_DB: admin_db
-    ports: ["5411:5432"]
+    ports: ["127.0.0.1:5411:5432"]
     volumes: [pgdata-admin:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U admin_user -d admin_db"]

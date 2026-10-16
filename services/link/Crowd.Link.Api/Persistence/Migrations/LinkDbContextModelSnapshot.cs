@@ -247,18 +247,51 @@ namespace Crowd.Link.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("referred_id");
 
+                    b.Property<string>("ClaimIpHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("claim_ip_hash");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<string>("FlagReasons")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("flag_reasons");
 
                     b.Property<Guid>("ReferrerId")
                         .HasColumnType("uuid")
                         .HasColumnName("referrer_id");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("active")
+                        .HasColumnName("status");
+
                     b.HasKey("ReferredId");
 
                     b.HasIndex("ReferrerId")
                         .HasDatabaseName("ix_referrals_referrer");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_referrals_nghi_ngo")
+                        .HasFilter("status = 'flagged'");
+
+                    b.HasIndex("ReferrerId", "CreatedAt")
+                        .HasDatabaseName("ix_referrals_referrer_thoi_gian");
 
                     b.ToTable("referrals", (string)null);
                 });

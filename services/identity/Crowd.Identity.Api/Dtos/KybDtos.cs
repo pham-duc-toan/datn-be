@@ -114,4 +114,21 @@ namespace Crowd.Identity.Api.Dtos
     {
         public string? Reason { get; init; }
     }
+
+    /// <summary>GET /internal/businesses/{id}: ho so KYB cho ledger in hoa don.</summary>
+    public sealed class BusinessInternalDto
+    {
+        public required Guid BusinessId { get; init; }
+
+        /// <summary>draft | submitted | verified | rejected</summary>
+        public required string Status { get; init; }
+
+        public required string CompanyName { get; init; }
+
+        public required string TaxCode { get; init; }
+
+        public required string Address { get; init; }
+
+        public required string Email { get; init; }
+    }
 }

@@ -141,4 +141,27 @@ namespace Crowd.Contracts.Ledger
 
         public required string Reason { get; init; }
     }
+
+    /// <summary>
+    /// Lenh rut vao HANG DOI DUYET cua admin (khong tu duyet: setting ledger.withdraw_auto_approve tat hoac vuot tran).
+    /// admin-svc dung de dua vao hang doi duyet chung; ket thuc bang payout.requested (duyet) / withdrawal.rejected.
+    /// </summary>
+    public sealed record WithdrawalReviewRequested : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "withdrawal.review_requested"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid WithdrawalId { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        public required long AmountVnd { get; init; }
+    }
 }

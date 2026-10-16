@@ -168,14 +168,56 @@ namespace Crowd.Link.Api.Entities
 
         public DateTimeOffset CreatedAt { get; private set; }
 
+        /// <summary>sha256(ip + muoi) luc nhap ma — dem tai khoan cung IP cua mot nguoi gioi thieu.</summary>
+        public string? ClaimIpHash { get; private set; }
+
+        /// <summary>active (da tinh hoa hong) | flagged (nghi lam dung, cho admin) | rejected (admin bac).</summary>
+        public string Status { get; private set; } = TrangThaiGioiThieu.Active;
+
+        /// <summary>Cac dau hieu nghi ngo (ngan cach dau phay) khi flagged.</summary>
+        public string? FlagReasons { get; private set; }
+
+        public DateTimeOffset? DecidedAt { get; private set; }
+
+        public Guid? DecidedBy { get; private set; }
+
         public static Referral Tao(Guid referrerId, Guid referredId, DateTimeOffset luc)
+        {
+            return Tao(referrerId, referredId, luc, null, null);
+        }
+
+        public static Referral Tao(Guid referrerId, Guid referredId, DateTimeOffset luc, string? ipHash, string? dauHieu)
         {
             Referral r = new Referral();
             r.ReferrerId = referrerId;
             r.ReferredId = referredId;
             r.CreatedAt = luc;
+            r.ClaimIpHash = ipHash;
+            r.FlagReasons = dauHieu;
+            r.Status = dauHieu == null ? TrangThaiGioiThieu.Active : TrangThaiGioiThieu.Flagged;
             return r;
         }
+
+        /// <summary>Admin xet don nghi ngo. Tra false neu don khong con o trang thai flagged.</summary>
+        public bool Xet(bool chapNhan, Guid adminId, DateTimeOffset luc)
+        {
+            if (Status != TrangThaiGioiThieu.Flagged)
+            {
+                return false;
+            }
+
+            Status = chapNhan ? TrangThaiGioiThieu.Active : TrangThaiGioiThieu.Rejected;
+            DecidedAt = luc;
+            DecidedBy = adminId;
+            return true;
+        }
+    }
+
+    public static class TrangThaiGioiThieu
+    {
+        public const string Active = "active";
+        public const string Flagged = "flagged";
+        public const string Rejected = "rejected";
     }
 
     /// <summary>Ban sao toi thieu tu user.registered: de biet tai khoan con trong cua so nhap ma gioi thieu.</summary>

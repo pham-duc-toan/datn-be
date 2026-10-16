@@ -166,7 +166,7 @@ namespace Crowd.Link.Api.Controllers
         [Authorize]
         public async Task<IActionResult> NhapMa([FromBody] ClaimReferralRequest body, CancellationToken ct)
         {
-            await _referrals.NhapMaAsync(body, Caller.TuHttp(HttpContext, ActorRole.Sharer), ct);
+            await _referrals.NhapMaAsync(body, Caller.TuHttp(HttpContext, ActorRole.Sharer), NguoiGoi.IpHash(HttpContext, _privacy.IpSalt), ct);
             return NoContent();
         }
 
@@ -187,15 +187,45 @@ namespace Crowd.Link.Api.Controllers
     public sealed class AdminLinksController : ControllerBase
     {
         private readonly ModerationService _moderation;
+        private readonly ReferralService _referrals;
 
-        public AdminLinksController(ModerationService moderation)
+        public AdminLinksController(ModerationService moderation, ReferralService referrals)
         {
             if (moderation == null)
             {
                 throw new ArgumentNullException(nameof(moderation));
             }
 
+            if (referrals == null)
+            {
+                throw new ArgumentNullException(nameof(referrals));
+            }
+
             _moderation = moderation;
+            _referrals = referrals;
+        }
+
+        /// <summary>GET /links/admin/referrals/flagged — gioi thieu nghi lam dung, chua tinh hoa hong.</summary>
+        [HttpGet("referrals/flagged")]
+        public async Task<IActionResult> GioiThieuNghiNgo(CancellationToken ct)
+        {
+            return Ok(await _referrals.NghiNgoAsync(ct));
+        }
+
+        /// <summary>POST /links/admin/referrals/{referredId}/approve — chap nhan: bat dau tinh hoa hong.</summary>
+        [HttpPost("referrals/{referredId:guid}/approve")]
+        public async Task<IActionResult> ChapNhanGioiThieu(Guid referredId, CancellationToken ct)
+        {
+            await _referrals.XetAsync(referredId, true, null, Caller.TuHttp(HttpContext, ActorRole.Admin), ct);
+            return NoContent();
+        }
+
+        /// <summary>POST /links/admin/referrals/{referredId}/reject {"reason"} — bac: khong bao gio tinh hoa hong.</summary>
+        [HttpPost("referrals/{referredId:guid}/reject")]
+        public async Task<IActionResult> BacGioiThieu(Guid referredId, [FromBody] DisableLinkRequest? body, CancellationToken ct)
+        {
+            await _referrals.XetAsync(referredId, false, body == null ? null : body.Reason, Caller.TuHttp(HttpContext, ActorRole.Admin), ct);
+            return NoContent();
         }
 
         /// <summary>GET /links/admin/review-queue — link bi bao cao vuot nguong.</summary>
@@ -216,7 +246,7 @@ namespace Crowd.Link.Api.Controllers
         [HttpPost("{id:guid}/dismiss-reports")]
         public async Task<IActionResult> BoQua(Guid id, CancellationToken ct)
         {
-            return Ok(await _moderation.BoQuaBaoCaoAsync(id, ct));
+            return Ok(await _moderation.BoQuaBaoCaoAsync(id, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
         }
 
         [HttpGet("blocked-domains")]

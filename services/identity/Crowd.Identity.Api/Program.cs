@@ -71,6 +71,10 @@ namespace Crowd.Identity.Api
             });
 
             builder.Services.AddSingleton<TokenIssuer>();
+
+            // Khoa bao ve du lieu identity: ma hoa bi mat 2FA, bam co khoa so giay to (IdentityData:Key).
+            builder.Services.Configure<KhoaDuLieuOptions>(builder.Configuration.GetSection(KhoaDuLieuOptions.SectionName));
+            builder.Services.AddSingleton<KhoaDuLieu>();
             builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
             builder.Services.AddSingleton<MatKhauService>();
 
@@ -95,6 +99,10 @@ namespace Crowd.Identity.Api
             builder.Services.Configure<ObjectStorageOptions>(builder.Configuration.GetSection(ObjectStorageOptions.SectionName));
             builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
             builder.Services.AddScoped<KybService>();
+
+            // 2FA (FC-04) va xac minh danh tinh ca nhan (muc 2.9, FP-05) — anh giay to cung bucket kyb-docs.
+            builder.Services.AddScoped<HaiLopService>();
+            builder.Services.AddScoped<XacMinhDanhTinhService>();
             builder.Services.AddScoped<TaiKhoanAdminService>();
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<ApiExceptionHandler>();

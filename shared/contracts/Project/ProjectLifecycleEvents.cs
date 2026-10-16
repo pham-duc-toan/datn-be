@@ -29,6 +29,12 @@ namespace Crowd.Contracts.Project
 
         /// <summary>So tien can giu, so nguyen dong = ngan sach doanh nghiep dat.</summary>
         public required long EscrowAmountVnd { get; init; }
+
+        /// <summary>
+        /// Ten du an luc publish — ledger ghi len dong hoa don VAT (FB-05). KHONG bat buoc: ban tin
+        /// phat truoc khi them truong nay khong co, ledger in "Du an {ma}".
+        /// </summary>
+        public string? ProjectName { get; init; }
     }
 
     /// <summary>
@@ -110,6 +116,12 @@ namespace Crowd.Contracts.Project
         public required bool RequireEntranceTest { get; init; }
 
         public required int SampleCount { get; init; }
+
+        /// <summary>
+        /// Noi dung nhay cam (muc 2.9): task-svc ep nghi giua phien, bao frontend lam mo mac dinh. KHONG bat
+        /// buoc — ban tin cu khong co = khong nhay cam.
+        /// </summary>
+        public bool? SensitiveContent { get; init; }
     }
 
     public sealed record ProjectPaused : IEventPayload

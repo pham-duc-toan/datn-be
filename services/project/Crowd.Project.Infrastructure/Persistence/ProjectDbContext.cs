@@ -36,6 +36,14 @@ namespace Crowd.Project.Infrastructure.Persistence
 
         public DbSet<JoinRequest> JoinRequests => Set<JoinRequest>();
 
+        public DbSet<ProjectConsent> ProjectConsents => Set<ProjectConsent>();
+
+        public DbSet<ProjectInvitation> ProjectInvitations => Set<ProjectInvitation>();
+
+        public DbSet<OwnerLabelerEntry> OwnerLabelerEntries => Set<OwnerLabelerEntry>();
+
+        public DbSet<LabelerRating> LabelerRatings => Set<LabelerRating>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -57,6 +65,10 @@ namespace Crowd.Project.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new EntranceAttemptConfiguration());
             modelBuilder.ApplyConfiguration(new InviteCodeConfiguration());
             modelBuilder.ApplyConfiguration(new JoinRequestConfiguration());
+            modelBuilder.ApplyConfiguration(new ProjectConsentConfiguration());
+            modelBuilder.ApplyConfiguration(new ProjectInvitationConfiguration());
+            modelBuilder.ApplyConfiguration(new OwnerLabelerEntryConfiguration());
+            modelBuilder.ApplyConfiguration(new LabelerRatingConfiguration());
             modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
 
             // Ha tang dung chung: outbox (gui event) + processed_events (nhan event).

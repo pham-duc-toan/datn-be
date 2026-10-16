@@ -56,7 +56,7 @@ services:
     image: rabbitmq:3.13-management-alpine
     container_name: datn-demo-rabbitmq
     environment: { RABBITMQ_DEFAULT_USER: datn, RABBITMQ_DEFAULT_PASS: "${RABBIT_PASSWORD:?chay python deploy/tao_env.py}" }
-    ports: ["25672:15672"]
+    ports: ["127.0.0.1:25672:15672"]
     volumes: [rabbitdata:/var/lib/rabbitmq]
     healthcheck: { test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"], interval: 10s, timeout: 5s, retries: 30 }
 
@@ -67,7 +67,7 @@ services:
     container_name: datn-demo-minio
     command: server /data --console-address ":9001"
     environment: { MINIO_ROOT_USER: datn, MINIO_ROOT_PASSWORD: "${MINIO_PASSWORD:?chay python deploy/tao_env.py}" }
-    ports: ["19000:9000", "19001:9001"]
+    ports: ["127.0.0.1:19000:9000", "127.0.0.1:19001:9001"]
     volumes: [miniodata:/data]
     healthcheck: { test: ["CMD", "mc", "ready", "local"], interval: 10s, timeout: 5s, retries: 30 }
 
@@ -87,13 +87,20 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     container_name: datn-demo-mailpit
-    ports: ["18025:8025"]
+    ports: ["127.0.0.1:18025:8025"]
 
   redis-gate:
     image: redis:7-alpine
     container_name: datn-demo-redis-gate
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     volumes: [redis-gate-data:/data]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 20 }
+
+  # Gateway: bo dem gioi han tan suat DUNG CHUNG giua cac instance (VD-S-12). Mat du lieu khong sao
+  # (chi la bo dem 1 phut) nen khong bat appendonly.
+  redis-gateway:
+    image: redis:7-alpine
+    container_name: datn-demo-redis-gateway
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 20 }
 
   ch-gate:
@@ -218,6 +225,8 @@ services:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8101
       ConnectionStrings__IdentityDb: Host=db-identity;Port=5432;Database=identity_db;Username=identity_user;Password=${DB_IDENTITY_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
+      # Ma hoa bi mat 2FA (FC-04), bam co khoa so giay to tuy than (xac minh danh tinh).
+      IdentityData__Key: ${IDENTITY_DATA_KEY:?chay python deploy/tao_env.py}
 
   notification:
     <<: *dotnet-service
@@ -249,6 +258,8 @@ services:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8102
       ConnectionStrings__ProjectDb: Host=db-project;Port=5432;Database=project_db;Username=project_user;Password=${DB_PROJECT_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
+      # FB-11: cho thu nhap tu S3 bang chinh MinIO cua stack (moi dia chi noi bo khac van bi chan — SSRF).
+      DatasetImport__AllowedPrivateHosts__0: minio
       InternalApi__TaskUrl: http://task:8103
       InternalApi__AnnotationUrl: http://annotation:8104
       InternalApi__IdentityUrl: http://identity:8101
@@ -262,7 +273,7 @@ services:
       rabbitmq: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
       db-task: { condition: service_healthy }
-    ports: ["18103:8103"]
+    ports: ["127.0.0.1:18103:8103"]
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8103
@@ -279,7 +290,7 @@ services:
       rabbitmq: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
       db-annotation: { condition: service_healthy }
-    ports: ["18104:8104"]
+    ports: ["127.0.0.1:18104:8104"]
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8104
@@ -296,6 +307,7 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8105
+      InternalApi__IdentityUrl: http://identity:8101
       ConnectionStrings__LedgerDb: Host=db-ledger;Port=5432;Database=ledger_db;Username=ledger_user;Password=${DB_LEDGER_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=20
 
   payment:
@@ -311,6 +323,14 @@ services:
       ASPNETCORE_URLS: http://+:8106
       ConnectionStrings__PaymentDb: Host=db-payment;Port=5432;Database=payment_db;Username=payment_user;Password=${DB_PAYMENT_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       PaymentProviders__Sandbox__CheckoutBaseUrl: http://localhost:18080/payments/sandbox/checkout/
+      PaymentProviders__Sandbox__PublicUrl: http://localhost:18080
+      ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
+      # VNPay / MoMo GIA LAP (cong that: doi PayUrl / ApiUrl + khoa merchant qua bien moi truong).
+      PaymentProviders__VnPay__PayUrl: http://localhost:18080/payments/sandbox/vnpay/pay
+      PaymentProviders__VnPay__ApiUrl: http://payment:8106/payments/sandbox/vnpay/api
+      PaymentProviders__VnPay__IpnUrl: http://payment:8106/payments/webhooks/vnpay
+      PaymentProviders__MoMo__ApiUrl: http://payment:8106/payments/sandbox/momo
+      PaymentProviders__MoMo__IpnUrl: http://payment:8106/payments/webhooks/momo
 
   link:
     <<: *dotnet-service
@@ -320,7 +340,7 @@ services:
     depends_on:
       rabbitmq: { condition: service_healthy }
       db-link: { condition: service_healthy }
-    ports: ["18107:8107"]
+    ports: ["127.0.0.1:18107:8107"]
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8107
@@ -339,7 +359,7 @@ services:
       db-gate: { condition: service_healthy }
       redis-gate: { condition: service_healthy }
       ch-gate: { condition: service_healthy }
-    ports: ["18108:8108"]
+    ports: ["127.0.0.1:18108:8108"]
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8108
@@ -361,6 +381,8 @@ services:
       QUALITY_RABBIT_PASSWORD: ${RABBIT_PASSWORD:?chay python deploy/tao_env.py}
       QUALITY_RABBIT_HOST: rabbitmq
       QUALITY_JWKS_URL: http://identity:8101/.well-known/jwks.json
+      QUALITY_PROJECT_URL: http://project:8102
+      QUALITY_INTERNAL_API_KEY: ${INTERNAL_API_KEY:?chay python deploy/tao_env.py}
 
   media:
     # Bao ve du lieu (FP-02, FP-03): phat file mau qua token, watermark chim nhung thang nguoi xem. Khong co DB.
@@ -387,6 +409,7 @@ services:
     build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Gateway.Api } }
     depends_on:
       rabbitmq: { condition: service_healthy }
+      redis-gateway: { condition: service_healthy }
     ports: ["18080:8080"]
     environment:
       <<: *dotnet-env
@@ -394,6 +417,7 @@ services:
       # ocelot.json ghi localhost:<cong>; trong compose moi cong la mot host (xem DownstreamHosts).
       # Nap lai moc thu hoi phien luc khoi dong (VD-S-11).
       SessionRevocation__IdentityUrl: http://identity:8101
+      ConnectionStrings__GatewayRedis: redis-gateway:6379
       DownstreamHosts__8101: identity
       DownstreamHosts__8102: project
       DownstreamHosts__8103: task

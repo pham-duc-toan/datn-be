@@ -62,6 +62,9 @@ builder.Services.AddMediaLinks(cfg);
 builder.Services.AddScoped<AnnotationEventPublisher>();
 builder.Services.AddScoped<AnnotationService>();
 builder.Services.AddScoped<DongSoService>();
+
+// Han giu nhat ky vong doi nhan (muc 3.14).
+builder.Services.AddHostedService<Crowd.Annotation.Api.Workers.HistoryRetentionWorker>();
 builder.Services.AddScoped<AnnotationSeeder>();
 
 // ---- HTTP ----

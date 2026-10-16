@@ -42,6 +42,9 @@ namespace Crowd.Labeling
         /// <summary>So muc cua mau danh sach (list) — cong cu ranking kiem hoan vi theo so nay.</summary>
         public int? ItemCount { get; init; }
 
+        /// <summary>So khung hinh / giay cua video (ffprobe) — xuat MOT danh so khung dung.</summary>
+        public double? Fps { get; init; }
+
         public static readonly SampleMetadata Rong = new SampleMetadata();
 
         public RawJson ToRawJson()
@@ -87,6 +90,11 @@ namespace Crowd.Labeling
                 o["itemCount"] = ItemCount.Value;
             }
 
+            if (Fps.HasValue)
+            {
+                o["fps"] = Math.Round(Fps.Value, 3);
+            }
+
             return RawJson.Tu(o);
         }
 
@@ -113,6 +121,7 @@ namespace Crowd.Labeling
                 SegmentEnd = SoThuc(o, "segmentEnd"),
                 SourceDurationSec = SoThuc(o, "sourceDurationSec"),
                 ItemCount = SoNguyen(o, "itemCount"),
+                Fps = SoThuc(o, "fps"),
             };
         }
 

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Ocelot" />
+    <PackageReference Include="StackExchange.Redis" />
   </ItemGroup>
 
 </Project>

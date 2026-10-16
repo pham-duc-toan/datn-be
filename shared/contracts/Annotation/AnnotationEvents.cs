@@ -95,4 +95,33 @@ namespace Crowd.Contracts.Annotation
 
         public required string Message { get; init; }
     }
+
+    /// <summary>
+    /// Admin phan xu xong khieu nai. Tien / trang thai nhan van di bang annotation.approved / annotation.rejected
+    /// (IsFinal); event nay de admin-svc dong muc trong hang doi duyet chung ma khong phai nghe moi
+    /// annotation.* (luu luong lon).
+    /// </summary>
+    public sealed record AppealResolved : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "appeal.resolved"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid AnnotationId { get; init; }
+
+        public required Guid ProjectId { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        /// <summary>true = khieu nai thang (nhan duoc duyet).</summary>
+        public required bool Accepted { get; init; }
+
+        public string? Note { get; init; }
+    }
 }

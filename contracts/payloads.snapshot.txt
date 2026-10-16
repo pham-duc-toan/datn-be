@@ -35,6 +35,13 @@ appeal.opened v1  (AppealOpened)
     Message                  String               required
     ProjectId                Guid                 required
 
+appeal.resolved v1  (AppealResolved)
+    Accepted                 Boolean              required
+    AnnotationId             Guid                 required
+    LabelerId                Guid                 required
+    Note                     String?              nullable
+    ProjectId                Guid                 required
+
 assignment.submitted v1  (AssignmentSubmitted)
     AssignmentId             Guid                 required
     ClientIp                 String?              nullable
@@ -209,6 +216,16 @@ link.disabled v1  (LinkDisabled)
     Reason                   String               required
     WithholdRevenue          Boolean              required
 
+link.review_dismissed v1  (LinkReviewDismissed)
+    LinkId                   Guid                 required
+    OwnerId                  Guid                 required
+
+link.review_requested v1  (LinkReviewRequested)
+    Code                     String               required
+    LinkId                   Guid                 required
+    OwnerId                  Guid                 required
+    ReportCount              Int32                required
+
 member.added v1  (MemberAdded)
     ProjectId                Guid                 required
     ProjectName              String?              nullable
@@ -227,6 +244,11 @@ member.removed v1  (MemberRemoved)
 member.unblocked v1  (MemberUnblocked)
     ProjectId                Guid                 required
     UserId                   Guid                 required
+
+ops.dlq_alert v1  (OpsDlqAlert)
+    Depth                    Int64                required
+    Queue                    String               required
+    Threshold                Int32                required
 
 payout.completed v1  (PayoutCompleted)
     Provider                 String               required
@@ -255,6 +277,15 @@ project.completed v1  (ProjectCompleted)
     OwnerId                  Guid                 required
     ProjectId                Guid                 required
 
+project.invitation_created v1  (ProjectInvitationCreated)
+    Email                    String               required
+    ExpiresAt                DateTimeOffset       required
+    InvitationId             Guid                 required
+    ProjectId                Guid                 required
+    ProjectName              String               required
+    RequiresConsent          Boolean              required
+    UserId                   Guid?                nullable
+
 project.paused v1  (ProjectPaused)
     ProjectId                Guid                 required
 
@@ -262,6 +293,7 @@ project.publish_requested v1  (ProjectPublishRequested)
     EscrowAmountVnd          Int64                required
     OwnerId                  Guid                 required
     ProjectId                Guid                 required
+    ProjectName              String?              nullable
 
 project.published v1  (ProjectPublished)
     AllowCollaborative       Boolean              required
@@ -281,6 +313,7 @@ project.published v1  (ProjectPublished)
     Redundancy               Int32                required
     RequireEntranceTest      Boolean              required
     SampleCount              Int32                required
+    SensitiveContent         Boolean?             nullable
     UnitPriceVnd             Int64                required
 
 project.resumed v1  (ProjectResumed)
@@ -293,10 +326,20 @@ redundancy.increase_requested v1  (RedundancyIncreaseRequested)
     SampleId                 Guid                 required
     TaskId                   Guid                 required
 
+referral.flagged v1  (ReferralFlagged)
+    Reasons                  String               required
+    ReferredId               Guid                 required
+    ReferrerId               Guid                 required
+
 referral.registered v1  (ReferralRegistered)
     ReferredId               Guid                 required
     ReferrerId               Guid                 required
     RegisteredAt             DateTimeOffset       required
+
+referral.rejected v1  (ReferralRejected)
+    Reason                   String               required
+    ReferredId               Guid                 required
+    ReferrerId               Guid                 required
 
 refund.issued v1  (RefundIssued)
     AmountVnd                Int64                required
@@ -306,6 +349,11 @@ refund.issued v1  (RefundIssued)
 reputation.changed v1  (ReputationChanged)
     Reputation               Int32                required
     UserId                   Guid                 required
+
+sensitive_document.viewed v1  (SensitiveDocumentViewed)
+    DocumentKind             String               required
+    LinkCount                Int32                required
+    SubjectUserId            Guid                 required
 
 setting.changed v1  (SettingChanged)
     ChangedAt                DateTimeOffset       required
@@ -354,6 +402,18 @@ user.email_verification_requested v1  (EmailVerificationRequested)
 user.email_verified v1  (UserEmailVerified)
     UserId                   Guid                 required
 
+user.identity_rejected v1  (UserIdentityRejected)
+    Reason                   String               required
+    UserId                   Guid                 required
+
+user.identity_verification_submitted v1  (IdentityVerificationSubmitted)
+    FullName                 String               required
+    UserId                   Guid                 required
+
+user.identity_verified v1  (UserIdentityVerified)
+    UserId                   Guid                 required
+    VerifiedAt               DateTimeOffset       required
+
 user.password_reset_requested v1  (PasswordResetRequested)
     DisplayName              String               required
     Email                    String               required
@@ -372,6 +432,11 @@ user.sessions_revoked v1  (SessionsRevoked)
     RevokedAt                DateTimeOffset       required
     UserId                   Guid                 required
 
+user.two_factor_changed v1  (UserTwoFactorChanged)
+    Enabled                  Boolean              required
+    Reason                   String               required
+    UserId                   Guid                 required
+
 user.unblocked v1  (UserUnblocked)
     UserId                   Guid                 required
 
@@ -379,4 +444,9 @@ withdrawal.rejected v1  (WithdrawalRejected)
     AmountVnd                Int64                required
     LabelerId                Guid                 required
     Reason                   String               required
+    WithdrawalId             Guid                 required
+
+withdrawal.review_requested v1  (WithdrawalReviewRequested)
+    AmountVnd                Int64                required
+    LabelerId                Guid                 required
     WithdrawalId             Guid                 required

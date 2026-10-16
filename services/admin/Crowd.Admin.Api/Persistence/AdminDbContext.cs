@@ -24,6 +24,10 @@ namespace Crowd.Admin.Api.Persistence
 
         public DbSet<Announcement> Announcements => Set<Announcement>();
 
+        public DbSet<DonDuyet> DonDuyets => Set<DonDuyet>();
+
+        public DbSet<MauBaiToan> MauBaiToans => Set<MauBaiToan>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -117,6 +121,48 @@ namespace Crowd.Admin.Api.Persistence
                 b.Property(x => x.CreatedBy).HasColumnName("created_by").IsRequired();
                 b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
                 b.HasIndex(x => x.CreatedAt).HasDatabaseName("ix_announcements_thoi_gian");
+            });
+
+            modelBuilder.Entity<DonDuyet>(b =>
+            {
+                b.ToTable("approval_requests");
+                b.HasKey(x => x.Id);
+                b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+                b.Property(x => x.Kind).HasColumnName("kind").HasMaxLength(20).IsRequired();
+                b.Property(x => x.SubjectId).HasColumnName("subject_id").IsRequired();
+                b.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+                b.Property(x => x.Title).HasColumnName("title").HasMaxLength(300);
+                b.Property(x => x.RequesterId).HasColumnName("requester_id");
+                b.Property(x => x.AmountVnd).HasColumnName("amount_vnd");
+                b.Property(x => x.Note).HasColumnName("note").HasMaxLength(1000);
+                b.Property(x => x.OpenedAt).HasColumnName("opened_at").IsRequired();
+                b.Property(x => x.DecidedAt).HasColumnName("decided_at");
+                b.Property(x => x.DecidedBy).HasColumnName("decided_by");
+                b.Property(x => x.LastEventAt).HasColumnName("last_event_at").IsRequired();
+                b.HasIndex(x => new { x.Kind, x.SubjectId }).IsUnique().HasDatabaseName("ux_approval_requests_don");
+                b.HasIndex(x => new { x.Status, x.OpenedAt }).HasDatabaseName("ix_approval_requests_hang_doi");
+            });
+
+            modelBuilder.Entity<MauBaiToan>(b =>
+            {
+                b.ToTable("workspace_templates");
+                b.HasKey(x => x.Id);
+                b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+                b.Property(x => x.Code).HasColumnName("code").HasMaxLength(MauBaiToan.DoDaiMaToiDa).IsRequired();
+                b.Property(x => x.Name).HasColumnName("name").HasMaxLength(MauBaiToan.DoDaiTenToiDa).IsRequired();
+                b.Property(x => x.Description).HasColumnName("description").HasMaxLength(MauBaiToan.DoDaiMoTaToiDa).IsRequired();
+                b.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
+                b.Property(x => x.LabelSchemaJson).HasColumnName("label_schema").HasColumnType("jsonb").IsRequired();
+                b.Property(x => x.GuidelineMarkdown).HasColumnName("guideline_markdown").IsRequired();
+                b.Property(x => x.SuggestedUnitPriceVnd).HasColumnName("suggested_unit_price_vnd");
+                b.Property(x => x.SuggestedRedundancy).HasColumnName("suggested_redundancy");
+                b.Property(x => x.Active).HasColumnName("active").IsRequired();
+                b.Property(x => x.Version).HasColumnName("version").IsConcurrencyToken().IsRequired();
+                b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+                b.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+                b.Property(x => x.UpdatedBy).HasColumnName("updated_by").IsRequired();
+                b.HasIndex(x => x.Code).IsUnique().HasDatabaseName("ux_workspace_templates_code");
+                b.HasIndex(x => new { x.Active, x.Modality }).HasDatabaseName("ix_workspace_templates_loai");
             });
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());

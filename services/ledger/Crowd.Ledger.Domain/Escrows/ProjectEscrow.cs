@@ -61,6 +61,9 @@ namespace Crowd.Ledger.Domain.Escrows
 
         public DateTimeOffset ReservedAt { get; private set; }
 
+        /// <summary>Ten du an (in len hoa don VAT, FB-05); null voi du an publish truoc khi co truong nay.</summary>
+        public string? Name { get; private set; }
+
         public DateTimeOffset? ClosedAt { get; private set; }
 
         /// <summary>Closing: so nhan da duyet luc dong so — chi du chung thi moi hoan ky quy.</summary>
@@ -78,6 +81,17 @@ namespace Crowd.Ledger.Domain.Escrows
             e.State = EscrowState.Active;
             e.ReservedAt = luc;
             return e;
+        }
+
+        public void DatTen(string? ten)
+        {
+            if (ten == null)
+            {
+                return;
+            }
+
+            string sach = ten.Trim();
+            Name = sach.Length > 200 ? sach.Substring(0, 200) : sach;
         }
 
         public void DatRedundancy(int redundancy)

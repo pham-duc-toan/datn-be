@@ -68,6 +68,8 @@ docker compose -f docker-compose.demo.yml down -v             # tắt và XOÁ d
 | http://localhost:25672 | RabbitMQ management (`datn` / `RABBIT_PASSWORD` trong `.env`) |
 | 18103 / 18104 / 18107 / 18108 | task / annotation / link / gate gọi thẳng (cho E2E) |
 
+Chỉ gateway (18080) mở ra mạng; mọi cổng còn lại chỉ bind `127.0.0.1` (VD-S-06) — mở từ máy khác trong mạng LAN sẽ không vào được.
+
 Khác với chạy trên máy:
 - Link xem / tải file ký bằng `ObjectStorage:PublicUrl` = `http://localhost:19000`, vì trong mạng compose các service gọi MinIO qua `minio:9000`, còn trình duyệt chỉ tới được cổng publish.
 - Gateway ghi đè host của `ocelot.json` bằng `DownstreamHosts__<cổng>=<service>`.
@@ -85,7 +87,19 @@ Khác với chạy trên máy:
 
 Postgres / RabbitMQ chỉ đặt mật khẩu **lúc tạo volume**: đổi `.env` mà giữ volume thì service không đăng nhập được DB.
 
-Chế độ chạy service trên máy (mục 0, `docker-compose.infra.yml` + `appsettings.Development.json`) vẫn dùng mật khẩu dev cố định — chỉ cho máy dev.
+Chế độ chạy service trên máy (mục 0, `docker-compose.infra.yml` + `appsettings.Development.json`) vẫn dùng mật khẩu dev cố định — chỉ cho máy dev: cổng hạ tầng chỉ bind `127.0.0.1`, và service chạy với môi trường **khác Development** mà còn thấy mật khẩu / khoá dev thì **từ chối khởi động** (lỗi `S-08: moi truong ... dang dung mat khau / khoa DEV o: <khoá cấu hình>`).
+
+**Biến / thành phần mới (đợt 10/2026).** `.env` cũ thiếu biến thì chạy lại `python deploy/tao_env.py` (chỉ bổ sung):
+
+| Biến / thành phần | Dùng cho |
+|---|---|
+| `IDENTITY_DATA_KEY` | identity mã hoá bí mật 2FA, băm có khoá số giấy tờ (FC-04, FP-05). **Giữ nguyên mãi** — đổi khoá thì 2FA đã bật và số giấy tờ đã lưu không đọc lại được |
+| container `redis-gateway` | Gateway đếm rate limit dùng chung (`ConnectionStrings__GatewayRedis`). Redis sập thì gateway tạm đếm trong bộ nhớ |
+| Cổng thanh toán giả lập | payment-svc (chỉ Development) có trang "VNPay" / "MoMo" giả ở `/payments/sandbox/vnpay/*`, `/payments/sandbox/momo/*`, ký đúng thuật toán của cổng thật. Cấu hình cổng thật: `PaymentProviders:VnPay:*`, `PaymentProviders:MoMo:*`; bật / tắt bằng setting `payment.enabled_providers` |
+| `DatasetImport__AllowedPrivateHosts__0: minio` | Nhập dữ liệu từ S3 chặn mọi IP nội bộ (SSRF); stack demo cho phép riêng host `minio` để E2E nhập từ MinIO như từ S3 |
+| `QUALITY_PROJECT_URL`, `QUALITY_INTERNAL_API_KEY` | quality-svc tự bù bản sao dự án thiếu qua API nội bộ của project-svc |
+| `MEDIA_AV_CACHE_DIR` / `MEDIA_AV_CACHE_TTL_SECONDS` / `MEDIA_AV_CACHE_MAX_BYTES` | Bộ đệm đĩa bản âm thanh / video đã watermark (mặc định `/tmp/media-wm`, 6 giờ, 5 GB). Image media cần `ffmpeg` (đã cài trong Dockerfile); chạy trên máy cần `ffmpeg` trong PATH |
+| setting `ops.alert_email` | Email nhận cảnh báo DLQ (trống = chỉ log + `GET /admin/ops/queues`) |
 
 ## 0.2 Bộ test E2E và CI
 
@@ -113,7 +127,17 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_hoan_thien.py` | Xác thực email (bấm link thật trong Mailpit), quên / đặt lại / đổi mật khẩu, thu hồi phiên ở gateway, hồ sơ + avatar + kỹ năng, cấp độ / huy hiệu / xếp hạng, nháp + báo lỗi task, chi phí / ETA, cảnh báo lệch, xuất YOLO sai loại dự án (nội dung zip YOLO / VOC kiểm ở unit test `HoanThienTests`), thu nhập, tranh chấp (cả hai kết cục, kiểm sổ cái), hồ sơ gian lận + khoá, audit + báo cáo + thông báo toàn hệ thống, rate limit 429 |
 | `e2e_luu_tru.py` | Lưu trữ & dọn dẹp: một dòng mỗi phiên đăng nhập (làm mới 5 lần vẫn một dòng, dùng lại token cũ → thu hồi phiên), claim `email_verified` / `kyb_verified`, không còn `task.leased`, audit không lưu chi tiết `annotation.submitted` nhưng báo cáo vẫn đếm, mẫu lưu một lần (`annotation_samples`), gate không giữ mẫu dự án không bật cổng link, **dọn outbox đã gửi ở cả 11 service** (hạ `outbox.retention` xuống 1 giờ), dọn dự án đã đóng ở task-svc + quality-svc (tiến độ, báo cáo chất lượng, nhãn và uy tín giữ nguyên) |
 | `e2e_cong_cu.py` | Công cụ gán nhãn mở rộng + gộp nhãn (kiến trúc 3.15): ảnh có khung kèm thuộc tính (OCR), điểm mốc, đường gấp khúc, mặt nạ, số, chép chữ, văn bản tự do — nộp sai bị từ chối đúng lý do, quality-svc tính đồng thuận, kết quả gộp và file COCO / CSV / YOLO; điểm mốc lệch nhau → tranh chấp → xin thêm người → người thứ ba phá thế hoà; văn bản có **quan hệ** giữa các đoạn; dữ liệu **danh sách** với xếp hạng (Borda) + thang điểm (trung vị); **theo dõi đối tượng** trong video; bài test đầu vào và câu vàng bằng điểm mốc (chấm theo đường chéo ảnh); đổi ngưỡng ghép bằng setting lúc đang chạy. Cần ffmpeg |
-| `e2e_thanh_vien.py` | Vào dự án (kiến trúc 3.16): mời theo email / userId, một và nhiều người (kết quả từng dòng, giới hạn lô); mã mời (gõ tay, hết lượt, hết hạn, thu hồi, **6 người tranh 3 lượt**, dùng được khi dự án còn Nháp); kiểm cấp độ / uy tín ở `join`, lúc mời, mã mời và **trước** bài test; chế độ `approval` (gửi đơn, trùng, từ chối + thời gian chờ, rút, duyệt, uy tín tụt lúc duyệt, đơn tự đóng khi vào bằng đường khác) và `approval` kèm bài test (đạt → đơn kèm điểm); thông báo cho cả hai phía; nhận task thật sau khi vào. Cấp độ / uy tín đặt thẳng trong `identity_db.labeler_stats` |
+| `e2e_bao_mat_tai_khoan.py` | 2FA (bật, đăng nhập hai bước, sai mã / hết lượt, mã dự phòng, tắt, admin đặt lại), xác minh danh tính + đủ tuổi (một giấy tờ một tài khoản), rate limit dùng chung qua Redis |
+| `e2e_cong_thanh_toan.py` | Nạp qua VNPay / MoMo (cổng giả lập): chữ ký sai, IPN trùng, sửa số tiền, Return URL không ghi tiền, `sync`, đối soát lệnh treo, hết hạn |
+| `e2e_hoa_don.py` | Hoá đơn VAT: tạm tính, xuất tháng, số hoá đơn liên tục, HTML / XML, không sửa / xoá được |
+| `e2e_bao_ve_du_an.py` | Nội dung nhạy cảm / NDA / yêu cầu xác minh, ép nghỉ giải lao (429), rời dự án, lời mời (email chưa có tài khoản, cần đồng ý), danh sách ưu tiên / chặn, đánh giá, gợi ý dự án, đơn hết hạn, xoá file sau khi đóng, đơn giá tối thiểu |
+| `e2e_nhap_nguon_ngoai.py` | Nhập dữ liệu từ S3 (MinIO), danh sách URL, Google Drive; chặn SSRF |
+| `e2e_xuat_mo_rong.py` | Khung xoay, track ẩn / hiện lại, xuất yolo-obb / yolo-seg / voc / coco-keypoints / conll / mot, bộ đệm kết quả gộp |
+| `e2e_chi_so_chat_luong.py` | Krippendorff alpha mọi loại công cụ, Fleiss' kappa, STAPLE mặt nạ; quality-svc tự bù bản sao dự án thiếu |
+| `e2e_watermark_av.py` | Watermark âm thanh (FLAC) / video (H.264): tua (Range 206), bộ đệm, admin giải mã ra đúng labeler, tắt bằng setting. Cần ffmpeg |
+| `e2e_hang_doi_duyet.py` | Hàng đợi duyệt chung (KYB, dự án, khiếu nại, link, giới thiệu nghi lạm dụng), audit lượt xem giấy tờ (S-07), cổng link chỉ cho công cụ làm nhanh, mẫu bài toán, audit chỉ-ghi-thêm ở mức CSDL, cảnh báo DLQ |
+| `e2e_thong_bao_realtime.py` | Ngôn ngữ thông báo, WebSocket qua gateway (vé dùng một lần, mã đóng 4401), email 2FA bắt buộc, thư mời người chưa có tài khoản, email cảnh báo DLQ, hạn giữ thông báo |
+| `e2e_thanh_vien.py` | Vào dự án (kiến trúc 3.16): mời theo email / userId, một và nhiều người (kết quả từng dòng, giới hạn lô); **VD-S-16**: mời theo email ra cùng một kết quả cho email có / chưa có tài khoản / đã là thành viên / bị chặn, chủ dự án không thấy userId tới khi chấp nhận, lời mời câm, hạn mức email / 24 giờ (429 + `Retry-After`); mã mời (gõ tay, hết lượt, hết hạn, thu hồi, **6 người tranh 3 lượt**, dùng được khi dự án còn Nháp); kiểm cấp độ / uy tín ở `join`, lúc mời, mã mời và **trước** bài test; chế độ `approval` (gửi đơn, trùng, từ chối + thời gian chờ, rút, duyệt, uy tín tụt lúc duyệt, đơn tự đóng khi vào bằng đường khác) và `approval` kèm bài test (đạt → đơn kèm điểm); thông báo cho cả hai phía; nhận task thật sau khi vào. Cấp độ / uy tín đặt thẳng trong `identity_db.labeler_stats` |
 
 Tài khoản doanh nghiệp do E2E tự tạo được **xác minh KYB tự động** (`tro_giup.dang_ky(..., xac_minh=True)`, mặc định) để các bộ cũ publish được như trước. Tương tự, mọi tài khoản E2E tự tạo được **xác thực email** bằng link thật trong Mailpit (`xac_thuc=True`, mặc định) — chưa xác thực thì không rút tiền / publish được.
 
@@ -301,6 +325,8 @@ biz1 và biz2 đã được **xác minh KYB** sẵn (hồ sơ `verified`), nên 
 | **P2** | `2ae9dc42-5b32-518d-b24f-cdd7da800a96` | `pendingApproval` | 4 | 10.000 | 1 | 100.000 | Đã ký quỹ, chờ admin duyệt. **Tự hủy sau 72 giờ** nếu không ai duyệt |
 | **P3** | `32cdcbe6-837a-5c7c-929d-607db130deba` | `draft` | 4 | 15.000 | 2 | 200.000 | Đã cấu hình đủ, `readiness` = ready. Dùng để test saga publish |
 | **P4** | `2fde6d4c-ee31-57ae-8632-b2e6e0721217` | `running` | 7 | 30.000 | 1 | 300.000 | **Bắt buộc test đầu vào**: 3 câu, đậu khi đúng ≥ 60%. Ảnh 5–7 là câu hỏi test |
+
+**P8** (`00ed5dcd-3888-5f15-a4d8-ab7c5692f5ad`, chủ là **biz2**, `draft`, 4 ảnh, đơn giá 20.000, redundancy 2, ngân sách 300.000): tập nhãn hình học — `khung` (bbox **xoay được**, lớp `vat_the`), `vung` (polygon, `mau_chinh`), `diem` (keypoint, `tam`). Bấm publish để thử cả luồng với khung xoay và các định dạng xuất mới. Ở chế độ dev, admin-svc seed sẵn 4 mẫu bài toán (`GET /templates`).
 
 P1–P4 là dự án **ảnh**, tập nhãn có một công cụ phân loại tên `label` với các lớp `do`, `xanh_la`, `xanh_duong`, `vang`. Ảnh mẫu là PNG một màu 256×256 có viền sáng, nên nhìn ảnh là biết đáp án đúng. Phí nền tảng chốt 30%, cộng thêm vào ký quỹ chứ không trừ vào thù lao (VD-M-15).
 
@@ -1262,9 +1288,11 @@ P=3d904a1a-3920-530b-b055-793baae64f1b   # P1 của biz1
 # Mời nhiều người một lần theo email và / hoặc userId (tối đa project.member_batch_max = 100)
 curl -s -X POST http://localhost:8080/projects/$P/members/batch -H "Authorization: Bearer <token-biz1>" \
   -H "Content-Type: application/json" -d '{"role":"labeler","emails":["labeler3@crowd.local","khong-co@crowd.local","labeler1@crowd.local"]}'
-# → {"added":1,"results":[{"input":"labeler3@crowd.local","userId":"14299c5f-...","displayName":"...","status":"added"},
-#      {"input":"khong-co@crowd.local","status":"khong_tim_thay",...},{"input":"labeler1@crowd.local","status":"da_la_thanh_vien",...}]}
-# lab3 nhận thông báo "Bạn được mời vào dự án"
+# → {"added":0,"invited":3,"results":[{"input":"labeler3@crowd.local","userId":null,"status":"invited","invitationId":"..."}, ...]}
+#   Ba dòng giống hệt (VD-S-16): không biết email nào có tài khoản / đã là thành viên.
+#   lab3 thấy lời mời ở GET /projects/invitations/mine và tự chấp nhận; khong-co@ nhận thư mời đăng ký (Mailpit);
+#   labeler1 đã là thành viên → lời mời "câm", không nhận gì.
+# Theo userId thì kết quả chi tiết (added / da_la_thanh_vien / chua_du_cap_do ...) và thêm thẳng.
 
 # Mã mời: 10 lượt, hạn 48 giờ (không gửi thì 7 ngày, không giới hạn lượt)
 curl -s -X POST http://localhost:8080/projects/$P/invite-codes -H "Authorization: Bearer <token-biz1>" \
@@ -1297,6 +1325,29 @@ curl -s -X POST http://localhost:8080/projects/<id>/join-requests/<requestId>/re
 ```
 
 Dự án `approval` có bài test đầu vào: không gửi đơn tay được (`can_lam_test`). Làm bài như mục 6.9; đạt thì response có `"joinedProject": false, "joinRequestId": "..."`, và đơn trong hàng đợi của chủ dự án mang `scorePercent`.
+
+### 6.22 Đợt hoàn thiện 10/2026 (thử nhanh bằng tay)
+
+Chi tiết API ở [tích hợp frontend mục 17](tich-hop-frontend.md#17-bổ-sung-đợt-hoàn-thiện-102026); mỗi luồng đều có một bộ E2E ở mục 0.2. Vài lệnh đáng thử trên stack demo (`TOKEN_ADMIN`, `TOKEN_BIZ` lấy như mục 5):
+
+```bash
+# Hàng đợi duyệt chung + tóm tắt
+curl -s http://localhost:18080/admin/approvals/summary -H "Authorization: Bearer $TOKEN_ADMIN"
+curl -s "http://localhost:18080/admin/approvals?status=pending" -H "Authorization: Bearer $TOKEN_ADMIN"
+
+# Độ sâu DLQ, mẫu bài toán
+curl -s http://localhost:18080/admin/ops/queues -H "Authorization: Bearer $TOKEN_ADMIN"
+curl -s http://localhost:18080/templates -H "Authorization: Bearer $TOKEN_BIZ"
+
+# Nạp qua VNPay giả lập: lấy checkoutUrl, mở trên trình duyệt, bấm "Thanh toán"
+curl -s -X POST http://localhost:18080/payments/deposits -H "Authorization: Bearer $TOKEN_BIZ" \
+  -H "Idempotency-Key: $(uuidgen)" -H "Content-Type: application/json" -d '{"amountVnd":200000,"provider":"vnpay"}'
+
+# Chỉ số chất lượng mở rộng của P1 (alphaMetric, fleissKappa)
+curl -s http://localhost:18080/quality/projects/3d904a1a-3920-530b-b055-793baae64f1b/summary -H "Authorization: Bearer $TOKEN_BIZ"
+```
+
+Kiểm phân vùng `tasks`: `docker exec datn-demo-db-task psql -U task_user -d task_db -c "\d+ tasks"` (16 phân vùng `tasks_p00`…`tasks_p15`). Kiểm audit chỉ-ghi-thêm: `UPDATE audit_events ...` trong `admin_db` báo `audit_events chi ghi them`.
 
 ## 7. Kiểm tra tổng sau khi test
 

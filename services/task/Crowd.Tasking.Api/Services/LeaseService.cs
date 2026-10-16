@@ -142,6 +142,13 @@ namespace Crowd.Tasking.Api.Services
                     }
                 }
 
+                // 2b. Muc 2.9: du an noi dung nhay cam → lam lien tuc qua welfare.max_continuous_minutes thi
+                //     phai nghi welfare.break_minutes. Chi chan cap task MOI; task dang giu van tra lai o buoc 2.
+                if (duAn!.SensitiveContent)
+                {
+                    await KiemNghiGiaiLaoAsync(labelerId, bayGio, ct);
+                }
+
                 // 3. Tron CAU VANG KIEM TRA (FQ-04): voi xac suat GoldCheckPercent, cap
                 //    mot cau vang labeler chua lam thay vi task that. Response y het task
                 //    that — labeler khong phan biet duoc (VD-Q-03).
@@ -604,6 +611,34 @@ namespace Crowd.Tasking.Api.Services
             return a;
         }
 
+        /// <summary>
+        /// Gom cac luot lam du an NHAY CAM cua labeler trong 24 gio gan day (moi du an nhay cam gop lai) roi
+        /// hoi PhienLamViec co phai nghi khong. Luot dang giu tinh toi bay gio.
+        /// </summary>
+        private async Task KiemNghiGiaiLaoAsync(Guid labelerId, DateTimeOffset bayGio, CancellationToken ct)
+        {
+            TimeSpan toiDa = TimeSpan.FromMinutes(_settings.SoNguyen(SettingKeys.WelfareMaxContinuousMinutes));
+            TimeSpan nghi = TimeSpan.FromMinutes(_settings.SoNguyen(SettingKeys.WelfareBreakMinutes));
+            DateTimeOffset tu = bayGio - TimeSpan.FromHours(24);
+
+            var luot = await (from a in _db.Assignments.AsNoTracking()
+                              join p in _db.ProjectSnapshots.AsNoTracking() on a.ProjectId equals p.ProjectId
+                              where a.LabelerId == labelerId && p.SensitiveContent && a.LeasedAt >= tu
+                              select new { a.LeasedAt, a.EndedAt }).ToListAsync(ct);
+
+            List<KhoangLamViec> khoang = new List<KhoangLamViec>();
+            foreach (var l in luot)
+            {
+                khoang.Add(new KhoangLamViec(l.LeasedAt, l.EndedAt ?? bayGio));
+            }
+
+            DateTimeOffset? nghiDen = PhienLamViec.PhaiNghiDen(khoang, bayGio, toiDa, nghi);
+            if (nghiDen.HasValue)
+            {
+                throw new CanNghiException(nghiDen.Value, nghiDen.Value - bayGio);
+            }
+        }
+
         private LeaseResponse TaoResponse(Assignment a, LabelingTask t, ProjectSnapshot p)
         {
             // FP-02/03: file qua media-svc — anh mang watermark chim = ma cua labeler;
@@ -637,6 +672,7 @@ namespace Crowd.Tasking.Api.Services
                 UnitPriceVnd = p.UnitPriceVnd,
                 Draft = a.DraftJson == null ? null : RawJson.Tu(a.DraftJson),
                 DraftSavedAt = a.DraftSavedAt,
+                SensitiveContent = p.SensitiveContent,
             };
         }
     }

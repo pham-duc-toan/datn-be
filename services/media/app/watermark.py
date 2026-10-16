@@ -132,39 +132,72 @@ class KetQuaGiai:
     buoc: int | None
 
 
-def giai(anh_bgr: np.ndarray, khoa: bytes, cac_buoc: list[int]) -> KetQuaGiai:
-    """Thu lan luot cac buoc; dung o buoc dau tien ra nguoi xem hop le (CRC dung)."""
-    if not du_cho(anh_bgr):
-        return KetQuaGiai(None, 0.0, None)
+@dataclass(frozen=True)
+class HeSoGiai:
+    """He so mang bit cua mot anh / kenh am thanh + bit nao, dither nao o tung he so."""
+    gt: np.ndarray
+    bit_o: np.ndarray
+    d_o: np.ndarray
 
+
+class PhieuBit:
+    """Cong phieu mem tren nhieu nguon (nhieu khung hinh video, nhieu kenh am thanh) roi moi chot bit."""
+
+    def __init__(self) -> None:
+        self.diem = np.zeros(SO_BIT)
+        self.phieu_1 = np.zeros(SO_BIT)
+        self.tong = np.zeros(SO_BIT)
+
+    def cong(self, h: HeSoGiai, buoc: float) -> None:
+        d = h.d_o * buoc
+        du0 = np.mod(h.gt - d, buoc)
+        cach0 = np.minimum(du0, buoc - du0)
+        du1 = np.mod(h.gt - d - buoc / 2.0, buoc)
+        cach1 = np.minimum(du1, buoc - du1)
+        phieu = (cach0 - cach1) / (buoc / 2.0)
+        self.diem += np.bincount(h.bit_o, weights=phieu, minlength=SO_BIT)
+        self.phieu_1 += np.bincount(h.bit_o, weights=(phieu > 0).astype(np.float64), minlength=SO_BIT)
+        self.tong += np.bincount(h.bit_o, minlength=SO_BIT).astype(np.float64)
+
+    def chot(self) -> tuple[NguoiXem | None, float]:
+        bit = (self.diem > 0).astype(np.int64)
+        tin_cay = float(np.where(bit == 1, self.phieu_1, self.tong - self.phieu_1).sum() / max(self.tong.sum(), 1))
+        return mo_goi(bit), tin_cay
+
+
+def he_so_giai(anh_bgr: np.ndarray, khoa: bytes) -> HeSoGiai | None:
+    """DCT mot lan cho moi buoc thu. None = anh qua nho."""
+    if not du_cho(anh_bgr):
+        return None
     y = cv2.cvtColor(anh_bgr, cv2.COLOR_BGR2YCrCb)[:, :, 0].astype(np.float64)
     he_so, _, _ = _khoi_dct(y)
     so_khoi = he_so.shape[0] * he_so.shape[1]
     bit_cua, dither = _ke_hoach(khoa, so_khoi * len(HE_SO))
-    # Lay he so + vi tri mot lan cho moi buoc thu.
     gt = np.stack([he_so[:, :, r, c].reshape(-1) for r, c in HE_SO], axis=1).reshape(-1)
     vi_tri = (np.arange(so_khoi)[:, None] * len(HE_SO) + np.arange(len(HE_SO))[None, :]).reshape(-1)
-    bit_o = bit_cua[vi_tri]
-    d_o = dither[vi_tri]
+    return HeSoGiai(gt, bit_cua[vi_tri], dither[vi_tri])
 
+
+def giai_nhieu(nguon: list[HeSoGiai], cac_buoc: list[float]) -> KetQuaGiai:
+    """Thu lan luot cac buoc, moi buoc cong phieu cua MOI nguon; dung o buoc dau tien ra nguoi xem hop le."""
+    if not nguon:
+        return KetQuaGiai(None, 0.0, None)
     tot_nhat = 0.0
     for buoc in cac_buoc:
-        d = d_o * buoc
-        du0 = np.mod(gt - d, buoc)
-        cach0 = np.minimum(du0, buoc - du0)
-        du1 = np.mod(gt - d - buoc / 2.0, buoc)
-        cach1 = np.minimum(du1, buoc - du1)
-        phieu = (cach0 - cach1) / (buoc / 2.0)
-        diem = np.bincount(bit_o, weights=phieu, minlength=SO_BIT)
-        bit = (diem > 0).astype(np.int64)
-        phieu_1 = np.bincount(bit_o, weights=(phieu > 0).astype(np.float64), minlength=SO_BIT)
-        tong = np.bincount(bit_o, minlength=SO_BIT).astype(np.float64)
-        tin_cay = float(np.where(bit == 1, phieu_1, tong - phieu_1).sum() / max(tong.sum(), 1))
+        p = PhieuBit()
+        for h in nguon:
+            p.cong(h, buoc)
+        nguoi, tin_cay = p.chot()
         tot_nhat = max(tot_nhat, tin_cay)
-        nguoi = mo_goi(bit)
         if nguoi is not None:
             return KetQuaGiai(nguoi, tin_cay, buoc)
     return KetQuaGiai(None, tot_nhat, None)
+
+
+def giai(anh_bgr: np.ndarray, khoa: bytes, cac_buoc: list[int]) -> KetQuaGiai:
+    """Thu lan luot cac buoc; dung o buoc dau tien ra nguoi xem hop le (CRC dung)."""
+    h = he_so_giai(anh_bgr, khoa)
+    return giai_nhieu([h] if h is not None else [], cac_buoc)
 
 
 def thu_tu_buoc(hien_tai: int) -> list[int]:

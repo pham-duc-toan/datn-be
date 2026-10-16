@@ -2,6 +2,7 @@ using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Crowd.BuildingBlocks.Auth.Jwt;
+using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Contracts.Annotation;
@@ -13,6 +14,7 @@ using Crowd.Contracts.Project;
 using Crowd.Ledger.Api.Consumers;
 using Crowd.Ledger.Api.Exceptions;
 using Crowd.Ledger.Api.Seeding;
+using Crowd.Ledger.Api.Helpers;
 using Crowd.Ledger.Api.Services;
 using Crowd.Ledger.Api.Workers;
 using Crowd.Ledger.Infrastructure.Persistence;
@@ -63,6 +65,12 @@ builder.Services.AddScoped<WalletService>();
 builder.Services.AddScoped<WithdrawalApprovalService>();
 builder.Services.AddScoped<DisputeService>();
 builder.Services.AddScoped<ThongKeService>();
+
+// Hoa don GTGT (FB-05): hoi identity ho so KYB luc xuat (API noi bo), worker tu xuat dau thang.
+builder.Services.AddCrowdInternalApi(cfg);
+builder.Services.AddHttpClient<IdentityClient>();
+builder.Services.AddScoped<InvoiceService>();
+builder.Services.AddHostedService<InvoiceWorker>();
 builder.Services.AddHostedService<GateBatchWorker>();
 builder.Services.AddScoped<ReconciliationService>();
 builder.Services.AddHostedService<HoldReleaseWorker>();

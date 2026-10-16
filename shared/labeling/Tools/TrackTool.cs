@@ -8,7 +8,8 @@ namespace Crowd.Labeling.Tools
     /// Theo doi doi tuong trong video: moi doi tuong la mot CHUOI KHUNG o cac moc thoi gian
     ///     [{"labelId":"xe","keyframes":[{"t":0,"x":10,"y":20,"w":50,"h":30},{"t":2.5,"x":80,"y":20,"w":50,"h":30}]}]
     /// t tinh bang GIAY tu dau mau, tang dan, it nhat hai moc. Giua hai moc khung duoc NOI SUY tuyen
-    /// tinh; doi tuong ton tai tu moc dau toi moc cuoi (bien mat roi xuat hien lai = mot chuoi moi).
+    /// tinh; doi tuong ton tai tu moc dau toi moc cuoi. Moc "visible": false = doi tuong BI CHE / ra khoi
+    /// hinh tu moc do toi moc ke tiep — xuat hien lai o moc sau van la CUNG mot chuoi (giu dinh danh).
     /// Moi khung nam trong khung hinh video, moi moc nam trong do dai mau.
     ///
     /// Do giong hai chuoi = IoU KHONG-THOI GIAN: lay mau deu SoMocMauTrack thoi diem tren khoang hop
@@ -34,6 +35,11 @@ namespace Crowd.Labeling.Tools
             if (moc.Count < 2)
             {
                 throw Sai(tool, "chuoi khung can it nhat hai moc thoi gian.");
+            }
+
+            if (moc[0][5] < 0.5)
+            {
+                throw Sai(tool, "moc dau tien cua chuoi phai hien (visible).");
             }
 
             for (int i = 0; i < moc.Count; i++)
@@ -116,22 +122,27 @@ namespace Crowd.Labeling.Tools
             return p["labelId"]!.GetValue<string>() + "|" + SoDeSapXep(moc[0][0]) + "|" + SoDeSapXep(moc[0][1]) + "|" + SoDeSapXep(moc[0][2]);
         }
 
-        /// <summary>Cac moc cua chuoi: moi moc la [t, x, y, w, h].</summary>
+        /// <summary>Cac moc cua chuoi: moi moc la [t, x, y, w, h, hien (1 / 0)].</summary>
         internal static List<double[]> Moc(JsonObject p)
         {
             List<double[]> ds = new List<double[]>();
             foreach (JsonNode? n in (JsonArray)p["keyframes"]!)
             {
+                JsonNode? hien = n!["visible"];
                 ds.Add(new double[]
                 {
-                    HinhHoc.So(n!["t"]), HinhHoc.So(n["x"]), HinhHoc.So(n["y"]), HinhHoc.So(n["w"]), HinhHoc.So(n["h"]),
+                    HinhHoc.So(n["t"]), HinhHoc.So(n["x"]), HinhHoc.So(n["y"]), HinhHoc.So(n["w"]), HinhHoc.So(n["h"]),
+                    hien != null && !hien.GetValue<bool>() ? 0 : 1,
                 });
             }
 
             return ds;
         }
 
-        /// <summary>Khung [x, y, w, h] cua chuoi tai thoi diem t (noi suy tuyen tinh); null neu doi tuong khong ton tai luc do.</summary>
+        /// <summary>
+        /// Khung [x, y, w, h] cua chuoi tai thoi diem t (noi suy tuyen tinh); null neu doi tuong khong ton tai
+        /// hoac DANG AN luc do (doan bat dau bang moc visible = false).
+        /// </summary>
         internal static double[]? KhungTai(List<double[]> moc, double t)
         {
             if (t < moc[0][0] || t > moc[moc.Count - 1][0])
@@ -145,6 +156,11 @@ namespace Crowd.Labeling.Tools
                 {
                     double[] truoc = moc[i - 1];
                     double[] sau = moc[i];
+                    if (truoc[5] < 0.5)
+                    {
+                        return null;
+                    }
+
                     double f = (t - truoc[0]) / (sau[0] - truoc[0]);
                     return new double[]
                     {
@@ -157,6 +173,11 @@ namespace Crowd.Labeling.Tools
             }
 
             double[] chot = moc[moc.Count - 1];
+            if (chot[5] < 0.5)
+            {
+                return null;
+            }
+
             return new double[] { chot[1], chot[2], chot[3], chot[4] };
         }
     }

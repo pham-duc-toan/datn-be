@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Payment.Domain.Common;
+using Crowd.Payment.Infrastructure.Providers;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,18 @@ namespace Crowd.Payment.Api.Exceptions
     public sealed class NotFoundException : Exception
     {
         public NotFoundException(string message)
+            : base(message)
+        {
+        }
+    }
+
+    /// <summary>
+    /// Cong bao thanh cong nhung chua hoi nguoc duoc cong de xac nhan (loi mang). KHONG cong tien;
+    /// tra loi de cong gui lai thong bao (VNPay RspCode 99, MoMo 5xx) → 503.
+    /// </summary>
+    public sealed class CongChuaXacNhanException : Exception
+    {
+        public CongChuaXacNhanException(string message)
             : base(message)
         {
         }
@@ -38,6 +51,7 @@ namespace Crowd.Payment.Api.Exceptions
     /// Doi ngoai le da biet thanh ProblemDetails o MOT cho — giong project-svc.
     ///   InvalidValueException → 400 | ForbiddenException → 403 | NotFoundException → 404
     ///   RuleViolationException, DbUpdateConcurrencyException → 409
+    ///   CongThanhToanException (cong loi khi tao lenh) → 502 cong_thanh_toan_loi
     /// </summary>
     public sealed class ApiExceptionHandler : IExceptionHandler
     {
@@ -89,6 +103,16 @@ namespace Crowd.Payment.Api.Exceptions
             {
                 status = StatusCodes.Status409Conflict;
                 code = "xung_dot_dong_thoi";
+            }
+            else if (exception is CongChuaXacNhanException)
+            {
+                status = StatusCodes.Status503ServiceUnavailable;
+                code = "cong_chua_xac_nhan";
+            }
+            else if (exception is CongThanhToanException)
+            {
+                status = StatusCodes.Status502BadGateway;
+                code = "cong_thanh_toan_loi";
             }
             else
             {

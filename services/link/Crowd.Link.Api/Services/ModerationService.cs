@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Persistence;
 using Crowd.BuildingBlocks.Settings;
+using Crowd.Contracts.Link;
 using Crowd.Link.Api.Dtos;
 using Crowd.Link.Api.Entities;
 using Crowd.Link.Api.Exceptions;
@@ -171,6 +172,17 @@ namespace Crowd.Link.Api.Services
             DateTimeOffset bayGio = _clock.GetUtcNow();
             _db.Reports.Add(LinkReport.Tao(l.Id, ipHash, ly, bayGio));
             bool vuaVuotNguong = l.GhiBaoCao(_settings.SoNguyen(SettingKeys.LinkReportReviewThreshold), bayGio);
+            if (vuaVuotNguong)
+            {
+                // Cung SaveChanges voi bao cao: IP bao cao lan hai (unique) thi event cung khong ra.
+                _events.Phat(Caller.HeThong(Guid.CreateVersion7(), null), new LinkReviewRequested
+                {
+                    LinkId = l.Id,
+                    OwnerId = l.OwnerId,
+                    Code = l.Code,
+                    ReportCount = l.ReportCount,
+                });
+            }
 
             try
             {
@@ -252,7 +264,7 @@ namespace Crowd.Link.Api.Services
             return _links.TaoResponse(l);
         }
 
-        public async Task<LinkResponse> BoQuaBaoCaoAsync(Guid id, CancellationToken ct)
+        public async Task<LinkResponse> BoQuaBaoCaoAsync(Guid id, Caller caller, CancellationToken ct)
         {
             ShortLink? l = await _db.Links.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (l == null)
@@ -261,6 +273,7 @@ namespace Crowd.Link.Api.Services
             }
 
             l.BoQuaBaoCao(_clock.GetUtcNow());
+            _events.Phat(caller, new LinkReviewDismissed { LinkId = l.Id, OwnerId = l.OwnerId });
             await _db.SaveChangesAsync(ct);
             return _links.TaoResponse(l);
         }

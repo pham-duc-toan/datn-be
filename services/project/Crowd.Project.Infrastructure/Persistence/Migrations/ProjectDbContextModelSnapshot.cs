@@ -125,6 +125,15 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("finished_at");
 
+                    b.Property<string>("ImportSource")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("import_source");
+
+                    b.Property<string>("ImportSpec")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("import_spec");
+
                     b.Property<string>("Manifest")
                         .HasColumnType("jsonb")
                         .HasColumnName("manifest");
@@ -476,6 +485,211 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.ToTable("join_requests", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Project.Domain.Members.LabelerRating", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("LabelerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("labeler_id");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<int>("Stars")
+                        .HasColumnType("integer")
+                        .HasColumnName("stars");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("ProjectId", "LabelerId");
+
+                    b.HasIndex("LabelerId")
+                        .HasDatabaseName("ix_labeler_ratings_labeler");
+
+                    b.ToTable("labeler_ratings", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_labeler_ratings_sao", "stars BETWEEN 1 AND 5");
+                        });
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Members.OwnerLabelerEntry", b =>
+                {
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<Guid>("LabelerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("labeler_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("OwnerId", "LabelerId");
+
+                    b.ToTable("owner_labeler_lists", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Members.ProjectConsent", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset?>("ContentWarningAcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("content_warning_accepted_at");
+
+                    b.Property<string>("Ip")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("ip");
+
+                    b.Property<DateTimeOffset?>("NdaSignedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("nda_signed_at");
+
+                    b.Property<string>("NdaSignedName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("nda_signed_name");
+
+                    b.Property<string>("NdaTextHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("nda_text_hash");
+
+                    b.Property<int?>("NdaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("nda_version");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("user_agent");
+
+                    b.HasKey("ProjectId", "UserId");
+
+                    b.ToTable("project_consents", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Members.ProjectInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("ByEmail")
+                        .HasColumnType("boolean")
+                        .HasColumnName("by_email");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("email");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("InvitedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("invited_by");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("role");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .HasDatabaseName("ix_project_invitations_email")
+                        .HasFilter("status = 'Pending'");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_project_invitations_het_han")
+                        .HasFilter("status = 'Pending'");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_project_invitations_user")
+                        .HasFilter("status = 'Pending'");
+
+                    b.HasIndex("InvitedBy", "CreatedAt")
+                        .HasDatabaseName("ix_project_invitations_han_muc")
+                        .HasFilter("by_email");
+
+                    b.HasIndex("ProjectId", "Email", "ByEmail")
+                        .IsUnique()
+                        .HasDatabaseName("ux_project_invitations_cho")
+                        .HasFilter("status = 'Pending'");
+
+                    b.ToTable("project_invitations", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Project.Domain.Members.ProjectMember", b =>
                 {
                     b.Property<Guid>("ProjectId")
@@ -485,6 +699,12 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
+
+                    b.Property<bool>("BlockedByOwnerList")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("blocked_by_owner_list");
 
                     b.Property<DateTimeOffset>("JoinedAt")
                         .HasColumnType("timestamp with time zone")
@@ -540,6 +760,11 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("closed_at");
 
+                    b.Property<string>("ContentWarning")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("content_warning");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -547,6 +772,12 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("Deadline")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deadline");
+
+                    b.Property<bool>("DeleteFilesAfterClose")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("delete_files_after_close");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -561,6 +792,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<int>("EntranceQuestionCount")
                         .HasColumnType("integer")
                         .HasColumnName("entrance_question_count");
+
+                    b.Property<DateTimeOffset?>("FilesPurgedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("files_purged_at");
 
                     b.Property<int>("GoldCheckPercent")
                         .HasColumnType("integer")
@@ -598,6 +833,23 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<bool>("NdaRequired")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("nda_required");
+
+                    b.Property<string>("NdaText")
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("nda_text");
+
+                    b.Property<int>("NdaVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("nda_version");
+
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
@@ -618,11 +870,23 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("require_entrance_test");
 
+                    b.Property<bool>("RequireVerifiedIdentity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("require_verified_identity");
+
                     b.Property<uint>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
+
+                    b.Property<bool>("SensitiveContent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("sensitive_content");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -656,6 +920,20 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<bool>("WasEscrowed")
                         .HasColumnType("boolean")
                         .HasColumnName("was_escrowed");
+
+                    b.PrimitiveCollection<List<string>>("_domains")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("domains")
+                        .HasDefaultValueSql("'{}'::text[]");
+
+                    b.PrimitiveCollection<List<string>>("_languages")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("languages")
+                        .HasDefaultValueSql("'{}'::text[]");
 
                     b.HasKey("Id");
 
@@ -751,6 +1029,33 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Crowd.Project.Domain.Members.JoinRequest", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Members.LabelerRating", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Members.ProjectConsent", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Members.ProjectInvitation", b =>
                 {
                     b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
                         .WithMany()

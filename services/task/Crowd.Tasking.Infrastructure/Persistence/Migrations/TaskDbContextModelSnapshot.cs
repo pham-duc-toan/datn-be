@@ -219,6 +219,8 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ux_assignments_one_lease_per_project")
                         .HasFilter("state = 'Leased'");
 
+                    b.HasIndex("ProjectId", "TaskId");
+
                     b.HasIndex("TaskId", "LabelerId")
                         .IsUnique()
                         .HasDatabaseName("ux_assignments_task_labeler_active")
@@ -360,6 +362,12 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("redundancy");
 
+                    b.Property<bool>("SensitiveContent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("sensitive_content");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -498,6 +506,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Crowd.Tasking.Domain.Tasks.LabelingTask", b =>
                 {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
@@ -529,10 +541,6 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("modality");
 
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
                     b.Property<int>("RedundancyTarget")
                         .HasColumnType("integer")
                         .HasColumnName("redundancy_target");
@@ -556,7 +564,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("submitted_count");
 
-                    b.HasKey("Id");
+                    b.HasKey("ProjectId", "Id");
+
+                    b.HasIndex("Id")
+                        .HasDatabaseName("ix_tasks_id");
 
                     b.HasIndex("ProjectId", "SampleId")
                         .IsUnique()
@@ -575,7 +586,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("Crowd.Tasking.Domain.Tasks.LabelingTask", null)
                         .WithMany()
-                        .HasForeignKey("TaskId")
+                        .HasForeignKey("ProjectId", "TaskId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

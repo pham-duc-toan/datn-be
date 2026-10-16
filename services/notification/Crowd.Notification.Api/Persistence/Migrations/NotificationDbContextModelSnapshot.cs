@@ -238,6 +238,27 @@ namespace Crowd.Notification.Api.Persistence.Migrations
                     b.ToTable("contacts", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Notification.Api.Entities.NgonNguNguoiDung", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)")
+                        .HasColumnName("language");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("language_preferences", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Notification.Api.Entities.ThongBao", b =>
                 {
                     b.Property<Guid>("Id")
@@ -314,6 +335,9 @@ namespace Crowd.Notification.Api.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_notifications_thoi_gian");
+
                     b.HasIndex("EmailNextAt")
                         .HasDatabaseName("ix_notifications_email_cho")
                         .HasFilter("email_state = 'Pending'");
@@ -346,6 +370,26 @@ namespace Crowd.Notification.Api.Persistence.Migrations
                     b.HasKey("UserId", "Type");
 
                     b.ToTable("email_preferences", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Notification.Api.Entities.VeRealtime", b =>
+                {
+                    b.Property<string>("TokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("token_hash");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("TokenHash");
+
+                    b.ToTable("realtime_tickets", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>

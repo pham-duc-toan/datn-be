@@ -46,6 +46,8 @@ class ProjectPublished(Payload):
     min_reputation: int | None
     require_entrance_test: bool
     sample_count: int
+    # Noi dung nhay cam (muc 2.9) — khong bat buoc, ban tin cu khong co.
+    sensitive_content: bool | None = None
 
 
 class ProjectCompleted(Payload):

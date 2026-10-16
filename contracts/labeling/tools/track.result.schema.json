@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Ket qua cong cu track",
-  "description": "Theo doi doi tuong trong video: moi doi tuong la mot chuoi khung o cac MOC thoi gian (giay, tinh tu dau mau); giua hai moc khung duoc noi suy tuyen tinh; doi tuong ton tai tu moc dau toi moc cuoi. Vd [{\"labelId\":\"xe\",\"keyframes\":[{\"t\":0,\"x\":10,\"y\":20,\"w\":50,\"h\":30},{\"t\":2.5,\"x\":80,\"y\":20,\"w\":50,\"h\":30}]}]",
+  "description": "Theo doi doi tuong trong video: moi doi tuong la mot chuoi khung o cac MOC thoi gian (giay, tinh tu dau mau); giua hai moc khung duoc noi suy tuyen tinh; doi tuong ton tai tu moc dau toi moc cuoi. Moc co \"visible\": false = doi tuong BI CHE / ra khoi hinh tu moc do toi moc ke tiep (moc ke tiep visible thi xuat hien lai, cung mot chuoi). Vd [{\"labelId\":\"xe\",\"keyframes\":[{\"t\":0,\"x\":10,\"y\":20,\"w\":50,\"h\":30},{\"t\":2.5,\"x\":80,\"y\":20,\"w\":50,\"h\":30}]}]",
   "type": "array",
   "maxItems": 500,
   "items": {
@@ -51,6 +51,10 @@
             "h": {
               "type": "number",
               "exclusiveMinimum": 0
+            },
+            "visible": {
+              "type": "boolean",
+              "description": "false = an tu moc nay toi moc ke tiep. Bo trong = true. Moc DAU phai hien."
             }
           }
         }

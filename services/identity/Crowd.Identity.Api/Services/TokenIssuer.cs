@@ -86,6 +86,14 @@ namespace Crowd.Identity.Api.Services
         /// <param name="kybDaDuyet">Ho so doanh nghiep cua user da duoc admin duyet (claim kyb_verified).</param>
         public string TaoAccessToken(User user, bool kybDaDuyet)
         {
+            return TaoAccessToken(user, kybDaDuyet, false, false);
+        }
+
+        /// <param name="kybDaDuyet">Ho so doanh nghiep cua user da duoc admin duyet (claim kyb_verified).</param>
+        /// <param name="daXacMinhDanhTinh">Ho so xac minh danh tinh ca nhan da duoc duyet (claim identity_verified).</param>
+        /// <param name="duTuoi">Da xac minh va du tuoi tinh toi luc phat token (claim adult).</param>
+        public string TaoAccessToken(User user, bool kybDaDuyet, bool daXacMinhDanhTinh, bool duTuoi)
+        {
             if (user == null)
             {
                 throw new ArgumentNullException(nameof(user));
@@ -107,6 +115,8 @@ namespace Crowd.Identity.Api.Services
             // Hai su that mot chieu, service khac doc tu token thay vi giu ban sao (CrowdClaims).
             claims.Add(new Claim(CrowdClaims.EmailVerified, user.EmailVerifiedAt.HasValue ? "true" : "false", ClaimValueTypes.Boolean));
             claims.Add(new Claim(CrowdClaims.KybVerified, kybDaDuyet ? "true" : "false", ClaimValueTypes.Boolean));
+            claims.Add(new Claim(CrowdClaims.IdentityVerified, daXacMinhDanhTinh ? "true" : "false", ClaimValueTypes.Boolean));
+            claims.Add(new Claim(CrowdClaims.Adult, duTuoi ? "true" : "false", ClaimValueTypes.Boolean));
 
             // Ma dinh danh cua CHINH token nay — nen de sau nay lam danh sach
             // thu hoi (VD-S-11) ma khong phai thu hoi ca tai khoan.

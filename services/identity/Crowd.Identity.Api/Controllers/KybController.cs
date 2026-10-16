@@ -81,7 +81,7 @@ namespace Crowd.Identity.Api.Controllers
         [Authorize(Roles = CrowdRoles.Admin)]
         public async Task<IActionResult> ChiTiet(Guid businessId, CancellationToken ct)
         {
-            return Ok(await _service.ChiTietAsync(businessId, ct));
+            return Ok(await _service.ChiTietAsync(businessId, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
         }
 
         [HttpPost("admin/{businessId:guid}/approve")]

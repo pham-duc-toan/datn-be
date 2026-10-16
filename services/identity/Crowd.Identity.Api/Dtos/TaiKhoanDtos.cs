@@ -201,5 +201,18 @@ namespace Crowd.Identity.Api.Dtos
 
         /// <summary>null = quality-svc chua cham.</summary>
         public int? Reputation { get; init; }
+
+        /// <summary>Da xac minh danh tinh ca nhan (FP-05).</summary>
+        public bool IdentityVerified { get; init; }
+
+        /// <summary>Da xac minh va du tuoi (muc 2.9).</summary>
+        public bool Adult { get; init; }
+
+        /// <summary>Ho so ky nang (FL-01) — project-svc goi y du an phu hop (FL-02).</summary>
+        public IReadOnlyList<string> Domains { get; init; } = new List<string>();
+
+        public IReadOnlyList<string> Languages { get; init; } = new List<string>();
+
+        public IReadOnlyList<string> Modalities { get; init; } = new List<string>();
     }
 }

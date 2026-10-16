@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Crowd.Labeling;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Projects;
@@ -68,6 +69,20 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.EntranceQuestionCount).HasColumnName("entrance_question_count").IsRequired();
             builder.Property(x => x.EntrancePassPercent).HasColumnName("entrance_pass_percent").IsRequired();
 
+            // Bao ve (muc 2.9, FP-01, FP-05).
+            builder.Property(x => x.SensitiveContent).HasColumnName("sensitive_content").IsRequired().HasDefaultValue(false);
+            builder.Property(x => x.ContentWarning).HasColumnName("content_warning").HasMaxLength(CotDb.CanhBaoNoiDung);
+            builder.Property(x => x.NdaRequired).HasColumnName("nda_required").IsRequired().HasDefaultValue(false);
+            builder.Property(x => x.NdaText).HasColumnName("nda_text").HasMaxLength(CotDb.VanBanNda);
+            builder.Property(x => x.NdaVersion).HasColumnName("nda_version").IsRequired().HasDefaultValue(0);
+            builder.Property(x => x.RequireVerifiedIdentity).HasColumnName("require_verified_identity").IsRequired().HasDefaultValue(false);
+
+            // Nhan goi y (FL-02): mang text[].
+            builder.Ignore(x => x.Domains);
+            builder.Ignore(x => x.Languages);
+            builder.Property<List<string>>("_domains").HasColumnName("domains").IsRequired().HasDefaultValueSql("'{}'::text[]");
+            builder.Property<List<string>>("_languages").HasColumnName("languages").IsRequired().HasDefaultValueSql("'{}'::text[]");
+
             builder.Property(x => x.StatusReason).HasColumnName("status_reason").HasMaxLength(1000);
             builder.Property(x => x.WasEscrowed).HasColumnName("was_escrowed").IsRequired();
             builder.Property(x => x.PlatformFeePercent).HasColumnName("platform_fee_percent").IsRequired();
@@ -76,6 +91,8 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.SubmittedForApprovalAt).HasColumnName("submitted_for_approval_at");
             builder.Property(x => x.PublishedAt).HasColumnName("published_at");
             builder.Property(x => x.ClosedAt).HasColumnName("closed_at");
+            builder.Property(x => x.DeleteFilesAfterClose).HasColumnName("delete_files_after_close").IsRequired().HasDefaultValue(false);
+            builder.Property(x => x.FilesPurgedAt).HasColumnName("files_purged_at");
 
             // OPTIMISTIC CONCURRENCY (VD-D-11) bang cot he thong xmin cua Postgres.
             //

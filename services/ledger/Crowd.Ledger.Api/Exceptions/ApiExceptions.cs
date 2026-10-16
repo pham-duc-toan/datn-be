@@ -90,6 +90,11 @@ namespace Crowd.Ledger.Api.Exceptions
                 status = StatusCodes.Status409Conflict;
                 code = "xung_dot_dong_thoi";
             }
+            else if (exception is Crowd.Ledger.Api.Helpers.DichVuKhongSanSangException)
+            {
+                status = StatusCodes.Status503ServiceUnavailable;
+                code = "dich_vu_khong_san_sang";
+            }
             else
             {
                 return false;

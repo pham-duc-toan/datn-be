@@ -3,7 +3,8 @@ using System;
 namespace Crowd.Identity.Api.Entities
 {
     /// <summary>
-    /// Ma dung MOT LAN gui qua email: xac thuc email (FC-01) hoac dat lai mat khau (FC-03).
+    /// Ma dung MOT LAN: xac thuc email (FC-01), dat lai mat khau (FC-03) — gui qua email; hoac
+    /// ma thu thach dang nhap 2FA (FC-04) — tra cho client sau khi nhap dung mat khau.
     /// Giong refresh token: client giu ma goc, database chi giu SHA-256 — lo database khong lo ma.
     /// </summary>
     public sealed class MaTaiKhoan
@@ -28,6 +29,9 @@ namespace Crowd.Identity.Api.Entities
         /// <summary>Luc da dung (hoac bi thay bang ma moi cung muc dich); null = con dung duoc.</summary>
         public DateTimeOffset? UsedAt { get; private set; }
 
+        /// <summary>So lan nhap sai ma 2FA voi thu thach nay (chi dung cho TwoFactorLogin).</summary>
+        public int FailedAttempts { get; private set; }
+
         public static MaTaiKhoan Tao(Guid userId, MucDichMa mucDich, string tokenHash, DateTimeOffset luc, TimeSpan song)
         {
             MaTaiKhoan m = new MaTaiKhoan();
@@ -45,6 +49,22 @@ namespace Crowd.Identity.Api.Entities
             return UsedAt == null && ExpiresAt > luc;
         }
 
+        /// <summary>
+        /// Ghi mot lan nhap sai. Du toiDa lan thi thu thach het hieu luc (phai dang nhap lai bang mat
+        /// khau): ma 6 so chi co 10^6 kha nang, khong gioi han thi do duoc. Tra true neu vua het luot.
+        /// </summary>
+        public bool GhiSai(int toiDa, DateTimeOffset luc)
+        {
+            FailedAttempts++;
+            if (FailedAttempts >= toiDa)
+            {
+                Dung(luc);
+                return true;
+            }
+
+            return false;
+        }
+
         /// <summary>Danh dau da dung (hoac bi ma moi thay the) — tu day khong dung lai duoc.</summary>
         public void Dung(DateTimeOffset luc)
         {
@@ -59,5 +79,8 @@ namespace Crowd.Identity.Api.Entities
     {
         VerifyEmail,
         ResetPassword,
+
+        /// <summary>Da qua buoc mat khau, cho ma 2FA (FC-04).</summary>
+        TwoFactorLogin,
     }
 }

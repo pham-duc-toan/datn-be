@@ -168,7 +168,11 @@ namespace Crowd.Notification.Api.Entities
         Failed,
     }
 
-    /// <summary>Noi dung da dung san cua mot thong bao (xem NoiDungThongBao).</summary>
+    /// <summary>
+    /// Noi dung da dung san cua mot thong bao (xem NoiDungThongBao): ban tieng Viet + (tuy chon) ban tieng
+    /// Anh (FC-08). ThongBaoWriter chon ban theo ngon ngu nguoi nhan LUC GHI — thong bao va email cung mot
+    /// ngon ngu, doi ngon ngu chi anh huong thong bao sau.
+    /// </summary>
     public sealed class NoiDung
     {
         public NoiDung(string tieuDe, string noiDungChinh, string? duongDan)
@@ -183,5 +187,70 @@ namespace Crowd.Notification.Api.Entities
         public string NoiDungChinh { get; }
 
         public string? DuongDan { get; }
+
+        public string? TieuDeEn { get; private set; }
+
+        public string? NoiDungChinhEn { get; private set; }
+
+        /// <summary>Kem ban tieng Anh (tra ve chinh doi tuong, de viet lien mot dong).</summary>
+        public NoiDung En(string tieuDe, string noiDungChinh)
+        {
+            TieuDeEn = tieuDe;
+            NoiDungChinhEn = noiDungChinh;
+            return this;
+        }
+
+        /// <summary>"en" va co ban tieng Anh → ban tieng Anh; con lai → tieng Viet.</summary>
+        public NoiDung TheoNgonNgu(string? ngonNgu)
+        {
+            if (string.Equals(ngonNgu, NgonNgu.TiengAnh, StringComparison.Ordinal) && TieuDeEn != null && NoiDungChinhEn != null)
+            {
+                return new NoiDung(TieuDeEn, NoiDungChinhEn, DuongDan);
+            }
+
+            return this;
+        }
+    }
+
+    /// <summary>Ngon ngu thong bao / email (FC-08). Mac dinh tieng Viet.</summary>
+    public static class NgonNgu
+    {
+        public const string TiengViet = "vi";
+        public const string TiengAnh = "en";
+
+        public static bool HopLe(string? ma)
+        {
+            return string.Equals(ma, TiengViet, StringComparison.Ordinal) || string.Equals(ma, TiengAnh, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>Ngon ngu nguoi dung chon cho thong bao + email. Khong co dong = tieng Viet.</summary>
+    public sealed class NgonNguNguoiDung
+    {
+        private NgonNguNguoiDung()
+        {
+            Language = NgonNgu.TiengViet;
+        }
+
+        public Guid UserId { get; private set; }
+
+        public string Language { get; private set; }
+
+        public DateTimeOffset UpdatedAt { get; private set; }
+
+        public static NgonNguNguoiDung Tao(Guid userId, string ngonNgu, DateTimeOffset luc)
+        {
+            NgonNguNguoiDung n = new NgonNguNguoiDung();
+            n.UserId = userId;
+            n.Language = ngonNgu;
+            n.UpdatedAt = luc;
+            return n;
+        }
+
+        public void Dat(string ngonNgu, DateTimeOffset luc)
+        {
+            Language = ngonNgu;
+            UpdatedAt = luc;
+        }
     }
 }
