@@ -76,7 +76,7 @@ namespace Crowd.Identity.Api.Helpers
                     {
                         loi["roles"] = new string[]
                         {
-                            "Vai tro chi duoc chon trong: business, labeler, sharer.",
+                            "Vai tro chi duoc chon trong: business, labeler (chia se link kiem tien la chuc nang cua labeler).",
                         };
                         break;
                     }

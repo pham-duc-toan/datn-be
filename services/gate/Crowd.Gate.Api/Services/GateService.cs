@@ -222,6 +222,9 @@ namespace Crowd.Gate.Api.Services
         /// <summary>
         /// Chon du an (ngau nhien trong cac du an con ngan sach) va k cau vang + m cau that.
         /// Mau da nhan du gate.max_labels_per_sample nhan cong link thi khong phat nua.
+        /// Bo du an cua CHINH chu link (tai khoan vua doanh nghiep vua labeler): khong ai duoc
+        /// nhan tien vuot link tu ky quy minh nap — neu khong, tien nap (khong rut duoc) se
+        /// thanh tien thu nhap (rut duoc) chi qua mot vong traffic.
         /// </summary>
         private async Task ChonCauHoiAsync(PhienVuot p)
         {
@@ -231,6 +234,11 @@ namespace Crowd.Gate.Api.Services
 
             foreach (DuAnPhucVu d in _catalog.UngVien(soThat, soVang))
             {
+                if (d.DuAn.OwnerId == p.OwnerId)
+                {
+                    continue;
+                }
+
                 // Lay du ung vien (gap doi) roi loc theo bo dem Redis — mot lan MGET.
                 List<Guid> ungVien = d.CauThat.OrderBy(x => Random.Shared.Next()).Take(soThat * 4).ToList();
                 long[] dem = await _redis.DemNhanMauAsync(ungVien);

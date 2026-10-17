@@ -1035,12 +1035,10 @@ Một mã sao kê (`bankTxnRef`) chỉ dùng cho một lệnh nạp — dùng l�
 
 ### 6.17 Cổng link (P2): người chia sẻ rút gọn link, khách vượt link, tiền về ví
 
-Không có tài khoản seed nào là sharer, nên đăng ký một tài khoản mới (một tài khoản có thể vừa là labeler vừa là sharer):
+Chia sẻ link là chức năng của **labeler**, không phải vai trò riêng. Dùng luôn tài khoản seed `labeler1`. Đăng ký với `"roles":["sharer"]` bị từ chối (400). Doanh nghiệp / admin tạo link → 403 `khong_duoc_chia_se_link`:
 
 ```bash
-curl -s -X POST http://localhost:8080/auth/register -H "Content-Type: application/json" \
-  -d '{"email":"sharer1@crowd.local","password":"Matkhau@123","displayName":"Sharer 1","roles":["sharer"]}'
-# đăng nhập lấy <token-sharer> như mục 5
+# đăng nhập labeler1@crowd.local lấy token như mục 5 — dưới đây gọi là <token-sharer>
 ```
 
 **Doanh nghiệp bật cổng link cho dự án.** Chỉ dự án dữ liệu ảnh / văn bản / cặp, công cụ là phân loại chọn một hoặc so sánh cặp, có câu vàng mục đích `qualityCheck`. Ngân sách phải **lớn hơn** mức ký quỹ tối thiểu: cổng link chỉ tiêu phần vượt.
@@ -1058,10 +1056,11 @@ docker exec datn-db-gate psql -U gate_user -d gate_db -c "select * from gate_bud
 ```bash
 curl -s -X POST http://localhost:8080/links -H "Authorization: Bearer <token-sharer>" \
   -H "Content-Type: application/json" -d '{"url":"https://example.com/bai-viet","alias":"bai-viet-1"}'
-# → status pendingScan; ~2 giây sau worker quét xong → active. shortUrl = http://localhost:8080/g/bai-viet-1
+# → status pendingScan; ~2 giây sau worker quét xong → active. shortUrl = <Links:ShortBaseUrl>bai-viet-1 (trang /g/ của frontend)
 
 curl -s -X POST http://localhost:8080/links/api-key -H "Authorization: Bearer <token-sharer>"      # apiKey "lk_..." (hiện MỘT lần)
 curl -s "http://localhost:8080/links/quick?api=<apiKey>&url=https://example.com/x"                # trả về chuỗi link rút gọn
+curl -s "http://localhost:8080/links/api-shorten?api=<apiKey>&url=https://example.com/x"          # kiểu link4m: {"status":"success","shortenedUrl":"..."}
 curl -s -X POST http://localhost:8080/links/bulk -H "X-Api-Key: <apiKey>" -H "Content-Type: application/json" \
   -d '{"urls":["https://example.org/a","khong-phai-url"]}'                                          # mỗi URL một dòng kết quả
 

@@ -19,7 +19,7 @@ namespace Crowd.Admin.Api.Services
     /// </summary>
     public sealed class AnnouncementService
     {
-        private static readonly string[] DoiTuong = new string[] { "all", "business", "labeler", "sharer" };
+        private static readonly string[] DoiTuong = new string[] { "all", "business", "labeler" };
 
         private readonly AdminDbContext _db;
         private readonly IOutboxWriter _outbox;
@@ -69,7 +69,7 @@ namespace Crowd.Admin.Api.Services
 
             if (!DoiTuong.Contains(doiTuong))
             {
-                throw new AdminException(400, "doi_tuong_khong_hop_le", "audience: all | business | labeler | sharer.");
+                throw new AdminException(400, "doi_tuong_khong_hop_le", "audience: all | business | labeler.");
             }
 
             Announcement a = Announcement.Tao(tieuDe, noiDung, doiTuong, body.SendEmail, adminId, _clock.GetUtcNow());

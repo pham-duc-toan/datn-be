@@ -24,8 +24,8 @@ namespace Crowd.Link.Api.Services
     {
         public const string SectionName = "Links";
 
-        /// <summary>Tien to link rut gon, vd "http://localhost:8080/g/".</summary>
-        public string ShortBaseUrl { get; set; } = "http://localhost:8080/g/";
+        /// <summary>Tien to link rut gon = trang vuot link cua FRONTEND (vd "http://localhost:5173/g/"); trang do goi GET /g/{code} cua gateway.</summary>
+        public string ShortBaseUrl { get; set; } = "http://localhost:5173/g/";
     }
 
     /// <summary>

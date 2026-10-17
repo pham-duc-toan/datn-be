@@ -151,18 +151,28 @@ try:
     kiem("ledger bao gate ngan sach cong link 12.200 (20.000 − 7.800)", ns, sql("gate", f"select * from gate_budgets where project_id='{pid}'"))
 
     print("\n[2] Nguoi chia se: API key, rut gon don le / Quick Link / hang loat, kiem duyet link dich")
-    sh, sh_id = dang_ky(["sharer"])
+    # Chia se link la CHUC NANG cua moi tai khoan, khong con la vai tro tu chon luc dang ky.
+    r = requests.post(G + "/auth/register", json={"email": f"e2e-p2-{uuid.uuid4().hex[:8]}@crowd.local", "password": PW, "displayName": "p2", "roles": ["sharer"]})
+    kiem("dang ky voi vai tro 'sharer' → 400 (khong con la vai tro)", r.status_code == 400, r.text)
+    sh, sh_id = dang_ky(["labeler"])
     r = requests.post(G + "/links", headers=biz, json={"url": "https://example.com/a"})
-    kiem("doanh nghiep (khong phai sharer) tao link → 403", r.status_code == 403, r.text)
+    kiem("doanh nghiep (chi vai tro business) tao link → 403 khong_duoc_chia_se_link", r.status_code == 403 and r.json().get("code") == "khong_duoc_chia_se_link", r.text)
+    kiem("admin tao link → 403", requests.post(G + "/links", headers=admin, json={"url": "https://example.com/a"}).status_code == 403)
     r = requests.post(G + "/links/api-key", headers=sh)
     key = r.json()["apiKey"]
     kiem("tao API key (hien mot lan)", r.status_code == 200 and key.startswith("lk_"), r.text)
     r = requests.post(G + "/links", headers={"X-Api-Key": key}, json={"url": "https://example.com/bai-viet-1"})
     lk = r.json()
-    kiem("tao link bang API key → pendingScan + shortUrl", r.status_code == 201 and lk["status"] == "pendingScan" and lk["shortUrl"].endswith("/g/" + lk["code"]), r.text)
+    kiem("tao link bang API key → pendingScan + shortUrl tro trang /g/ cua frontend", r.status_code == 201 and lk["status"] == "pendingScan" and lk["shortUrl"].endswith("/g/" + lk["code"]), r.text)
     code = lk["code"]
     r = requests.get(G + "/links/quick", params={"api": key, "url": "https://example.com/quick", "alias": "p2-" + uuid.uuid4().hex[:6]})
     kiem("Quick Link tra ve chuoi link rut gon", r.status_code == 200 and r.text.startswith("http") and "/g/p2-" in r.text, r.text)
+    r = requests.get(G + "/links/api-shorten", params={"api": key, "url": "https://example.com/api-v2"})
+    kiem("api-shorten (kieu link4m) → {status:success, shortenedUrl}", r.status_code == 200 and r.json()["status"] == "success" and "/g/" in r.json()["shortenedUrl"], r.text)
+    r = requests.get(G + "/links/api-shorten", params={"api": "lk_sai", "url": "https://example.com/api-v2"})
+    kiem("api-shorten key sai → 401 {status:error}", r.status_code == 401 and r.json()["status"] == "error" and r.json()["code"] == "chua_xac_thuc", r.text)
+    r = requests.get(G + "/links/api-shorten", params={"api": key, "url": "khong-phai-url"})
+    kiem("api-shorten url sai → 400 {status:error}", r.status_code == 400 and r.json()["status"] == "error" and r.json()["code"] == "url_khong_hop_le", r.text)
     requests.post(G + "/links/admin/blocked-domains", headers=admin, json={"domain": "casino-e2e.example", "reason": "co bac"})
     r = requests.post(G + "/links/bulk", headers=sh, json={"urls": ["https://example.org/x", "https://vip.casino-e2e.example/y", "khong-phai-url"]})
     b = r.json()
@@ -237,7 +247,7 @@ try:
     kiem("sharer co ma gioi thieu", len(ref["code"]) == 8, ref)
     r = requests.post(G + "/links/referrals/claim", headers=sh, json={"code": ref["code"]})
     kiem("tu nhap ma cua minh → 409", r.status_code == 409, r.text)
-    sh2, sh2_id = dang_ky(["sharer", "labeler"])
+    sh2, sh2_id = dang_ky(["labeler"])
     time.sleep(1.5)  # user.registered toi link-svc
     # Nhap ma tu IP KHAC nguoi gioi thieu (cung IP = tu moi chinh minh → bi danh dau, xem e2e_hang_doi_duyet).
     r = requests.post(LINK + "/links/referrals/claim", headers=dict(sh2, **khach("203.0.113.99")), json={"code": ref["code"]})
@@ -280,7 +290,7 @@ try:
     kiem("ket cuc: co trungIp, tuVuot, truotCauVang", all(k in o for k in ("tinhTien", "trungIp", "tuVuot", "truotCauVang")), list(o))
     t = requests.get(G + "/gate/stats/me/top-links", headers=sh).json()
     kiem("top link dung link vua dung", t and t[0]["key"].replace("-", "") == lk["id"].replace("-", ""), t)
-    kiem("nguoi khong phai sharer xem thong ke → 403", requests.get(G + "/gate/stats/me/daily", headers=biz).status_code == 403)
+    kiem("doanh nghiep xem thong ke link → 403", requests.get(G + "/gate/stats/me/daily", headers=biz).status_code == 403)
 
     print("\n[10] Bao cao vi pham → kiem duyet → vo hieu hoa + giu doanh thu dang treo")
     dat("link.report_review_threshold", 2)
@@ -310,6 +320,44 @@ try:
                                      capture_output=True, text=True).stdout.splitlines()
            if ".dlq" in l and l.split()[-1] != "0" and not l.startswith("project-svc.escrow-reserved.dlq")]
     kiem("khong co message nao vao DLQ", dlq == [], dlq)
+
+    print("\n[12] Tai khoan vua doanh nghiep vua labeler: link cua minh KHONG phat cau tu du an cua minh")
+    # Neu phat, tien nap (khong rut duoc) se thanh thu nhap (rut duoc) chi qua mot vong traffic.
+    import tro_giup  # noqa: E402  (dang ky + xac thuc email + KYB cho doanh nghiep moi)
+    import e2e_cong_cu_helpers as cc  # noqa: E402
+    requests.post(G + f"/projects/{pid}/pause", headers=biz)
+    cho(lambda: sql("gate", "select count(*) from gate_projects where status='Running'") == "0", 20)
+    chu = tro_giup.dang_ky(["business", "labeler"], "p2-chu-" + uuid.uuid4().hex[:6])
+    cc.nap(chu, 50000)
+    r = requests.post(G + "/projects", headers=chu["h"], json={"name": "[e2e-p2] Cong link tu du an", "description": "p2", "modality": "text", "visibility": "public"})
+    pid2 = r.json()["id"]
+    requests.put(G + f"/projects/{pid2}/label-schema", headers=chu["h"], json={"modality": "text", "tools": [
+        {"name": "loai", "kind": "classification", "classes": ["cho", "meo"]}]}).raise_for_status()
+    requests.put(G + f"/projects/{pid2}/guideline", headers=chu["h"], json={"markdown": "p2", "examples": []}).raise_for_status()
+    requests.put(G + f"/projects/{pid2}/pricing", headers=chu["h"], json={"unitPriceVnd": 1000, "redundancy": 1, "maxRedundancy": 1, "budgetVnd": 20000, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
+    requests.put(G + f"/projects/{pid2}/channels", headers=chu["h"], json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False}).raise_for_status()
+    requests.put(G + f"/projects/{pid2}/quality-control", headers=chu["h"], json={"goldCheckPercent": 0}).raise_for_status()
+    requests.post(G + f"/projects/{pid2}/datasets/manifest", headers=chu["h"], json={"name": "lo", "rows": [{"text": v[0], "name": k} for k, v in CAU.items()]}).raise_for_status()
+    cho(lambda: [d for d in requests.get(G + f"/projects/{pid2}/datasets", headers=chu["h"]).json() if d["status"] == "ready"], 30)
+    mau2 = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid2}/samples?pageSize=50", headers=chu["h"]).json()["items"]}
+    requests.post(G + f"/projects/{pid2}/gold-items", headers=chu["h"], json={"items": [
+        {"sampleId": mau2["v1"], "purpose": "qualityCheck", "expectedPayload": {"loai": {"labelIds": ["cho"]}}},
+        {"sampleId": mau2["v2"], "purpose": "qualityCheck", "expectedPayload": {"loai": {"labelIds": ["meo"]}}}]}).raise_for_status()
+    tro_giup.publish_va_duyet(chu, pid2)
+    kiem("du an cong link cua tai khoan kep dang chay tren gate",
+         cho(lambda: sql("gate", f"select status from gate_projects where project_id='{pid2}'") == "Running", 30))
+    cua_chu = set(mau2.values())
+    lk_chu = requests.post(G + "/links", headers=chu["h"], json={"url": "https://example.com/cua-chu-du-an"}).json()
+    lk_khac = requests.post(G + "/links", headers=sh2, json={"url": "https://example.com/cua-nguoi-khac"}).json()
+    cho(lambda: requests.get(GATE + f"/g/{lk_chu['code']}").status_code == 200 and requests.get(GATE + f"/g/{lk_khac['code']}").status_code == 200, 20)
+    s_khac = cho(lambda: (lambda j: j if j.get("questions") else None)(phien(lk_khac["code"], "203.0.113.120").json()), 20)
+    kiem("link cua NGUOI KHAC duoc phat cau tu du an do (doi chung)",
+         s_khac is not None and all(q["sampleId"] in cua_chu for q in s_khac["questions"]), s_khac)
+    lo = [phien(lk_chu["code"], f"203.0.113.{130 + i}").json() for i in range(5)]
+    kiem("link cua CHINH chu du an: 5 phien, khong phien nao co cau cua du an minh",
+         all(not any(q["sampleId"] in cua_chu for q in x.get("questions", [])) for x in lo), [len(x.get("questions", [])) for x in lo])
+    requests.post(G + f"/projects/{pid2}/pause", headers=chu["h"])
+    requests.post(G + f"/projects/{pid2}/cancel", headers=chu["h"], json={"reason": "e2e don dep"})
 
 finally:
     for key, v in GOC.items():

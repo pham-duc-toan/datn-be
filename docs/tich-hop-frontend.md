@@ -92,7 +92,7 @@ POST /auth/register
 
 Đăng ký xong hệ thống gửi **email xác thực** (mục 2.4). Chưa xác thực vẫn đăng nhập và dùng bình thường, chỉ **chưa rút tiền và chưa publish dự án được**.
 
-- `roles`: một hoặc nhiều trong `business`, `labeler`, `sharer`. Không tự đăng ký được `admin`.
+- `roles`: một hoặc nhiều trong `business`, `labeler`. Không tự đăng ký được `admin`. **Chia sẻ link kiếm tiền không phải vai trò riêng** mà là chức năng của labeler (mục 12), nên `sharer` không còn chọn được (→ 400). Tài khoản cũ đã đăng ký với `sharer` vẫn đăng nhập bình thường; frontend bỏ `sharer` khỏi danh sách vai trò để chuyển qua lại.
 - Mật khẩu 8–128 ký tự. Tên hiển thị tối đa 100 ký tự.
 
 ```http
@@ -217,8 +217,8 @@ Lưu ý: mốc thu hồi tính theo **giây** — token cấp trong cùng giây 
 | | Ví, rút tiền, thống kê thu nhập | `GET /ledger/me/balance`, `GET /ledger/me/transactions`, `GET /ledger/me/earnings`, `POST /ledger/withdrawals`, `GET /ledger/withdrawals/mine` |
 | | Cấp độ, huy hiệu, bảng xếp hạng | `GET /me/level`, `GET /users/leaderboard` (mục 15) |
 | Reviewer (trong dự án) | Duyệt nhãn của dự án được giao | Giống phần duyệt nhãn của doanh nghiệp |
-| Người chia sẻ (sharer) | Quản lý link, chiến dịch | `POST /links`, `POST /links/bulk`, `GET /links`, `GET/PUT/DELETE /links/{id}`, `GET/POST /links/campaigns` |
-| | API key, Quick Link | `POST/GET /links/api-key`, `GET /links/quick?api=&url=` |
+| Labeler (chia sẻ link) | Quản lý link, chiến dịch | `POST /links`, `POST /links/bulk`, `GET /links`, `GET/PUT/DELETE /links/{id}`, `GET/POST /links/campaigns` |
+| | API token, API rút gọn, Quick Link | `POST/GET /links/api-key`, `GET /links/api-shorten?api=&url=`, `GET /links/quick?api=&url=` |
 | | Thống kê, giới thiệu, ví | `GET /gate/stats/me/daily` / `top-links` / `sources` / `outcomes`, `GET /links/referrals/me`, `POST /links/referrals/claim`, ví như labeler (mục 5.7) |
 | Khách vãng lai | Trang vượt link (không đăng nhập) | `GET /g/{code}`, `POST /g/{code}/sessions`, `POST /g/sessions/{id}/submit`, `GET /go/{code}?t=`, `POST /links/r/{code}/report` |
 | Admin | Duyệt hồ sơ doanh nghiệp | `GET /kyb/admin`, `GET /kyb/admin/{businessId}`, `POST /kyb/admin/{businessId}/approve` / `reject` (mục 13.2) |
@@ -1003,7 +1003,7 @@ GET /quality/me     → { "reputation": 78, "agreementPercent": 92, "updatedAt":
 
 ### 5.7 Ví và rút tiền
 
-Người chia sẻ link (`sharer`) dùng **cùng ví và cùng API** này: doanh thu cổng link vào `pendingVnd` rồi `availableVnd` như thu nhập labeler (mục 12).
+Doanh thu chia sẻ link của labeler vào **cùng ví** này: `pendingVnd` rồi `availableVnd`, như thù lao nhãn (mục 12).
 
 ```http
 GET /ledger/me/balance        → { "pendingVnd": 20000, "availableVnd": 63000, ... }
@@ -1994,7 +1994,7 @@ POST /admin/announcements   { "title": "Bảo trì 22h", "body": "Hệ thống b
 GET  /admin/announcements?limit=20      (mới nhất trước)
 ```
 
-- `audience`: `all` / `business` / `labeler` / `sharer`. Người nhận thấy thông báo loại `he_thong` (mục 14) sau vài giây.
+- `audience`: `all` / `business` / `labeler`. Người nhận thấy thông báo loại `he_thong` (mục 14) sau vài giây.
 - `sendEmail: true` thì gửi thêm email cho người **không tắt** email loại `he_thong`. Dùng tiết kiệm.
 
 ---
@@ -2068,7 +2068,7 @@ Danh sách các `code` thường gặp để frontend dịch. Mã không có tro
 | `gia_tri_khong_hop_le`, `thieu_gia_tri` | 400 | (admin) Giá trị setting sai kiểu / ngoài giới hạn |
 | `url_khong_hop_le`, `ten_mien_bi_chan`, `alias_khong_hop_le`, `mat_khau_khong_hop_le`, `het_han_trong_qua_khu`, `qua_nhieu_url` | 400 | Tạo link sai |
 | `alias_da_ton_tai`, `chien_dich_da_ton_tai`, `link_da_ngung` | 409 | Tạo / sửa link xung đột |
-| `khong_phai_sharer`, `chua_xac_thuc` | 403 / 401 | Tài khoản chưa có vai trò sharer / API key sai |
+| `khong_duoc_chia_se_link`, `chua_xac_thuc` | 403 / 401 | Tài khoản không phải labeler (doanh nghiệp / admin không chia sẻ link) / không có token, API key sai hoặc đã bị thay |
 | `ma_gioi_thieu_sai`, `tu_gioi_thieu`, `qua_han_nhap_ma`, `da_co_nguoi_gioi_thieu`, `gioi_thieu_vong` | 404 / 409 | Nhập mã giới thiệu không được |
 | `link_khong_ton_tai` | 404 | Trang vượt link: link không tồn tại / chưa duyệt xong / hết hạn / bị vô hiệu hoá |
 | `sai_mat_khau`, `turnstile_that_bai` | 403 | Trang vượt link: mật khẩu sai / xác minh chống bot thất bại |
@@ -2177,18 +2177,19 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 
 ## 12. Cổng link: người chia sẻ và trang vượt link
 
-Kênh thu thập thứ hai (đặc tả 2.4). **Người chia sẻ** (vai trò `sharer`) rút gọn link và chia sẻ. **Khách vãng lai** mở link, giải 1–3 câu gán nhãn nhỏ (có câu vàng) thì được chuyển tới link đích. Người chia sẻ được trả tiền theo lượt vượt hợp lệ, vào **cùng ví** với thu nhập labeler (mục 5.7, rút tiền như labeler).
+Kênh thu thập thứ hai (đặc tả 2.4), giống các dịch vụ rút gọn link kiếm tiền kiểu link4m. **Người chia sẻ** là **labeler** (không cần vai trò riêng; tài khoản cũ có vai trò `sharer` vẫn dùng được): rút gọn link và chia sẻ. Doanh nghiệp và admin **không** chia sẻ link (`403 khong_duoc_chia_se_link`): doanh nghiệp không được nhận tiền từ chính ngân sách mình chi, admin là bên kiểm duyệt link. Tài khoản vừa doanh nghiệp vừa labeler vẫn chia sẻ được, nhưng trang vượt link của họ **không bao giờ phát câu của dự án do chính họ sở hữu**. **Khách vãng lai** mở link, giải 1–3 câu gán nhãn nhỏ (có câu vàng) thì được chuyển tới link đích. Người chia sẻ được trả tiền theo lượt vượt hợp lệ, vào **cùng ví** với thu nhập labeler (mục 5.7, rút tiền như labeler).
 
 ### 12.1 Người chia sẻ: tạo và quản lý link
 
 ```http
 POST /links
 { "url": "https://example.com/bai-viet", "alias": "bai-viet-1", "password": "tuy-chon", "expiresAt": "2027-01-01T00:00:00Z", "campaignId": null }
-→ 201 { "id", "code": "bai-viet-1", "shortUrl": "http://localhost:8080/g/bai-viet-1", "destinationUrl", "domain",
+→ 201 { "id", "code": "bai-viet-1", "shortUrl": "http://localhost:5173/g/bai-viet-1", "destinationUrl", "domain",
         "status": "pendingScan", "statusReason": null, "hasPassword": true, "expiresAt", "campaignId", "createdAt" }
 ```
 
 - Mọi trường trừ `url` đều tuỳ chọn. Không có `alias` thì backend sinh mã ngẫu nhiên.
+- `shortUrl` = `Links:ShortBaseUrl` + `code`, trỏ vào **trang vượt link của frontend** (`/g/{code}`, stack demo `http://localhost:5173/g/`). Trang đó gọi `GET /g/{code}` của gateway. Sao chép thẳng `shortUrl`, không tự ghép.
 - `status`:
 
 | `status` | Ý nghĩa | Hiển thị |
@@ -2204,14 +2205,20 @@ POST /links
 - Chiến dịch: `POST /links/campaigns {"name"}`, `GET /links/campaigns` → `[ { "id", "name", "linkCount", "createdAt" } ]`.
 - Hàng loạt (FS-03): `POST /links/bulk {"urls":[...], "campaignId"?}` → mỗi URL một dòng `{ "url", "link": LinkResponse | null, "errorCode", "error" }`. Dòng lỗi không làm hỏng dòng khác.
 
-**API key (FS-05) và Quick Link (FS-02)** — cho công cụ tự động / plugin trình duyệt:
+**API token (FS-05), API rút gọn và Quick Link (FS-02)** — cho script, website, plugin trình duyệt:
 
 ```http
 POST /links/api-key            → { "apiKey": "lk_…", "prefix": "lk_3f9a1b", "createdAt" }   ← key đầy đủ CHỈ hiện lần này
 GET  /links/api-key            → { "apiKey": null, "prefix", "createdAt" }  |  404 nếu chưa tạo
 POST /links           (header X-Api-Key: lk_…)        ← cùng body như trên, không cần token
-GET  /links/quick?api=lk_…&url=https://...&alias=...  → text/plain "http://localhost:8080/g/aB3xY9k"
+GET  /links/quick?api=lk_…&url=https://...&alias=...  → text/plain "http://localhost:5173/g/aB3xY9k"
+GET  /links/api-shorten?api=lk_…&url=https://...&alias=...
+     → 200 {"status":"success","shortenedUrl":"http://localhost:5173/g/aB3xY9k"}
+     → 4xx {"status":"error","code":"url_khong_hop_le","message":"..."}   (401 chua_xac_thuc, 400 url_khong_hop_le /
+           ten_mien_bi_chan, 409 alias_da_ton_tai; vượt hạn mức gateway → 429 ProblemDetails qua_nhieu_yeu_cau)
 ```
+
+`api-shorten` có cùng hình dạng với API của các dịch vụ link kiếm tiền (link4m...), nên code PHP / script có sẵn chỉ cần đổi URL. Lỗi vẫn mang mã HTTP thật: PHP `file_get_contents` cần `ignore_errors` để đọc được JSON lỗi. Trang "API rút gọn" của frontend có ví dụ PHP / cURL / JS / Python.
 
 Tạo lại key thì key cũ hết hiệu lực ngay. Hiện key một lần kèm nút sao chép và cảnh báo "lưu lại, sẽ không hiện lần nữa".
 

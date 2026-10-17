@@ -345,7 +345,7 @@ services:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8107
       ConnectionStrings__LinkDb: Host=db-link;Port=5432;Database=link_db;Username=link_user;Password=${DB_LINK_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
-      Links__ShortBaseUrl: http://localhost:18080/g/
+      Links__ShortBaseUrl: http://localhost:5173/g/
       ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
 
   gate:

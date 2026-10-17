@@ -93,7 +93,7 @@ try:
 
     # =================================================================================
     print("\n[4] Hang doi duyet: link bi bao cao")
-    sh = dang_ky(["sharer"], "hdd-sh")
+    sh = dang_ky(["labeler"], "hdd-sh")
     lk = requests.post(G + "/links", headers=sh["h"], json={"url": f"https://example.com/hdd-{TAG}"}).json()
     dat_va_cho("link.report_review_threshold", 1, ["link"])
     requests.post(URL_LINK + f"/links/r/{lk['code']}/report", headers={"X-Forwarded-For": "198.51.100.77"}, json={"reason": "lua dao"})
@@ -105,7 +105,7 @@ try:
     # =================================================================================
     print("\n[4b] Gioi thieu nghi lam dung → cho admin xet, chua tinh hoa hong")
     ref = requests.get(G + "/links/referrals/me", headers=sh["h"]).json()
-    moi = dang_ky(["sharer"], "hdd-moi")
+    moi = dang_ky(["labeler"], "hdd-moi")
     time.sleep(1.5)  # user.registered toi link-svc
     r = requests.post(G + "/links/referrals/claim", headers=moi["h"], json={"code": ref["code"]})
     kiem("nhap ma tu CUNG IP nguoi gioi thieu (da tao link) → van 204 (khong chan nguoi dung)", r.status_code == 204, r.text)

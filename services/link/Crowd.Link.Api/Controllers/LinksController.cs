@@ -8,6 +8,7 @@ using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Security;
 using Crowd.Link.Api.Dtos;
 using Crowd.Link.Api.Entities;
+using Crowd.Link.Api.Exceptions;
 using Crowd.Link.Api.Helpers;
 using Crowd.Link.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -54,7 +55,7 @@ namespace Crowd.Link.Api.Controllers
             _privacy = privacy.Value;
         }
 
-        /// <summary>POST /links — token sharer hoac header X-Api-Key.</summary>
+        /// <summary>POST /links — token labeler hoac header X-Api-Key.</summary>
         [HttpPost]
         [AllowAnonymous]
         public async Task<IActionResult> Tao([FromBody] CreateLinkRequest body, CancellationToken ct)
@@ -86,8 +87,30 @@ namespace Crowd.Link.Api.Controllers
             return Content(l.ShortUrl, "text/plain");
         }
 
+        /// <summary>
+        /// GET /links/api-shorten?api=KEY&amp;url=...&amp;alias=... — API rut gon kieu cac dich vu
+        /// link kiem tien (link4m, ...): de nhung vao PHP / script co san, tra JSON
+        /// {"status":"success","shortenedUrl":"..."} hoac {"status":"error","code","message"}.
+        /// Loi van mang ma HTTP that (401 key sai, 400 URL sai, 429 vuot han muc...).
+        /// </summary>
+        [HttpGet("api-shorten")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ApiRutGon([FromQuery] string? api, [FromQuery] string? url, [FromQuery] string? alias, CancellationToken ct)
+        {
+            try
+            {
+                Caller c = await NguoiGoi.SharerAsync(HttpContext, _links, api, ct);
+                LinkResponse l = await _links.TaoAsync(new CreateLinkRequest { Url = url, Alias = alias }, c.LayUserId(), NguoiGoi.IpHash(HttpContext, _privacy.IpSalt), ct);
+                return Ok(new ApiShortenResponse { Status = "success", ShortenedUrl = l.ShortUrl });
+            }
+            catch (LinkException ex)
+            {
+                return StatusCode(ex.Status, new ApiShortenResponse { Status = "error", Code = ex.Code, Message = ex.Message });
+            }
+        }
+
         [HttpGet]
-        [Authorize(Roles = CrowdRoles.Sharer)]
+        [Authorize(Roles = NguoiGoi.VaiTroChiaSe)]
         public async Task<IActionResult> DanhSach(
             [FromQuery] Guid? campaignId, [FromQuery] LinkStatus? status, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
         {
@@ -96,7 +119,7 @@ namespace Crowd.Link.Api.Controllers
         }
 
         [HttpGet("{id:guid}")]
-        [Authorize(Roles = CrowdRoles.Sharer)]
+        [Authorize(Roles = NguoiGoi.VaiTroChiaSe)]
         public async Task<IActionResult> Xem(Guid id, CancellationToken ct)
         {
             return Ok(await _links.XemAsync(id, Caller.TuHttp(HttpContext, ActorRole.Sharer).LayUserId(), ct));
@@ -104,14 +127,14 @@ namespace Crowd.Link.Api.Controllers
 
         /// <summary>PUT /links/{id} — doi mat khau / het han / chien dich (link dich khong doi duoc).</summary>
         [HttpPut("{id:guid}")]
-        [Authorize(Roles = CrowdRoles.Sharer)]
+        [Authorize(Roles = NguoiGoi.VaiTroChiaSe)]
         public async Task<IActionResult> Sua(Guid id, [FromBody] UpdateLinkRequest body, CancellationToken ct)
         {
             return Ok(await _links.CapNhatAsync(id, body, Caller.TuHttp(HttpContext, ActorRole.Sharer), ct));
         }
 
         [HttpDelete("{id:guid}")]
-        [Authorize(Roles = CrowdRoles.Sharer)]
+        [Authorize(Roles = NguoiGoi.VaiTroChiaSe)]
         public async Task<IActionResult> Xoa(Guid id, CancellationToken ct)
         {
             await _links.XoaAsync(id, Caller.TuHttp(HttpContext, ActorRole.Sharer), ct);
@@ -119,14 +142,14 @@ namespace Crowd.Link.Api.Controllers
         }
 
         [HttpPost("campaigns")]
-        [Authorize(Roles = CrowdRoles.Sharer)]
+        [Authorize(Roles = NguoiGoi.VaiTroChiaSe)]
         public async Task<IActionResult> TaoChienDich([FromBody] CreateCampaignRequest body, CancellationToken ct)
         {
             return Ok(await _links.TaoChienDichAsync(body, Caller.TuHttp(HttpContext, ActorRole.Sharer).LayUserId(), ct));
         }
 
         [HttpGet("campaigns")]
-        [Authorize(Roles = CrowdRoles.Sharer)]
+        [Authorize(Roles = NguoiGoi.VaiTroChiaSe)]
         public async Task<IActionResult> DanhSachChienDich(CancellationToken ct)
         {
             return Ok(await _links.DanhSachChienDichAsync(Caller.TuHttp(HttpContext, ActorRole.Sharer).LayUserId(), ct));
@@ -134,14 +157,14 @@ namespace Crowd.Link.Api.Controllers
 
         /// <summary>POST /links/api-key — tao (hoac tao lai) API key. Key day du chi tra ve MOT lan nay.</summary>
         [HttpPost("api-key")]
-        [Authorize(Roles = CrowdRoles.Sharer)]
+        [Authorize(Roles = NguoiGoi.VaiTroChiaSe)]
         public async Task<IActionResult> TaoApiKey(CancellationToken ct)
         {
             return Ok(await _links.TaoApiKeyAsync(Caller.TuHttp(HttpContext, ActorRole.Sharer).LayUserId(), ct));
         }
 
         [HttpGet("api-key")]
-        [Authorize(Roles = CrowdRoles.Sharer)]
+        [Authorize(Roles = NguoiGoi.VaiTroChiaSe)]
         public async Task<IActionResult> XemApiKey(CancellationToken ct)
         {
             ApiKeyResponse? k = await _links.XemApiKeyAsync(Caller.TuHttp(HttpContext, ActorRole.Sharer).LayUserId(), ct);

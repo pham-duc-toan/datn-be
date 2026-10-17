@@ -17,7 +17,7 @@ namespace Crowd.Identity.Api.Dtos
 
         public string? DisplayName { get; init; }
 
-        /// <summary>Mot hoac nhieu trong: business, labeler, sharer.</summary>
+        /// <summary>Mot hoac nhieu trong: business, labeler.</summary>
         public IReadOnlyList<string>? Roles { get; init; }
     }
 

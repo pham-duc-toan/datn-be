@@ -31,7 +31,7 @@ namespace Crowd.Contracts.Identity
 
         public required string DisplayName { get; init; }
 
-        /// <summary>Vai tro nguoi dung tu chon luc dang ky: business, labeler, sharer.</summary>
+        /// <summary>Vai tro nguoi dung tu chon luc dang ky: business, labeler (tai khoan cu co the con "sharer").</summary>
         public required IReadOnlyList<string> Roles { get; init; }
     }
 }

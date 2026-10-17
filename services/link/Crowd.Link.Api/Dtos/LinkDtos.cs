@@ -125,6 +125,19 @@ namespace Crowd.Link.Api.Dtos
         public required DateTimeOffset CreatedAt { get; init; }
     }
 
+    /// <summary>Ket qua GET /links/api-shorten (hinh dang giong API cac dich vu link kiem tien).</summary>
+    public sealed class ApiShortenResponse
+    {
+        /// <summary>"success" hoac "error".</summary>
+        public required string Status { get; init; }
+
+        public string? ShortenedUrl { get; init; }
+
+        public string? Code { get; init; }
+
+        public string? Message { get; init; }
+    }
+
     public sealed class ReportLinkRequest
     {
         public string? Reason { get; init; }

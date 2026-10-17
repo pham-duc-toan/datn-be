@@ -12,13 +12,21 @@ using Microsoft.AspNetCore.Http;
 namespace Crowd.Link.Api.Helpers
 {
     /// <summary>
-    /// Ai dang tao link: token cua sharer, HOAC API key (FS-05 / FS-02 — cong cu tu dong
+    /// Ai dang tao link: token dang nhap, HOAC API key (FS-05 / FS-02 — cong cu tu dong
     /// hoa khong cam token 15 phut). Gateway khong chan route /links bang token cho rieng
     /// truong hop nay; endpoint can token van gan [Authorize].
+    ///
+    /// Chia se link la CHUC NANG cua labeler (nguoi kiem tien), khong phai vai tro rieng.
+    /// Doanh nghiep / admin khong chia se link: doanh nghiep khong duoc nhan tien tu chinh ngan
+    /// sach minh chi, admin la ben kiem duyet link. Tai khoan cu dang ky voi vai tro "sharer"
+    /// van dung duoc. API key chi tao duoc bang token cua tai khoan hop le nen khong kiem lai.
     /// </summary>
     public static class NguoiGoi
     {
         public const string HeaderApiKey = "X-Api-Key";
+
+        /// <summary>Gia tri cho [Authorize(Roles = ...)]: ai duoc chia se link.</summary>
+        public const string VaiTroChiaSe = CrowdRoles.Labeler + "," + CrowdRoles.Sharer;
 
         public static async Task<Caller> SharerAsync(HttpContext http, LinkService links, string? apiKeyQuery, CancellationToken ct)
         {
@@ -34,9 +42,9 @@ namespace Crowd.Link.Api.Helpers
 
             if (http.User.Identity != null && http.User.Identity.IsAuthenticated)
             {
-                if (!http.User.IsInRole(CrowdRoles.Sharer))
+                if (!http.User.IsInRole(CrowdRoles.Labeler) && !http.User.IsInRole(CrowdRoles.Sharer))
                 {
-                    throw new LinkException(403, "khong_phai_sharer", "Tai khoan chua co vai tro nguoi chia se link (sharer).");
+                    throw new LinkException(403, "khong_duoc_chia_se_link", "Chi tai khoan nguoi gan nhan (labeler) moi chia se link kiem tien.");
                 }
 
                 return Caller.TuHttp(http, ActorRole.Sharer);

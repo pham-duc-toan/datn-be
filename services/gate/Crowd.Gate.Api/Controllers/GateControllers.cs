@@ -108,11 +108,11 @@ namespace Crowd.Gate.Api.Controllers
     /// <summary>
     /// Thong ke cho nguoi chia se (FS-07), doc tu ClickHouse. Doanh thu la UOC TINH theo
     /// luot hop le — so chinh thuc nam o vi (ledger), vi ledger co the tu choi chi khi du an
-    /// het ngan sach dung luc.
+    /// het ngan sach dung luc. Chia se link la chuc nang cua labeler (tai khoan cu: sharer).
     /// </summary>
     [ApiController]
     [Route("gate/stats/me")]
-    [Authorize(Roles = CrowdRoles.Sharer)]
+    [Authorize(Roles = CrowdRoles.Labeler + "," + CrowdRoles.Sharer)]
     public sealed class GateStatsController : ControllerBase
     {
         private const int SoNgayToiDa = 366;
