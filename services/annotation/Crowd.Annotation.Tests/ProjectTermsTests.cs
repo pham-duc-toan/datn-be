@@ -11,7 +11,7 @@ namespace Crowd.Annotation.Tests
 
         private static ProjectTerms DieuKhoan()
         {
-            return ProjectTerms.Tao(Guid.NewGuid(), Guid.NewGuid(), 1000, 300, ResultAggregatorTests.TapNhan);
+            return ProjectTerms.Tao(Guid.NewGuid(), Guid.NewGuid(), 1000, 300, ResultAggregatorTests.TapNhan, true);
         }
 
         [Fact]

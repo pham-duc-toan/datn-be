@@ -417,7 +417,7 @@ PUT /projects/{id}/pricing
 { "unitPriceVnd": 2000, "redundancy": 2, "maxRedundancy": 3, "budgetVnd": 500000, "deadline": "2027-01-31T00:00:00Z" }
 
 PUT /projects/{id}/quality-control
-{ "goldCheckPercent": 10 }
+{ "goldCheckPercent": 10, "requireReview": true }
 
 PUT /projects/{id}/channels
 { "allowProfessional": true, "allowLinkGateway": false, "allowCollaborative": false }
@@ -429,6 +429,12 @@ PUT /projects/{id}/eligibility
 - `unitPriceVnd`: thù lao **mỗi nhãn được duyệt**. `redundancy`: mỗi mẫu cần mấy người gán độc lập (mỗi người được trả riêng).
 - `maxRedundancy` (tùy chọn, mặc định = `redundancy`, tối đa 10): **trần redundancy thích ứng**. Mẫu mà các labeler chọn khác nhau (không lựa chọn nào quá bán) sẽ được hệ thống tự xin thêm người gán, tối đa tới trần này. Bằng `redundancy` là tắt tính năng. Ký quỹ tính theo trần; phần không dùng tới được trả lại khi kết thúc dự án.
 - `goldCheckPercent` (0–50, mặc định 10): phần trăm số lần cấp task là **câu vàng kiểm tra** (câu vàng `purpose: "qualityCheck"`, mục 4.7). Labeler không phân biệt được với task thật; câu kiểm tra **không trả tiền**. Trang dự án phía labeler nên công khai con số này.
+- `requireReview` (mặc định `true`; bỏ trường = giữ nguyên): **có duyệt từng nhãn không**. `false` = khi quality-svc có kết quả đồng thuận của task:
+  - nhãn **khớp** số đông (`consensusAgrees = true`) được hệ thống duyệt và trả tiền ngay (`reviewerId` rỗng, lịch sử `auto_approved`);
+  - dự án chỉ có câu trả lời mở (đồng thuận `notApplicable`) → mọi nhãn được tự duyệt;
+  - nhãn **lệch** số đông và mẫu **tranh chấp** vẫn `pendingReview`, chờ chủ dự án.
+
+  Với `redundancy = 1` thì mọi nhãn đều khớp, tức là tự duyệt hết: nên bật câu vàng kiểm tra. Chỉ đổi được khi **nháp** (điều khoản với labeler chốt lúc publish). `ProjectResponse.requireReview` trả lại giá trị hiện tại. Setting toàn hệ thống `annotation.auto_approve_agreed` vẫn có: bật thì mọi dự án tự duyệt nhãn khớp như trên.
 - `budgetVnd`: số tiền sẽ ký quỹ. Phải ≥ `estimatedCostVnd` của readiness (mục 4.8).
 - Markdown của hướng dẫn: frontend tự render, **phải sanitize** (không render HTML thô).
 
@@ -506,6 +512,7 @@ Xem mẫu:
 
 ```http
 GET /projects/{id}/samples?page=1&pageSize=50
+GET /projects/{id}/samples?ids=<id1>,<id2>,...      ← chỉ các mẫu này (tối đa 100; sai định dạng → 400 ma_mau_khong_hop_le, quá 100 → 400 qua_nhieu_mau)
 → { "items": [ { "id", "datasetId", "modality", "originalName", "sizeBytes",
                  "fileUrl": "http://localhost:9000/...",   // null với text / pair / list
                  "content": null,                         // {"text"}, {"prompt","a","b"} hoặc {"prompt","items"} với text / pair / list
@@ -513,6 +520,8 @@ GET /projects/{id}/samples?page=1&pageSize=50
 ```
 
 `fileUrl` chỉ sống **5 phút**; hết hạn thì gọi lại API để lấy link mới.
+
+**Hiển thị cho doanh nghiệp:** trang kết quả (`GET /annotations/projects/{id}/results`), trang duyệt, câu vàng, báo lỗi task chỉ trả `sampleId`. Frontend gọi `?ids=` cho các mẫu **đang hiện trên trang** để có `originalName` (tên file lúc upload) và ảnh xem trước — không bày mã mẫu hay JSON cho người dùng. JSON chỉ có trong file xuất. Chỉ chủ dự án / admin gọi được (labeler, reviewer → 403: dữ liệu gốc là tài sản của doanh nghiệp).
 
 ### 4.7 Câu hỏi vàng
 

@@ -277,7 +277,7 @@ namespace Crowd.Project.Api.Services
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.DatKiemSoatChatLuong(body.GoldCheckPercent, _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
+            duAn.DatKiemSoatChatLuong(body.GoldCheckPercent, body.RequireReview, _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -873,6 +873,7 @@ namespace Crowd.Project.Api.Services
                 Redundancy = duAn.Redundancy,
                 MaxRedundancy = duAn.TranRedundancy(),
                 GoldCheckPercent = duAn.GoldCheckPercent,
+                RequireReview = duAn.RequireReview,
                 Deadline = duAn.Deadline.Value,
                 AllowProfessional = duAn.AllowProfessional,
                 AllowLinkGateway = duAn.AllowLinkGateway,
@@ -1000,6 +1001,7 @@ namespace Crowd.Project.Api.Services
                 Redundancy = p.Redundancy,
                 MaxRedundancy = p.TranRedundancy(),
                 GoldCheckPercent = p.GoldCheckPercent,
+                RequireReview = p.RequireReview,
                 Deadline = p.Deadline,
                 AllowProfessional = p.AllowProfessional,
                 AllowLinkGateway = p.AllowLinkGateway,

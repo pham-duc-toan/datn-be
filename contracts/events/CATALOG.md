@@ -45,6 +45,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `project.invitation_created` | notification | Loi moi vao du an: `userId` co → thong bao + email theo tuy chon; `userId` null (email chua co tai khoan) → email giao dich kem link dang ky `…/dang-ky?email=&invitation=` |
 | `join_request.decided` (`reason = "het_han"`) | notification | Don xin tham gia qua `project.join_request_ttl` tu het han — bao labeler "don da het han" |
 | `project.published` (them `sensitiveContent`, khong bat buoc) | task, quality | Muc 2.9: task-svc tra `sensitiveContent` trong lease va ep nghi giai lao (`welfare.*`) |
+| `project.published` (them `requireReview`, khong bat buoc — thieu = `true`) | annotation | Du an khong can duyet tung nhan: consumer `consensus.reached` tu duyet nhan khop (va task `notApplicable`). Hop dong nghiem ngat (D-12): moi consumer cua `project.published` phai deploy cung dot |
 | `join_request.submitted` | notification | Labeler gui don xin tham gia du an che do `approval` (hoac lam dat bai test, kem `scorePercent`) → bao chu du an |
 | `join_request.decided` | notification | Chu du an duyet / tu choi don (kem ly do) → bao labeler. Duyet thi `member.added` (`via = join_request`) di cung transaction |
 

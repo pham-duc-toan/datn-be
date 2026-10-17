@@ -165,6 +165,8 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
                 b.Property(x => x.ClosedAt).HasColumnName("closed_at");
                 b.Property(x => x.IsFinal).HasColumnName("is_final").IsRequired();
+                // KHONG HasDefaultValue(true): EF se bo gia tri false khoi INSERT → DB dien true. Migration dien true cho du an cu.
+                b.Property(x => x.RequireReview).HasColumnName("require_review").IsRequired();
                 b.Ignore(x => x.DaDong);
 
                 // Tap nhan dang chuan, chep nguyen tu project.published.

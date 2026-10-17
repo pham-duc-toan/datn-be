@@ -870,6 +870,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("require_entrance_test");
 
+                    b.Property<bool>("RequireReview")
+                        .HasColumnType("boolean")
+                        .HasColumnName("require_review");
+
                     b.Property<bool>("RequireVerifiedIdentity")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")

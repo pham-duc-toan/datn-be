@@ -72,6 +72,29 @@ namespace Crowd.Annotation.Tests
             // Mot nhan chi Approved mot lan (chi tien mot lan).
             Assert.Throws<RuleViolationException>(() => a.TuDuyetTheoDongThuan(T2));
         }
+
+        [Fact]
+        public void Du_an_khong_can_duyet_tu_duyet_nhan_chua_co_dong_thuan_nhung_khong_duyet_nhan_lech()
+        {
+            LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null),
+                T1);
+
+            // Dong thuan "notApplicable": ConsensusAgrees de trong → duyet duoc.
+            a.TuDuyetKhongCanDuyet(T2);
+            Assert.Equal(AnnotationStatus.Approved, a.Status);
+            Assert.Null(a.ReviewerId);
+
+            LabelAnnotation lech = LabelAnnotation.TaoTuLuotNop(
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null),
+                T1);
+            lech.GhiDongThuan(false, T1);
+            RuleViolationException ex = Assert.Throws<RuleViolationException>(() => lech.TuDuyetKhongCanDuyet(T2));
+            Assert.Equal("chua_khop_dong_thuan", ex.Code);
+            Assert.Equal(AnnotationStatus.PendingReview, lech.Status);
+        }
     }
 
     public sealed class ReviewTests

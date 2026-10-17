@@ -136,6 +136,7 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_chi_so_chat_luong.py` | Krippendorff alpha mọi loại công cụ, Fleiss' kappa, STAPLE mặt nạ; quality-svc tự bù bản sao dự án thiếu |
 | `e2e_watermark_av.py` | Watermark âm thanh (FLAC) / video (H.264): tua (Range 206), bộ đệm, admin giải mã ra đúng labeler, tắt bằng setting. Cần ffmpeg |
 | `e2e_hang_doi_duyet.py` | Hàng đợi duyệt chung (KYB, dự án, khiếu nại, link, giới thiệu nghi lạm dụng), audit lượt xem giấy tờ (S-07), cổng link chỉ cho công cụ làm nhanh, mẫu bài toán, audit chỉ-ghi-thêm ở mức CSDL, cảnh báo DLQ |
+| `e2e_tu_duyet.py` | Cờ `requireReview` của dự án: tự duyệt nhãn khớp đồng thuận / câu trả lời mở, nhãn lệch và mẫu tranh chấp vẫn chờ, khoá sau publish; `GET /projects/{id}/samples?ids=` (tên file gốc, chỉ chủ dự án) |
 | `e2e_thong_bao_realtime.py` | Ngôn ngữ thông báo, WebSocket qua gateway (vé dùng một lần, mã đóng 4401), email 2FA bắt buộc, thư mời người chưa có tài khoản, email cảnh báo DLQ, hạn giữ thông báo |
 | `e2e_thanh_vien.py` | Vào dự án (kiến trúc 3.16): mời theo email / userId, một và nhiều người (kết quả từng dòng, giới hạn lô); **VD-S-16**: mời theo email ra cùng một kết quả cho email có / chưa có tài khoản / đã là thành viên / bị chặn, chủ dự án không thấy userId tới khi chấp nhận, lời mời câm, hạn mức email / 24 giờ (429 + `Retry-After`); mã mời (gõ tay, hết lượt, hết hạn, thu hồi, **6 người tranh 3 lượt**, dùng được khi dự án còn Nháp); kiểm cấp độ / uy tín ở `join`, lúc mời, mã mời và **trước** bài test; chế độ `approval` (gửi đơn, trùng, từ chối + thời gian chờ, rút, duyệt, uy tín tụt lúc duyệt, đơn tự đóng khi vào bằng đường khác) và `approval` kèm bài test (đạt → đơn kèm điểm); thông báo cho cả hai phía; nhận task thật sau khi vào. Cấp độ / uy tín đặt thẳng trong `identity_db.labeler_stats` |
 
@@ -991,7 +992,7 @@ curl -s -X PUT http://localhost:8080/admin/settings/project.auto_approve -H "Aut
 # Publish một dự án nháp (mục 6.4): ký quỹ xong là chuyển thẳng running, không vào hàng đợi admin.
 ```
 
-**Tự duyệt nhãn khớp đồng thuận** — `annotation.auto_approve_agreed`: bật lên thì khi quality-svc báo task `agreed`, các nhãn chờ duyệt khớp đồng thuận được hệ thống duyệt luôn (`reviewerId` rỗng, lịch sử `auto_approved`) và labeler được trả tiền.
+**Tự duyệt nhãn khớp đồng thuận** — theo từng dự án: `PUT /projects/{id}/quality-control {"goldCheckPercent":10,"requireReview":false}` khi nháp. Áp cho mọi dự án: setting `annotation.auto_approve_agreed`. Khi quality-svc báo task `agreed`, các nhãn chờ duyệt khớp đồng thuận được hệ thống duyệt luôn (`reviewerId` rỗng, lịch sử `auto_approved`) và labeler được trả tiền. Dự án `requireReview = false` còn tự duyệt cả task `notApplicable` (chỉ câu trả lời mở); nhãn lệch và mẫu tranh chấp vẫn chờ chủ dự án.
 
 **Hàng đợi duyệt rút tiền** — `ledger.withdraw_auto_approve` (bật), `ledger.withdraw_auto_approve_max_vnd` (2.000.000):
 

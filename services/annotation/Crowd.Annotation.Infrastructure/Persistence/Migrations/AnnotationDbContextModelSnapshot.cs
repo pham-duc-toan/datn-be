@@ -308,6 +308,10 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("platform_fee_vnd");
 
+                    b.Property<bool>("RequireReview")
+                        .HasColumnType("boolean")
+                        .HasColumnName("require_review");
+
                     b.Property<long>("UnitPriceVnd")
                         .HasColumnType("bigint")
                         .HasColumnName("unit_price_vnd");

@@ -56,6 +56,9 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Redundancy).HasColumnName("redundancy").IsRequired();
             builder.Property(x => x.MaxRedundancy).HasColumnName("max_redundancy").IsRequired();
             builder.Property(x => x.GoldCheckPercent).HasColumnName("gold_check_percent").IsRequired();
+            // KHONG HasDefaultValue(true): EF se bo gia tri false (mac dinh CLR) khoi INSERT → DB dien true. Mac dinh dat o Tao();
+            // migration dien true cho du an cu.
+            builder.Property(x => x.RequireReview).HasColumnName("require_review").IsRequired();
             builder.Property(x => x.BudgetVnd).HasColumnName("budget_vnd").IsRequired();
             builder.Property(x => x.Deadline).HasColumnName("deadline");
 

@@ -48,6 +48,8 @@ class ProjectPublished(Payload):
     sample_count: int
     # Noi dung nhay cam (muc 2.9) — khong bat buoc, ban tin cu khong co.
     sensitive_content: bool | None = None
+    # Co can duyet tung nhan (false = annotation-svc tu duyet nhan khop dong thuan) — khong bat buoc.
+    require_review: bool | None = None
 
 
 class ProjectCompleted(Payload):

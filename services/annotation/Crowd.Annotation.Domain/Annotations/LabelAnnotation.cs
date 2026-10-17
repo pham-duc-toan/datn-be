@@ -255,6 +255,28 @@ namespace Crowd.Annotation.Domain.Annotations
             _history.Add(new AnnotationHistoryEntry("auto_approved", null, "Khop dong thuan", luc));
         }
 
+        /// <summary>
+        /// Du an KHONG CAN DUYET (co require_review = false) ma dong thuan "notApplicable" (tap nhan
+        /// chi co cau tra loi mo — khong co gi de so): he thong duyet luon. Nhan lech da so KHONG di
+        /// duong nay (ConsensusAgrees = false) — van cho chu du an.
+        /// </summary>
+        public void TuDuyetKhongCanDuyet(DateTimeOffset luc)
+        {
+            if (Status != AnnotationStatus.PendingReview)
+            {
+                throw new RuleViolationException("da_duyet", "Khong the tu duyet: nhan dang o trang thai " + Status + ".");
+            }
+
+            if (ConsensusAgrees == false)
+            {
+                throw new RuleViolationException("chua_khop_dong_thuan", "Nhan lech dong thuan phai cho nguoi duyet.");
+            }
+
+            Status = AnnotationStatus.Approved;
+            ReviewedAt = luc;
+            _history.Add(new AnnotationHistoryEntry("auto_approved", null, "Du an khong can duyet tung nhan", luc));
+        }
+
         public void Duyet(Guid reviewerId, DateTimeOffset luc)
         {
             KiemTruocKhiDuyet(reviewerId, "duyet");

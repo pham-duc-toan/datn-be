@@ -287,9 +287,12 @@ namespace Crowd.Project.Api.Services
         /// <summary>
         /// Mau kem link xem file. CHI chu du an: link cho phep xem du lieu goc, va du
         /// lieu goc la tai san cua doanh nghiep (P-01).
+        ///
+        /// ids (tuy chon, toi da 100): chi lay cac mau nay — trang ket qua / duyet hien ten file goc va
+        /// anh xem truoc cho dung cac mau dang hien, khong phai tai het du an.
         /// </summary>
         public async Task<PagedResponse<SampleResponse>> DanhSachMauAsync(
-            Guid projectId, int page, int pageSize, Caller caller, CancellationToken ct)
+            Guid projectId, int page, int pageSize, IReadOnlyList<Guid>? ids, Caller caller, CancellationToken ct)
         {
             await _access.LayDeQuanLyAsync(projectId, caller, ct);
 
@@ -308,6 +311,18 @@ namespace Crowd.Project.Api.Services
             }
 
             IQueryable<Sample> q = _db.Samples.AsNoTracking().Where(s => s.ProjectId == projectId);
+            if (ids != null && ids.Count > 0)
+            {
+                if (ids.Count > 100)
+                {
+                    throw new InvalidValueException("qua_nhieu_mau", "Toi da 100 ma mau moi lan.");
+                }
+
+                q = q.Where(s => ids.Contains(s.Id));
+                page = 1;
+                pageSize = 100;
+            }
+
             int tong = await q.CountAsync(ct);
 
             List<Sample> trang = await q

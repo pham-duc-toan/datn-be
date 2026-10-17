@@ -122,6 +122,12 @@ namespace Crowd.Contracts.Project
         /// buoc — ban tin cu khong co = khong nhay cam.
         /// </summary>
         public bool? SensitiveContent { get; init; }
+
+        /// <summary>
+        /// Co can duyet tung nhan khong. false = annotation-svc tu duyet nhan khop dong thuan. KHONG bat
+        /// buoc — ban tin cu khong co = can duyet (hanh vi cu).
+        /// </summary>
+        public bool? RequireReview { get; init; }
     }
 
     public sealed record ProjectPaused : IEventPayload

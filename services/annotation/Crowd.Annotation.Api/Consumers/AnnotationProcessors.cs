@@ -149,7 +149,7 @@ namespace Crowd.Annotation.Api.Consumers
 
             // Doc qua dung cua kiem cua Crowd.Labeling: tap nhan hong → NEM LOI → DLQ.
             _db.ProjectTerms.Add(ProjectTerms.Tao(
-                p.ProjectId, p.OwnerId, p.UnitPriceVnd, p.PlatformFeeVnd, LabelSchema.Doc(p.LabelSchema)));
+                p.ProjectId, p.OwnerId, p.UnitPriceVnd, p.PlatformFeeVnd, LabelSchema.Doc(p.LabelSchema), p.RequireReview != false));
         }
     }
 

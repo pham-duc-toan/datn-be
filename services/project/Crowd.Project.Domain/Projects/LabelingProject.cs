@@ -91,6 +91,13 @@ namespace Crowd.Project.Domain.Projects
         /// </summary>
         public int GoldCheckPercent { get; private set; }
 
+        /// <summary>
+        /// Co can duyet tung nhan khong (mac dinh co). false = nhan KHOP dong thuan (va nhan cua du an
+        /// chi co cau tra loi mo — khong gop duoc) duoc he thong tu duyet va tra tien; nhan lech da so /
+        /// mau tranh chap van cho chu du an. Chot luc publish (dieu khoan voi labeler).
+        /// </summary>
+        public bool RequireReview { get; private set; }
+
         /// <summary>Ngan sach toi da — cung la so tien ky quy khi publish.</summary>
         public long BudgetVnd { get; private set; }
 
@@ -233,6 +240,7 @@ namespace Crowd.Project.Domain.Projects
             duAn.EntranceQuestionCount = quyDinh.SoCauTestMacDinh;
             duAn.GoldCheckPercent = quyDinh.GoldCheckPercentMacDinh;
             duAn.EntrancePassPercent = quyDinh.NguongDauMacDinh;
+            duAn.RequireReview = true;
 
             return duAn;
         }
@@ -418,8 +426,11 @@ namespace Crowd.Project.Domain.Projects
             UpdatedAt = luc;
         }
 
-        /// <summary>Ti le cau vang kiem tra tron vao luong task (FQ-04).</summary>
-        public void DatKiemSoatChatLuong(int goldCheckPercent, DateTimeOffset luc, QuyDinhDuAn quyDinh)
+        /// <summary>
+        /// Ti le cau vang kiem tra tron vao luong task (FQ-04) va co can duyet tung nhan.
+        /// requireReview null = giu nguyen (client cu chi gui ti le cau vang).
+        /// </summary>
+        public void DatKiemSoatChatLuong(int goldCheckPercent, bool? requireReview, DateTimeOffset luc, QuyDinhDuAn quyDinh)
         {
             ChiKhiNhap("doi kiem soat chat luong");
 
@@ -431,6 +442,11 @@ namespace Crowd.Project.Domain.Projects
             }
 
             GoldCheckPercent = goldCheckPercent;
+            if (requireReview.HasValue)
+            {
+                RequireReview = requireReview.Value;
+            }
+
             UpdatedAt = luc;
         }
 

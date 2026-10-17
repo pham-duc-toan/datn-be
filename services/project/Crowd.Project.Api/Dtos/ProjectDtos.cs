@@ -91,6 +91,9 @@ namespace Crowd.Project.Api.Dtos
     {
         /// <summary>Phan tram so lan cap task la cau vang kiem tra, 0-50.</summary>
         public int GoldCheckPercent { get; init; }
+
+        /// <summary>Co can duyet tung nhan khong. Bo trong = giu nguyen.</summary>
+        public bool? RequireReview { get; init; }
     }
 
     public sealed class ReasonRequest
@@ -140,6 +143,9 @@ namespace Crowd.Project.Api.Dtos
 
         /// <summary>Phan tram cau vang kiem tra tron vao luong task.</summary>
         public required int GoldCheckPercent { get; init; }
+
+        /// <summary>false = nhan khop dong thuan duoc tu duyet (khong can duyet tung nhan).</summary>
+        public required bool RequireReview { get; init; }
 
         public DateTimeOffset? Deadline { get; init; }
 

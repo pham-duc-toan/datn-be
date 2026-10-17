@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
@@ -325,12 +326,31 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.DanhSachAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
         }
 
-        /// <summary>GET /projects/{id}/samples?page=&amp;pageSize= — kem link xem file 5 phut (hoac noi dung text).</summary>
+        /// <summary>
+        /// GET /projects/{id}/samples?page=&amp;pageSize=&amp;ids=a,b,c — kem ten file goc va link xem file
+        /// 5 phut (hoac noi dung text). ids: chi lay cac mau nay (toi da 100).
+        /// </summary>
         [HttpGet("samples")]
-        public async Task<IActionResult> Mau(Guid projectId, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
+        public async Task<IActionResult> Mau(Guid projectId, [FromQuery] int page, [FromQuery] int pageSize, [FromQuery] string? ids, CancellationToken ct)
         {
+            List<Guid>? loc = null;
+            if (!string.IsNullOrWhiteSpace(ids))
+            {
+                loc = new List<Guid>();
+                foreach (string phan in ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    Guid g;
+                    if (!Guid.TryParse(phan, out g))
+                    {
+                        throw new InvalidValueException("ma_mau_khong_hop_le", "Ma mau '" + phan + "' khong hop le.");
+                    }
+
+                    loc.Add(g);
+                }
+            }
+
             return Ok(await _service.DanhSachMauAsync(
-                projectId, page, pageSize, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
+                projectId, page, pageSize, loc, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
         }
     }
 

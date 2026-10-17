@@ -43,6 +43,12 @@ namespace Crowd.Annotation.Domain.Projects
         public string Modality { get; private set; }
 
         /// <summary>
+        /// false = du an khong can duyet tung nhan: nhan khop dong thuan (hoac du an chi co cau tra
+        /// loi mo) duoc tu duyet ngay khi co ket qua dong thuan.
+        /// </summary>
+        public bool RequireReview { get; private set; }
+
+        /// <summary>
         /// Luc dong so (project-svc goi truoc khi hoan thanh / huy). null = dang mo.
         /// </summary>
         public DateTimeOffset? ClosedAt { get; private set; }
@@ -77,7 +83,8 @@ namespace Crowd.Annotation.Domain.Projects
             Guid ownerId,
             long unitPriceVnd,
             long platformFeeVnd,
-            LabelSchema labelSchema)
+            LabelSchema labelSchema,
+            bool requireReview)
         {
             if (labelSchema == null)
             {
@@ -89,6 +96,7 @@ namespace Crowd.Annotation.Domain.Projects
             t.OwnerId = ownerId;
             t.UnitPriceVnd = unitPriceVnd;
             t.PlatformFeeVnd = platformFeeVnd;
+            t.RequireReview = requireReview;
             t.Modality = labelSchema.Modality;
             t._labelSchemaJson = labelSchema.ToRawJson().Json;
             t._labelSchema = labelSchema;

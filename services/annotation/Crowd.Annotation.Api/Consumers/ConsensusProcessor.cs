@@ -111,17 +111,35 @@ namespace Crowd.Annotation.Api.Consumers
                 }
             }
 
-            if (p.Status == ConsensusStatus.Agreed && _settings.DungSai(SettingKeys.AnnotationAutoApproveAgreed))
+            // Tu duyet khi: setting toan he thong annotation.auto_approve_agreed, HOAC du an tat
+            // "can duyet tung nhan" (project_terms.require_review = false). Mau tranh chap khong bao gio
+            // tu duyet; nhan lech da so van cho chu du an.
+            if (p.Status == ConsensusStatus.Disputed)
             {
-                await TuDuyetAsync(p.ProjectId, nhan.Values, envelope, ct);
+                return;
+            }
+
+            bool khongCanDuyet = await _db.ProjectTerms.AsNoTracking()
+                .AnyAsync(t => t.ProjectId == p.ProjectId && !t.RequireReview, ct);
+            if (p.Status == ConsensusStatus.Agreed && (khongCanDuyet || _settings.DungSai(SettingKeys.AnnotationAutoApproveAgreed)))
+            {
+                await TuDuyetAsync(p.ProjectId, nhan.Values, false, envelope, ct);
+            }
+            else if (p.Status == ConsensusStatus.NotApplicable && khongCanDuyet)
+            {
+                await TuDuyetAsync(p.ProjectId, nhan.Values, true, envelope, ct);
             }
         }
 
+        /// <summary>
+        /// khongCoDongThuan = true: dong thuan "notApplicable" (chi cau tra loi mo) — duyet moi nhan
+        /// dang cho; false: chi nhan KHOP dong thuan.
+        /// </summary>
         private async Task TuDuyetAsync(
-            Guid projectId, IEnumerable<LabelAnnotation> nhan, EventEnvelope<ConsensusReached> envelope, CancellationToken ct)
+            Guid projectId, IEnumerable<LabelAnnotation> nhan, bool khongCoDongThuan, EventEnvelope<ConsensusReached> envelope, CancellationToken ct)
         {
             List<LabelAnnotation> duocDuyet = nhan
-                .Where(a => a.Status == AnnotationStatus.PendingReview && a.ConsensusAgrees == true)
+                .Where(a => a.Status == AnnotationStatus.PendingReview && (khongCoDongThuan ? a.ConsensusAgrees != false : a.ConsensusAgrees == true))
                 .ToList();
             if (duocDuyet.Count == 0)
             {
@@ -145,13 +163,21 @@ namespace Crowd.Annotation.Api.Consumers
             DateTimeOffset bayGio = _clock.GetUtcNow();
             foreach (LabelAnnotation a in duocDuyet)
             {
-                a.TuDuyetTheoDongThuan(bayGio);
+                if (khongCoDongThuan)
+                {
+                    a.TuDuyetKhongCanDuyet(bayGio);
+                }
+                else
+                {
+                    a.TuDuyetTheoDongThuan(bayGio);
+                }
+
                 _events.PhatDaDuyet(a, dieuKhoan, heThong);
             }
 
             _logger.LogInformation(
-                "Tu duyet {So} nhan khop dong thuan cua task {TaskId} (annotation.auto_approve_agreed)",
-                duocDuyet.Count, envelope.Payload.TaskId);
+                "Tu duyet {So} nhan cua task {TaskId} (dong thuan {Status}; khong can duyet hoac annotation.auto_approve_agreed)",
+                duocDuyet.Count, envelope.Payload.TaskId, envelope.Payload.Status);
         }
 
         /// <summary>Cung chuoi camelCase cua hop dong — giu nguyen khi luu.</summary>

@@ -274,11 +274,26 @@ namespace Crowd.Project.Tests
             LabelingProject p = DuAnSanSang();
             Assert.Equal(10, p.GoldCheckPercent);
 
-            p.DatKiemSoatChatLuong(0, Luc, QuyDinhMau.DuAn);
+            p.DatKiemSoatChatLuong(0, null, Luc, QuyDinhMau.DuAn);
             Assert.Equal(0, p.GoldCheckPercent);
 
-            InvalidValueException ex = Assert.Throws<InvalidValueException>(() => p.DatKiemSoatChatLuong(51, Luc, QuyDinhMau.DuAn));
+            InvalidValueException ex = Assert.Throws<InvalidValueException>(() => p.DatKiemSoatChatLuong(51, null, Luc, QuyDinhMau.DuAn));
             Assert.Equal("ti_le_cau_vang_khong_hop_le", ex.Code);
+        }
+
+        [Fact]
+        public void Mac_dinh_can_duyet_tung_nhan_tat_duoc_va_null_giu_nguyen()
+        {
+            LabelingProject p = DuAnSanSang();
+            Assert.True(p.RequireReview);
+
+            p.DatKiemSoatChatLuong(10, false, Luc, QuyDinhMau.DuAn);
+            Assert.False(p.RequireReview);
+
+            // Client cu chi gui ti le cau vang: khong doi co duyet.
+            p.DatKiemSoatChatLuong(20, null, Luc, QuyDinhMau.DuAn);
+            Assert.False(p.RequireReview);
+            Assert.Equal(20, p.GoldCheckPercent);
         }
 
         [Fact]

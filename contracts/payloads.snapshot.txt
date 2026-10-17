@@ -312,6 +312,7 @@ project.published v1  (ProjectPublished)
     ProjectId                Guid                 required
     Redundancy               Int32                required
     RequireEntranceTest      Boolean              required
+    RequireReview            Boolean?             nullable
     SampleCount              Int32                required
     SensitiveContent         Boolean?             nullable
     UnitPriceVnd             Int64                required
