@@ -19,7 +19,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `user.sessions_revoked` | gateway | S-11: `{userId, revokedAt, reason}` — gateway chan moi access token cua user co `iat < revokedAt` (doi / dat lai mat khau, dang xuat moi noi, bi khoa). Gateway mat event (khoi dong lai) thi nap lai qua `GET /internal/session-revocations` cua identity |
 | `user.blocked` | task, ledger, notification (du kien: gate, link) | Chan nhan task, khoa rut tien, bao + email (bat buoc) kem ly do. Phat khi admin khoa (FM-01) hoac khi admin xac nhan ho so gian lan co khoa tai khoan (FM-07) |
 | `user.unblocked` | notification, task, ledger | Bao + email "da mo khoa"; task / ledger mo lai nhan task / rut tien |
-| `level.changed` | task, notification | FL-12: identity tinh lai cap tu so nhan da duyet + uy tin (`identity.level_rules`) |
+| `level.changed` | task, notification | FL-12: identity tinh lai cap tu so cau trong cac bai DAT (`project.graded`, khieu nai chap nhan) + uy tin (`identity.level_rules`) |
 | `badge.awarded` | notification | FL-12: huy hieu moi (moc 100 / 1000 / 10000 nhan, uy tin cao) |
 | `business.kyb_submitted` | admin | Ho so cho duyet → muc `kyb` trong hang doi duyet chung (`GET /admin/approvals`) |
 | `business.verified` | notification | Bao + email "da xac minh". project KHONG con nghe: quyen publish doc claim `kyb_verified` trong access token (KYB chi chan publish, khong chan nap tien) |
@@ -34,18 +34,18 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | Event | Consumer | Muc dich |
 |---|---|---|
 | `project.publish_requested` | ledger, notification, admin | **Saga buoc 1** — yeu cau ky quy (2.11). Them `projectName` (ledger in len hoa don). notification: ban sao chu du an (`project_owners`). admin: muc `project` trang thai `waiting` (cho ky quy) |
-| `project.published` | task, annotation, ledger, quality, notification, ml | Sinh task, chot dieu khoan, tran chi tra (`MaxRedundancy`), ban sao tap nhan cho quality |
-| `project.paused` / `project.resumed` | task | Ngung/mo cap phat task |
-| `project.cancelled` | task, ledger, quality, gate, notification | Dung task + hoan tien phan chua dung; bao doanh nghiep neu da ky quy. quality / task: moc bat dau dem `project.closed_data_retention` (don du lieu van hanh); gate: xoa mau cua du an |
-| `project.completed` | task, ledger, quality, gate, notification | Giai phong escrow con du. quality / task: moc bat dau dem `project.closed_data_retention`; gate: xoa mau cua du an |
+| `project.published` **v2** | task, annotation, ledger, quality, gate, notification, ml | Du an lam trung tam (kien truc 3.18): `RewardVnd` / `PlatformFeeVnd` MOI SUAT, `Slots`, `PassThresholdPercent` (t), `QuestionCount`, kenh, `GateUnitPriceVnd` / `GatePlatformFeeVnd` / `GateBudgetVnd` (cong link). task: mo thu bai; ledger: chot dieu khoan tra thuong (chan vuot so suat); quality: ban sao tap nhan + t; gate: don gia rieng cong link |
+| `project.finish_requested` | task | 3.18: doanh nghiep ket thuc som → task-svc dong thu bai ngay (`ket_thuc_som`) |
+| `project.paused` / `project.resumed` | task | Ngung / mo nhan bai; tiep tuc thi cong bu thoi gian lam bai cho bai dang lam |
+| `project.cancelled` **v2** | task, ledger, quality, annotation, gate, notification | Chi khi CHUA co bai nop (khong con `ApprovedAnnotationCount`) — huy bai dang lam + hoan TOAN BO ky quy; bao doanh nghiep neu da ky quy. quality / task: moc bat dau dem `project.closed_data_retention` (don du lieu van hanh); gate: xoa mau cua du an |
+| `project.completed` **v2** | task, ledger, quality, annotation, gate, notification | `PassedAttemptCount` = so bai dat cuoi cung: ledger tra du so bai do roi hoan phan con lai (con thieu → `Closing`, NC-B-01). quality / task: moc bat dau dem `project.closed_data_retention`; gate: xoa mau cua du an |
 | `dataset.ingested` | task, ml | Sinh task tu sample; ml bat dau pre-label |
 | `gold_set.updated` | task, gate | Cap nhat bo cau hoi vang |
 | `member.added` / `member.blocked` / `member.unblocked` / `member.removed` | task, annotation, media | Nhan ban `project_members` sang `*_members_cache` — nen cua phan quyen chieu ngang (VD-S-14) |
 | `member.added` (them `via`, `projectName`, khong bat buoc) | notification | `via = owner_invite`: bao nguoi duoc chu du an moi. Cac duong khac (`invite_code`, `join`, `entrance_test`, `join_request`) khong bao — nguoi do tu bam, don duoc duyet bao qua `join_request.decided`. Ban tin cu khong co `via` → khong bao |
 | `project.invitation_created` | notification | Loi moi vao du an: `userId` co → thong bao + email theo tuy chon; `userId` null (email chua co tai khoan) → email giao dich kem link dang ky `…/dang-ky?email=&invitation=` |
 | `join_request.decided` (`reason = "het_han"`) | notification | Don xin tham gia qua `project.join_request_ttl` tu het han — bao labeler "don da het han" |
-| `project.published` (them `sensitiveContent`, khong bat buoc) | task, quality | Muc 2.9: task-svc tra `sensitiveContent` trong lease va ep nghi giai lao (`welfare.*`) |
-| `project.published` (them `requireReview`, khong bat buoc — thieu = `true`) | annotation | Du an khong can duyet tung nhan: consumer `consensus.reached` tu duyet nhan khop (va task `notApplicable`). Hop dong nghiem ngat (D-12): moi consumer cua `project.published` phai deploy cung dot |
+| `project.published` (`sensitiveContent`, khong bat buoc) | task, quality | Muc 2.9: task-svc tra `sensitiveContent` trong bai lam (frontend che mau toi khi bam hien). Ep nghi giai lao da bo (3.18) |
 | `join_request.submitted` | notification | Labeler gui don xin tham gia du an che do `approval` (hoac lam dat bai test, kem `scorePercent`) → bao chu du an |
 | `join_request.decided` | notification | Chu du an duyet / tu choi don (kem ly do) → bao labeler. Duyet thi `member.added` (`via = join_request`) di cung transaction |
 
@@ -53,30 +53,26 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| ~~`task.leased`~~ | — | **DA BO (2026-10-13)**: moi lan nhan task mot event ma khong service nao nghe. Toc do lam bai (FM-07) do bang `LeasedAt` trong `assignment.submitted` |
-| `assignment.submitted` | annotation, quality | quality: dau vao chong gian lan (FM-07: lam qua nhanh, mot nhan lien tuc, nhieu tai khoan mot IP / thiet bi). Labeler nop nhan cho mot luot lease HOP LE — annotation-svc luu nhan roi phat `annotation.submitted`. Nop di qua task-svc vi kiem lease va danh dau da nop phai nguyen tu tren du lieu cua task-svc (VD-T-01) |
-| `task.lease_expired` | — | Metric |
-| `task.redundancy_reached` | quality | Du n ban nhan -> tinh dong thuan |
-| `task.redundancy_changed` | — | Audit cho redundancy thich ung (FQ-03): task vua doi redundancy theo yeu cau cua quality |
-| `gold.answered` | quality | Labeler tra loi mot cau vang kiem tra tron trong luong task; task-svc tu cham (Crowd.Labeling), mang `Correct` |
+| `attempt.submitted` | annotation, quality | 3.18: labeler nop CA BAI. Moi cau THAT (cau bo trong: `labelPayload = null`) kem thong tin mau; cau vang chi mang `GoldCorrect` / `GoldTotal` (task-svc cham luc nop — khong lo cau nao la vang). annotation: luu nhan `submitted`; quality: luu bai + chong gian lan (FM-07 theo bai: giay / cau, chuoi cung lop, chung IP / thiet bi) |
+| `project.collection_finished` | quality, project | 3.18: dong thu bai (`du_suat` / `het_han` / `ket_thuc_som`), danh sach bai phai cham + cau bi loai (bao loi duoc chap nhan). project: Running → Grading |
+| `attempt.appeal_opened` | admin | 3.18: labeler truot khieu nai CA BAI → muc `appeal` trong hang doi duyet chung (`subjectId` = attemptId) |
+| `attempt.appeal_resolved` | annotation, ledger, identity, notification, admin | Admin phan xu. `Accepted`: nhan cua bai vao ket qua, tra thuong, cong cap do (`AnsweredCount`); dong muc hang doi |
+| `project.settled` | project | Het han khieu nai + khong con khieu nai mo → chot so bai dat (`PassedAttemptCount`) → project Completed |
+| ~~`assignment.submitted`~~, ~~`task.leased`~~, ~~`task.lease_expired`~~, ~~`task.redundancy_reached`~~, ~~`task.redundancy_changed`~~, ~~`gold.answered`~~ | — | **DA BO (3.18)**: khong con lease / redundancy / cau vang tron trong luong task |
 
 ## annotation-svc
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `annotation.submitted` | quality, fraud | Dau vao dong thuan (gop nhan moi cong cu — kien truc 3.15) va Dawid-Skene; phat hien gian lan. Mang `sampleMetadata` (kich thuoc anh, do dai...): quality-svc can de so do lech diem moc / duong gap khuc theo duong cheo anh |
-| `annotation.approved` | ledger, notification, identity | **Chi tra**; notification: chi nhan kenh chuyen nghiep, thong bao GOP theo du an; identity: dem nhan da duyet (cap do, huy hieu, bang xep hang) |
-| `annotation.rejected` | notification | Thong bao |
-| `appeal.opened` | admin | Hang doi khieu nai (FL-09) → muc `appeal` trong hang doi duyet chung |
-| `appeal.resolved` | admin | Admin phan xu khieu nai xong (`accepted`). Tien / trang thai nhan van di bang `annotation.approved` / `annotation.rejected`; event nay de dong muc `appeal` trong hang doi duyet chung |
+| ~~`annotation.submitted`~~, ~~`annotation.approved`~~, ~~`annotation.rejected`~~, ~~`appeal.opened`~~, ~~`appeal.resolved`~~ | — | **DA BO (3.18)**: khong con duyet / khieu nai tung nhan. annotation-svc chi LUU nhan theo bai (`attempt.submitted`) va CHOT nhan vao ket qua theo `project.graded` / `attempt.appeal_resolved`; khong phat event nghiep vu nao |
 
 ## quality-svc  *(Python)*
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `consensus.reached` | annotation | Ket qua dong thuan cua MOT task (agreed / disputed / notApplicable) + tung nhan khop hay lech. `final` = ket qua gop theo TUNG cong cu (cung hinh dang voi nhan nop; null = cong cu tranh chap) — voi mat na / chuoi khung co the dai vai chuc KB. **Chi la goi y** cho nguoi duyet — khong tu duyet, khong tu chi tien |
-| `redundancy.increase_requested` | task | **Vong lap thich ung**: tranh chap ma chua cham tran → xin them MOT nguoi (`NewRedundancy` tuyet doi) |
-| `reputation.changed` | task, identity | Uy tin 0-100 = cau vang + muc khop dong thuan / do tin cay Dawid-Skene |
+| `project.graded` | task, annotation, ledger, identity, notification | 3.18: cham MOT lan ca du an. Moi bai: `ComparableCount`, `MatchedCount`, `AgreementPercent`, cau vang, `Passed` (= % >= t VA dung het cau vang), `AnsweredCount`; `MajorityUsed = false` khi < 3 bai (chi xet cau vang). ledger: tra thuong bai dat; annotation: Accepted / Excluded |
+| ~~`consensus.reached`~~, ~~`redundancy.increase_requested`~~ | — | **DA BO (3.18)**: khong con dong thuan theo task / redundancy thich ung |
+| `reputation.changed` | task, identity | Uy tin 0-100 = cau vang + ti le cau giong da so (cong don qua cac bai da cham) / do tin cay Dawid-Skene |
 | `dispute.detected` | task, admin | *(chua lam)* Day len reviewer cap cao |
 | `gold_failed` | task, fraud | *(chua lam)* Truot cau vang lien tuc -> nghi ngo |
 | `fraud.case_confirmed` | identity | FM-07: admin xac nhan ho so gian lan; `BlockAccounts = true` → identity khoa cac tai khoan (phat tiep `user.blocked`) |
@@ -101,15 +97,14 @@ phai khop tung truong voi record C# (anh chup `payloads.snapshot.txt`); payload 
 | `escrow.reserved` | project | **Saga buoc 2** — du tien, cho phep publish |
 | `escrow.rejected` | project, notification | Thieu tien -> tra ve Nhap; bao "Du an chua publish duoc" |
 | `escrow.released` | notification | Bao doanh nghiep phan ky quy con du da ve vi |
-| `funds.held` | notification | Vao so du cho doi soat (3–7 ngay) |
+| `funds.held` | notification, admin (dem) | Mot khoan thu cua nguoi lam: thuong bai dat (`ledger.reward_hold` = 0 → giai phong ngay), doanh thu cong link, hoa hong. `AnnotationId` = id bai lam / luot click |
 | `hold.expired` | notification | Da rut duoc. Thong bao GOP (sharer: moi luot click mot khoan treo) |
 | `payout.requested` | payment, notification | Lenh rut DA DUYET (tu duyet theo nguong hoac admin duyet) -> chuyen sang tich hop ngoai. Lenh cho duyet KHONG phat. notification: ban sao chu lenh rut (`withdrawal_owners`) |
 | `withdrawal.rejected` | notification | Admin tu choi lenh rut cho duyet; tien da ve vi kha dung. Bao + email (bat buoc) kem ly do |
 | `withdrawal.review_requested` | admin | Lenh rut vao hang doi duyet (khong tu duyet) → muc `withdrawal`; dong boi `payout.requested` / `withdrawal.rejected` |
 | `refund.issued` | notification | Hoan ky quy (huy / dong du an) |
-| `dispute.opened` | notification | FM-06: doanh nghiep tranh chap mot nhan da duyet — khoan treo cua labeler bi dong bang; bao labeler |
-| `dispute.resolved` | annotation, identity, notification | FM-06: admin phan xu. `RefundBusiness`: hoan tien cho doanh nghiep, annotation danh dau nhan bi loai, identity tru 1 nhan da duyet. `PayLabeler`: mo bang khoan treo |
-| `gate.budget_changed` | gate | Ngan sach cong link con lai cua du an (phan ky quy vuot muc danh cho labeler); `sequence` tang dan |
+| ~~`dispute.opened`~~, ~~`dispute.resolved`~~ | — | **DA BO (3.18)**: khong con tranh chap nhan da duyet (khong con duyet tung nhan) |
+| `gate.budget_changed` | gate | Ngan sach cong link con lai cua du an (`GateBudgetVnd` − da tieu, khong bao gio an vao phan thuong labeler); `sequence` tang dan |
 
 ## payment-svc
 

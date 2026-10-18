@@ -63,9 +63,8 @@ try:
     requests.put(G + f"/projects/{P}/label-schema", headers=biz["h"], json={"modality": "image", "tools": [
         {"name": "nhan", "kind": "classification", "classes": ["co_nguoi", "khong"]}]}).raise_for_status()
     requests.put(G + f"/projects/{P}/guideline", headers=biz["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
-    requests.put(G + f"/projects/{P}/pricing", headers=biz["h"], json={"unitPriceVnd": GIA, "redundancy": 1, "maxRedundancy": 1,
-                                                                       "budgetVnd": 2 * GIA * 4, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
-    requests.put(G + f"/projects/{P}/quality-control", headers=biz["h"], json={"goldCheckPercent": 0}).raise_for_status()
+    requests.put(G + f"/projects/{P}/pricing", headers=biz["h"], json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
+                                                                       "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
     r = requests.post(G + f"/projects/{P}/datasets", headers=biz["h"], files={"file": ("anh.zip", zip_anh(["mat.jpg", "canh.png"]), "application/zip")}, data={"name": "anh"})
     kiem("nap 2 anh (ZIP)", r.status_code in (200, 201), r.text)
     mau = {m["originalName"]: m for m in requests.get(G + f"/projects/{P}/samples?pageSize=100", headers=biz["h"]).json()["items"]}
@@ -86,8 +85,9 @@ try:
         cho(lambda: requests.post(G + f"/projects/{P}/join", headers=u["h"]).status_code in (200, 409), 10)
     goc = {m["id"]: n for n, m in mau.items()}
 
-    t1 = nhan_task(lab1, P)
-    kiem("labeler 1 nhan task co fileUrl qua media", t1 is not None and "/media/v/" in (t1.get("fileUrl") or ""), t1)
+    b1 = bat_dau(lab1, P)
+    t1 = b1["questions"][0]
+    kiem("labeler 1 mo bai: cau hoi co fileUrl qua media", "/media/v/" in (t1.get("fileUrl") or ""), t1)
     r1 = tai(t1["fileUrl"])
     ten1 = goc[t1["sampleId"]]
     kiem("labeler nhan anh KHAC ban goc (co watermark)", r1.status_code == 200 and sha(r1.content) != sha(ANH[ten1]), (r1.status_code, ten1))
@@ -96,20 +96,17 @@ try:
     kiem("admin giai ma anh 'ro ri' cua labeler 1 → dung labeler 1",
          g.get("found") and g["viewer"]["type"] == "user" and g["viewer"]["userId"] == lab1["id"] and g["confidence"] > 0.6, g)
 
-    t2 = nhan_task(lab2, P)
-    kiem("labeler 2 nhan task con lai", t2 is not None and t2["sampleId"] != t1["sampleId"], t2)
+    b2 = bat_dau(lab2, P)
+    t2 = next(q for q in b2["questions"] if q["sampleId"] == t1["sampleId"])
     r2 = tai(t2["fileUrl"])
     g2 = giai_ma(r2.content).json()
-    kiem("anh cua labeler 2 → giai ra labeler 2 (khong nham labeler 1)", g2.get("found") and g2["viewer"]["userId"] == lab2["id"], g2)
+    kiem("CUNG anh trong bai cua labeler 2 → giai ra labeler 2 (khong nham labeler 1)",
+         sha(r2.content) != sha(r1.content) and g2.get("found") and g2["viewer"]["userId"] == lab2["id"], g2)
 
     # Anh thu hai cua cung nguoi → van giai ra nguoi do (nguoi xem nhung thang trong anh).
-    r = requests.post(G + f"/tasks/assignments/{t1['assignmentId']}/submit", headers=lab1["h"], json={"payload": {"nhan": {"labelIds": ["co_nguoi"]}}})
-    kiem("labeler 1 nop task dau", r.status_code == 200, r.text)
-    requests.post(G + f"/tasks/assignments/{t2['assignmentId']}/release", headers=lab2["h"])
-    t1b = cho(lambda: nhan_task(lab1, P), 15)
-    if t1b is not None:
-        g1b = giai_ma(tai(t1b["fileUrl"]).content).json()
-        kiem("anh thu hai cua labeler 1 → van giai ra labeler 1", g1b.get("found") and g1b["viewer"]["userId"] == lab1["id"], g1b)
+    t1b = b1["questions"][1]
+    g1b = giai_ma(tai(t1b["fileUrl"]).content).json()
+    kiem("anh thu hai cua labeler 1 → van giai ra labeler 1", g1b.get("found") and g1b["viewer"]["userId"] == lab1["id"], g1b)
 
     kiem("labeler goi API giai ma → 403", giai_ma(r1.content, h=lab1["h"]).status_code == 403)
     kiem("khong dang nhap → 401", requests.post(G + "/media/admin/watermark/decode", files={"file": ("x.jpg", r1.content)}).status_code == 401)
@@ -129,8 +126,9 @@ try:
     kiem("token rac → 403", tai(G + "/media/v/abc").status_code == 403)
     dat_va_cho("storage.view_link_ttl", 10, ("task",))
     try:
-        tt = nhan_task(lab1, P)
-        kiem("link moi xem duoc ngay", tt is not None and tai(tt["fileUrl"]).status_code == 200)
+        # Mo lai bai (GET) → link moi theo han moi.
+        tt = requests.get(G + f"/tasks/attempts/{b1['attemptId']}", headers=lab1["h"]).json()["questions"][0]
+        kiem("link moi xem duoc ngay", tai(tt["fileUrl"]).status_code == 200)
         time.sleep(11)
         r = tai(tt["fileUrl"])
         kiem("qua 10 giay → 410 link_het_han", r.status_code == 410 and code(r) == "link_het_han", r.text)
@@ -138,24 +136,21 @@ try:
         dat_va_cho("storage.view_link_ttl", 300, ("task",))
 
     # =================================================================================
-    print("\n[4] Duyet nhan: chu du an xem ban goc, reviewer xem anh co watermark cua reviewer")
-    r = requests.post(G + f"/projects/{P}/members", headers=biz["h"], json={"userId": rev["id"], "role": "reviewer"})
-    kiem("them reviewer", r.status_code in (200, 201), r.text)
-    ds_chu = cho(lambda: [a for a in requests.get(G + f"/annotations/projects/{P}?status=pendingReview", headers=biz["h"]).json()["items"]
+    print("\n[4] Ket qua: chu du an xem nhan cua bai da nop → anh BAN GOC")
+    for q in b1["questions"]:
+        luu(lab1, b1["attemptId"], q["sampleId"], {"nhan": {"labelIds": ["co_nguoi"]}}).raise_for_status()
+    kiem("labeler 1 nop ca bai", nop_bai(lab1, b1["attemptId"]).status_code == 200)
+    ds_chu = cho(lambda: [a for a in requests.get(G + f"/annotations/projects/{P}?status=submitted", headers=biz["h"]).json()["items"]
                           if a["sampleId"] == t1["sampleId"]], 20)
-    kiem("chu du an tai anh trong man duyet = ban goc", bool(ds_chu) and sha(tai(ds_chu[0]["fileUrl"]).content) == sha(ANH[ten1]))
-    ds_rev = cho(lambda: [a for a in requests.get(G + f"/annotations/projects/{P}?status=pendingReview", headers=rev["h"]).json().get("items", [])
-                          if a["sampleId"] == t1["sampleId"]], 20)
-    kiem("reviewer thay nhan cho duyet", bool(ds_rev))
-    if ds_rev:
-        g = giai_ma(tai(ds_rev[0]["fileUrl"]).content).json()
-        kiem("anh reviewer tai ve giai ra chinh reviewer", g.get("found") and g["viewer"]["userId"] == rev["id"], g)
+    kiem("chu du an tai anh cua nhan = ban goc", bool(ds_chu) and sha(tai(ds_chu[0]["fileUrl"]).content) == sha(ANH[ten1]))
+    kiem("labeler khac khong xem duoc nhan cua du an → 404",
+         requests.get(G + f"/annotations/projects/{P}", headers=lab2["h"]).status_code in (403, 404))
 
     # =================================================================================
     print("\n[5] Admin tat watermark (setting) → labeler nhan ban goc")
     # media-svc khong co DB: giu setting trong bo nho → cho toi khi anh labeler doi.
     def anh_la_goc():
-        tt = nhan_task(lab1, P)
+        tt = requests.get(G + f"/tasks/attempts/{b2['attemptId']}", headers=lab2["h"]).json()["questions"][0]
         return sha(tai(tt["fileUrl"]).content) == sha(ANH[goc[tt["sampleId"]]])
     dat("media.watermark_enabled", False)
     try:

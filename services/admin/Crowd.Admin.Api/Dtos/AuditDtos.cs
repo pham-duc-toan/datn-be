@@ -53,21 +53,22 @@ namespace Crowd.Admin.Api.Dtos
 
         public required int ProjectsPublished { get; init; }
 
-        public required int AnnotationsSubmitted { get; init; }
+        /// <summary>Bai lam da nop (moi bai = ca du an).</summary>
+        public required int AttemptsSubmitted { get; init; }
 
-        public required int AnnotationsApproved { get; init; }
+        public required int ProjectsGraded { get; init; }
 
-        public required int AnnotationsRejected { get; init; }
+        public required int ProjectsCompleted { get; init; }
 
         public required long DepositsVnd { get; init; }
 
+        /// <summary>Tien da tra cho nguoi lam: thuong bai dat + doanh thu chia se link + hoa hong.</summary>
         public required long LabelerPayoutsVnd { get; init; }
-
-        public required long PlatformFeeVnd { get; init; }
 
         public required long WithdrawalsVnd { get; init; }
 
-        public required int DisputesOpened { get; init; }
+        /// <summary>Khieu nai ca bai da mo.</summary>
+        public required int AppealsOpened { get; init; }
 
         public required int AccountsBlocked { get; init; }
 
@@ -82,9 +83,9 @@ namespace Crowd.Admin.Api.Dtos
 
         public required int NewUsers { get; init; }
 
-        public required int AnnotationsSubmitted { get; init; }
+        public required int AttemptsSubmitted { get; init; }
 
-        public required int AnnotationsApproved { get; init; }
+        public required int ProjectsGraded { get; init; }
 
         public required long DepositsVnd { get; init; }
     }

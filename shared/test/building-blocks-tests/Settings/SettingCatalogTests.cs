@@ -61,8 +61,8 @@ namespace Crowd.BuildingBlocks.Tests.Settings
             // Gia tri doc tu JSON (DB / event) cung qua dung cua kiem.
             Assert.Null(phi.KiemGiaTri(JsonNode.Parse("40")));
 
-            SettingDefinition chinhSach = SettingCatalog.Lay(SettingKeys.QualityRedundancyPolicy);
-            Assert.Null(chinhSach.KiemGiaTri(JsonValue.Create("posterior")));
+            SettingDefinition chinhSach = SettingCatalog.Lay(SettingKeys.LedgerGatePayoutMode);
+            Assert.Null(chinhSach.KiemGiaTri(JsonValue.Create("batched")));
             Assert.NotNull(chinhSach.KiemGiaTri(JsonValue.Create("ngau_nhien")));
         }
 

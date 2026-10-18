@@ -16,9 +16,9 @@ namespace Crowd.Tasking.Domain.Reports
     }
 
     /// <summary>
-    /// Labeler bao mot task loi (FL-07): file khong mo duoc, noi dung khong phu hop, mo ta khong ro...
-    /// Bao loi = bo qua task (lease tra lai, nguoi bao khong nhan lai task nay) va de lai ghi chu cho
-    /// chu du an. Moi labeler bao mot task toi da mot lan (UNIQUE assignment).
+    /// Labeler bao mot CAU loi trong bai lam (FL-07): file khong mo duoc, noi dung khong phu hop, mo ta
+    /// khong ro... — de lai ghi chu cho chu du an. Chu du an (hoac du nguoi bao) loai mau → cau do bi bo
+    /// khoi phan cham. Moi bai bao mot cau toi da mot lan (UNIQUE (attempt, sample)).
     /// </summary>
     public sealed class TaskReport
     {
@@ -34,7 +34,7 @@ namespace Crowd.Tasking.Domain.Reports
 
         public Guid Id { get; private set; }
 
-        public Guid AssignmentId { get; private set; }
+        public Guid AttemptId { get; private set; }
 
         public Guid TaskId { get; private set; }
 
@@ -58,7 +58,7 @@ namespace Crowd.Tasking.Domain.Reports
         public Guid? ResolvedBy { get; private set; }
 
         public static TaskReport Tao(
-            Guid assignmentId, Guid taskId, Guid projectId, Guid sampleId, Guid labelerId, string? lyDo, string? ghiChu, DateTimeOffset luc)
+            Guid attemptId, Guid taskId, Guid projectId, Guid sampleId, Guid labelerId, string? lyDo, string? ghiChu, DateTimeOffset luc)
         {
             string ly = (lyDo ?? string.Empty).Trim().ToLowerInvariant();
             if (!((IList<string>)LyDoHopLe).Contains(ly))
@@ -79,7 +79,7 @@ namespace Crowd.Tasking.Domain.Reports
 
             TaskReport r = new TaskReport();
             r.Id = Guid.CreateVersion7();
-            r.AssignmentId = assignmentId;
+            r.AttemptId = attemptId;
             r.TaskId = taskId;
             r.ProjectId = projectId;
             r.SampleId = sampleId;

@@ -46,7 +46,8 @@ namespace Crowd.Admin.Api.Services
         private static readonly (string Nho, string Lon)[] RangBuocCap = new (string, string)[]
         {
             (SettingKeys.PaymentDepositMinVnd, SettingKeys.PaymentDepositMaxVnd),
-            (SettingKeys.ProjectGoldCheckPercentDefault, SettingKeys.ProjectGoldCheckPercentMax),
+            (SettingKeys.ProjectPassThresholdMin, SettingKeys.ProjectPassThresholdMax),
+            (SettingKeys.ProjectMinSlots, SettingKeys.ProjectMaxSlots),
             (SettingKeys.ProjectEntranceQuestionDefault, SettingKeys.ProjectEntranceQuestionMax),
             (SettingKeys.IdentityPasswordMinLength, SettingKeys.IdentityPasswordMaxLength),
             (SettingKeys.IdentityAccessTokenLifetime, SettingKeys.IdentityRefreshTokenLifetime),

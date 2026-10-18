@@ -45,7 +45,7 @@ namespace Crowd.Project.Api.Services
         private readonly DongSoClient _dongSo;
 
         private static readonly string[] LyDoChuaDongBoTamDung = { "chua_dong_bo_tam_dung" };
-        private static readonly string[] LyDoConLuotDangLam = { "con_luot_dang_lam" };
+        private static readonly string[] LyDoDaCoBaiNop = { "da_co_bai_nop" };
 
         public ProjectService(
             ProjectDbContext db,
@@ -257,27 +257,11 @@ namespace Crowd.Project.Api.Services
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
             duAn.DatCauHinhGia(
-                body.UnitPriceVnd,
-                body.Redundancy,
-                body.MaxRedundancy ?? body.Redundancy,
-                body.BudgetVnd,
+                body.RewardVnd,
+                body.Slots,
+                body.PassThresholdPercent,
                 body.Deadline.Value,
                 _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
-
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
-        }
-
-        public async Task<ProjectResponse> DatKiemSoatChatLuongAsync(
-            Guid id, QualityControlRequest body, Caller caller, CancellationToken ct)
-        {
-            if (body == null)
-            {
-                throw new ArgumentNullException(nameof(body));
-            }
-
-            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.DatKiemSoatChatLuong(body.GoldCheckPercent, body.RequireReview, _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -292,7 +276,8 @@ namespace Crowd.Project.Api.Services
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.DatKenhPhanPhoi(body.AllowProfessional, body.AllowLinkGateway, body.AllowCollaborative, _clock.GetUtcNow());
+            duAn.DatKenhPhanPhoi(
+                body.AllowProfessional, body.AllowLinkGateway, body.AllowCollaborative, body.GateUnitPriceVnd, body.GateBudgetVnd, _clock.GetUtcNow());
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -454,7 +439,11 @@ namespace Crowd.Project.Api.Services
                     Modality = p.Modality,
                     Status = p.Status,
                     Visibility = p.Visibility,
-                    UnitPriceVnd = p.UnitPriceVnd,
+                    RewardVnd = p.RewardVnd,
+                    Slots = p.Slots,
+                    PassThresholdPercent = p.PassThresholdPercent,
+                    QuestionCount = p.QuestionCount,
+                    ToolKinds = LoaiCongCu(p),
                     Deadline = p.Deadline,
                     RequireEntranceTest = p.RequireEntranceTest,
                     IsOwner = caller.UserId != null && p.OwnerId == caller.UserId.Value,
@@ -480,23 +469,37 @@ namespace Crowd.Project.Api.Services
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
 
             int soMau = await DemMauAsync(id, ct);
-            int soVangTest = await DemVangTestAsync(id, ct);
-
+            int soCauThat = await DemCauThatAsync(id, ct);
+            int soVangTest = await DemVangAsync(id, Crowd.Project.Domain.Gold.GoldPurpose.EntranceTest, ct);
+            int soVangKiemTra = await DemVangAsync(id, Crowd.Project.Domain.Gold.GoldPurpose.QualityCheck, ct);
             bool dangXuLy = await CoDuLieuDangXuLyAsync(id, ct);
 
             int phi = _settings.SoNguyen(SettingKeys.FeePlatformPercent);
+            QuyDinhDuAn quyDinh = QuyDinhTuSetting.DuAn(_settings);
             IReadOnlyList<string> thieu = duAn.NhungGiConThieu(
-                soMau, soVangTest, phi, dangXuLy, _settings.SoLon(SettingKeys.ProjectMinUnitPriceVnd), CongCuChoCongLink(), _clock.GetUtcNow());
+                soCauThat, soVangTest, dangXuLy, quyDinh, CongCuChoCongLink(), _clock.GetUtcNow());
 
             return new ReadinessResponse
             {
                 Ready = thieu.Count == 0,
                 Missing = thieu,
+                Warnings = LabelingProject.CanhBao(soVangKiemTra),
                 SampleCount = soMau,
+                QuestionCount = soCauThat,
+                QualityGoldCount = soVangKiemTra,
                 EntranceGoldCount = soVangTest,
                 PlatformFeePercent = phi,
-                PlatformFeePerLabelVnd = LabelingProject.PhiMoiNhanVnd(duAn.UnitPriceVnd, phi),
-                EstimatedCostVnd = duAn.ChiPhiUocTinhVnd(soMau, phi),
+                PlatformFeePerPassVnd = LabelingProject.TinhPhiVnd(duAn.RewardVnd, phi),
+                EstimatedCostVnd = duAn.ChiPhiUocTinhVnd(phi),
+                Limits = new ProjectLimits
+                {
+                    PassThresholdMin = quyDinh.NguongDatToiThieu,
+                    PassThresholdMax = quyDinh.NguongDatToiDa,
+                    MinSlots = quyDinh.SoSuatToiThieu,
+                    MaxSlots = quyDinh.SoSuatToiDa,
+                    MaxQuestions = quyDinh.SoCauToiDa,
+                    MinRewardVnd = quyDinh.ThuongToiThieu,
+                },
             };
         }
 
@@ -531,8 +534,8 @@ namespace Crowd.Project.Api.Services
                     "Chua xac thuc email — bam link trong email truoc khi publish du an. Vua xac thuc xong thi lam moi token (dang nhap lai).");
             }
 
-            int soMau = await DemMauAsync(id, ct);
-            int soVangTest = await DemVangTestAsync(id, ct);
+            int soCauThat = await DemCauThatAsync(id, ct);
+            int soVangTest = await DemVangAsync(id, Crowd.Project.Domain.Gold.GoldPurpose.EntranceTest, ct);
 
             bool dangXuLy = await CoDuLieuDangXuLyAsync(id, ct);
 
@@ -545,7 +548,9 @@ namespace Crowd.Project.Api.Services
                     + string.Join(", ", congCuSai) + ".");
             }
 
-            duAn.YeuCauPublish(soMau, soVangTest, _settings.SoNguyen(SettingKeys.FeePlatformPercent), dangXuLy, _settings.SoLon(SettingKeys.ProjectMinUnitPriceVnd), bayGio);
+            duAn.YeuCauPublish(
+                soCauThat, soVangTest, _settings.SoNguyen(SettingKeys.FeePlatformPercent), dangXuLy, QuyDinhTuSetting.DuAn(_settings),
+                CongCuChoCongLink(), bayGio);
 
             if (_saga.BoQuaKyQuy)
             {
@@ -562,7 +567,7 @@ namespace Crowd.Project.Api.Services
                 {
                     ProjectId = duAn.Id,
                     OwnerId = duAn.OwnerId,
-                    EscrowAmountVnd = duAn.BudgetVnd,
+                    EscrowAmountVnd = duAn.ChiPhiUocTinhVnd(duAn.PlatformFeePercent),
                     ProjectName = duAn.Name,
                 });
             }
@@ -633,7 +638,7 @@ namespace Crowd.Project.Api.Services
             LabelingProject duAn = await LayTheoIdAsync(id, ct);
             duAn.TuChoiDuyet(lyDo ?? string.Empty, _clock.GetUtcNow());
 
-            PhatDaHuy(duAn, 0, caller);
+            PhatDaHuy(duAn, caller);
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -661,18 +666,16 @@ namespace Crowd.Project.Api.Services
             return TaoResponse(duAn, caller);
         }
 
-        public async Task<ProjectResponse> HoanThanhAsync(Guid id, Caller caller, CancellationToken ct)
+        /// <summary>
+        /// "Ket thuc som": danh dau va bao task-svc dong thu bai. Trang thai chuyen sang Dang cham khi
+        /// task-svc phat project.collection_finished (consumer).
+        /// </summary>
+        public async Task<ProjectResponse> KetThucSomAsync(Guid id, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            int soNhanDaDuyet = await DamBaoDongSoAsync(duAn, ct);
-            duAn.HoanThanh(_clock.GetUtcNow());
+            duAn.YeuCauKetThucSom(_clock.GetUtcNow());
 
-            _events.Phat(caller, new ProjectCompleted
-            {
-                ProjectId = duAn.Id,
-                OwnerId = duAn.OwnerId,
-                ApprovedAnnotationCount = soNhanDaDuyet,
-            });
+            _events.Phat(caller, new ProjectFinishRequested { ProjectId = duAn.Id });
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -681,94 +684,43 @@ namespace Crowd.Project.Api.Services
         public async Task<ProjectResponse> HuyAsync(Guid id, string? lyDo, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            int soNhanDaDuyet = await DamBaoDongSoAsync(duAn, ct);
+            await DamBaoChuaCoBaiNopAsync(duAn, ct);
             duAn.Huy(lyDo, _clock.GetUtcNow());
 
-            PhatDaHuy(duAn, soNhanDaDuyet, caller);
+            PhatDaHuy(duAn, caller);
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
         }
 
         /// <summary>
-        /// Truoc khi dong (hoan thanh / huy) mot du an DA CHAY — ngay sau do ledger tra ky quy
-        /// con lai ve doanh nghiep — bao dam khong con viec nao sinh tien cho labeler:
-        ///   1. task-svc: da nhan project.paused, khong con luot dang giu, lay so luot nop that;
-        ///   2. annotation-svc: so nhan khop so luot nop, khong nhan cho duyet / khieu nai mo /
-        ///      nhan bi tu choi con han khieu nai — dat thi DONG SO ngay trong cung transaction.
-        /// Du an chua chay (Nhap, Cho duyet) khong co nhan → bo qua. Dang Running thi domain nem
-        /// can_tam_dung_truoc o buoc sau — KHONG goi dong so de khoi dong bang nham.
-        /// Annotation da dong so ma luu du an loi → doanh nghiep bam lai (dong so idempotent),
-        /// hoac chay tiep: project.resumed mo lai so ben annotation-svc.
-        /// Tra ve so nhan da duyet luc dong — project.completed / cancelled mang theo de ledger chi
-        /// hoan ky quy SAU KHI da chi du (annotation.approved co the toi ledger sau event dong).
+        /// Huy mot du an DA CHAY — ngay sau do ledger tra TOAN BO ky quy ve doanh nghiep — chi khi
+        /// task-svc xac nhan: da nhan project.paused (khong ai nop them duoc) va CHUA CO BAI NAO NOP.
+        /// Con bai nop thi phai "Ket thuc som" de cham va tra thuong — khong ai lam khong cong. Bai dang
+        /// lam do bi huy theo du an. Du an chua chay (Nhap, Cho duyet) bo qua; dang Running thi domain
+        /// nem can_tam_dung_truoc.
         /// </summary>
-        private async Task<int> DamBaoDongSoAsync(LabelingProject duAn, CancellationToken ct)
+        private async Task DamBaoChuaCoBaiNopAsync(LabelingProject duAn, CancellationToken ct)
         {
             if (duAn.Status != ProjectStatus.Paused)
             {
-                return 0;
+                return;
             }
 
             TaskCloseCheck task = await _dongSo.KiemTaskAsync(duAn.Id, ct);
-            if (!task.Paused || task.ActiveLeases > 0)
+            if (!task.Paused || task.SubmittedCount > 0)
             {
                 throw new ChuaTheDongDuAnException(
                     !task.Paused
                         ? "He thong dang xu ly lenh tam dung, thu lai sau vai giay."
-                        : "Con " + task.ActiveLeases + " luot labeler dang lam do. Cho ho nop xong (hoac het han lease) roi dong.",
+                        : "Da co " + task.SubmittedCount + " bai nop — khong huy duoc. Bam \"Ket thuc som\" de cham va tra thuong cho nguoi dat.",
                     new
                     {
-                        reasons = !task.Paused ? LyDoChuaDongBoTamDung : LyDoConLuotDangLam,
-                        activeLeases = task.ActiveLeases,
+                        reasons = !task.Paused ? LyDoChuaDongBoTamDung : LyDoDaCoBaiNop,
+                        inProgressCount = task.InProgressCount,
                         submittedCount = task.SubmittedCount,
                     });
             }
-
-            AnnotationCloseResult so = await _dongSo.DongSoAnnotationAsync(duAn.Id, task.SubmittedCount, ct);
-            if (!so.Closed)
-            {
-                throw new ChuaTheDongDuAnException(MoTaChuaDong(so), new
-                {
-                    reasons = so.Reasons,
-                    activeLeases = 0,
-                    submittedCount = so.SubmittedCount,
-                    annotationCount = so.AnnotationCount,
-                    pendingReview = so.PendingReview,
-                    openAppeals = so.OpenAppeals,
-                    rejectedInAppealWindow = so.RejectedInAppealWindow,
-                    appealWindowEndsAt = so.AppealWindowEndsAt,
-                });
-            }
-
-            return so.ApprovedCount;
-        }
-
-        private static string MoTaChuaDong(AnnotationCloseResult so)
-        {
-            List<string> phan = new List<string>();
-            if (so.PendingReview > 0)
-            {
-                phan.Add(so.PendingReview + " nhan cho duyet");
-            }
-
-            if (so.OpenAppeals > 0)
-            {
-                phan.Add(so.OpenAppeals + " khieu nai cho admin phan xu");
-            }
-
-            if (so.RejectedInAppealWindow > 0)
-            {
-                phan.Add(so.RejectedInAppealWindow + " nhan bi tu choi con trong han khieu nai"
-                         + (so.AppealWindowEndsAt.HasValue ? " (het han " + so.AppealWindowEndsAt.Value.ToString("u") + ")" : string.Empty));
-            }
-
-            if (so.AnnotationCount != so.SubmittedCount)
-            {
-                phan.Add("nhan dang dong bo (" + so.AnnotationCount + "/" + so.SubmittedCount + "), thu lai sau vai giay");
-            }
-
-            return "Chua dong duoc du an: con " + string.Join("; ", phan) + ".";
         }
 
         /// <summary>
@@ -801,7 +753,7 @@ namespace Crowd.Project.Api.Services
                 }
 
                 duAn.HuyDoQuaHanChoDuyet(hanChoDuyet, bayGio);
-                PhatDaHuy(duAn, 0, Caller.HeThong(Guid.CreateVersion7(), null));
+                PhatDaHuy(duAn, Caller.HeThong(Guid.CreateVersion7(), null));
 
                 try
                 {
@@ -868,16 +820,18 @@ namespace Crowd.Project.Api.Services
                 OwnerId = duAn.OwnerId,
                 Modality = duAn.Modality,
                 LabelSchema = duAn.LabelSchema.ToRawJson(),
-                UnitPriceVnd = duAn.UnitPriceVnd,
-                PlatformFeeVnd = LabelingProject.PhiMoiNhanVnd(duAn.UnitPriceVnd, duAn.PlatformFeePercent),
-                Redundancy = duAn.Redundancy,
-                MaxRedundancy = duAn.TranRedundancy(),
-                GoldCheckPercent = duAn.GoldCheckPercent,
-                RequireReview = duAn.RequireReview,
+                RewardVnd = duAn.RewardVnd,
+                PlatformFeeVnd = LabelingProject.TinhPhiVnd(duAn.RewardVnd, duAn.PlatformFeePercent),
+                Slots = duAn.Slots,
+                PassThresholdPercent = duAn.PassThresholdPercent,
+                QuestionCount = duAn.QuestionCount,
                 Deadline = duAn.Deadline.Value,
                 AllowProfessional = duAn.AllowProfessional,
                 AllowLinkGateway = duAn.AllowLinkGateway,
                 AllowCollaborative = duAn.AllowCollaborative,
+                GateUnitPriceVnd = duAn.AllowLinkGateway ? duAn.GateUnitPriceVnd : null,
+                GatePlatformFeeVnd = duAn.AllowLinkGateway ? LabelingProject.TinhPhiVnd(duAn.GateUnitPriceVnd, duAn.PlatformFeePercent) : null,
+                GateBudgetVnd = duAn.AllowLinkGateway ? duAn.GateBudgetVnd : null,
                 IsPrivate = duAn.Visibility == ProjectVisibility.Private,
                 MinLevel = duAn.MinLevel,
                 MinReputation = duAn.MinReputation,
@@ -887,8 +841,7 @@ namespace Crowd.Project.Api.Services
             };
         }
 
-        /// <summary>soNhanDaDuyet: tu lan dong so (du an da chay); 0 khi huy luc chua chay (chua co nhan).</summary>
-        private void PhatDaHuy(LabelingProject duAn, int soNhanDaDuyet, Caller caller)
+        private void PhatDaHuy(LabelingProject duAn, Caller caller)
         {
             _events.Phat(caller, new ProjectCancelled
             {
@@ -896,8 +849,27 @@ namespace Crowd.Project.Api.Services
                 OwnerId = duAn.OwnerId,
                 WasEscrowed = duAn.WasEscrowed,
                 Reason = duAn.StatusReason,
-                ApprovedAnnotationCount = soNhanDaDuyet,
             });
+        }
+
+        /// <summary>Cac loai cong cu cua tap nhan (khong lap) — "dang gan nhan" hien o cho du an.</summary>
+        public static IReadOnlyList<string> LoaiCongCu(LabelingProject p)
+        {
+            List<string> ds = new List<string>();
+            if (p == null || p.LabelSchema == null)
+            {
+                return ds;
+            }
+
+            foreach (ToolDefinition t in p.LabelSchema.Tools)
+            {
+                if (!ds.Contains(t.Kind))
+                {
+                    ds.Add(t.Kind);
+                }
+            }
+
+            return ds;
         }
 
         private async Task<LabelingProject> LayTheoIdAsync(Guid id, CancellationToken ct)
@@ -924,10 +896,16 @@ namespace Crowd.Project.Api.Services
             return _db.Samples.CountAsync(s => s.ProjectId == projectId, ct);
         }
 
-        private Task<int> DemVangTestAsync(Guid projectId, CancellationToken ct)
+        private Task<int> DemVangAsync(Guid projectId, Crowd.Project.Domain.Gold.GoldPurpose mucDich, CancellationToken ct)
         {
-            return _db.GoldItems.CountAsync(
-                g => g.ProjectId == projectId && g.Purpose == Crowd.Project.Domain.Gold.GoldPurpose.EntranceTest,
+            return _db.GoldItems.CountAsync(g => g.ProjectId == projectId && g.Purpose == mucDich, ct);
+        }
+
+        /// <summary>So cau THAT: mau khong phai cau vang (ca vang bai test lan vang kiem tra) — moi labeler lam het.</summary>
+        public Task<int> DemCauThatAsync(Guid projectId, CancellationToken ct)
+        {
+            return _db.Samples.CountAsync(
+                s => s.ProjectId == projectId && !_db.GoldItems.Any(g => g.ProjectId == projectId && g.SampleId == s.Id),
                 ct);
         }
 
@@ -997,11 +975,16 @@ namespace Crowd.Project.Api.Services
                 Visibility = p.Visibility,
                 LabelSchema = p.LabelSchema == null ? null : p.LabelSchema.ToRawJson(),
                 Guideline = huongDan,
-                UnitPriceVnd = p.UnitPriceVnd,
-                Redundancy = p.Redundancy,
-                MaxRedundancy = p.TranRedundancy(),
-                GoldCheckPercent = p.GoldCheckPercent,
-                RequireReview = p.RequireReview,
+                RewardVnd = p.RewardVnd,
+                Slots = p.Slots,
+                PassThresholdPercent = p.PassThresholdPercent,
+                QuestionCount = p.QuestionCount,
+                ToolKinds = LoaiCongCu(p),
+                GateUnitPriceVnd = p.GateUnitPriceVnd,
+                GateBudgetVnd = laChu ? p.GateBudgetVnd : 0,
+                FinishRequestedAt = p.FinishRequestedAt,
+                GradingStartedAt = p.GradingStartedAt,
+                ClosedAt = p.ClosedAt,
                 Deadline = p.Deadline,
                 AllowProfessional = p.AllowProfessional,
                 AllowLinkGateway = p.AllowLinkGateway,
@@ -1025,7 +1008,8 @@ namespace Crowd.Project.Api.Services
                 FilesPurgedAt = laChu ? p.FilesPurgedAt : null,
 
                 OwnerId = laChu ? p.OwnerId : null,
-                BudgetVnd = laChu ? p.BudgetVnd : null,
+                EscrowVnd = laChu && p.PlatformFeePercent > 0 ? p.ChiPhiUocTinhVnd(p.PlatformFeePercent) : null,
+                PlatformFeePercent = laChu && p.PlatformFeePercent > 0 ? p.PlatformFeePercent : null,
                 StatusReason = laChu ? p.StatusReason : null,
                 CreatedAt = laChu ? p.CreatedAt : null,
                 UpdatedAt = laChu ? p.UpdatedAt : null,

@@ -8,21 +8,19 @@ namespace Crowd.Seeding
     /// <summary>
     /// KICH BAN SEED — nguon su that duy nhat cua du lieu mau.
     ///
-    /// Cau chuyen:
-    ///   - Doanh nghiep 1 (biz1) nap 2.000.000d, co 4 du an o 4 buoc khac nhau
-    ///     cua vong doi: P1 dang chay (co nhan da nop/duyet/khieu nai), P2 cho
-    ///     admin duyet, P3 nhap san sang publish, P4 dang chay va bat buoc test
-    ///     dau vao.
+    /// Cau chuyen (du an lam trung tam, docs 3.18 — moi labeler lam HET cac cau cua du an trong mot
+    /// bai, nop ca bai; du an ket thuc thi cham theo da so + cau vang, nguoi dat nhan tien thuong):
+    ///   - Doanh nghiep 1 (biz1) nap 2.000.000d. P1 dang chay: lab1 da nop bai, lab2 dang lam do.
+    ///     P2 cho admin duyet, P3 nhap san sang publish, P4 dang chay va bat buoc test dau vao,
+    ///     P5 van ban (lab1 dang lam), P6 am thanh, P7 so sanh cap DA CHAM XONG (lab1, lab2 dat —
+    ///     moi nguoi 30.000d RUT DUOC NGAY; rev1 truot vi khac da so).
     ///   - Doanh nghiep 2 (biz2) chua co tien, co mot lenh nap 1.000.000d chua
-    ///     thanh toan — de test trang thanh toan sandbox va nhanh "thieu tien".
-    ///   - lab1 da duoc duyet 3 nhan tu 4 ngay truoc → 60.000d RUT DUOC NGAY.
-    ///   - lab2 co nhan vua duoc duyet (tien dang treo), nhan bi tu choi (con
-    ///     khieu nai duoc) va nhan dang khieu nai (cho admin).
+    ///     thanh toan — de test trang thanh toan sandbox va nhanh "thieu tien". P8 nhap.
     ///   - lab3 chua tham gia du an nao — de test tham gia / bai test dau vao.
-    ///   - rev1 la reviewer cua P1.
+    ///   - rev1 (tai khoan labeler) lam bai o P7.
     ///
     /// Anh mau la anh PNG mot mau (do / xanh la / xanh duong / vang), nen dap an
-    /// dung nhin la thay — tien cho viec test duyet nhan bang mat.
+    /// dung nhin la thay.
     /// </summary>
     public static class KichBanSeed
     {
@@ -30,9 +28,6 @@ namespace Crowd.Seeding
         public const string MatKhauChung = "Matkhau@123";
 
         /// <summary>Phi nen tang chot cho moi du an seed — khop FeeOptions.PlatformFeePercent cua dev.</summary>
-        /// <summary>Ti le cau vang kiem tra tron vao task — khop LabelingProject.GoldCheckPercentMacDinh.</summary>
-        public const int TiLeCauVangKiemTra = 10;
-
         public const int PhanTramPhi = 30;
 
         /// <summary>Ten cong thanh toan cua lenh nap seed — khop SandboxPaymentProvider.Name.</summary>
@@ -78,7 +73,7 @@ namespace Crowd.Seeding
             throw new InvalidOperationException("Kich ban khong co du an '" + key + "'.");
         }
 
-        /// <summary>Moi mau la MOT task — TaskId tinh tu SampleId de task-svc va annotation-svc khop nhau.</summary>
+        /// <summary>Moi mau la MOT cau hoi — QuestionId tinh tu SampleId de task-svc va cac service khac khop nhau.</summary>
         public static Guid TaskIdCua(Guid sampleId)
         {
             return SeedIds.Tu("task:" + sampleId);
@@ -140,10 +135,10 @@ namespace Crowd.Seeding
             + "Anh toi hay sang deu chon theo sac mau chinh.";
 
         /// <summary>
-        /// P1 — DANG CHAY, du lieu day du nhat: 8 anh, redundancy 2, co nhan cho
-        /// duyet / da duyet / bi tu choi / dang khieu nai, mot cau vang kiem tra.
+        /// P1 — DANG CHAY: 8 anh (anh 8 la cau vang kiem tra) → de 7 cau. 3 suat, thuong 50.000d,
+        /// nguong 80%. lab1 DA NOP bai (dung het), lab2 DANG LAM (nhap 3/7 cau).
         ///
-        /// Ky quy 500.000d ≥ 8 anh x 2 nguoi x (20.000 + 6.000 phi) = 416.000d.
+        /// Ky quy 3 x (50.000 + 15.000 phi) = 195.000d.
         /// </summary>
         private static SeedProject TaoP1()
         {
@@ -163,37 +158,17 @@ namespace Crowd.Seeding
             };
 
             Guid biz1 = User("biz1").Id;
-            Guid rev1 = User("rev1").Id;
+            SeedGold vang = Vang(k, mau[7], false);
 
-            List<SeedSubmission> nop = new List<SeedSubmission>
+            List<SeedAttempt> bai = new List<SeedAttempt>
             {
-                // lab1: ba nhan duoc duyet tu 4 ngay truoc → khoan treo da het han → RUT DUOC.
-                Nop(k, id, mau[0], "lab1", "do", SeedReview.Approved, biz1, null, null,
-                    NgayGio(4, 2), NgayGio(4, 0), null),
-                Nop(k, id, mau[1], "lab1", "do", SeedReview.Approved, biz1, null, null,
-                    NgayGio(4, 1), NgayGio(4, 0), null),
-                Nop(k, id, mau[2], "lab1", "xanh_la", SeedReview.Approved, rev1, null, null,
-                    NgayGio(4, 0), NgayGio(3, 22), null),
+                // lab1: lam dung moi cau (ca cau vang), nop 1 ngay truoc — cho du an ket thuc de cham.
+                BaiLam(k, id, "lab1", SeedAttemptState.Submitted, NgayGio(1, 3), NgayGio(1, 0),
+                    TraLoiPhanLoai(k, mau, "lab1", 0, 7), 1, 1, null),
 
-                // lab1: hai nhan dang cho duyet — de test duyet / tu choi.
-                Nop(k, id, mau[3], "lab1", "xanh_la", SeedReview.PendingReview, null, null, null,
-                    TimeSpan.FromMinutes(30), null, null),
-                Nop(k, id, mau[5], "lab1", "xanh_duong", SeedReview.PendingReview, null, null, null,
-                    TimeSpan.FromMinutes(20), null, null),
-
-                // lab2: vua duoc duyet → tien dang TREO (dev treo 2 phut roi tu giai phong).
-                Nop(k, id, mau[0], "lab2", "do", SeedReview.Approved, rev1, null, null,
-                    TimeSpan.FromHours(2), TimeSpan.Zero, null),
-
-                // lab2: bi tu choi 2 gio truoc → con khieu nai duoc (han 7 ngay).
-                Nop(k, id, mau[1], "lab2", "vang", SeedReview.Rejected, rev1,
-                    "Anh mau do, khong phai vang.", null,
-                    TimeSpan.FromHours(3), TimeSpan.FromHours(2), null),
-
-                // lab2: bi tu choi roi khieu nai → nam trong hang doi cua admin.
-                Nop(k, id, mau[4], "lab2", "xanh_la", SeedReview.Appealed, biz1,
-                    "Anh mau xanh duong.", "Toi thay anh nghieng ve xanh la, de nghi xem lai.",
-                    NgayGio(1, 0), TimeSpan.FromHours(20), TimeSpan.FromHours(10)),
+                // lab2: dang lam do — 3 cau nhap, chua nop.
+                BaiLam(k, id, "lab2", SeedAttemptState.InProgress, TimeSpan.FromHours(2), null,
+                    TraLoiPhanLoai(k, mau, "lab2", 0, 3), 1, 0, null),
             };
 
             return new SeedProject
@@ -203,15 +178,15 @@ namespace Crowd.Seeding
                 OwnerId = biz1,
                 DatasetId = SeedIds.Tu("dataset:" + k),
                 Name = "[Seed] Phan loai mau anh - dang chay",
-                Description = "Du an mau dang chay: co nhan cho duyet, da duyet, bi tu choi va dang khieu nai.",
+                Description = "Du an mau dang chay: lab1 da nop bai, lab2 dang lam do.",
                 GuidelineMarkdown = HuongDan,
                 Stage = SeedStage.Running,
                 IsPrivate = false,
                 Modality = Modalities.Image,
                 LabelSchemaJson = TapNhanMau,
-                UnitPriceVnd = 20000,
-                Redundancy = 2,
-                BudgetVnd = 500000,
+                RewardVnd = 50000,
+                Slots = 3,
+                PassThresholdPercent = 80,
                 DeadlineInDays = 30,
                 RequireEntranceTest = false,
                 EntranceQuestionCount = 10,
@@ -224,16 +199,15 @@ namespace Crowd.Seeding
                 {
                     new SeedMember { UserId = User("lab1").Id, Role = SeedMemberRole.Labeler },
                     new SeedMember { UserId = User("lab2").Id, Role = SeedMemberRole.Labeler },
-                    new SeedMember { UserId = rev1, Role = SeedMemberRole.Reviewer },
+                    new SeedMember { UserId = User("rev1").Id, Role = SeedMemberRole.Labeler },
                 },
-                // Anh 8 la cau vang kiem tra chat luong → task cua no bi loai khoi pool.
-                Gold = new SeedGold[] { Vang(k, mau[7], false) },
-                Submissions = nop,
+                Gold = new SeedGold[] { vang },
+                Attempts = bai,
             };
         }
 
         /// <summary>
-        /// P2 — CHO ADMIN DUYET: da ky quy 100.000d (≥ 4 x 1 x 13.000 = 52.000d).
+        /// P2 — CHO ADMIN DUYET: da ky quy 3 x (20.000 + 6.000) = 78.000d.
         /// Tu huy sau 72 gio neu khong ai duyet (PendingApprovalTimeoutWorker).
         /// </summary>
         private static SeedProject TaoP2()
@@ -254,9 +228,9 @@ namespace Crowd.Seeding
                 IsPrivate = false,
                 Modality = Modalities.Image,
                 LabelSchemaJson = TapNhanMau,
-                UnitPriceVnd = 10000,
-                Redundancy = 1,
-                BudgetVnd = 100000,
+                RewardVnd = 20000,
+                Slots = 3,
+                PassThresholdPercent = 80,
                 DeadlineInDays = 30,
                 RequireEntranceTest = false,
                 EntranceQuestionCount = 10,
@@ -267,13 +241,13 @@ namespace Crowd.Seeding
                 Samples = BonMau(id, k),
                 Members = Array.Empty<SeedMember>(),
                 Gold = Array.Empty<SeedGold>(),
-                Submissions = Array.Empty<SeedSubmission>(),
+                Attempts = Array.Empty<SeedAttempt>(),
             };
         }
 
         /// <summary>
         /// P3 — NHAP, SAN SANG PUBLISH: de test saga ky quy tu dau.
-        /// Can ky quy toi thieu 4 x 2 x (15.000 + 4.500) = 156.000d; ngan sach 200.000d.
+        /// Ky quy se la 3 x (30.000 + 9.000) = 117.000d.
         /// </summary>
         private static SeedProject TaoP3()
         {
@@ -293,9 +267,9 @@ namespace Crowd.Seeding
                 IsPrivate = false,
                 Modality = Modalities.Image,
                 LabelSchemaJson = TapNhanMau,
-                UnitPriceVnd = 15000,
-                Redundancy = 2,
-                BudgetVnd = 200000,
+                RewardVnd = 30000,
+                Slots = 3,
+                PassThresholdPercent = 80,
                 DeadlineInDays = 30,
                 RequireEntranceTest = false,
                 EntranceQuestionCount = 10,
@@ -306,7 +280,7 @@ namespace Crowd.Seeding
                 Samples = BonMau(id, k),
                 Members = Array.Empty<SeedMember>(),
                 Gold = Array.Empty<SeedGold>(),
-                Submissions = Array.Empty<SeedSubmission>(),
+                Attempts = Array.Empty<SeedAttempt>(),
             };
         }
 
@@ -337,9 +311,9 @@ namespace Crowd.Seeding
                     + "{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"vat_the\"],\"rotatable\":true},"
                     + "{\"name\":\"vung\",\"kind\":\"polygon\",\"classes\":[\"mau_chinh\"]},"
                     + "{\"name\":\"diem\",\"kind\":\"keypoint\",\"classes\":[\"tam\"]}]}",
-                UnitPriceVnd = 20000,
-                Redundancy = 2,
-                BudgetVnd = 300000,
+                RewardVnd = 40000,
+                Slots = 3,
+                PassThresholdPercent = 75,
                 DeadlineInDays = 30,
                 RequireEntranceTest = false,
                 EntranceQuestionCount = 10,
@@ -350,13 +324,13 @@ namespace Crowd.Seeding
                 Samples = BonMau(id, k),
                 Members = Array.Empty<SeedMember>(),
                 Gold = Array.Empty<SeedGold>(),
-                Submissions = Array.Empty<SeedSubmission>(),
+                Attempts = Array.Empty<SeedAttempt>(),
             };
         }
 
         /// <summary>
         /// P4 — DANG CHAY, BAT BUOC TEST DAU VAO: 3 cau, dau khi dung ≥ 60% (2/3).
-        /// 4 anh thuong + 3 anh lam cau test. Ky quy 300.000d ≥ 7 x 1 x 39.000 = 273.000d.
+        /// 4 anh thuong (de 4 cau) + 3 anh lam cau test. Ky quy 3 x (40.000 + 12.000) = 156.000d.
         /// </summary>
         private static SeedProject TaoP4()
         {
@@ -375,15 +349,15 @@ namespace Crowd.Seeding
                 OwnerId = User("biz1").Id,
                 DatasetId = SeedIds.Tu("dataset:" + k),
                 Name = "[Seed] Phan loai mau anh - can test dau vao",
-                Description = "Du an dang chay, labeler phai dau bai test 3 cau truoc khi nhan task.",
+                Description = "Du an dang chay, labeler phai dau bai test 3 cau truoc khi lam bai.",
                 GuidelineMarkdown = HuongDan,
                 Stage = SeedStage.Running,
                 IsPrivate = false,
                 Modality = Modalities.Image,
                 LabelSchemaJson = TapNhanMau,
-                UnitPriceVnd = 30000,
-                Redundancy = 1,
-                BudgetVnd = 300000,
+                RewardVnd = 40000,
+                Slots = 3,
+                PassThresholdPercent = 80,
                 DeadlineInDays = 30,
                 RequireEntranceTest = true,
                 EntranceQuestionCount = 3,
@@ -399,7 +373,7 @@ namespace Crowd.Seeding
                     Vang(k, mau[5], true),
                     Vang(k, mau[6], true),
                 },
-                Submissions = Array.Empty<SeedSubmission>(),
+                Attempts = Array.Empty<SeedAttempt>(),
             };
         }
 
@@ -411,8 +385,8 @@ namespace Crowd.Seeding
         {
             List<SeedDeposit> ds = new List<SeedDeposit>();
 
-            // biz1: da thanh toan → ledger co 2.000.000d. Tru ky quy P1 + P2 + P4
-            // (500k + 100k + 300k) con 1.100.000d kha dung — du publish P3.
+            // biz1: da thanh toan → ledger co 2.000.000d. Tru ky quy P1 + P2 + P4 + P5 + P6 + P7
+            // (195k + 78k + 156k + 78k + 97,5k + 117k, P7 hoan lai 39k) → con hon 1.300.000d — du publish P3.
             ds.Add(new SeedDeposit
             {
                 IntentId = SeedIds.Tu("deposit:biz1-1"),
@@ -444,8 +418,7 @@ namespace Crowd.Seeding
 
         /// <summary>
         /// P5 — VAN BAN, DANG CHAY: hai cong cu tren cung mot cau — phan loai cam xuc
-        /// va gan the thuc the (NER, span). 4 cau, redundancy 1.
-        /// Ky quy 50.000d ≥ 4 x 1 x (5.000 + 1.500) = 26.000d.
+        /// va gan the thuc the (NER, span). 4 cau, 3 suat. Ky quy 3 x (20.000 + 6.000) = 78.000d.
         /// </summary>
         private static SeedProject TaoP5()
         {
@@ -468,15 +441,17 @@ namespace Crowd.Seeding
 
             Guid biz1 = User("biz1").Id;
 
-            List<SeedSubmission> nop = new List<SeedSubmission>
+            List<SeedAttempt> bai = new List<SeedAttempt>
             {
-                NopJson(k, id, mau[0], "lab1",
-                    "{\"cam_xuc\":{\"labelIds\":[\"tich_cuc\"]},\"thuc_the\":["
-                    + Doan(cau[0], "Minh", "TEN_NGUOI") + "," + Doan(cau[0], "Viettel", "TO_CHUC") + "," + Doan(cau[0], "Ha Noi", "DIA_DIEM") + "]}",
-                    SeedReview.PendingReview, null, TimeSpan.FromMinutes(40), null),
-                NopJson(k, id, mau[1], "lab2",
-                    "{\"cam_xuc\":{\"labelIds\":[\"tieu_cuc\"]},\"thuc_the\":[" + Doan(cau[1], "Lan", "TEN_NGUOI") + "]}",
-                    SeedReview.Approved, biz1, NgayGio(1, 2), NgayGio(1, 0)),
+                // lab1 dang lam: da nhap 2/4 cau.
+                BaiLam(k, id, "lab1", SeedAttemptState.InProgress, TimeSpan.FromMinutes(40), null, new List<SeedAnswer>
+                {
+                    TraLoi(k, mau[0], "lab1",
+                        "{\"cam_xuc\":{\"labelIds\":[\"tich_cuc\"]},\"thuc_the\":["
+                        + Doan(cau[0], "Minh", "TEN_NGUOI") + "," + Doan(cau[0], "Viettel", "TO_CHUC") + "," + Doan(cau[0], "Ha Noi", "DIA_DIEM") + "]}"),
+                    TraLoi(k, mau[1], "lab1",
+                        "{\"cam_xuc\":{\"labelIds\":[\"tieu_cuc\"]},\"thuc_the\":[" + Doan(cau[1], "Lan", "TEN_NGUOI") + "]}"),
+                }, 0, 0, null),
             };
 
             return new SeedProject
@@ -495,9 +470,9 @@ namespace Crowd.Seeding
                     + "{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"TEN_NGUOI\",\"DIA_DIEM\",\"TO_CHUC\"]}]}",
                 Stage = SeedStage.Running,
                 IsPrivate = false,
-                UnitPriceVnd = 5000,
-                Redundancy = 1,
-                BudgetVnd = 50000,
+                RewardVnd = 20000,
+                Slots = 3,
+                PassThresholdPercent = 80,
                 DeadlineInDays = 30,
                 RequireEntranceTest = false,
                 EntranceQuestionCount = 10,
@@ -512,14 +487,14 @@ namespace Crowd.Seeding
                     new SeedMember { UserId = User("lab2").Id, Role = SeedMemberRole.Labeler },
                 },
                 Gold = Array.Empty<SeedGold>(),
-                Submissions = nop,
+                Attempts = bai,
             };
         }
 
         /// <summary>
         /// P6 — AM THANH, DANG CHAY, CAT DOAN 10 GIAY: file 25 giay thanh 3 mau
         /// (0-10, 10-20, 20-25), file 8 giay giu nguyen. Cong cu: chep loi + danh
-        /// dau doan thoi gian. Ky quy 50.000d ≥ 4 x 1 x (8.000 + 2.400) = 41.600d.
+        /// dau doan thoi gian. Ky quy 3 x (25.000 + 7.500) = 97.500d.
         /// </summary>
         private static SeedProject TaoP6()
         {
@@ -553,9 +528,9 @@ namespace Crowd.Seeding
                     + "{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"giong_noi\",\"nhac\",\"im_lang\"]}]}",
                 Stage = SeedStage.Running,
                 IsPrivate = false,
-                UnitPriceVnd = 8000,
-                Redundancy = 1,
-                BudgetVnd = 50000,
+                RewardVnd = 25000,
+                Slots = 3,
+                PassThresholdPercent = 70,
                 DeadlineInDays = 30,
                 RequireEntranceTest = false,
                 EntranceQuestionCount = 10,
@@ -569,20 +544,15 @@ namespace Crowd.Seeding
                     new SeedMember { UserId = User("lab1").Id, Role = SeedMemberRole.Labeler },
                 },
                 Gold = Array.Empty<SeedGold>(),
-                Submissions = new SeedSubmission[]
-                {
-                    NopJson(k, id, mau[0], "lab1",
-                        "{\"loi_noi\":{\"text\":\"(chi co tieng nhac nen)\"},\"doan\":[{\"labelId\":\"nhac\",\"start\":0,\"end\":10}]}",
-                        SeedReview.PendingReview, null, TimeSpan.FromMinutes(25), null),
-                },
+                Attempts = Array.Empty<SeedAttempt>(),
             };
         }
 
         /// <summary>
-        /// P7 — CAP CAU TRA LOI (RLHF), DANG CHAY: chon cau tra loi tot hon va
-        /// danh gia an toan. Redundancy 2 — hai nguoi cung chon a → gop da so ra "a".
-        /// Bat redundancy thich ung: tran 3 nguoi — cap tranh chap duoc xin them nguoi thu ba.
-        /// Ky quy tinh theo tran: 50.000d ≥ 3 x 3 x (3.000 + 900) = 35.100d.
+        /// P7 — CAP CAU TRA LOI (RLHF), DA CHAM XONG: 3 cap, 3 suat, thuong 30.000d, nguong 80%.
+        /// lab1 va lab2 chon "a" + "an_toan" ca 3 cau, rev1 chon "b" → da so la "a": lab1, lab2 dat 100%,
+        /// rev1 0% (truot). Ky quy 3 x (30.000 + 9.000) = 117.000d: tra 2 x 30.000 cho labeler, 2 x 9.000 phi,
+        /// hoan 39.000d (suat truot) cho biz1.
         /// </summary>
         private static SeedProject TaoP7()
         {
@@ -604,6 +574,7 @@ namespace Crowd.Seeding
             };
 
             const string chonA = "{\"tot_hon\":{\"choice\":\"a\"},\"an_toan\":{\"labelIds\":[\"an_toan\"]}}";
+            const string chonB = "{\"tot_hon\":{\"choice\":\"b\"},\"an_toan\":{\"labelIds\":[\"an_toan\"]}}";
 
             return new SeedProject
             {
@@ -619,31 +590,33 @@ namespace Crowd.Seeding
                     "{\"modality\":\"pair\",\"tools\":["
                     + "{\"name\":\"tot_hon\",\"kind\":\"pairwise\",\"allowTie\":true},"
                     + "{\"name\":\"an_toan\",\"kind\":\"classification\",\"classes\":[\"an_toan\",\"khong_an_toan\"]}]}",
-                Stage = SeedStage.Running,
+                Stage = SeedStage.Completed,
                 IsPrivate = false,
-                UnitPriceVnd = 3000,
-                Redundancy = 2,
-                MaxRedundancy = 3,
-                BudgetVnd = 50000,
+                RewardVnd = 30000,
+                Slots = 3,
+                PassThresholdPercent = 80,
                 DeadlineInDays = 30,
                 RequireEntranceTest = false,
                 EntranceQuestionCount = 10,
                 EntrancePassPercent = 80,
-                CreatedAgo = NgayGio(3, 0),
-                EscrowedAgo = NgayGio(2, 23),
-                PublishedAgo = NgayGio(2, 22),
+                CreatedAgo = NgayGio(9, 0),
+                EscrowedAgo = NgayGio(8, 23),
+                PublishedAgo = NgayGio(8, 22),
+                GradedAgo = NgayGio(4, 0),
+                CompletedAgo = NgayGio(1, 0),
                 Samples = mau,
                 Members = new SeedMember[]
                 {
                     new SeedMember { UserId = User("lab1").Id, Role = SeedMemberRole.Labeler },
                     new SeedMember { UserId = User("lab2").Id, Role = SeedMemberRole.Labeler },
+                    new SeedMember { UserId = User("rev1").Id, Role = SeedMemberRole.Labeler },
                 },
                 Gold = Array.Empty<SeedGold>(),
-                Submissions = new SeedSubmission[]
+                Attempts = new SeedAttempt[]
                 {
-                    NopJson(k, id, mau[0], "lab1", chonA, SeedReview.Approved, biz1, NgayGio(2, 10), NgayGio(2, 8)),
-                    NopJson(k, id, mau[0], "lab2", chonA, SeedReview.Approved, biz1, NgayGio(2, 9), NgayGio(2, 8)),
-                    NopJson(k, id, mau[1], "lab2", chonA, SeedReview.PendingReview, null, TimeSpan.FromMinutes(15), null),
+                    BaiLam(k, id, "lab1", SeedAttemptState.Submitted, NgayGio(5, 2), NgayGio(5, 0), TraLoiCa(k, mau, "lab1", chonA), 0, 0, Dat(3, 3, true)),
+                    BaiLam(k, id, "lab2", SeedAttemptState.Submitted, NgayGio(4, 6), NgayGio(4, 4), TraLoiCa(k, mau, "lab2", chonA), 0, 0, Dat(3, 3, true)),
+                    BaiLam(k, id, "rev1", SeedAttemptState.Submitted, NgayGio(4, 3), NgayGio(4, 1), TraLoiCa(k, mau, "rev1", chonB), 0, 0, Dat(3, 0, false)),
                 },
             };
         }
@@ -784,73 +757,96 @@ namespace Crowd.Seeding
             };
         }
 
-        /// <summary>Luot nop PHAN LOAI cho P1-P4.</summary>
-        private static SeedSubmission Nop(
-            string projectKey,
-            Guid projectId,
-            SeedSample mau,
-            string labelerKey,
-            string nhan,
-            SeedReview ketQua,
-            Guid? reviewerId,
-            string? lyDoTuChoi,
-            string? noiDungKhieuNai,
-            TimeSpan nopCach,
-            TimeSpan? duyetCach,
-            TimeSpan? khieuNaiCach)
+        /// <summary>Mot cau tra loi — AnnotationId tinh tu (du an, mau, labeler) de cac service khop nhau.</summary>
+        private static SeedAnswer TraLoi(string projectKey, SeedSample mau, string labelerKey, string payloadJson)
         {
-            return TaoLuotNop(projectKey, projectId, mau, labelerKey, PhanLoai(nhan), ketQua, reviewerId,
-                lyDoTuChoi, noiDungKhieuNai, nopCach, duyetCach, khieuNaiCach);
-        }
-
-        /// <summary>Luot nop voi nhan JSON tuy y (text, audio, pair...).</summary>
-        private static SeedSubmission NopJson(
-            string projectKey,
-            Guid projectId,
-            SeedSample mau,
-            string labelerKey,
-            string payloadJson,
-            SeedReview ketQua,
-            Guid? reviewerId,
-            TimeSpan nopCach,
-            TimeSpan? duyetCach)
-        {
-            return TaoLuotNop(projectKey, projectId, mau, labelerKey, payloadJson, ketQua, reviewerId, null, null, nopCach, duyetCach, null);
-        }
-
-        private static SeedSubmission TaoLuotNop(
-            string projectKey,
-            Guid projectId,
-            SeedSample mau,
-            string labelerKey,
-            string payloadJson,
-            SeedReview ketQua,
-            Guid? reviewerId,
-            string? lyDoTuChoi,
-            string? noiDungKhieuNai,
-            TimeSpan nopCach,
-            TimeSpan? duyetCach,
-            TimeSpan? khieuNaiCach)
-        {
-            string ten = projectKey + ":" + mau.Index.ToString(CultureInfo.InvariantCulture) + ":" + labelerKey;
-
-            return new SeedSubmission
+            return new SeedAnswer
             {
-                AssignmentId = SeedIds.Tu("assignment:" + ten),
-                TaskId = TaskIdCua(mau.Id),
-                AnnotationId = SeedIds.Tu("annotation:" + ten),
-                ProjectId = projectId,
                 SampleId = mau.Id,
-                StorageKey = mau.StorageKey,
-                LabelerId = User(labelerKey).Id,
                 PayloadJson = payloadJson,
-                Review = ketQua,
-                ReviewerId = reviewerId,
-                RejectReason = lyDoTuChoi,
-                AppealMessage = noiDungKhieuNai,
+                AnnotationId = SeedIds.Tu("annotation:" + projectKey + ":" + mau.Index.ToString(CultureInfo.InvariantCulture) + ":" + labelerKey),
+            };
+        }
+
+        /// <summary>Tra loi DUNG mau that (TrueLabel) cho mau[tu..den) — du an phan loai P1-P4 (ca cau vang).</summary>
+        private static List<SeedAnswer> TraLoiPhanLoai(string projectKey, List<SeedSample> mau, string labelerKey, int tu, int den)
+        {
+            List<SeedAnswer> ds = new List<SeedAnswer>();
+            for (int i = tu; i < den && i < mau.Count; i++)
+            {
+                ds.Add(TraLoi(projectKey, mau[i], labelerKey, PhanLoai(mau[i].TrueLabel!)));
+            }
+
+            if (den >= mau.Count - 1 && mau.Count > 0)
+            {
+                // Bai day du: tra loi ca cau vang (mau cuoi) dung dap an.
+                SeedSample cuoi = mau[mau.Count - 1];
+                bool daCo = false;
+                foreach (SeedAnswer a in ds)
+                {
+                    if (a.SampleId == cuoi.Id)
+                    {
+                        daCo = true;
+                    }
+                }
+
+                if (!daCo)
+                {
+                    ds.Add(TraLoi(projectKey, cuoi, labelerKey, PhanLoai(cuoi.TrueLabel!)));
+                }
+            }
+
+            return ds;
+        }
+
+        /// <summary>Cung mot cau tra loi cho moi mau.</summary>
+        private static List<SeedAnswer> TraLoiCa(string projectKey, List<SeedSample> mau, string labelerKey, string payloadJson)
+        {
+            List<SeedAnswer> ds = new List<SeedAnswer>();
+            foreach (SeedSample m in mau)
+            {
+                ds.Add(TraLoi(projectKey, m, labelerKey, payloadJson));
+            }
+
+            return ds;
+        }
+
+        private static SeedResult Dat(int soSoDuoc, int soGiong, bool dat)
+        {
+            return new SeedResult
+            {
+                ComparableCount = soSoDuoc,
+                MatchedCount = soGiong,
+                AgreementPercent = soSoDuoc == 0 ? 100 : soGiong * 100 / soSoDuoc,
+                Passed = dat,
+            };
+        }
+
+        private static SeedAttempt BaiLam(
+            string projectKey,
+            Guid projectId,
+            string labelerKey,
+            SeedAttemptState trangThai,
+            TimeSpan batDauCach,
+            TimeSpan? nopCach,
+            IReadOnlyList<SeedAnswer> traLoi,
+            int soCauVang,
+            int soCauVangDung,
+            SeedResult? ketQua)
+        {
+            return new SeedAttempt
+            {
+                AttemptId = SeedIds.Tu("attempt:" + projectKey + ":" + labelerKey),
+                ProjectId = projectId,
+                LabelerKey = labelerKey,
+                LabelerId = User(labelerKey).Id,
+                State = trangThai,
+                StartedAgo = batDauCach,
                 SubmittedAgo = nopCach,
-                ReviewedAgo = duyetCach,
-                AppealedAgo = khieuNaiCach,
+                Answers = traLoi,
+                GoldTotal = soCauVang,
+                GoldCorrect = soCauVangDung,
+                Result = ketQua,
             };
         }
 

@@ -21,8 +21,9 @@ namespace Crowd.Ledger.Api.Seeding
     ///
     ///   deposit.confirmed          → NapTienAsync        (nap 2.000.000d cho biz1)
     ///   project.publish_requested  → DatKyQuyAsync       (giu ky quy P1, P4, P2)
-    ///   project.published          → GhiNhanRedundancy   (chan chi vuot)
-    ///   annotation.approved        → ChiTraNhanAsync     (tru ky quy, treo cho labeler)
+    ///   project.published          → GhiDieuKhoanAsync   (so suat, thuong — chan tra vuot)
+    ///   project.graded             → ChiThuongDuAnAsync  (du an Completed: tru ky quy, thuong bai dat)
+    ///   project.completed          → TraKyQuyAsync       (hoan phan ky quy con lai)
     ///   (worker giai phong treo)   → GiaiPhongTreoAsync  (treo het han → kha dung)
     ///
     /// Nho vay so cai seed van can bang, chuoi hash lien tuc, va
@@ -92,7 +93,7 @@ namespace Crowd.Ledger.Api.Seeding
         public async Task ChayAsync(CancellationToken ct)
         {
             // Idempotent THEO TUNG DU AN: du an da co ky quy thi bo qua ca chuoi
-            // (ky quy → redundancy → chi tra) cua no. DB cu da co P1-P4 thi van
+            // (ky quy → dieu khoan → tra thuong → hoan) cua no. DB cu da co P1-P4 thi van
             // them du an moi cua kich ban. Nap tien tu idempotent theo IntentId.
             List<Guid> ids = KichBanSeed.Projects.Select(p => p.Id).ToList();
             HashSet<Guid> daCo = new HashSet<Guid>(
@@ -138,28 +139,25 @@ namespace Crowd.Ledger.Api.Seeding
                     }
                 }
 
-                // ---- 3. Du an dang chay: ghi redundancy ----
-                foreach (SeedProject sp in daKyQuy.Where(p => p.Stage == SeedStage.Running))
+                // ---- 3. Du an da chay: ghi dieu khoan thuong ----
+                foreach (SeedProject sp in daKyQuy.Where(p => p.DaChay))
                 {
-                    await DongTienLuc(sp.LucDuyet(bayGio)).GhiNhanRedundancyAsync(SeedEvents.DaPublish(sp, bayGio), Caller.HeThong(Guid.CreateVersion7(), null), ct);
+                    await DongTienLuc(sp.LucDuyet(bayGio)).GhiDieuKhoanAsync(SeedEvents.DaPublish(sp, bayGio), Caller.HeThong(Guid.CreateVersion7(), null), ct);
                     await LuuAsync(ct);
                 }
 
-                // ---- 4. Chi tra nhan da duyet, cu nhat truoc ----
+                // ---- 4. Du an Completed: thuong bai dat luc cham, hoan ky quy luc hoan thanh ----
                 int soChi = 0;
-                foreach (SeedProject sp in daKyQuy)
+                foreach (SeedProject sp in daKyQuy.Where(p => p.Stage == SeedStage.Completed))
                 {
-                    IEnumerable<SeedSubmission> daDuyet = sp.Submissions
-                        .Where(s => s.Review == SeedReview.Approved && s.ReviewedAgo.HasValue)
-                        .OrderByDescending(s => s.ReviewedAgo);
+                    Crowd.Contracts.Quality.ProjectGraded cham = SeedEvents.DaCham(sp, bayGio);
+                    await DongTienLuc(cham.GradedAt).ChiThuongDuAnAsync(cham, heThong, ct);
+                    await LuuAsync(ct);
+                    soChi = soChi + SeedEvents.SoNguoiDat(sp);
 
-                    foreach (SeedSubmission s in daDuyet)
-                    {
-                        DateTimeOffset lucDuyet = bayGio - s.ReviewedAgo.GetValueOrDefault();
-                        await DongTienLuc(lucDuyet).ChiTraNhanAsync(SeedEvents.DaDuyet(s, sp), heThong, ct);
-                        await LuuAsync(ct);
-                        soChi = soChi + 1;
-                    }
+                    await DongTienLuc(bayGio - sp.CompletedAgo.GetValueOrDefault())
+                        .TraKyQuyAsync(sp.Id, false, SeedEvents.SoNguoiDat(sp), heThong, ct);
+                    await LuuAsync(ct);
                 }
 
                 // ---- 5. Giai phong cac khoan treo da het han (viec cua HoldReleaseWorker) ----

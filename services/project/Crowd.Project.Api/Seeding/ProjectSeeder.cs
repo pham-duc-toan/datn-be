@@ -133,8 +133,8 @@ namespace Crowd.Project.Api.Seeding
             LabelSchema tapNhan = sp.TapNhan();
             duAn.DatLabelSchema(tapNhan, lucTao);
             duAn.DatHuongDan(Guideline.Tao(sp.GuidelineMarkdown, null, QuyDinhTuSetting.DuAn(_settings)), lucTao);
-            duAn.DatCauHinhGia(sp.UnitPriceVnd, sp.Redundancy, sp.TranRedundancy, sp.BudgetVnd, sp.Deadline(bayGio), lucTao, QuyDinhTuSetting.DuAn(_settings));
-            duAn.DatKenhPhanPhoi(true, false, false, lucTao);
+            duAn.DatCauHinhGia(sp.RewardVnd, sp.Slots, sp.PassThresholdPercent, sp.Deadline(bayGio), lucTao, QuyDinhTuSetting.DuAn(_settings));
+            duAn.DatKenhPhanPhoi(true, false, false, null, null, lucTao);
             duAn.DatDieuKienThamGia(
                 null,
                 null,
@@ -187,12 +187,12 @@ namespace Crowd.Project.Api.Seeding
                 DateTimeOffset lucKyQuy = sp.LucKyQuy(bayGio);
                 int soCauTest = sp.Gold.Count(g => g.ForEntranceTest);
 
-                duAn.YeuCauPublish(sp.Samples.Count, soCauTest, KichBanSeed.PhanTramPhi, lucKyQuy);
+                duAn.YeuCauPublish(sp.QuestionCount, soCauTest, KichBanSeed.PhanTramPhi, false, QuyDinhTuSetting.DuAn(_settings), null, lucKyQuy);
                 duAn.XacNhanDaKyQuy(lucKyQuy);
             }
 
             DateTimeOffset lucVaoDuAn = lucTao;
-            if (sp.Stage == SeedStage.Running)
+            if (sp.DaChay)
             {
                 DateTimeOffset lucDuyet = sp.LucDuyet(bayGio);
                 duAn.Duyet(lucDuyet);
@@ -201,13 +201,19 @@ namespace Crowd.Project.Api.Seeding
                 lucVaoDuAn = lucDuyet + TimeSpan.FromHours(1);
             }
 
+            if (sp.Stage == SeedStage.Completed)
+            {
+                // Da cham va qua han khieu nai (docs 3.18).
+                duAn.BatDauCham(bayGio - sp.GradedAgo!.Value);
+                duAn.HoanThanh(bayGio - sp.CompletedAgo!.Value);
+            }
+
             // ---- 5. Thanh vien ----
             _db.ProjectMembers.Add(ProjectMember.TaoChuSoHuu(sp.Id, sp.OwnerId, lucTao));
 
             foreach (SeedMember m in sp.Members)
             {
-                MemberRole vaiTro = m.Role == SeedMemberRole.Reviewer ? MemberRole.Reviewer : MemberRole.Labeler;
-                _db.ProjectMembers.Add(ProjectMember.TaoThanhVien(sp.Id, m.UserId, vaiTro, lucVaoDuAn));
+                _db.ProjectMembers.Add(ProjectMember.TaoThanhVien(sp.Id, m.UserId, MemberRole.Labeler, lucVaoDuAn));
             }
 
             return sp.Samples.Count;

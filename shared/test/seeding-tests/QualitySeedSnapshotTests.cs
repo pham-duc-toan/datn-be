@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.Contracts.Project;
+using Crowd.Contracts.Tasking;
 
 namespace Crowd.Seeding.Tests
 {
@@ -43,8 +44,9 @@ namespace Crowd.Seeding.Tests
         }
 
         /// <summary>
-        /// Chi cac truong quality-svc luu (bang projects). Bo deadline / thoi diem de
-        /// file khong doi theo ngay chay.
+        /// Chi cac truong quality-svc luu: ban sao du an (bang projects), bai DA NOP (attempts + labels) va —
+        /// du an Completed — ket qua cham (project_collections, attempt_grades). Thoi diem ghi bang "so giay
+        /// truoc luc seed" de file khong doi theo ngay chay.
         /// </summary>
         private static string TaoNoiDung()
         {
@@ -53,21 +55,44 @@ namespace Crowd.Seeding.Tests
 
             foreach (SeedProject p in KichBanSeed.Projects)
             {
-                if (p.Stage != SeedStage.Running)
+                if (!p.DaChay)
                 {
                     continue;
                 }
 
                 ProjectPublished e = SeedEvents.DaPublish(p, moc);
-                duAn.Add(new JsonObject
+                JsonArray bai = new JsonArray();
+                foreach (SeedAttempt b in p.Attempts)
+                {
+                    if (b.State != SeedAttemptState.Submitted)
+                    {
+                        continue;
+                    }
+
+                    bai.Add(TaoBai(p, b, moc));
+                }
+
+                JsonObject o = new JsonObject
                 {
                     ["projectId"] = e.ProjectId.ToString(),
                     ["ownerId"] = e.OwnerId.ToString(),
                     ["modality"] = e.Modality,
                     ["labelSchema"] = e.LabelSchema.Node().DeepClone(),
-                    ["redundancy"] = e.Redundancy,
-                    ["maxRedundancy"] = e.MaxRedundancy,
-                });
+                    ["passThresholdPercent"] = e.PassThresholdPercent,
+                    ["slots"] = e.Slots,
+                    ["questionCount"] = e.QuestionCount,
+                    ["createdAgoSeconds"] = (long)p.CreatedAgo.TotalSeconds,
+                    ["attempts"] = bai,
+                };
+
+                if (p.Stage == SeedStage.Completed)
+                {
+                    o["gradedAgoSeconds"] = (long)p.GradedAgo!.Value.TotalSeconds;
+                    o["completedAgoSeconds"] = (long)p.CompletedAgo!.Value.TotalSeconds;
+                    o["majorityUsed"] = SeedEvents.DaCham(p, moc).MajorityUsed;
+                }
+
+                duAn.Add(o);
             }
 
             JsonObject goc = new JsonObject
@@ -77,6 +102,51 @@ namespace Crowd.Seeding.Tests
             };
 
             return goc.ToJsonString(new JsonSerializerOptions { WriteIndented = true }).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
+        }
+
+        private static JsonObject TaoBai(SeedProject p, SeedAttempt b, DateTimeOffset moc)
+        {
+            AttemptSubmitted nop = SeedEvents.BaiNop(p, b, moc);
+            JsonArray cauHoi = new JsonArray();
+            JsonArray nhan = new JsonArray();
+            foreach (AttemptAnswer a in nop.Answers)
+            {
+                cauHoi.Add(a.SampleId.ToString());
+                if (a.LabelPayload != null)
+                {
+                    nhan.Add(new JsonObject
+                    {
+                        ["sampleId"] = a.SampleId.ToString(),
+                        ["data"] = JsonNode.Parse(a.LabelPayload.DataJson),
+                        ["sampleMetadata"] = a.SampleMetadata.Node().DeepClone(),
+                    });
+                }
+            }
+
+            JsonObject o = new JsonObject
+            {
+                ["attemptId"] = b.AttemptId.ToString(),
+                ["labelerId"] = b.LabelerId.ToString(),
+                ["sampleIds"] = cauHoi,
+                ["labels"] = nhan,
+                ["goldTotal"] = b.GoldTotal,
+                ["goldCorrect"] = b.GoldCorrect,
+                ["startedAgoSeconds"] = (long)b.StartedAgo.TotalSeconds,
+                ["submittedAgoSeconds"] = (long)b.SubmittedAgo!.Value.TotalSeconds,
+            };
+
+            if (b.Result != null)
+            {
+                o["result"] = new JsonObject
+                {
+                    ["comparableCount"] = b.Result.ComparableCount,
+                    ["matchedCount"] = b.Result.MatchedCount,
+                    ["agreementPercent"] = b.Result.AgreementPercent,
+                    ["passed"] = b.Result.Passed,
+                };
+            }
+
+            return o;
         }
 
         private static string TimGocRepo()

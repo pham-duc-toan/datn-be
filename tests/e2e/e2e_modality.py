@@ -43,22 +43,32 @@ lab1 = login("labeler1@crowd.local")
 lab2 = login("labeler2@crowd.local")
 
 
-def nhan_task(h, pid, cho_dong_bo=False):
-    r = requests.post(G + "/tasks/projects/%s/next" % pid, headers=h)
-    if cho_dong_bo and r.status_code == 403:
+def nhan_task(h, pid, cho_dong_bo=False, chon=None):
+    """Bai lam (3.18): mo / tiep tuc bai cua labeler, tra MOT cau chua lam (chon(q) → True de chon cau cu the).
+    Bai da nop / du an dong thu bai / chua dong bo → None."""
+    r = requests.post(G + "/tasks/projects/%s/attempt" % pid, headers=h)
+    if r.status_code == 403 and cho_dong_bo:
         return None  # member.added / project.published chua toi task-svc
-    if r.status_code == 204 or not r.text:
+    if r.status_code in (403, 409):
         return None
     r.raise_for_status()
-    return r.json()
+    b = r.json()
+    for q in b["questions"]:
+        if q.get("answer") is None and (chon is None or chon(q)):
+            return dict(q, assignmentId="%s|%s" % (b["attemptId"], q["sampleId"]), attemptId=b["attemptId"],
+                        labelSchema=b["labelSchema"], questions=b["questions"])
+    return None
+
+
+def luu_cau(h, aid, payload):
+    attempt_id, sid = aid.split("|")
+    return requests.put(G + "/tasks/attempts/%s/answers/%s" % (attempt_id, sid), headers=h, json={"data": payload})
 
 
 def nop(h, aid, payload):
-    return requests.post(G + "/tasks/assignments/%s/submit" % aid, headers=h, json={"payload": payload})
-
-
-def tha(h, aid):
-    requests.post(G + "/tasks/assignments/%s/release" % aid, headers=h)
+    """Luu cau roi NOP CA BAI (cau con lai bo trong). Nhan sai → 400 bai_chua_hop_le, bai van mo de sua."""
+    luu_cau(h, aid, payload).raise_for_status()
+    return requests.post(G + "/tasks/attempts/%s/submit" % aid.split("|")[0], headers=h)
 
 
 def du_an_seed(ten_chua):
@@ -81,13 +91,11 @@ r = requests.get(G + "/projects/3d904a1a-3920-530b-b055-793baae64f1b", headers=b
 kiem("GET du an P1 (anh cu) 200", r.status_code == 200, r.text)
 ls = r.json().get("labelSchema") if r.status_code == 200 else None
 kiem("P1 labelSchema dang tools, modality image", ls is not None and ls.get("modality") == "image" and ls["tools"][0]["name"] == "label", ls)
-r = requests.get(G + "/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/results", headers=biz1)
-kiem("ket qua P1 (nhan cu) gop duoc", r.status_code == 200 and r.json()["sampleCount"] > 0, r.text)
-if r.status_code == 200:
-    s0 = r.json()["samples"][0]
-    kiem("ket qua co tools.label.method=majority", s0["tools"]["label"]["method"] == "majority", s0)
-r = requests.get(G + "/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b?status=approved", headers=biz1)
-kiem("danh sach nhan cu doc duoc payload moi", r.status_code == 200 and r.json()["items"][0]["payload"]["data"].get("label") is not None, r.text)
+# P7 (seed Completed): nhan cua bai dat da vao ket qua (status accepted).
+r = requests.get(G + "/annotations/projects/12d52faa-09b4-5cd1-b21d-16984c952fec/results", headers=biz1)
+kiem("ket qua P7 (du an da cham) gop duoc", r.status_code == 200 and r.json()["sampleCount"] > 0, r.text)
+r = requests.get(G + "/annotations/projects/12d52faa-09b4-5cd1-b21d-16984c952fec?status=accepted", headers=biz1)
+kiem("danh sach nhan accepted doc duoc payload", r.status_code == 200 and r.json()["items"] and r.json()["items"][0]["payload"]["data"].get("tot_hon") is not None, r.text)
 
 # =====================================================================
 print("\n[2] P5 van ban: cam xuc + NER (span)")
@@ -194,10 +202,10 @@ def mau(pid):
     return requests.get(G + "/projects/%s/samples?page=1&pageSize=100" % pid, headers=biz1).json()["items"]
 
 
-def chay_du_an(pid, so_mau, ngan_sach=50000):
+def chay_du_an(pid, so_mau, ngan_sach=None, chon=None):
     r = requests.put(G + "/projects/%s/pricing" % pid, headers=biz1,
-                     json={"unitPriceVnd": 1000, "redundancy": 1, "budgetVnd": ngan_sach, "deadline": "2027-12-31T00:00:00Z"})
-    kiem("dat gia", r.status_code == 200, r.text)
+                     json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"})
+    kiem("dat gia (ca du an)", r.status_code == 200, r.text)
     r = requests.post(G + "/projects/%s/publish" % pid, headers=biz1)
     kiem("publish", r.status_code == 200, r.text)
     st = cho(lambda: (lambda s: s if s == "pendingApproval" else None)(
@@ -208,19 +216,20 @@ def chay_du_an(pid, so_mau, ngan_sach=50000):
     r = requests.post(G + "/projects/%s/join" % pid, headers=lab1)
     kiem("lab1 tham gia", r.status_code == 200, r.text)
     # Cho task-svc nhan project.published + member.added + dataset.ingested.
-    t = cho(lambda: nhan_task(lab1, pid, True), 20, 1)
-    kiem("lab1 nhan duoc task", t is not None, t)
+    t = cho(lambda: nhan_task(lab1, pid, True, chon), 20, 1)
+    kiem("lab1 mo duoc bai", t is not None, t)
     return t
 
 
 def duyet_tat_ca(pid):
+    """Khong con duyet tung nhan: ket thuc som → cham → nhan bai dat vao ket qua."""
+    requests.post(G + "/projects/%s/finish" % pid, headers=biz1).raise_for_status()
+
     def ds():
-        items = requests.get(G + "/annotations/projects/%s?status=pendingReview" % pid, headers=biz1).json()["items"]
+        items = requests.get(G + "/annotations/projects/%s?status=accepted" % pid, headers=biz1).json()["items"]
         return items if items else None
-    items = cho(ds, 20) or []
-    for a in items:
-        requests.post(G + "/annotations/%s/approve" % a["id"], headers=biz1)
-    kiem("duyet %d nhan" % len(items), len(items) > 0)
+    items = cho(ds, 60) or []
+    kiem("cham xong: %d nhan vao ket qua" % len(items), len(items) > 0)
     return items
 
 
@@ -234,9 +243,6 @@ pid = du_an_moi("[e2e] Anh khung", "image", {
         {"name": "vat", "kind": "bbox", "classes": ["xe", "nguoi"], "required": False},
         {"name": "vung", "kind": "polygon", "classes": ["duong"], "required": False},
     ]})
-# Muc nay kiem khung / da giac, khong kiem tron cau vang: tat tron (mac dinh 10% → task dau co the
-# la cau vang kiem tra, test lech ngau nhien).
-requests.put(G + "/projects/%s/quality-control" % pid, headers=biz1, json={"goldCheckPercent": 0}).raise_for_status()
 r = requests.post(G + "/projects/%s/uploads" % pid, headers=biz1, json={"files": [{"name": "virus.exe", "sizeBytes": 10}]})
 kiem("upload duoi .exe cho du an anh → 400", r.status_code == 400, r.text)
 keys = upload(pid, [os.path.join(M, "anh.png"), os.path.join(M, "anh2.png"), os.path.join(M, "gia-mao.png")])
@@ -255,9 +261,13 @@ r = requests.post(G + "/projects/%s/gold-items" % pid, headers=biz1, json={"item
     "sampleId": mau_do["id"], "purpose": "qualityCheck",
     "expectedPayload": {"loai": {"labelIds": ["ngoai_troi"]}, "vat": [{"labelId": "xe", "x": 10, "y": 10, "w": 50, "h": 40}]}}]})
 kiem("cau vang bbox hop le", r.status_code == 200, r.text)
-t = chay_du_an(pid, 2)
+t = chay_du_an(pid, 2, chon=lambda q: q["metadata"]["width"] == 300)
 if t:
-    kiem("task la anh con lai (xanh 300x200)", t["metadata"]["width"] == 300, t["metadata"])
+    kiem("bai co 2 cau: anh xanh 300x200 + cau vang (khong phan biet duoc)", len(t["questions"]) == 2 and t["metadata"]["width"] == 300, t["metadata"])
+    # Tra loi DUNG cau vang (anh do 200x150) de bai dat → nhan vao ket qua.
+    vang = [q for q in t["questions"] if q["metadata"]["width"] == 200][0]
+    luu_cau(lab1, "%s|%s" % (t["attemptId"], vang["sampleId"]),
+            {"loai": {"labelIds": ["ngoai_troi"]}, "vat": [{"labelId": "xe", "x": 10, "y": 10, "w": 50, "h": 40}]}).raise_for_status()
     r = nop(lab1, t["assignmentId"], {"loai": {"labelIds": ["ngoai_troi"]}, "vat": [{"labelId": "xe", "x": 250, "y": 150, "w": 100, "h": 100}]})
     kiem("bbox tran ra ngoai anh → 400", r.status_code == 400, r.text)
     r = nop(lab1, t["assignmentId"], {"loai": {"labelIds": ["ngoai_troi"]}, "vung": [{"labelId": "duong", "points": [[0, 0], [10, 0]]}]})

@@ -1,5 +1,5 @@
 using Crowd.BuildingBlocks.Messaging;
-using Crowd.Contracts.Annotation;
+using Crowd.Contracts.Tasking;
 
 namespace Crowd.Contracts.Tests;
 
@@ -22,7 +22,7 @@ public sealed class PayloadSnapshotTests
     [Fact]
     public void Hinh_dang_payload_khong_doi_so_voi_anh_chup_da_commit()
     {
-        var hienTai = EventPayloadContract.Describe(typeof(AnnotationApproved).Assembly);
+        var hienTai = EventPayloadContract.Describe(typeof(AttemptSubmitted).Assembly);
 
         if (Environment.GetEnvironmentVariable(BienMoiTruongCapNhat) == "1")
         {

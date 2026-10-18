@@ -125,80 +125,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                     b.ToTable("accounts", (string)null);
                 });
 
-            modelBuilder.Entity("Crowd.Ledger.Domain.Disputes.Dispute", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<long>("AmountVnd")
-                        .HasColumnType("bigint")
-                        .HasColumnName("amount_vnd");
-
-                    b.Property<Guid>("AnnotationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("annotation_id");
-
-                    b.Property<Guid>("BusinessId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("business_id");
-
-                    b.Property<Guid>("HoldId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("hold_id");
-
-                    b.Property<Guid>("LabelerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("labeler_id");
-
-                    b.Property<DateTimeOffset>("OpenedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("opened_at");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("reason");
-
-                    b.Property<string>("ResolutionNote")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("resolution_note");
-
-                    b.Property<DateTimeOffset?>("ResolvedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("resolved_at");
-
-                    b.Property<Guid?>("ResolvedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("resolved_by");
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("state");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AnnotationId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_disputes_annotation");
-
-                    b.HasIndex("BusinessId")
-                        .HasDatabaseName("ix_disputes_business");
-
-                    b.HasIndex("State", "OpenedAt")
-                        .HasDatabaseName("ix_disputes_hang_doi");
-
-                    b.ToTable("disputes", (string)null);
-                });
-
             modelBuilder.Entity("Crowd.Ledger.Domain.Escrows.ProjectEscrow", b =>
                 {
                     b.Property<Guid>("ProjectId")
@@ -217,13 +143,17 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("closing_is_cancel");
 
-                    b.Property<int?>("ExpectedPaidAnnotations")
+                    b.Property<int?>("ExpectedPaidAttempts")
                         .HasColumnType("integer")
-                        .HasColumnName("expected_paid_annotations");
+                        .HasColumnName("expected_paid_attempts");
 
                     b.Property<long>("GateBudgetSequence")
                         .HasColumnType("bigint")
                         .HasColumnName("gate_budget_sequence");
+
+                    b.Property<long>("GateBudgetVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("gate_budget_vnd");
 
                     b.Property<long>("GateSpentVnd")
                         .HasColumnType("bigint")
@@ -242,10 +172,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("platform_fee_vnd");
 
-                    b.Property<int>("Redundancy")
-                        .HasColumnType("integer")
-                        .HasColumnName("redundancy");
-
                     b.Property<DateTimeOffset>("ReservedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("reserved_at");
@@ -254,19 +180,19 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("reserved_vnd");
 
-                    b.Property<int>("SampleCount")
+                    b.Property<long>("RewardVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reward_vnd");
+
+                    b.Property<int>("Slots")
                         .HasColumnType("integer")
-                        .HasColumnName("sample_count");
+                        .HasColumnName("slots");
 
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("state");
-
-                    b.Property<long>("UnitPriceVnd")
-                        .HasColumnType("bigint")
-                        .HasColumnName("unit_price_vnd");
 
                     b.HasKey("ProjectId");
 

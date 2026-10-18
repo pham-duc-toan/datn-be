@@ -264,13 +264,15 @@ Compensation: [Chờ duyệt] quá 72h không ai duyệt → project.cancelled �
 | Saga | Chuỗi | Compensation |
 |---|---|---|
 | Publish dự án | project → ledger → project | Hoàn escrow nếu timeout hoặc admin từ chối |
-| Duyệt nhãn | annotation → ledger (hold) → *(3–7 ngày)* → ledger (release) | Tranh chấp thắng → `dispute.resolved` đảo bút toán |
-| Hủy / hoàn thành dự án | project (đã **tạm dừng**) → hỏi task + đóng sổ annotation (HTTP nội bộ) → `project.completed` / `cancelled` → task (đóng), ledger (hoàn phần chưa dùng) | Đóng sổ xong mà project lưu lỗi → bấm lại (idempotent) hoặc chạy tiếp (`project.resumed` mở sổ) |
+| Thu bài → chấm → trả thưởng (3.18) | task (đóng thu bài) → quality (`project.graded`) → ledger (trả bài đạt) → task (hết hạn khiếu nại, `project.settled`) → project (`project.completed`) → ledger (hoàn suất thừa) | Khiếu nại được chấp nhận → `attempt.appeal_resolved` trả thêm; ký quỹ `Closing` chờ trả đủ số bài đạt |
+| Huỷ dự án | project (đã **tạm dừng**, hỏi task: chưa có bài nộp) → `project.cancelled` → ledger hoàn toàn bộ | Có bài nộp → 409 `da_co_bai_nop`, dùng kết thúc sớm |
 | Rút tiền | ledger (giữ) → payment (gọi ngoài) → ledger (chốt hoặc hoàn) | `payout.failed` → trả về số dư khả dụng |
 | Vượt link | gate → annotation (ghi nhãn) + ledger (CPM) | Không cần: at-least-once + consumer idempotent |
 | Chốt phiên collab | collab → annotation (1 bản chung) → ledger (chia theo đóng góp) | Leader chỉnh ±20% → bút toán điều chỉnh, ghi log |
 
 ### 3.4.1. Đóng dự án: không để labeler làm không công
+
+> **Đã thay bằng mục 3.18** (dự án làm trung tâm): không còn duyệt từng nhãn nên không còn "đóng sổ annotation". Huỷ chỉ khi chưa có bài nộp; dừng sớm dùng `POST /finish`; ý chính của bước 4 (ký quỹ `Closing`, NC-B-01) giữ nguyên với đơn vị là **bài đạt**. Phần dưới giữ lại để đối chiếu thiết kế cũ.
 
 Hoàn thành hoặc hủy dự án **đã chạy** là lúc ledger trả ký quỹ còn lại về doanh nghiệp. Sau đó nhãn nào được duyệt cũng không còn tiền trả. Vì vậy chỉ đóng được khi **không còn việc nào có thể sinh tiền cho labeler**:
 
@@ -299,6 +301,8 @@ POST /projects/{id}/complete | /cancel   (Running → 409 can_tam_dung_truoc: ph
 - **Ngoại lệ có kiểm soát với luật 1 mục 4:** đây là lời gọi HTTP đồng bộ đầu tiên giữa hai service nghiệp vụ. Nó không nằm trên đường nóng (đóng dự án rất hiếm), và hỏi thẳng **chủ dữ liệu** đúng như luật "quyết định tiền bạc không đọc bản sao". Endpoint nằm dưới `/internal` (gateway không định tuyến) và cần header `X-Internal-Key` (`InternalApi:Key`, bộ lọc `[InternalApi]` trong `shared/auth`).
 
 ### 3.5. Lease task 15 phút (FL-06)
+
+> **Đã thay bằng mục 3.18:** labeler làm cả bài (`Attempt`, hạn 48 giờ), không còn giữ từng task. Phần dưới giữ lại để đối chiếu thiết kế và số đo cũ (NC-B-06).
 
 **Postgres là nguồn sự thật DUY NHẤT của lease** — mọi bước là một transaction có khóa dòng:
 
@@ -378,6 +382,8 @@ Doanh thu cộng bởi consumer của ledger, không nằm trong request. Đúng
 IP không lưu thô: `sha256(muối | ip)` (muối `Privacy:IpSalt` dùng chung giữa link và gate để so "người vượt có phải người tạo link"); bản chống trùng theo ngày còn trộn thêm ngày.
 
 ### 3.7. Redundancy thích ứng — vòng lặp event giữa hai service
+
+> **Đã thay bằng mục 3.18:** số người làm do số suất quyết định, không còn xin thêm người; đồng thuận không còn chạy theo từng task mà chấm **một lần cả dự án** (vẫn dùng chung thuật toán gộp ở mục 3.15). Phần dưới giữ lại để đối chiếu thiết kế cũ và NC-D-01.
 
 Đây là chỗ ranh giới service lộ ra rõ nhất: `task-svc` **sở hữu** số redundancy, `quality-svc` **quyết định** thay đổi nó.
 
@@ -862,6 +868,86 @@ Trước bản này chỉ có hai đường: dự án **công khai** thì labele
 **Phân vùng `tasks` (T-07) — task.** `HASH(project_id)` 16 phần: câu lấy task luôn lọc theo dự án nên chỉ đụng một phân vùng. Bảng phân vùng bắt buộc khoá chính chứa cột phân vùng → `(project_id, id)` và khoá ngoại từ `assignments` thành `(project_id, task_id)`; tra theo `id` đơn lẻ (ít gặp) đi qua `ix_tasks_id`. EF không tạo partition nên migration viết SQL tay (đổi tên bảng cũ → tạo bảng phân vùng → chép dữ liệu → bỏ bảng cũ); model EF khai đúng khoá ghép để migration sau không sinh lệch. **Không** phân vùng `outbox` theo thời gian (xem VD-O-08).
 
 **Bí mật dev (S-08).** Mật khẩu dev vẫn ở `appsettings.Development.json` cho chế độ chạy service trên máy, nhưng hệ thống **fail closed**: ngoài môi trường Development, service còn thấy mật khẩu / khoá dev trong cấu hình thì từ chối khởi động (C#: `ChanBiMatDev` đăng ký trong `AddCrowdJwtAuthentication`; Python: `config.settings()`).
+
+### 3.18. Dự án làm trung tâm: làm cả bài, chấm một lần, trả thưởng theo bài
+
+Thiết kế cũ xoay quanh **từng nhãn**: labeler giữ một task 15 phút, nộp từng câu, doanh nghiệp duyệt từng nhãn, ledger chi đơn giá cho mỗi nhãn được duyệt. Yêu cầu mới lấy **dự án làm đơn vị**:
+
+- Tiền đặt cho **cả dự án**: mỗi *suất* có một khoản thưởng `R`, dự án có `S` suất. Không còn đơn giá mỗi nhãn.
+- Labeler làm như **bài kiểm tra**: mỗi người một bài gồm mọi câu của dự án (kèm câu vàng trộn lẫn, không phân biệt được), lưu nháp từng câu, quay lại sửa, bỏ qua câu khó, cuối cùng **nộp cả bài một lần**.
+- **Không duyệt từng nhãn** (bắt buộc). Bài được chấm một lần khi dự án đóng thu bài và chỉ trả thưởng **sau khi** dự án kết thúc thu bài.
+- **Đạt** khi tỉ lệ câu giống đa số ≥ `t` **và** không sai câu vàng. `t` do doanh nghiệp chọn trong `[x, y]`; `x`, `y` là setting của admin (`project.pass_threshold_min` = 60, `project.pass_threshold_max` = 95).
+
+#### Vòng đời và các event
+
+```
+                 project-svc                    task-svc                       quality-svc            ledger-svc
+publish ───► PendingEscrow ─ ký quỹ = S × (R + phí) + ngân sách cổng link ──────────────────────────► giữ ký quỹ
+admin duyệt ► Running ── project.published ──► mở thu bài
+                          labeler: POST attempt → PUT answers/{câu} (nháp, lưu ở task-svc) → POST submit
+                                               attempt.submitted (cả bài) ──► lưu bài + xét gian lận
+                                                                         └──► annotation-svc: nhãn "Submitted"
+  đủ S bài nộp │ hết hạn chót │ POST /finish (project.finish_requested)
+               ▼                               đóng thu bài: bài đang làm → Expired
+           Grading ◄─ project.collection_finished {danh sách bài, câu bị loại} ──► chấm MỘT lần
+                                                                                   project.graded ──► trả thưởng bài đạt
+                                                                                   (annotation: Accepted / Excluded;      (vào ví ngay,
+                                                                                    identity: cấp độ; notification)        ledger.reward_hold = 0)
+                          hạn khiếu nại (task.appeal_window = 3 ngày): labeler trượt khiếu nại CẢ BÀI
+                          admin chấp nhận → attempt.appeal_resolved ─────────────────────────────────► trả thưởng bài đó
+                          hết hạn + không còn khiếu nại mở → project.settled {PassedAttemptCount}
+           Completed ◄─────┘
+           project.completed {PassedAttemptCount} ───────────────────────────────────────────────────► đã trả đủ? hoàn phần
+                                                                                                        còn lại → Closed
+                                                                                                        chưa đủ → Closing
+```
+
+| Event | Ai phát → ai nghe | Mang gì |
+|---|---|---|
+| `project.published` **v2** | project → task, annotation, quality, ledger, gate, notification | thưởng / phí mỗi suất, số suất, `t`, số câu, kênh, đơn giá + ngân sách cổng link |
+| `attempt.submitted` | task → annotation, quality | mọi câu THẬT của bài (câu bỏ trống: `labelPayload = null`), số câu vàng đúng / tổng, IP, thiết bị |
+| `project.finish_requested` | project → task | doanh nghiệp kết thúc sớm |
+| `project.collection_finished` | task → quality, project | lý do (`du_suat` / `het_han` / `ket_thuc_som`), danh sách bài phải chấm, câu bị loại (báo lỗi được chấp nhận) |
+| `project.graded` | quality → task, annotation, ledger, identity, notification | kết quả từng bài: số câu so được, số câu giống, %, câu vàng, đạt / trượt |
+| `attempt.appeal_opened` / `attempt.appeal_resolved` | task → admin (hàng đợi), annotation, ledger, identity, notification | khiếu nại cả bài và kết cục |
+| `project.settled` | task → project | số bài đạt cuối cùng (sau khiếu nại) |
+| `project.completed` **v2** / `project.cancelled` **v2** | project → mọi service | `PassedAttemptCount` (huỷ: không còn số nhãn đã duyệt) |
+
+Bỏ hẳn: `assignment.submitted`, `task.redundancy_reached`, `redundancy.increase_requested`, `consensus.reached`, `gold.answered`, `annotation.submitted / approved / rejected`, `appeal.*` (theo nhãn), `dispute.*`. Mọi consumer nghe các event này được gỡ, contract snapshot sinh lại; vì hợp đồng payload nghiêm ngặt (VD-D-12), **toàn bộ service phải deploy cùng lúc**.
+
+#### Luật chấm (`services/quality/app/cham.py`, hàm thuần, có test)
+
+1. Với từng câu thật (không phải câu vàng, không bị loại): gộp câu trả lời của **mọi bài đã nộp** theo từng công cụ bằng đúng thuật toán gộp nhãn của mục 3.15 (`consensus.danh_gia`, đa số quá bán). Câu **có đa số** khi có ≥ 2 người trả lời và ít nhất một công cụ ra kết quả được quá nửa số người ủng hộ. Câu hoà phiếu / chỉ có `freeText` không tính cho ai.
+2. Một bài: *số câu so được* = các câu có đa số mà bài có trong đề; *số câu giống* = câu mà nhãn khớp kết quả gộp ở **mọi** công cụ đã có kết quả mà người đó làm. **Câu bỏ trống vẫn so được nhưng không giống.** Tỉ lệ = ⌊100 × giống / so được⌋; không câu nào so được → 100.
+3. **Đạt** = tỉ lệ ≥ `t` **và** câu vàng đúng = câu vàng tổng. Dự án không có câu vàng kiểm tra thì luật thứ hai luôn đúng — checklist chỉ **cảnh báo** (`khong_co_cau_vang_kiem_tra`), không chặn publish.
+4. **Ít hơn 3 bài nộp** thì "đa số" không có nghĩa thống kê: chỉ xét câu vàng (`majorityUsed = false`). 0 bài → vẫn phát `project.graded` với danh sách rỗng để dự án đi tiếp tới hoàn ký quỹ.
+
+Câu vàng được **task-svc chấm ngay lúc nộp** (`KhopDapAn` của Crowd.Labeling, cùng luật với bài test đầu vào) và chỉ gửi đi *số đúng / tổng*: quality-svc và annotation-svc không bao giờ biết câu nào là vàng, nên không lộ qua kết quả hay file xuất.
+
+#### Các quyết định và đánh đổi
+
+| # | Câu hỏi | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| 18-1 | Bài làm nằm ở đâu | **task-svc** (aggregate `Attempt` + bảng `attempt_answers`) | task-svc đã giữ câu hỏi, điều kiện tham gia, câu vàng, báo lỗi. Nháp lưu ở đây (tối đa 256 KB / câu, `task.attempt_max_bytes` = 8 MB / bài); annotation-svc chỉ nhận **một** event khi nộp — không có nhãn "nửa vời" ngoài task-svc |
+| 18-2 | Một người mấy bài | **Một bài / dự án** (`UNIQUE` có điều kiện trên bài đang làm / đã nộp) | Số suất là số người được thưởng; bỏ bài (`abandon`) trả suất lại và được làm lại |
+| 18-3 | Hạn làm bài | `min(now + task.attempt_duration (48 giờ), hạn chót dự án)` | Bài quá hạn → `Expired` bởi worker; giữ chỗ quá lâu không chặn người khác mãi |
+| 18-4 | Khi nào chấm | Khi có **đủ hai điều kiện**: đã đóng thu bài **và** đã nhận mọi `attempt.submitted` trong danh sách | Hai event đi hai queue, cái nào tới trước cũng được; khoá `pg_advisory_xact_lock` theo dự án để hai transaction không cùng thấy thiếu (đúng lỗi từng gặp ở đồng thuận theo task, mục 3.7) |
+| 18-5 | Trả thưởng lúc nào | **Ngay khi chấm**, vào số dư khả dụng (`ledger.reward_hold` = 0) | Đúng yêu cầu "trả sau khi dự án kết thúc" (kết thúc thu bài). Hoàn ký quỹ thì chờ tới khi **chốt** (hết hạn khiếu nại), vì khiếu nại được chấp nhận còn phải trả thêm |
+| 18-6 | Khiếu nại | **Cả bài**, một lần, trong `task.appeal_window` (3 ngày), admin phân xử | Không còn duyệt từng nhãn nên không còn tranh chấp từng nhãn (FM-06 cũ bị bỏ). Chấp nhận = bài đạt: nhãn vào kết quả + trả thưởng; vẫn chặn vượt số suất trong ký quỹ |
+| 18-7 | Kết thúc sớm / huỷ | **Huỷ chỉ khi chưa có bài nộp** (phải tạm dừng trước). Có bài rồi thì dùng `POST /projects/{id}/finish` | Huỷ là hoàn **toàn bộ** ký quỹ; đã có người làm xong bài thì phải chấm và trả cho người đạt |
+| 18-8 | Ký quỹ | `S × (R + phí%) + ngân sách cổng link` | Ledger chặn trả vượt `S` bài (VD-M-03 theo suất thay cho theo redundancy). Cổng link giữ **đơn giá riêng mỗi nhãn khách gán** và ngân sách riêng — không bao giờ ăn vào tiền thưởng labeler (VD-L-03) |
+| 18-9 | Đóng sổ không mất tiền (NC-B-01) | Giữ trạng thái `Closing` của ký quỹ, đổi đơn vị: `project.completed` mang **số bài đạt cuối cùng** | `project.graded` / `attempt.appeal_resolved` và `project.completed` đi các queue khác nhau; tới trễ vẫn được trả, trả đủ thì tự hoàn phần còn lại |
+| 18-10 | Nhãn ở annotation-svc | Trạng thái `Submitted` → `Accepted` (bài đạt / khiếu nại được chấp nhận) / `Excluded` (bài trượt) | Kết quả gộp và file xuất chỉ dùng `Accepted`. Migration chuyển dữ liệu cũ: `Approved → Accepted`, `PendingReview → Submitted`, `Rejected / Appealed → Excluded`; bảng `task_consensus` bị bỏ |
+| 18-11 | Uy tín, cấp độ | Uy tín = câu vàng + (câu giống / câu so được) cộng dồn qua các bài đã chấm; cấp độ cộng **số câu đã trả lời của bài đạt** | Bằng chứng cũ (`label_agreements`, `gold_answers`) vẫn được tính — xoá là đổi điểm của người ta |
+| 18-12 | Chống gian lận (FM-07) | Xét theo **bài**: số giây trung bình mỗi câu so với trung vị các bài khác; chuỗi chọn cùng một lớp dài nhất trong bài; chung IP / thiết bị như cũ | Một người chỉ có một bài / dự án nên "cửa sổ N lượt gần nhất" cũ không còn nghĩa |
+
+#### Những gì bị bỏ, và ảnh hưởng tới các nghiên cứu
+
+- **Lease 15 phút** (mục 3.5), **redundancy thích ứng** (mục 3.7), **duyệt / từ chối / khiếu nại / tranh chấp từng nhãn**, **tỉ lệ câu vàng chèn vào luồng task**, **ép nghỉ giải lao** — gỡ khỏi code, setting (`task.lease_*`, `project.redundancy_max`, `project.gold_check_percent_*`, `annotation.appeal_window`, `annotation.bulk_approve_max`, `annotation.auto_approve_agreed`, `welfare.*`, `quality.redundancy_policy`, `quality.posterior_target`, `quality.voi_value_ratio`…) và catalog.
+- [NC-D-01](thi-nghiem/nc-d-01-redundancy-thich-ung.md) (khi nào dừng mua nhãn) không còn được dùng trong hệ thống: số người làm giờ do doanh nghiệp chọn bằng số suất. Kết quả thí nghiệm vẫn đúng như một nghiên cứu độc lập; hàm `redundancy.py` giữ lại cùng test.
+- [NC-B-06](thi-nghiem/nc-b-06-hieu-nang.md#2-phân-phối-task) đo phân phối task theo lease — đường nóng đó không còn; đường nóng mới là **lưu nháp câu trả lời** (một `UPDATE` theo khoá chính `(attempt_id, sample_id)`), nhẹ hơn nhiều.
+- [NC-B-01](thi-nghiem/nc-b-01-tla.md) mô hình hoá luồng cũ; tính chất được chứng minh ("labeler đủ điều kiện được trả không bị mất tiền khi đóng dự án") vẫn giữ nhờ quyết định 18-9.
+- Kiểm thử: `tests/e2e/e2e_du_an_trung_tam.py` phủ luồng chính (51 kiểm tra: ngưỡng ngoài khoảng, ký quỹ theo suất, lưu nháp / quay lại / bỏ trống / câu sai định dạng, hết suất, kết thúc sớm, chấm đa số + câu vàng, trả thưởng, loại nhãn bài trượt, khiếu nại được chấp nhận, chốt và hoàn suất thừa, < 3 bài, huỷ). Luật chấm có unit test thuần ở `services/quality/tests/test_cham.py`.
 
 ## 4. Dữ liệu chéo — ba luật cứng
 

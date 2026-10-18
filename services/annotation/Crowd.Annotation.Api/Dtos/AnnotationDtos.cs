@@ -37,31 +37,14 @@ namespace Crowd.Annotation.Api.Dtos
 
         public required DateTimeOffset SubmittedAt { get; init; }
 
-        public DateTimeOffset? ReviewedAt { get; init; }
+        /// <summary>Bai lam chua nhan nay (cong link: id phien vuot link).</summary>
+        public required Guid AttemptId { get; init; }
 
-        public string? RejectReason { get; init; }
-
-        public string? AppealMessage { get; init; }
-
-        /// <summary>true = labeler con khieu nai duoc (bi tu choi, chua khieu nai, con han).</summary>
-        public required bool CanAppeal { get; init; }
-
-        /// <summary>
-        /// Goi y tu quality-svc: nhan co khop ket qua dong thuan khong. null = chua co
-        /// ket qua (task chua du nguoi) hoac tap nhan khong co cong cu gop duoc.
-        /// </summary>
-        public bool? ConsensusAgrees { get; init; }
+        /// <summary>Luc chot vao / loai khoi ket qua (khi du an cham xong).</summary>
+        public DateTimeOffset? DecidedAt { get; init; }
     }
 
     /// <summary>Ket qua duyet hang loat cac nhan khop dong thuan.</summary>
-    public sealed class BulkApproveResponse
-    {
-        public required int ApprovedCount { get; init; }
-
-        /// <summary>Nhan cua chinh nguoi duyet — khong tu duyet duoc, bo qua.</summary>
-        public required int SkippedOwnCount { get; init; }
-    }
-
     public sealed class HistoryEntryResponse
     {
         public required string Action { get; init; }
@@ -85,40 +68,21 @@ namespace Crowd.Annotation.Api.Dtos
     }
 
     /// <summary>Lich su cong viec cua labeler (FL-08).</summary>
+    /// <summary>Nhan cua toi (FL-08) — chi de doi chieu; tien / ket qua di theo bai lam (task-svc).</summary>
     public sealed class MyAnnotationsResponse
     {
         public required PagedResponse<AnnotationResponse> Annotations { get; init; }
 
-        public required int PendingCount { get; init; }
+        /// <summary>Nhan trong bai da nop, cho cham.</summary>
+        public required int SubmittedCount { get; init; }
 
-        public required int ApprovedCount { get; init; }
+        /// <summary>Nhan vao ket qua (bai dat).</summary>
+        public required int AcceptedCount { get; init; }
 
-        public required int RejectedCount { get; init; }
-
-        public required int AppealedCount { get; init; }
-
-        /// <summary>Duyet / (duyet + tu choi), phan tram. null khi chua co nhan nao duoc xet.</summary>
-        public int? ApprovalRatePercent { get; init; }
+        /// <summary>Nhan bi loai (bai truot).</summary>
+        public required int ExcludedCount { get; init; }
     }
 
-    public sealed class ReasonRequest
-    {
-        public string? Reason { get; init; }
-    }
-
-    public sealed class AppealRequest
-    {
-        public string? Message { get; init; }
-    }
-
-    public sealed class ResolveAppealRequest
-    {
-        public bool Accept { get; init; }
-
-        public string? Note { get; init; }
-    }
-
-    /// <summary>Ket qua chot cua mot mau (FB-22 / FB-25).</summary>
     public sealed class SampleResultResponse
     {
         public required Guid SampleId { get; init; }
@@ -180,45 +144,6 @@ namespace Crowd.Annotation.Api.Dtos
         public required IReadOnlyList<ImbalanceWarningDto> ImbalanceWarnings { get; init; }
 
         public required IReadOnlyList<SampleResultResponse> Samples { get; init; }
-    }
-
-    /// <summary>POST /internal/projects/{id}/close — project-svc gui so luot nop that ben task-svc.</summary>
-    public sealed class CloseProjectRequest
-    {
-        public int SubmittedCount { get; init; }
-    }
-
-    /// <summary>
-    /// Ket qua dong so. Closed = false thi kem ly do + so lieu de doanh nghiep biet con phai
-    /// xu ly gi (duyet het nhan cho, cho admin phan xu, cho het han khieu nai...).
-    /// </summary>
-    public sealed class CloseProjectResponse
-    {
-        public required bool Closed { get; init; }
-
-        /// <summary>Ma ly do: nhan_chua_dong_bo, con_nhan_cho_duyet, con_khieu_nai, con_han_khieu_nai.</summary>
-        public required IReadOnlyList<string> Reasons { get; init; }
-
-        /// <summary>So nhan cua labeler chuyen nghiep (khong tinh nhan cong link — khong gan tien).</summary>
-        public required int AnnotationCount { get; init; }
-
-        public required int SubmittedCount { get; init; }
-
-        public required int PendingReview { get; init; }
-
-        /// <summary>
-        /// Nhan chuyen nghiep DA DUYET (gom khieu nai thang). project-svc dua vao project.completed /
-        /// project.cancelled: ledger chi hoan ky quy khi da chi du so nhan nay.
-        /// </summary>
-        public required int ApprovedCount { get; init; }
-
-        public required int OpenAppeals { get; init; }
-
-        /// <summary>Nhan bi tu choi, chua khieu nai, con trong han khieu nai.</summary>
-        public required int RejectedInAppealWindow { get; init; }
-
-        /// <summary>Luc han khieu nai cuoi cung het (null neu khong con nhan nao trong han).</summary>
-        public required DateTimeOffset? AppealWindowEndsAt { get; init; }
     }
 
     /// <summary>Mot canh bao lech phan bo nhan (FB-24).</summary>

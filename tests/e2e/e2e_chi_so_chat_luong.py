@@ -1,7 +1,7 @@
 # E2E CHI SO CHAT LUONG (FQ-02) + BU BAN SAO DU AN:
 #   Krippendorff alpha cho MOI loai cong cu (nominal / interval / set_f1), Fleiss' kappa cho cong cu
 #   chon mot gia tri, STAPLE (do nhay / dac hieu) cho mat na trong bao cao labeler;
-#   quality-svc thieu ban sao du an → tu hoi project-svc (/internal/projects/{id}/published-terms).
+#   quality-svc thieu ban sao du an → tu hoi project-svc (/internal/projects/{id}/published-terms) luc CHAM.
 # Chay: python e2e_chi_so_chat_luong.py   (stack demo: E2E_PROFILE=demo)
 import os, sys
 import requests
@@ -12,16 +12,13 @@ import e2e_cong_cu_helpers as h  # noqa: E402
 
 
 def lam_tat_ca(u, pid, payload_cua):
-    """Lam het task; payload_cua(sampleId) → payload. Tra so task da nop."""
-    so = 0
-    for _ in range(50):
-        t = nhan_task(u, pid, 20)
-        if t is None:
-            return so
-        r = requests.post(G + f"/tasks/assignments/{t['assignmentId']}/submit", headers=u["h"], json={"payload": payload_cua(t["sampleId"])})
-        assert r.status_code == 200, r.text
-        so += 1
-    return so
+    """Lam ca bai; payload_cua(sampleId) → nhan. Nop ca bai, tra so cau da tra loi."""
+    b = bat_dau(u, pid, 20)
+    for q in b["questions"]:
+        luu(u, b["attemptId"], q["sampleId"], payload_cua(q["sampleId"])).raise_for_status()
+    r = nop_bai(u, b["attemptId"])
+    assert r.status_code == 200, r.text
+    return r.json()["answeredCount"]
 
 
 try:
@@ -93,13 +90,14 @@ try:
     kiem("quality nhan project.published", cho(lambda: sql("quality", f"select count(*) from projects where project_id='{Q}'") == "1", 30))
     sql("quality", f"delete from projects where project_id='{Q}'")
     kiem("xoa ban sao (gia lap du an publish truoc khi quality ton tai)", sql("quality", f"select count(*) from projects where project_id='{Q}'") == "0")
-    for u in L[:2]:
+    for u in L:
         tham_gia(u, Q)
         lam_het(u, Q, lambda _t: "a")
     kiem("ban sao duoc bu lai tu project-svc", cho(lambda: sql("quality", f"select count(*) from projects where project_id='{Q}'") == "1", 30))
-    kiem("label_schema / max_redundancy dung", sql("quality", f"select label_schema->'tools'->0->>'kind' || '/' || max_redundancy from projects where project_id='{Q}'") == "classification/2")
-    tq = cho(lambda: (lambda j: j if j.get("agreed", 0) == 3 else None)(requests.get(G + f"/quality/projects/{Q}/summary", headers=biz["h"]).json()), 30)
-    kiem("dong thuan tinh duoc cho ca 3 task (khong bi bo qua)", tq is not None, tq)
+    kiem("label_schema / nguong dat (t) dung",
+         sql("quality", f"select label_schema->'tools'->0->>'kind' || '/' || pass_threshold_percent from projects where project_id='{Q}'") == "classification/60")
+    tq = cho(lambda: (lambda j: j if j.get("attemptsGraded", 0) == 3 else None)(requests.get(G + f"/quality/projects/{Q}/summary", headers=biz["h"]).json()), 60)
+    kiem("du suat → cham du 3 bai, 3 cau co da so (khong bi bo qua)", tq is not None and tq["agreed"] == 3 and tq["attemptsPassed"] == 3, tq)
 finally:
     print(f"\n== KET QUA: {KQ['pass']} PASS, {KQ['fail']} FAIL")
     for l in KQ["loi"]:

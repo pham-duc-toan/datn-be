@@ -97,10 +97,10 @@ namespace Crowd.Tasking.Api.Consumers
     public sealed class MemberBlockedProcessor : IEventProcessor<MemberBlocked>
     {
         private readonly TaskDbContext _db;
-        private readonly LeaseRevoker _revoker;
+        private readonly BaiLamRevoker _revoker;
         private readonly TimeProvider _clock;
 
-        public MemberBlockedProcessor(TaskDbContext db, LeaseRevoker revoker, TimeProvider clock)
+        public MemberBlockedProcessor(TaskDbContext db, BaiLamRevoker revoker, TimeProvider clock)
         {
             if (db == null)
             {
@@ -137,10 +137,10 @@ namespace Crowd.Tasking.Api.Consumers
     public sealed class MemberRemovedProcessor : IEventProcessor<MemberRemoved>
     {
         private readonly TaskDbContext _db;
-        private readonly LeaseRevoker _revoker;
+        private readonly BaiLamRevoker _revoker;
         private readonly TimeProvider _clock;
 
-        public MemberRemovedProcessor(TaskDbContext db, LeaseRevoker revoker, TimeProvider clock)
+        public MemberRemovedProcessor(TaskDbContext db, BaiLamRevoker revoker, TimeProvider clock)
         {
             if (db == null)
             {
@@ -197,10 +197,10 @@ namespace Crowd.Tasking.Api.Consumers
     public sealed class UserBlockedProcessor : IEventProcessor<UserBlocked>
     {
         private readonly TaskDbContext _db;
-        private readonly LeaseRevoker _revoker;
+        private readonly BaiLamRevoker _revoker;
         private readonly TimeProvider _clock;
 
-        public UserBlockedProcessor(TaskDbContext db, LeaseRevoker revoker, TimeProvider clock)
+        public UserBlockedProcessor(TaskDbContext db, BaiLamRevoker revoker, TimeProvider clock)
         {
             if (db == null)
             {

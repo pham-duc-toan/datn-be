@@ -56,7 +56,7 @@ namespace Crowd.Admin.Tests
         }
 
         [Fact]
-        public void Rut_tien_khieu_nai_tranh_chap_link()
+        public void Rut_tien_khieu_nai_ca_bai_link()
         {
             Assert.Equal(2000000L, Chieu("withdrawal.review_requested",
                 "{\"withdrawalId\":\"" + A + "\",\"labelerId\":\"" + B + "\",\"amountVnd\":2000000}")!.AmountVnd);
@@ -65,15 +65,17 @@ namespace Crowd.Admin.Tests
             Assert.Equal("approved", chi!.Status);
             Assert.False(chi.TaoNeuChuaCo);   // rut tu duyet cung phat payout.requested
 
-            Assert.Equal("approved", Chieu("appeal.resolved",
-                "{\"annotationId\":\"" + A + "\",\"projectId\":\"" + B + "\",\"labelerId\":\"" + B + "\",\"accepted\":true}")!.Status);
-            Assert.Equal("rejected", Chieu("appeal.resolved",
-                "{\"annotationId\":\"" + A + "\",\"projectId\":\"" + B + "\",\"labelerId\":\"" + B + "\",\"accepted\":false,\"note\":\"sai\"}")!.Status);
+            ThayDoiDon? mo = Chieu("attempt.appeal_opened",
+                "{\"attemptId\":\"" + A + "\",\"projectId\":\"" + B + "\",\"labelerId\":\"" + B
+                + "\",\"message\":\"cau 3 dung\",\"agreementPercent\":72,\"passThresholdPercent\":80}");
+            Assert.Equal("appeal", mo!.Kind);
+            Assert.Equal(A, mo.SubjectId);
+            Assert.Equal("giong da so 72% / nguong 80%", mo.Note);
 
-            ThayDoiDon? xu = Chieu("dispute.resolved", "{\"disputeId\":\"" + A + "\",\"annotationId\":\"" + B + "\",\"businessId\":\"" + B
-                + "\",\"labelerId\":\"" + B + "\",\"projectId\":\"" + B + "\",\"amountVnd\":1000,\"outcome\":\"refundBusiness\",\"note\":\"nhan sai\"}");
-            Assert.Equal("resolved", xu!.Status);
-            Assert.Equal("refundBusiness: nhan sai", xu.Note);
+            Assert.Equal("approved", Chieu("attempt.appeal_resolved",
+                "{\"attemptId\":\"" + A + "\",\"projectId\":\"" + B + "\",\"labelerId\":\"" + B + "\",\"accepted\":true,\"answeredCount\":5}")!.Status);
+            Assert.Equal("rejected", Chieu("attempt.appeal_resolved",
+                "{\"attemptId\":\"" + A + "\",\"projectId\":\"" + B + "\",\"labelerId\":\"" + B + "\",\"accepted\":false,\"note\":\"sai\",\"answeredCount\":5}")!.Status);
 
             Assert.Equal("3 bao cao", Chieu("link.review_requested",
                 "{\"linkId\":\"" + A + "\",\"ownerId\":\"" + B + "\",\"code\":\"abc\",\"reportCount\":3}")!.Note);
@@ -85,7 +87,7 @@ namespace Crowd.Admin.Tests
         [Fact]
         public void Event_khong_lien_quan_bo_qua()
         {
-            Assert.Null(Chieu("annotation.approved", "{}"));
+            Assert.Null(Chieu("project.graded", "{}"));
             Assert.Null(Chieu("user.registered", "{}"));
             foreach (string loai in HangDoiDuyet.LoaiEvent)
             {

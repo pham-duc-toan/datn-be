@@ -1,6 +1,6 @@
 using System.Reflection;
 using Crowd.BuildingBlocks.Messaging;
-using Crowd.Contracts.Annotation;
+using Crowd.Contracts.Tasking;
 
 namespace Crowd.Contracts.Tests;
 
@@ -10,7 +10,7 @@ namespace Crowd.Contracts.Tests;
 /// </summary>
 public sealed class PayloadContractTests
 {
-    private static readonly Assembly Contracts = typeof(AnnotationApproved).Assembly;
+    private static readonly Assembly Contracts = typeof(AttemptSubmitted).Assembly;
 
     private static IReadOnlyList<Type> MoiPayload()
     {

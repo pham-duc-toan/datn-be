@@ -131,10 +131,11 @@ try:
     requests.put(G + f"/projects/{pid}/label-schema", headers=biz, json={"modality": "text", "tools": [
         {"name": "loai", "kind": "classification", "classes": ["cho", "meo"]}]}).raise_for_status()
     requests.put(G + f"/projects/{pid}/guideline", headers=biz, json={"markdown": "p2", "examples": []}).raise_for_status()
-    # 6 mau x tran 1 x (1000 + 300) = 7.800 danh cho chuyen nghiep; ngan sach 20.000 → cong link 12.200.
-    requests.put(G + f"/projects/{pid}/pricing", headers=biz, json={"unitPriceVnd": 1000, "redundancy": 1, "maxRedundancy": 1, "budgetVnd": 20000, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/channels", headers=biz, json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/quality-control", headers=biz, json={"goldCheckPercent": 0}).raise_for_status()
+    # Gia CA DU AN (3.18): 3 suat x (10.000 + 3.000) danh cho labeler; cong link don gia RIENG 1.000 / nhan khach gan,
+    # ngan sach rieng 12.200 (cung nam trong ky quy).
+    requests.put(G + f"/projects/{pid}/pricing", headers=biz, json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
+    requests.put(G + f"/projects/{pid}/channels", headers=biz, json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False,
+                                                                    "gateUnitPriceVnd": 1000, "gateBudgetVnd": 12200}).raise_for_status()
     requests.post(G + f"/projects/{pid}/datasets/manifest", headers=biz, json={"name": "lo", "rows": [{"text": v[0], "name": k} for k, v in CAU.items()]}).raise_for_status()
     cho(lambda: [d for d in requests.get(G + f"/projects/{pid}/datasets", headers=biz).json() if d["status"] == "ready"], 30)
     mau = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid}/samples?pageSize=50", headers=biz).json()["items"]}
@@ -148,7 +149,7 @@ try:
         requests.post(G + f"/projects/{pid}/approve", headers=admin).raise_for_status()
     kiem("du an running", cho(lambda: requests.get(G + f"/projects/{pid}", headers=biz).json()["status"] == "running", 20))
     ns = cho(lambda: sql("gate", f"select remaining_vnd from gate_budgets where project_id='{pid}'") == "12200", 20)
-    kiem("ledger bao gate ngan sach cong link 12.200 (20.000 − 7.800)", ns, sql("gate", f"select * from gate_budgets where project_id='{pid}'"))
+    kiem("ledger bao gate ngan sach cong link 12.200 (ngan sach rieng)", ns, sql("gate", f"select * from gate_budgets where project_id='{pid}'"))
 
     print("\n[2] Nguoi chia se: API key, rut gon don le / Quick Link / hang loat, kiem duyet link dich")
     # Chia se link la CHUC NANG cua moi tai khoan, khong con la vai tro tu chon luc dang ky.
@@ -279,7 +280,7 @@ try:
     r = phien(code, "203.0.113.42")
     kiem("het ngan sach: bo cau RONG (chi dem nguoc, khong tien)", r.status_code == 200 and r.json()["questions"] == [], r.text)
     esc = sql("ledger", f"select balance from accounts where code='escrow:project:{pid}'")
-    kiem("ky quy con 9.600 >= 7.800 danh cho labeler chuyen nghiep", esc == "9600", esc)
+    kiem("ky quy con 40.800 = 39.000 danh cho labeler (3 suat) + 1.800 cong link chua tieu", esc == "40800", esc)
 
     print("\n[9] Thong ke ClickHouse (FS-07)")
     time.sleep(2.5)
@@ -307,13 +308,12 @@ try:
     kiem("platform:withheld = 4.200 + hoa hong cua link khong anh huong",
          sql("ledger", "select balance from accounts where code='platform:withheld'") != "", sql("ledger", "select balance from accounts where code='platform:withheld'"))
 
-    print("\n[11] Nhan cong link: duyet KHONG chi tien theo nhan; doi soat lanh")
+    print("\n[11] Nhan cong link: vao ket qua ngay (da qua cau vang), KHONG chi tien theo nhan; doi soat lanh")
     a = requests.get(G + f"/annotations/projects/{pid}?pageSize=50", headers=biz).json()["items"]
     gl = [x for x in a if x["source"] == "linkGateway"]
-    kiem("annotation tra source=linkGateway, taskId null", gl and gl[0]["taskId"] is None, gl[:1])
-    r = requests.post(G + f"/annotations/{gl[0]['id']}/approve", headers=biz)
-    time.sleep(3)
-    kiem("duyet nhan cong link: khong tao khoan treo Annotation", r.status_code == 200 and sql("ledger", f"select count(*) from holds where project_id='{pid}' and kind='Annotation'") == "0", r.text)
+    kiem("annotation tra source=linkGateway, status accepted, khong labeler", gl and gl[0]["status"] == "accepted" and gl[0]["labelerId"] is None, gl[:1])
+    kiem("nhan cong link khong sinh khoan treo theo nhan / thuong bai",
+         sql("ledger", f"select count(*) from holds where project_id='{pid}' and kind in ('Annotation','ProjectReward')") == "0")
     rec = requests.get(G + "/ledger/admin/reconciliation", headers=admin).json()
     kiem("doi soat so cai healthy", rec.get("healthy") is True, rec)
     dlq = [l for l in subprocess.run(["docker", "exec", rabbit_container(), "rabbitmqctl", "list_queues", "name", "messages"],
@@ -328,15 +328,15 @@ try:
     requests.post(G + f"/projects/{pid}/pause", headers=biz)
     cho(lambda: sql("gate", "select count(*) from gate_projects where status='Running'") == "0", 20)
     chu = tro_giup.dang_ky(["business", "labeler"], "p2-chu-" + uuid.uuid4().hex[:6])
-    cc.nap(chu, 50000)
+    cc.nap(chu, 100000)
     r = requests.post(G + "/projects", headers=chu["h"], json={"name": "[e2e-p2] Cong link tu du an", "description": "p2", "modality": "text", "visibility": "public"})
     pid2 = r.json()["id"]
     requests.put(G + f"/projects/{pid2}/label-schema", headers=chu["h"], json={"modality": "text", "tools": [
         {"name": "loai", "kind": "classification", "classes": ["cho", "meo"]}]}).raise_for_status()
     requests.put(G + f"/projects/{pid2}/guideline", headers=chu["h"], json={"markdown": "p2", "examples": []}).raise_for_status()
-    requests.put(G + f"/projects/{pid2}/pricing", headers=chu["h"], json={"unitPriceVnd": 1000, "redundancy": 1, "maxRedundancy": 1, "budgetVnd": 20000, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
-    requests.put(G + f"/projects/{pid2}/channels", headers=chu["h"], json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False}).raise_for_status()
-    requests.put(G + f"/projects/{pid2}/quality-control", headers=chu["h"], json={"goldCheckPercent": 0}).raise_for_status()
+    requests.put(G + f"/projects/{pid2}/pricing", headers=chu["h"], json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
+    requests.put(G + f"/projects/{pid2}/channels", headers=chu["h"], json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False,
+                                                                    "gateUnitPriceVnd": 1000, "gateBudgetVnd": 12200}).raise_for_status()
     requests.post(G + f"/projects/{pid2}/datasets/manifest", headers=chu["h"], json={"name": "lo", "rows": [{"text": v[0], "name": k} for k, v in CAU.items()]}).raise_for_status()
     cho(lambda: [d for d in requests.get(G + f"/projects/{pid2}/datasets", headers=chu["h"]).json() if d["status"] == "ready"], 30)
     mau2 = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid2}/samples?pageSize=50", headers=chu["h"]).json()["items"]}

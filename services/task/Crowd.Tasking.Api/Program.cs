@@ -56,7 +56,9 @@ builder.Services.AddEventConsumer<TaskDbContext, UserBlocked, UserBlockedProcess
 builder.Services.AddEventConsumer<TaskDbContext, UserUnblocked, UserUnblockedProcessor>(cfg, "task-svc.user-unblocked");
 builder.Services.AddEventConsumer<TaskDbContext, ReputationChanged, ReputationChangedProcessor>(cfg, "task-svc.reputation-changed");
 builder.Services.AddEventConsumer<TaskDbContext, LevelChanged, LevelChangedProcessor>(cfg, "task-svc.level-changed");
-builder.Services.AddEventConsumer<TaskDbContext, RedundancyIncreaseRequested, RedundancyIncreaseRequestedProcessor>(cfg, "task-svc.redundancy-increase-requested");
+// Du an lam trung tam (docs 3.18): ket thuc som → dong thu bai; quality-svc cham → ghi ket qua, mo han khieu nai.
+builder.Services.AddEventConsumer<TaskDbContext, ProjectFinishRequested, ProjectFinishRequestedProcessor>(cfg, "task-svc.project-finish-requested");
+builder.Services.AddEventConsumer<TaskDbContext, ProjectGraded, ProjectGradedProcessor>(cfg, "task-svc.project-graded");
 
 // ---- Kho anh (chi sinh link xem) ----
 builder.Services.Configure<ObjectStorageOptions>(cfg.GetSection(ObjectStorageOptions.SectionName));
@@ -66,14 +68,15 @@ builder.Services.AddMediaLinks(cfg);
 
 // ---- Nghiep vu ----
 builder.Services.AddScoped<TaskEventPublisher>();
-builder.Services.AddScoped<LeaseRevoker>();
-builder.Services.AddScoped<LeaseService>();
+builder.Services.AddScoped<BaiLamRevoker>();
+builder.Services.AddScoped<ThuBaiService>();
+builder.Services.AddScoped<LamBaiService>();
 builder.Services.AddScoped<BaoLoiService>();
 builder.Services.AddScoped<DonDuAnDaDongService>();
 
 // IP that cua labeler qua X-Forwarded-For cua gateway (chi tin mang noi bo cau hinh) — FM-07.
 builder.Services.Configure<ForwardedHeadersOptions>(o => ProxyTinCay.CauHinh(o, builder.Configuration));
-builder.Services.AddHostedService<LeaseReaper>();
+builder.Services.AddHostedService<BaiLamWorker>();
 builder.Services.AddHostedService<ClosedProjectPurgeWorker>();
 builder.Services.AddScoped<TaskSeeder>();
 

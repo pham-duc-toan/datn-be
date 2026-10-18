@@ -90,34 +90,13 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("AppealMessage")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("appeal_message");
-
-                    b.Property<DateTimeOffset?>("AppealResolvedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("appeal_resolved_at");
-
-                    b.Property<DateTimeOffset?>("AppealedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("appealed_at");
-
-                    b.Property<Guid>("AssignmentId")
+                    b.Property<Guid>("AttemptId")
                         .HasColumnType("uuid")
-                        .HasColumnName("assignment_id");
+                        .HasColumnName("attempt_id");
 
-                    b.Property<bool?>("ConsensusAgrees")
-                        .HasColumnType("boolean")
-                        .HasColumnName("consensus_agrees");
-
-                    b.Property<DateTimeOffset?>("ConsensusAt")
+                    b.Property<DateTimeOffset?>("DecidedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("consensus_at");
-
-                    b.Property<DateTimeOffset?>("DisputedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("disputed_at");
+                        .HasColumnName("decided_at");
 
                     b.Property<Guid?>("LabelerId")
                         .HasColumnType("uuid")
@@ -126,19 +105,6 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
-
-                    b.Property<string>("RejectReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("reject_reason");
-
-                    b.Property<DateTimeOffset?>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("reviewed_at");
-
-                    b.Property<Guid?>("ReviewerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("reviewer_id");
 
                     b.Property<uint>("RowVersion")
                         .IsConcurrencyToken()
@@ -187,19 +153,15 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AssignmentId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_annotations_assignment");
-
-                    b.HasIndex("Status")
-                        .HasDatabaseName("ix_annotations_appeals")
-                        .HasFilter("status = 'Appealed'");
-
                     b.HasIndex("_payloadJson")
                         .HasDatabaseName("ix_annotations_payload");
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("_payloadJson"), "gin");
                     NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("_payloadJson"), new[] { "jsonb_path_ops" });
+
+                    b.HasIndex("AttemptId", "SampleId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_annotations_attempt_sample");
 
                     b.HasIndex("LabelerId", "SubmittedAt")
                         .HasDatabaseName("ix_annotations_labeler");
@@ -211,42 +173,6 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_annotations_project_status");
 
                     b.ToTable("annotations", (string)null);
-                });
-
-            modelBuilder.Entity("Crowd.Annotation.Domain.Annotations.TaskConsensus", b =>
-                {
-                    b.Property<Guid>("TaskId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("task_id");
-
-                    b.Property<DateTimeOffset>("DecidedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("decided_at");
-
-                    b.Property<string>("Final")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("final");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
-                    b.Property<Guid>("SampleId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("sample_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.HasKey("TaskId");
-
-                    b.HasIndex("ProjectId", "SampleId")
-                        .HasDatabaseName("ix_task_consensus_project_sample");
-
-                    b.ToTable("task_consensus", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Annotation.Domain.Members.MemberCache", b =>
@@ -303,18 +229,6 @@ namespace Crowd.Annotation.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
-
-                    b.Property<long>("PlatformFeeVnd")
-                        .HasColumnType("bigint")
-                        .HasColumnName("platform_fee_vnd");
-
-                    b.Property<bool>("RequireReview")
-                        .HasColumnType("boolean")
-                        .HasColumnName("require_review");
-
-                    b.Property<long>("UnitPriceVnd")
-                        .HasColumnType("bigint")
-                        .HasColumnName("unit_price_vnd");
 
                     b.Property<string>("_labelSchemaJson")
                         .IsRequired()

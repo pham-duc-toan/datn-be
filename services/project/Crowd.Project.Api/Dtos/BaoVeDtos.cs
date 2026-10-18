@@ -95,7 +95,12 @@ namespace Crowd.Project.Api.Dtos
 
         public required ProjectVisibility Visibility { get; init; }
 
-        public required long UnitPriceVnd { get; init; }
+        /// <summary>Thuong cho mot nguoi lam dat ca du an.</summary>
+        public required long RewardVnd { get; init; }
+
+        public required int QuestionCount { get; init; }
+
+        public required IReadOnlyList<string> ToolKinds { get; init; }
 
         public DateTimeOffset? Deadline { get; init; }
 

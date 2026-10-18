@@ -1,7 +1,6 @@
 using System;
 using Crowd.Labeling;
 using Crowd.Tasking.Api.Services;
-using Crowd.Tasking.Domain.Assignments;
 using Crowd.Tasking.Domain.Common;
 using Crowd.Tasking.Domain.Labelers;
 using Crowd.Tasking.Domain.Reports;
@@ -16,38 +15,7 @@ namespace Crowd.Tasking.Tests
 
         private static LabelingTask TaskMoi()
         {
-            return LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 3, Luc);
-        }
-
-        [Fact]
-        public void Luu_nhap_khi_con_giu_task()
-        {
-            Assignment a = Assignment.Tao(TaskMoi(), Guid.NewGuid(), Luc, TimeSpan.FromMinutes(15));
-
-            a.LuuNhap("{\"loai\":{\"labelIds\":[\"a\"]}}", Luc.AddMinutes(1));
-
-            Assert.Equal("{\"loai\":{\"labelIds\":[\"a\"]}}", a.DraftJson);
-            Assert.Equal(Luc.AddMinutes(1), a.DraftSavedAt);
-        }
-
-        [Fact]
-        public void Het_lease_thi_khong_luu_nhap_duoc()
-        {
-            Assignment a = Assignment.Tao(TaskMoi(), Guid.NewGuid(), Luc, TimeSpan.FromMinutes(15));
-
-            Assert.Equal("lease_khong_con", Assert.Throws<RuleViolationException>(() => a.LuuNhap("{}", Luc.AddMinutes(16))).Code);
-        }
-
-        [Fact]
-        public void Huy_task_chi_khi_khong_ai_giu()
-        {
-            LabelingTask t = TaskMoi();
-            Assignment a = Assignment.Tao(t, Guid.NewGuid(), Luc, TimeSpan.FromMinutes(15));
-
-            Assert.False(t.HuyNeuKhongAiGiu(Luc));
-            a.BoQua(t, Luc);
-            Assert.True(t.HuyNeuKhongAiGiu(Luc));
-            Assert.Equal(TaskState.Cancelled, t.State);
+            return LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, Luc);
         }
 
         [Theory]
@@ -84,9 +52,9 @@ namespace Crowd.Tasking.Tests
         [Fact]
         public void Uoc_tinh_xong_theo_toc_do_24_gio()
         {
-            Assert.Equal(Luc.AddHours(12), LeaseService.UocTinhXong(50, 100, Luc));
-            Assert.Equal(Luc, LeaseService.UocTinhXong(0, 0, Luc));
-            Assert.Null(LeaseService.UocTinhXong(10, 0, Luc));
+            Assert.Equal(Luc.AddHours(12), LamBaiService.UocTinhXong(50, 100, Luc));
+            Assert.Equal(Luc, LamBaiService.UocTinhXong(0, 0, Luc));
+            Assert.Null(LamBaiService.UocTinhXong(10, 0, Luc));
         }
     }
 }

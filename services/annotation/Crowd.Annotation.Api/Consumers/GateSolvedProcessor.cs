@@ -50,7 +50,7 @@ namespace Crowd.Annotation.Api.Consumers
 
             // gate relay giao lai (at-least-once, eventId moi): id tat dinh chan nhan thu hai.
             List<Guid> ids = theoId.Keys.ToList();
-            HashSet<Guid> daCo = (await _db.Annotations.Where(a => ids.Contains(a.AssignmentId)).Select(a => a.AssignmentId).ToListAsync(ct)).ToHashSet();
+            HashSet<Guid> daCo = (await _db.Annotations.Where(a => ids.Contains(a.AttemptId)).Select(a => a.AttemptId).ToListAsync(ct)).ToHashSet();
 
             foreach (KeyValuePair<Guid, GateLabel> cap in theoId)
             {

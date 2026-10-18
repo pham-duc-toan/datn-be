@@ -52,15 +52,14 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
                 .HasColumnType("jsonb")
                 .HasConversion(doiHuongDan);
 
-            builder.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
-            builder.Property(x => x.Redundancy).HasColumnName("redundancy").IsRequired();
-            builder.Property(x => x.MaxRedundancy).HasColumnName("max_redundancy").IsRequired();
-            builder.Property(x => x.GoldCheckPercent).HasColumnName("gold_check_percent").IsRequired();
-            // KHONG HasDefaultValue(true): EF se bo gia tri false (mac dinh CLR) khoi INSERT → DB dien true. Mac dinh dat o Tao();
-            // migration dien true cho du an cu.
-            builder.Property(x => x.RequireReview).HasColumnName("require_review").IsRequired();
-            builder.Property(x => x.BudgetVnd).HasColumnName("budget_vnd").IsRequired();
+            // Tien theo CA DU AN (docs 3.18): thuong moi nguoi dat x so suat; ky quy tinh tu dong.
+            builder.Property(x => x.RewardVnd).HasColumnName("reward_vnd").IsRequired();
+            builder.Property(x => x.Slots).HasColumnName("slots").IsRequired();
+            builder.Property(x => x.PassThresholdPercent).HasColumnName("pass_threshold_percent").IsRequired();
+            builder.Property(x => x.QuestionCount).HasColumnName("question_count").IsRequired();
             builder.Property(x => x.Deadline).HasColumnName("deadline");
+            builder.Property(x => x.GateUnitPriceVnd).HasColumnName("gate_unit_price_vnd").IsRequired();
+            builder.Property(x => x.GateBudgetVnd).HasColumnName("gate_budget_vnd").IsRequired();
 
             builder.Property(x => x.AllowProfessional).HasColumnName("allow_professional").IsRequired();
             builder.Property(x => x.AllowLinkGateway).HasColumnName("allow_link_gateway").IsRequired();
@@ -94,6 +93,8 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.SubmittedForApprovalAt).HasColumnName("submitted_for_approval_at");
             builder.Property(x => x.PublishedAt).HasColumnName("published_at");
             builder.Property(x => x.ClosedAt).HasColumnName("closed_at");
+            builder.Property(x => x.FinishRequestedAt).HasColumnName("finish_requested_at");
+            builder.Property(x => x.GradingStartedAt).HasColumnName("grading_started_at");
             builder.Property(x => x.DeleteFilesAfterClose).HasColumnName("delete_files_after_close").IsRequired().HasDefaultValue(false);
             builder.Property(x => x.FilesPurgedAt).HasColumnName("files_purged_at");
 

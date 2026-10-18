@@ -1,7 +1,7 @@
 """Bao cao chat luong cua mot du an — tinh tu du lieu song, hoac doc ban chup neu du an da luu tru.
 
-Du an da dong qua project.closed_data_retention thi nhan tho (labels), vong dong thuan (consensus_rounds)
-va task_targets bi xoa (archive.py). Truoc khi xoa, hai bao cao duoi day duoc CHUP vao project_reports,
+Du an da dong qua project.closed_data_retention thi nhan tho (labels), bai nop (attempts) va ket qua gop
+tung cau (sample_majorities) bi xoa (archive.py). Truoc khi xoa, hai bao cao duoi day duoc CHUP vao project_reports,
 nen chu du an van xem duoc — chi la so lieu dung yen.
 """
 
@@ -18,35 +18,41 @@ def phan_tram(dung: int, tong: int) -> int | None:
 
 
 async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, Any]:
-    """Dong thuan + redundancy thich ung + cau vang + Krippendorff alpha theo cong cu — tu du lieu song."""
-    # Trang thai CUOI moi task = vong co target lon nhat.
-    vong = (await s.execute(text(
-        "SELECT status, COUNT(*) AS n FROM ("
-        "  SELECT DISTINCT ON (task_id) task_id, status FROM consensus_rounds WHERE project_id = :p "
-        "  ORDER BY task_id, target DESC) x GROUP BY status"), {"p": project_id})).all()
-    xin_them = (await s.execute(text(
-        "SELECT COUNT(*) FROM consensus_rounds WHERE project_id = :p AND status = 'moreRequested'"),
-        {"p": project_id})).scalar_one()
+    """Ket qua cham ca du an (docs 3.18) + cau vang + Krippendorff alpha theo cong cu — tu du lieu song."""
     so_nhan = (await s.execute(text("SELECT COUNT(*) FROM labels WHERE project_id = :p"), {"p": project_id})).scalar_one()
-    gold = (await s.execute(text(
-        "SELECT COUNT(*) AS tong, COUNT(*) FILTER (WHERE correct) AS dung FROM gold_answers WHERE project_id = :p"),
+    bai = (await s.execute(text(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(gold_total), 0) AS gt, COALESCE(SUM(gold_correct), 0) AS gd "
+        "FROM attempts WHERE project_id = :p"), {"p": project_id})).one()
+    dot = (await s.execute(text(
+        "SELECT reason, finished_at, graded_at, majority_used FROM project_collections WHERE project_id = :p"),
+        {"p": project_id})).first()
+    cham = (await s.execute(text(
+        "SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE passed) AS dat FROM attempt_grades WHERE project_id = :p"),
         {"p": project_id})).one()
+    cau = (await s.execute(text(
+        "SELECT status, COUNT(*) AS n FROM sample_majorities WHERE project_id = :p GROUP BY status"), {"p": project_id})).all()
     chi_so = (await s.execute(text(
         "SELECT tool, alpha, kappa, metric, item_count, label_count, computed_at FROM project_metrics WHERE project_id = :p ORDER BY tool"),
         {"p": project_id})).all()
 
-    dem = {r.status: r.n for r in vong}
+    dem = {r.status: r.n for r in cau}
     return {
         "projectId": str(project_id),
         "labelCount": so_nhan,
-        "tasksEvaluated": sum(dem.values()),
+        "attemptsSubmitted": bai.n,
+        "attemptsGraded": cham.n,
+        "attemptsPassed": cham.dat,
+        "attemptsFailed": cham.n - cham.dat,
+        "collectionReason": None if dot is None else dot.reason,
+        "collectionFinishedAt": None if dot is None else dot.finished_at.isoformat(),
+        "gradedAt": None if dot is None or dot.graded_at is None else dot.graded_at.isoformat(),
+        "majorityUsed": None if dot is None else dot.majority_used,
+        "samplesEvaluated": sum(dem.values()),
         "agreed": dem.get("agreed", 0),
         "disputed": dem.get("disputed", 0),
         "notApplicable": dem.get("notApplicable", 0),
-        "waitingMoreLabels": dem.get("moreRequested", 0),
-        "redundancyIncreases": xin_them,
-        "goldAnswers": gold.tong,
-        "goldAccuracyPercent": phan_tram(gold.dung, gold.tong),
+        "goldAnswers": int(bai.gt),
+        "goldAccuracyPercent": phan_tram(int(bai.gd), int(bai.gt)),
         "tools": [
             {"tool": r.tool, "krippendorffAlpha": r.alpha, "fleissKappa": r.kappa,
              # Ham khoang cach cua alpha: nominal / interval / cer / kendall / set_f1 (null = ban tinh cu, nominal).
@@ -60,15 +66,13 @@ async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, An
 
 
 async def tinh_labelers(s: AsyncSession, project_id: uuid.UUID) -> list[dict[str, Any]]:
-    """Tung labeler trong du an: so nhan, ti le khop dong thuan, cau vang, do tin cay DS, uy tin — tu du lieu song."""
+    """Tung bai nop trong du an: so cau tra loi, ti le giong da so, cau vang, dat / truot, DS, uy tin — tu du lieu song."""
     dong = (await s.execute(text(
-        "SELECT l.labeler_id, COUNT(*) AS so_nhan, "
-        "  (SELECT COUNT(*) FROM label_agreements a WHERE a.labeler_id = l.labeler_id AND a.project_id = :p) AS khop_tong, "
-        "  (SELECT COUNT(*) FROM label_agreements a WHERE a.labeler_id = l.labeler_id AND a.project_id = :p AND a.agrees) AS khop, "
-        "  (SELECT COUNT(*) FROM gold_answers g WHERE g.labeler_id = l.labeler_id AND g.project_id = :p) AS gold_tong, "
-        "  (SELECT COUNT(*) FROM gold_answers g WHERE g.labeler_id = l.labeler_id AND g.project_id = :p AND g.correct) AS gold_dung, "
-        "  (SELECT reputation FROM reputations r WHERE r.labeler_id = l.labeler_id) AS uy_tin "
-        "FROM labels l WHERE l.project_id = :p AND l.labeler_id IS NOT NULL GROUP BY l.labeler_id ORDER BY so_nhan DESC"),
+        "SELECT a.attempt_id, a.labeler_id, a.answered_count, cardinality(a.sample_ids) AS so_cau, a.gold_total, a.gold_correct, "
+        "  a.submitted_at, g.comparable_count, g.matched_count, g.agreement_percent, g.passed, "
+        "  (SELECT reputation FROM reputations r WHERE r.labeler_id = a.labeler_id) AS uy_tin "
+        "FROM attempts a LEFT JOIN attempt_grades g ON g.attempt_id = a.attempt_id "
+        "WHERE a.project_id = :p ORDER BY g.agreement_percent DESC NULLS LAST, a.submitted_at"),
         {"p": project_id})).all()
     ky_nang = (await s.execute(text(
         "SELECT labeler_id, tool, skill, label_count FROM ds_skills WHERE project_id = :p"), {"p": project_id})).all()
@@ -88,11 +92,17 @@ async def tinh_labelers(s: AsyncSession, project_id: uuid.UUID) -> list[dict[str
     return [
         {
             "labelerId": str(d.labeler_id),
-            "labelCount": d.so_nhan,
-            "agreementPercent": phan_tram(d.khop, d.khop_tong),
-            "agreementSampleCount": d.khop_tong,
-            "goldAnswers": d.gold_tong,
-            "goldAccuracyPercent": phan_tram(d.gold_dung, d.gold_tong),
+            "attemptId": str(d.attempt_id),
+            "labelCount": d.answered_count,
+            "questionCount": d.so_cau,
+            "submittedAt": d.submitted_at.isoformat(),
+            # null = chua cham (du an chua dong thu bai).
+            "agreementPercent": d.agreement_percent,
+            "agreementSampleCount": d.comparable_count,
+            "matchedCount": d.matched_count,
+            "passed": d.passed,
+            "goldAnswers": d.gold_total,
+            "goldAccuracyPercent": phan_tram(d.gold_correct, d.gold_total),
             "dawidSkeneSkill": ds.get(d.labeler_id, {}),
             # STAPLE (mat na): chi de chu du an xem, khong tinh vao uy tin.
             "stapleMask": st.get(d.labeler_id, {}),

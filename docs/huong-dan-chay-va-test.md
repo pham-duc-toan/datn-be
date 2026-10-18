@@ -114,17 +114,17 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 
 | Bộ | Phủ |
 |---|---|
-| `e2e_tong_the.py` | Xác thực, nạp tiền, vòng đời dự án + ký quỹ, test đầu vào, lấy/nộp task, đồng thuận + posterior/VOI, duyệt + khiếu nại, vòng tiền tới rút, cửa sổ lấy task, đóng dự án, phân quyền, định dạng nhãn |
+| `e2e_du_an_trung_tam.py` | **Luồng chính kiến trúc 3.18** (chạy đầu tiên): giá cả dự án, ngưỡng t trong [x, y], làm bài như bài kiểm tra, kết thúc sớm, chấm một lần (đa số + câu vàng), thưởng bài đạt, khiếu nại cả bài, chốt → hoàn suất thừa, < 3 bài chỉ xét câu vàng, huỷ dự án chưa có bài |
+| `e2e_tong_the.py` | Xác thực, nạp tiền, vòng đời dự án + ký quỹ theo suất (saga, thiếu tiền, từ chối → hoàn), test đầu vào, làm bài (lưu / sửa / bỏ trống / bỏ bài / hết suất / BOLA), kiểm định dạng lúc nộp (`bai_chua_hop_le` kèm từng câu), chấm cả dự án + khiếu nại bị bác + hoàn suất thừa, rút tiền, setting x ≤ y, tạm dừng / chặn thành viên / kết thúc sớm / huỷ, span văn bản + so sánh cặp |
 | `e2e_settings.py` | Đổi setting lúc chạy (phí, tự duyệt, giới hạn, nạp chuyển khoản, quality nhận setting) |
-| `e2e_p3.py` | Đồng thuận, redundancy thích ứng, câu vàng, uy tín |
 | `e2e_p2.py` | Cổng link: rút gọn, vượt link, Turnstile, chống trùng IP, hoa hồng, kiểm duyệt (`chay_hoi_quy` chạy hai lần: chi `perClick` và `batched`) |
 | `e2e_modality.py` | Ảnh, văn bản, âm thanh, video, cặp, khung ảnh; media sinh bằng ffmpeg (`tao_media.py`) |
-| `ep_race_quality.py` | Ép race: hai người nộp đồng thời nhãn cuối của cùng task |
-| `ep_race_uy_tin.py` | Ép race: một labeler nộp 8 lượt ở 8 dự án **cùng lúc** → quality-svc quyết định 8 task song song; số lần khớp trong `reputations` phải bằng đúng số dòng `label_agreements` (trước khi có khoá theo labeler, 2/3 lần chạy bị đếm thiếu 1) |
+| `ep_race_quality.py` | Ép race: 3 labeler nộp **cùng lúc** bài lấp suất cuối → `attempt.submitted` và `project.collection_finished` tới quality-svc song song; mỗi dự án phải được chấm **đúng một lần** (một `project.graded`, ledger trả thưởng đúng 3 bài) |
+| `ep_race_uy_tin.py` | Ép race: K dự án, labeler thứ ba nộp K bài **cùng lúc** → K lần chấm song song cho cùng ba labeler; `reputations.agree_total` phải bằng tổng `attempt_grades.comparable_count` (= K) — khoá theo labeler chống đếm thiếu |
 | `e2e_kyb_thong_bao.py` | KYB doanh nghiệp (khai hồ sơ, giấy phép, từ chối → nộp lại → duyệt, chặn publish khi chưa xác minh), thông báo trong ứng dụng + **email thật qua Mailpit**, tuỳ chọn email, gộp thông báo, khoá / mở khoá tài khoản |
-| `e2e_dong_cho_chi.py` | Kịch bản TLA+ tìm ra (NC-B-01): dừng container ledger, duyệt và đóng dự án, bật lại. Nhãn đã duyệt phải được trả dù `completed` tới trước `approved` (chỉ chạy với `E2E_PROFILE=demo`) |
+| `e2e_dong_cho_chi.py` | Kịch bản TLA+ tìm ra (NC-B-01) theo mô hình 3.18: dừng container ledger, dự án được chấm và chốt, bật lại. Bài đạt phải được trả thưởng dù `project.completed` tới trước `project.graded` (ký quỹ chờ đủ `PassedAttemptCount` mới đóng; chỉ chạy với `E2E_PROFILE=demo`) |
 | `e2e_bao_ve_du_lieu.py` | Link file qua media-svc (không lộ MinIO), chủ dự án nhận bản gốc, labeler / reviewer nhận ảnh có watermark, admin giải mã ảnh "bị lộ" ra đúng người (labeler 1 ≠ labeler 2, ảnh khác của cùng người vẫn ra người đó), token bị sửa → 403, hết hạn → 410, tắt watermark bằng setting |
-| `e2e_hoan_thien.py` | Xác thực email (bấm link thật trong Mailpit), quên / đặt lại / đổi mật khẩu, thu hồi phiên ở gateway, hồ sơ + avatar + kỹ năng, cấp độ / huy hiệu / xếp hạng, nháp + báo lỗi task, chi phí / ETA, cảnh báo lệch, xuất YOLO sai loại dự án (nội dung zip YOLO / VOC kiểm ở unit test `HoanThienTests`), thu nhập, tranh chấp (cả hai kết cục, kiểm sổ cái), hồ sơ gian lận + khoá, audit + báo cáo + thông báo toàn hệ thống, rate limit 429 |
+| `e2e_hoan_thien.py` | Xác thực email (bấm link thật trong Mailpit), quên / đặt lại / đổi mật khẩu, thu hồi phiên ở gateway, hồ sơ + avatar + kỹ năng, cấp độ (theo số câu của bài đạt) / xếp hạng, tự lưu câu trả lời + báo lỗi câu trong bài (tự loại khi đủ người báo), tiến độ, chi phí cả dự án, cảnh báo lệch, xuất YOLO sai loại dự án (nội dung zip YOLO / VOC kiểm ở unit test `HoanThienTests`), thu nhập `projectReward`, API tranh chấp cũ đã gỡ, hồ sơ gian lận theo bài nộp (quá nhanh / một nhãn liên tục / chung IP / chung thiết bị) + khoá, audit + báo cáo + thông báo toàn hệ thống, rate limit 429 |
 | `e2e_luu_tru.py` | Lưu trữ & dọn dẹp: một dòng mỗi phiên đăng nhập (làm mới 5 lần vẫn một dòng, dùng lại token cũ → thu hồi phiên), claim `email_verified` / `kyb_verified`, không còn `task.leased`, audit không lưu chi tiết `annotation.submitted` nhưng báo cáo vẫn đếm, mẫu lưu một lần (`annotation_samples`), gate không giữ mẫu dự án không bật cổng link, **dọn outbox đã gửi ở cả 11 service** (hạ `outbox.retention` xuống 1 giờ), dọn dự án đã đóng ở task-svc + quality-svc (tiến độ, báo cáo chất lượng, nhãn và uy tín giữ nguyên) |
 | `e2e_cong_cu.py` | Công cụ gán nhãn mở rộng + gộp nhãn (kiến trúc 3.15): ảnh có khung kèm thuộc tính (OCR), điểm mốc, đường gấp khúc, mặt nạ, số, chép chữ, văn bản tự do — nộp sai bị từ chối đúng lý do, quality-svc tính đồng thuận, kết quả gộp và file COCO / CSV / YOLO; điểm mốc lệch nhau → tranh chấp → xin thêm người → người thứ ba phá thế hoà; văn bản có **quan hệ** giữa các đoạn; dữ liệu **danh sách** với xếp hạng (Borda) + thang điểm (trung vị); **theo dõi đối tượng** trong video; bài test đầu vào và câu vàng bằng điểm mốc (chấm theo đường chéo ảnh); đổi ngưỡng ghép bằng setting lúc đang chạy. Cần ffmpeg |
 | `e2e_bao_mat_tai_khoan.py` | 2FA (bật, đăng nhập hai bước, sai mã / hết lượt, mã dự phòng, tắt, admin đặt lại), xác minh danh tính + đủ tuổi (một giấy tờ một tài khoản), rate limit dùng chung qua Redis |
@@ -136,7 +136,6 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_chi_so_chat_luong.py` | Krippendorff alpha mọi loại công cụ, Fleiss' kappa, STAPLE mặt nạ; quality-svc tự bù bản sao dự án thiếu |
 | `e2e_watermark_av.py` | Watermark âm thanh (FLAC) / video (H.264): tua (Range 206), bộ đệm, admin giải mã ra đúng labeler, tắt bằng setting. Cần ffmpeg |
 | `e2e_hang_doi_duyet.py` | Hàng đợi duyệt chung (KYB, dự án, khiếu nại, link, giới thiệu nghi lạm dụng), audit lượt xem giấy tờ (S-07), cổng link chỉ cho công cụ làm nhanh, mẫu bài toán, audit chỉ-ghi-thêm ở mức CSDL, cảnh báo DLQ |
-| `e2e_tu_duyet.py` | Cờ `requireReview` của dự án: tự duyệt nhãn khớp đồng thuận / câu trả lời mở, nhãn lệch và mẫu tranh chấp vẫn chờ, khoá sau publish; `GET /projects/{id}/samples?ids=` (tên file gốc, chỉ chủ dự án) |
 | `e2e_thong_bao_realtime.py` | Ngôn ngữ thông báo, WebSocket qua gateway (vé dùng một lần, mã đóng 4401), email 2FA bắt buộc, thư mời người chưa có tài khoản, email cảnh báo DLQ, hạn giữ thông báo |
 | `e2e_thanh_vien.py` | Vào dự án (kiến trúc 3.16): mời theo email / userId, một và nhiều người (kết quả từng dòng, giới hạn lô); **VD-S-16**: mời theo email ra cùng một kết quả cho email có / chưa có tài khoản / đã là thành viên / bị chặn, chủ dự án không thấy userId tới khi chấp nhận, lời mời câm, hạn mức email / 24 giờ (429 + `Retry-After`); mã mời (gõ tay, hết lượt, hết hạn, thu hồi, **6 người tranh 3 lượt**, dùng được khi dự án còn Nháp); kiểm cấp độ / uy tín ở `join`, lúc mời, mã mời và **trước** bài test; chế độ `approval` (gửi đơn, trùng, từ chối + thời gian chờ, rút, duyệt, uy tín tụt lúc duyệt, đơn tự đóng khi vào bằng đường khác) và `approval` kèm bài test (đạt → đơn kèm điểm); thông báo cho cả hai phía; nhận task thật sau khi vào. Cấp độ / uy tín đặt thẳng trong `identity_db.labeler_stats` |
 
@@ -320,63 +319,32 @@ biz1 và biz2 đã được **xác minh KYB** sẵn (hồ sơ `verified`), nên 
 
 ### 4.3 Dự án (tên bắt đầu bằng `[Seed]`, chủ là biz1)
 
-| Key | ID | Trạng thái | Ảnh | Đơn giá | Redundancy | Ngân sách (= ký quỹ) | Đặc điểm |
+Từ đợt **dự án làm trung tâm** (kiến trúc mục 3.18) mỗi dự án có tiền thưởng **mỗi suất** (`R`), **số suất** (`S`) và **ngưỡng đạt** `t`; ký quỹ = `S × (R + 30% phí)`. Mỗi labeler làm **một bài** gồm mọi câu của dự án.
+
+| Key | ID | Trạng thái | Loại | Thưởng × suất | `t` | Ký quỹ | Đặc điểm |
 |---|---|---|---|---|---|---|---|
-| **P1** | `3d904a1a-3920-530b-b055-793baae64f1b` | `running` | 8 | 20.000 | 2 | 500.000 | Có nhãn ở đủ trạng thái; ảnh 8 là câu vàng kiểm tra chất lượng. Thành viên: lab1, lab2 (labeler), rev1 (reviewer) |
-| **P2** | `2ae9dc42-5b32-518d-b24f-cdd7da800a96` | `pendingApproval` | 4 | 10.000 | 1 | 100.000 | Đã ký quỹ, chờ admin duyệt. **Tự hủy sau 72 giờ** nếu không ai duyệt |
-| **P3** | `32cdcbe6-837a-5c7c-929d-607db130deba` | `draft` | 4 | 15.000 | 2 | 200.000 | Đã cấu hình đủ, `readiness` = ready. Dùng để test saga publish |
-| **P4** | `2fde6d4c-ee31-57ae-8632-b2e6e0721217` | `running` | 7 | 30.000 | 1 | 300.000 | **Bắt buộc test đầu vào**: 3 câu, đậu khi đúng ≥ 60%. Ảnh 5–7 là câu hỏi test |
+| **P1** | `3d904a1a-3920-530b-b055-793baae64f1b` | `running` | ảnh | 50.000 × 3 | 80% | 195.000 | 7 câu + 1 câu vàng. lab1 **đã nộp bài**, lab2 **đang làm dở** (3/7 câu), rev1 là thành viên chưa làm — còn 1 suất trống (lab2 đang giữ một suất) |
+| **P2** | `2ae9dc42-5b32-518d-b24f-cdd7da800a96` | `pendingApproval` | ảnh | 20.000 × 3 | 80% | 78.000 | Chờ admin duyệt. **Tự hủy sau 72 giờ** nếu không ai duyệt |
+| **P3** | `32cdcbe6-837a-5c7c-929d-607db130deba` | `draft` | ảnh | 30.000 × 3 | 80% | — | Đã cấu hình đủ, `readiness` = ready. Dùng để test saga publish |
+| **P4** | `2fde6d4c-ee31-57ae-8632-b2e6e0721217` | `running` | ảnh | 40.000 × 3 | 80% | 156.000 | **Bắt buộc test đầu vào**: 3 câu, đậu khi đúng ≥ 60% |
+| **P5** | `8dc63fe1-e23e-5097-b891-51fe72b61245` | `running` | văn bản | 20.000 × 3 | 80% | 78.000 | `cam_xuc` (classification) + `thuc_the` (span). lab1 đang làm dở |
+| **P6** | `8309618e-25b2-5b99-a301-0632197c96e1` | `running` | âm thanh | 25.000 × 3 | 70% | 97.500 | `loi_noi` (transcription) + `doan` (temporalSegment), cắt đoạn 10 giây |
+| **P7** | `12d52faa-09b4-5cd1-b21d-16984c952fec` | `completed` | cặp | 30.000 × 3 | 80% | 117.000 | Đã chấm 4 ngày trước, hoàn thành 1 ngày trước: lab1, lab2 **đạt** (100%), rev1 **trượt** (0%) → 2 bài được trả 30.000, suất thứ ba hoàn về ví |
 
-**P8** (`00ed5dcd-3888-5f15-a4d8-ab7c5692f5ad`, chủ là **biz2**, `draft`, 4 ảnh, đơn giá 20.000, redundancy 2, ngân sách 300.000): tập nhãn hình học — `khung` (bbox **xoay được**, lớp `vat_the`), `vung` (polygon, `mau_chinh`), `diem` (keypoint, `tam`). Bấm publish để thử cả luồng với khung xoay và các định dạng xuất mới. Ở chế độ dev, admin-svc seed sẵn 4 mẫu bài toán (`GET /templates`).
+**P8** (`00ed5dcd-3888-5f15-a4d8-ab7c5692f5ad`, chủ là **biz2**, `draft`, 40.000 × 3 suất, `t` = 75%): tập nhãn hình học — `khung` (bbox **xoay được**), `vung` (polygon), `diem` (keypoint). Bấm publish để thử cả luồng với khung xoay và các định dạng xuất mới. Ở chế độ dev, admin-svc seed sẵn 4 mẫu bài toán (`GET /templates`).
 
-P1–P4 là dự án **ảnh**, tập nhãn có một công cụ phân loại tên `label` với các lớp `do`, `xanh_la`, `xanh_duong`, `vang`. Ảnh mẫu là PNG một màu 256×256 có viền sáng, nên nhìn ảnh là biết đáp án đúng. Phí nền tảng chốt 30%, cộng thêm vào ký quỹ chứ không trừ vào thù lao (VD-M-15).
+P1–P4 là dự án **ảnh**, tập nhãn có một công cụ phân loại tên `label` với các lớp `do`, `xanh_la`, `xanh_duong`, `vang`. Ảnh mẫu là PNG một màu 256×256 có viền sáng, nên nhìn ảnh là biết đáp án đúng.
 
-Ba dự án loại dữ liệu khác, cùng đang `running`, ngân sách 50.000:
+### 4.4 Bài làm và nhãn lúc vừa seed
 
-| Key | ID | Loại dữ liệu | Mẫu | Đơn giá | Redundancy | Công cụ trong tập nhãn | Nhãn seed |
-|---|---|---|---|---|---|---|---|
-| **P5** | `8dc63fe1-e23e-5097-b891-51fe72b61245` | `text` | 4 câu | 5.000 | 1 | `cam_xuc` (classification: `tich_cuc`, `tieu_cuc`, `trung_tinh`), `thuc_the` (span: `TEN_NGUOI`, `DIA_DIEM`, `TO_CHUC`) | câu 1: lab1 chờ duyệt; câu 2: lab2 đã duyệt |
-| **P6** | `8309618e-25b2-5b99-a301-0632197c96e1` | `audio` | 4 đoạn | 8.000 | 1 | `loi_noi` (transcription), `doan` (temporalSegment: `giong_noi`, `nhac`, `im_lang`). `segmentSeconds: 10` | đoạn 0–10s: lab1 chờ duyệt |
-| **P7** | `12d52faa-09b4-5cd1-b21d-16984c952fec` | `pair` | 3 cặp | 3.000 | 2 | `tot_hon` (pairwise, cho hòa), `an_toan` (classification: `an_toan`, `khong_an_toan`) | cặp 1: lab1 + lab2 đều chọn `a`, đã duyệt → kết quả gộp `a`; cặp 2: lab2 chờ duyệt |
-
-P6 có hai file WAV trong MinIO: `cuoc-goi-01.wav` dài 25 giây được **cắt thành 3 đoạn** (0–10, 10–20, 20–25; ba mẫu dùng chung một file, khác `segmentStart`/`segmentEnd`), và `loi-chao.wav` dài 8 giây (ngắn hơn một đoạn nên giữ nguyên). Âm thanh là một nốt sine, chỉ để test luồng.
-
-### 4.4 Nhãn của P1
-
-| Ảnh (đáp án) | lab1 | lab2 |
-|---|---|---|
-| 1 (`do`) | `do`, **duyệt** 4 ngày trước | `do`, **duyệt** lúc seed (tiền treo 2 phút) |
-| 2 (`do`) | `do`, **duyệt** 4 ngày trước | `vang`, **bị từ chối** 2 giờ trước, còn khiếu nại được |
-| 3 (`xanh_la`) | `xanh_la`, **duyệt** ~4 ngày trước (rev1 duyệt) | — |
-| 4 (`xanh_la`) | `xanh_la`, **chờ duyệt** | — |
-| 5 (`xanh_duong`) | — | `xanh_la`, bị từ chối rồi **đang khiếu nại** |
-| 6 (`xanh_duong`) | `xanh_duong`, **chờ duyệt** | — |
-| 7 (`vang`) | — | — |
-| 8 (`vang`) | câu vàng → task `excluded` | |
-
-ID các nhãn dùng trong mục 6:
-
-| Nhãn | ID | Trạng thái lúc seed |
-|---|---|---|
-| lab1, ảnh 4 | `374fd43c-82c4-55d6-ae35-f7258f7e063b` | chờ duyệt |
-| lab1, ảnh 6 | `925b78bf-31e6-5534-b04d-505a00a570f2` | chờ duyệt |
-| lab2, ảnh 2 | `0f95272a-8b7a-5b8c-8f78-58f63a562c75` | bị từ chối, khiếu nại được |
-| lab2, ảnh 5 | `af8391bc-4df6-5176-ba9a-08d1136bc926` | đang khiếu nại, chờ admin |
-| lab1, ảnh 1 | `7efccfd8-ab86-58e6-93d8-9b84d6802967` | đã duyệt |
-
-Tiến độ P1 lúc vừa seed: 8 task, 2 hoàn thành (ảnh 1, 2), 1 bị loại (ảnh 8), 8 lượt nộp, cần 14 lượt.
+- **P1**: bài của lab1 đã nộp → annotation-svc có nhãn `submitted` (chờ chấm) cho 7 câu; bài của lab2 `inProgress`. Dự án chưa đóng thu bài (còn suất) — muốn xem chấm điểm thì cho rev1 làm và nộp bài (đủ 3 suất là tự đóng) hoặc doanh nghiệp bấm **Kết thúc sớm**.
+- **P7**: đã chấm và chốt — nhãn của lab1, lab2 `accepted` (vào kết quả gộp), của rev1 `excluded`; quality-svc có kết quả chấm từng bài.
 
 ### 4.5 Tiền lúc vừa seed
 
-| Tài khoản | Số dư |
-|---|---|
-| biz1 | khả dụng **950.000**, ký quỹ **931.700** (P1 còn 396.000 sau 4 lần chi × 26.000; P2 100.000; P4 300.000; P5 còn 43.500; P6 50.000; P7 còn 42.200) |
-| biz2 | 0. Lệnh nạp 1.000.000 đang `pending`, ID `8d241233-a997-5c1a-9f2f-2924b419164c` |
-| lab1 | khả dụng **63.000** (60.000 ở P1 + 3.000 ở P7) |
-| lab2 | khả dụng 8.000 (P5 5.000 + P7 3.000), treo 20.000 (P1), sau ~2 phút worker chuyển sang khả dụng |
-| Đối soát | `healthy: true` |
+Ký quỹ của từng dự án ở bảng trên (P7 đã hoàn suất thừa). lab1 và lab2 mỗi người có 30.000 khả dụng từ P7 (`ledger.reward_hold` = 0: thưởng vào thẳng số dư khả dụng). Đối soát `GET /ledger/admin/reconciliation` phải `healthy: true`.
 
-Ở dev, thời gian treo là **2 phút**: admin-svc khởi tạo setting `ledger.hold_duration = 120` giây khi chạy ở Development (production giữ mặc định 3 ngày). Worker quét theo `ledger.hold_release_interval` (mặc định 60 giây). Cả hai đổi được lúc chạy (mục 6.16).
+> **DB demo có từ trước đợt 3.18** (đã seed theo kịch bản cũ) thì seed **không chạy lại** (mỗi service bỏ qua dự án đã có) — migration đã chuyển dữ liệu cũ sang mô hình mới nhưng số liệu không giống bảng trên. Muốn đúng kịch bản mới: `docker compose -f docker-compose.demo.yml down -v` rồi `up -d` (**xoá toàn bộ dữ liệu demo**).
 
 ### 4.6 Tắt seed / seed lại từ đầu
 
@@ -520,6 +488,8 @@ curl -s -X POST http://localhost:8080/projects/2ae9dc42-5b32-518d-b24f-cdd7da800
 
 ### 6.6 Labeler nhận task, nộp, bỏ qua (task → annotation)
 
+> **Đã thay bằng mục 6.23** (dự án làm trung tâm). Phần dưới mô tả luồng cũ (lease, duyệt từng nhãn), giữ lại để đối chiếu.
+
 **Định dạng nhãn.** Mỗi dự án có một **tập nhãn** gồm một hoặc nhiều **công cụ** ([shared/labeling](../shared/labeling/LabelSchema.cs)), ví dụ P1 có một công cụ phân loại tên `label`. Khi nộp, labeler **chỉ gửi phần dữ liệu** trong trường `payload`: một object, khóa là tên công cụ. Với P1 đó là `{"label": {"labelIds": ["vang"]}}`. Server kiểm hình dạng bằng JSON Schema ([contracts/labeling](../contracts/labeling)) và kiểm nghĩa theo tập nhãn và mẫu (lớp có trong tập nhãn, khung nằm trong ảnh, đoạn thời gian nằm trong đoạn audio...). Response trả nhãn về ở dạng đầy đủ, `taskType` là loại dữ liệu:
 
 ```json
@@ -556,6 +526,8 @@ curl -s -X POST http://localhost:8080/tasks/projects/3d904a1a-3920-530b-b055-793
 
 ### 6.7 Duyệt nhãn → labeler có tiền (annotation → ledger)
 
+> **Đã thay bằng mục 6.23** (dự án làm trung tâm). Phần dưới mô tả luồng cũ (lease, duyệt từng nhãn), giữ lại để đối chiếu.
+
 ```bash
 # 2 nhãn chờ duyệt của lab1
 curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b?status=pendingReview" -H "Authorization: Bearer <token-rev1>"
@@ -582,6 +554,8 @@ curl -s -X POST http://localhost:8080/annotations/925b78bf-31e6-5534-b04d-505a00
 ```
 
 ### 6.8 Khiếu nại (labeler → admin)
+
+> **Đã thay bằng mục 6.23** (dự án làm trung tâm). Phần dưới mô tả luồng cũ (lease, duyệt từng nhãn), giữ lại để đối chiếu.
 
 ```bash
 # lab2 khiếu nại nhãn ảnh 2 (bị từ chối 2 giờ trước)
@@ -885,6 +859,8 @@ Kiểm tra thêm:
 - Đang có lô `pending` / `ingesting` thì chưa publish được.
 
 ### 6.15 Kiểm soát chất lượng (P3): đồng thuận, redundancy thích ứng, câu vàng kiểm tra, uy tín
+
+> **Đã thay bằng mục 6.23** (dự án làm trung tâm). Phần dưới mô tả luồng cũ (lease, duyệt từng nhãn), giữ lại để đối chiếu.
 
 `quality-svc` (Python) chạy nền, không chặn luồng gán nhãn:
 
@@ -1348,6 +1324,57 @@ curl -s http://localhost:18080/quality/projects/3d904a1a-3920-530b-b055-793baae6
 ```
 
 Kiểm phân vùng `tasks`: `docker exec datn-demo-db-task psql -U task_user -d task_db -c "\d+ tasks"` (16 phân vùng `tasks_p00`…`tasks_p15`). Kiểm audit chỉ-ghi-thêm: `UPDATE audit_events ...` trong `admin_db` báo `audit_events chi ghi them`.
+
+### 6.23 Dự án làm trung tâm: làm cả bài → chấm → thưởng → khiếu nại → chốt (kiến trúc mục 3.18)
+
+Nhanh nhất là chạy bộ E2E riêng (tự tạo tài khoản + dự án mới, ~2 phút, phải ra `51 pass, 0 fail`):
+
+```bash
+cd tests/e2e
+E2E_PROFILE=demo python e2e_du_an_trung_tam.py
+```
+
+Thử tay với P1 (lab1 đã nộp, lab2 đang làm dở, còn 1 suất trống):
+
+```bash
+P1=3d904a1a-3920-530b-b055-793baae64f1b
+# Suất còn lại + bài của chính người gọi
+curl -s http://localhost:8080/tasks/projects/$P1/slots -H "Authorization: Bearer <token-rev1>"
+
+# rev1 bắt đầu bài (gọi lại thì trả về đúng bài đang làm). questions[] xáo trộn theo người, câu vàng nằm lẫn
+curl -s -X POST http://localhost:8080/tasks/projects/$P1/attempt -H "Authorization: Bearer <token-rev1>"
+
+# Lưu từng câu (nháp, làm theo thứ tự tuỳ ý, sửa lại được). data = null là bỏ trống câu đó
+curl -s -X PUT http://localhost:8080/tasks/attempts/<attemptId>/answers/<sampleId> -H "Authorization: Bearer <token-rev1>" \
+  -H "Content-Type: application/json" -d '{"data":{"label":{"labelIds":["do"]}}}'
+
+# Nộp CẢ BÀI. Câu sai định dạng → 400 bai_chua_hop_le + invalidAnswers, bài vẫn mở để sửa
+curl -s -X POST http://localhost:8080/tasks/attempts/<attemptId>/submit -H "Authorization: Bearer <token-rev1>"
+
+# Doanh nghiệp kết thúc sớm (không đợi đủ suất / hết hạn chót) → dự án sang grading, quality-svc chấm
+curl -s -X POST http://localhost:8080/projects/$P1/finish -H "Authorization: Bearer <token-biz1>"
+curl -s http://localhost:8080/tasks/projects/$P1/progress -H "Authorization: Bearer <token-biz1>"     # phase: finished → graded
+
+# Kết quả của tôi: agreementPercent, goldCorrect/goldTotal, passed, canAppeal
+curl -s http://localhost:8080/tasks/me/attempts -H "Authorization: Bearer <token-lab1>"
+curl -s http://localhost:8080/ledger/me/balance -H "Authorization: Bearer <token-lab1>"             # bài đạt: +50.000 khả dụng
+
+# Bài trượt: khiếu nại cả bài (một lần, trong task.appeal_window = 3 ngày); admin phân xử
+curl -s -X POST http://localhost:8080/tasks/attempts/<attemptId>/appeal -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" -d '{"message":"Cau 3 mau mo"}'
+curl -s http://localhost:8080/tasks/admin/appeals -H "Authorization: Bearer <token-admin>"
+curl -s -X POST http://localhost:8080/tasks/admin/attempts/<attemptId>/appeal/resolve -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" -d '{"accept":true,"note":"Dong y"}'
+```
+
+Kiểm tra thêm:
+- Nộp lại / sửa câu sau khi nộp → 409 `bai_da_nop`. Người thứ `S + 1` bắt đầu bài khi đã đủ suất → `het_suat`; sau khi đóng thu bài → `du_an_da_dong_thu_bai`.
+- `PUT /projects/{id}/pricing` với `t` ngoài `[x, y]` (setting `project.pass_threshold_min` / `max`, mặc định 60–95) → bị chặn; thưởng dưới `project.min_reward_vnd` → bị chặn.
+- Huỷ dự án đã có bài nộp → 409 `chua_the_dong` (`da_co_bai_nop`); chưa có bài (đã tạm dừng) → hoàn **toàn bộ** ký quỹ.
+- Hết hạn khiếu nại mà không còn khiếu nại mở → `project.settled` → dự án `completed` → ledger hoàn ký quỹ của các suất không có bài đạt. Muốn thử nhanh: admin đặt `task.appeal_window` = 15 giây và `task.reaper_interval` = 2 giây (bộ E2E làm đúng vậy rồi trả lại).
+- Ít hơn 3 bài nộp: chỉ xét câu vàng (`/quality/projects/{id}/summary` → `majorityUsed: false`).
+
+Trên giao diện (frontend `D:\learn\fe-datn`, cổng 5173): **Chợ dự án** → thẻ hiện thưởng, số câu, dạng gán nhãn, số suất → **Bắt đầu làm bài** → bảng câu hỏi bên trái (xanh = đã trả lời, chấm cam = đánh dấu xem lại, đỏ = chưa hợp lệ), *Tới câu chưa làm*, *Nộp bài* → trang **Bài làm** (`/bai-lam/{id}`) hiện kết quả và ô khiếu nại. Doanh nghiệp: tab **Tổng quan** (bài đã nộp / suất, giai đoạn, bài đạt, nút *Kết thúc sớm*), **Chất lượng** (từng bài), **Kết quả**. Admin: **Khiếu nại bài làm** so từng câu của bài với kết quả gộp.
 
 ## 7. Kiểm tra tổng sau khi test
 

@@ -52,7 +52,8 @@ try:
     for x in (P, R):
         requests.post(G + f"/projects/{x}/publish", headers=biz["h"]).raise_for_status()
     d = cho_don("project", P, "pending")
-    kiem("du an ky quy xong → cho duyet (ten + so tien ky quy)", d and "hang doi" in (d["title"] or "") and d["amountVnd"] == 4000, d)
+    # Ky quy = 3 suat x (thuong 10.000 + phi 30%) = 39.000.
+    kiem("du an ky quy xong → cho duyet (ten + so tien ky quy)", d and "hang doi" in (d["title"] or "") and d["amountVnd"] == 39000, d)
     requests.post(G + f"/projects/{P}/approve", headers=admin).raise_for_status()
     kiem("admin duyet → approved", cho_don("project", P, "approved") is not None)
     cho_don("project", R, "pending")
@@ -75,21 +76,22 @@ try:
     kiem("tat cong link → het vuong", "cong_cu_khong_hop_cong_link" not in json.dumps(requests.get(G + f"/projects/{C}/readiness", headers=biz["h"]).json()))
 
     # =================================================================================
-    print("\n[3] Hang doi duyet: khieu nai")
+    print("\n[3] Hang doi duyet: khieu nai CA BAI")
     lab = dang_ky(["labeler"], "hdd-l")
-    tham_gia(lab, P)
-    t = nhan_task(lab, P, 20)
-    nop(lab, t["assignmentId"], "a").raise_for_status()
-    nhan = cho(lambda: [a for a in ds_nhan(biz, P) if a["status"] == "pendingReview"], 30)
-    # 409 xung_dot_dong_thoi: quality vua cap nhat nhan cung luc — client thu lai.
-    r = cho(lambda: (lambda x: x if x.status_code != 409 else None)(
-        requests.post(G + f"/annotations/{nhan[0]['id']}/reject", headers=biz["h"], json={"reason": "Sai nhan"})), 10)
+    K, _ = tao_du_an(biz, "khieu nai", {"k1": f"cau k1 {TAG}", "v1": f"cau vang {TAG}"}, vang=[("v1", "a", "qualityCheck")])
+    publish_va_duyet(biz, K)
+    tham_gia(lab, K)
+    b, r = lam_bai(lab, K, lambda t: "b")   # sai cau vang → truot
     r.raise_for_status()
-    requests.post(G + f"/annotations/{nhan[0]['id']}/appeal", headers=lab["h"], json={"message": "Toi chon dung"}).raise_for_status()
-    d = cho_don("appeal", nhan[0]["id"], "pending")
-    kiem("labeler khieu nai → cho admin phan xu", d and d["title"] == "Toi chon dung" and d["requesterId"] == lab["id"], d)
-    requests.post(G + f"/annotations/{nhan[0]['id']}/appeal/resolve", headers=admin, json={"accept": True, "note": "Chap nhan"}).raise_for_status()
-    kiem("phan xu (appeal.resolved) → approved", cho_don("appeal", nhan[0]["id"], "approved") is not None)
+    ket_thuc_som(biz, K)
+    kq = cho_cham(lab, K)
+    kiem("sai cau vang → bai truot, khieu nai duoc", kq and kq["passed"] is False and kq["canAppeal"], kq)
+    requests.post(G + f"/tasks/attempts/{b['attemptId']}/appeal", headers=lab["h"], json={"message": "Toi chon dung"}).raise_for_status()
+    d = cho_don("appeal", b["attemptId"], "pending")
+    kiem("labeler khieu nai → cho admin phan xu (kem % giong da so / nguong)",
+         d and d["title"] == "Toi chon dung" and d["requesterId"] == lab["id"] and "nguong 60%" in (d["note"] or ""), d)
+    requests.post(G + f"/tasks/admin/attempts/{b['attemptId']}/appeal/resolve", headers=admin, json={"accept": True, "note": "Chap nhan"}).raise_for_status()
+    kiem("phan xu (attempt.appeal_resolved) → approved", cho_don("appeal", b["attemptId"], "approved") is not None)
 
     # =================================================================================
     print("\n[4] Hang doi duyet: link bi bao cao")

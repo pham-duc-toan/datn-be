@@ -50,7 +50,7 @@ namespace Crowd.Ledger.Tests
             {
                 Postings.NapTien(Guid.NewGuid(), DoanhNghiep, 1000000, "sandbox", Luc),
                 Postings.DatKyQuy(DuAn, DoanhNghiep, 520000, Luc),
-                Postings.ChiTraNhan(Guid.NewGuid(), DuAn, Labeler, 200000, 60000, Luc),
+                Postings.ChiThuongBaiDat(Guid.NewGuid(), DuAn, Labeler, 200000, 60000, Luc),
                 Postings.GiaiPhongTreo(Guid.NewGuid(), Labeler, 200000, Luc),
                 Postings.TraKyQuy(DuAn, DoanhNghiep, 260000, true, Luc),
                 Postings.YeuCauRut(Guid.NewGuid(), Labeler, 2000000, 200000, Luc),
@@ -65,10 +65,13 @@ namespace Crowd.Ledger.Tests
         }
 
         [Fact]
-        public void Chi_tra_nhan_theo_VD_M_15_escrow_tru_260k_labeler_200k_platform_60k()
+        public void Thuong_bai_dat_theo_VD_M_15_escrow_tru_260k_labeler_200k_platform_60k()
         {
-            JournalEntry e = Postings.ChiTraNhan(Guid.NewGuid(), DuAn, Labeler, 200000, 60000, Luc);
+            Guid bai = Guid.NewGuid();
+            JournalEntry e = Postings.ChiThuongBaiDat(bai, DuAn, Labeler, 200000, 60000, Luc);
 
+            Assert.Equal(JournalEntryType.RewardPayout, e.Type);
+            Assert.Equal("attempt:" + bai, e.Reference);
             Assert.Equal(-260000, Dong(e, AccountCodes.ProjectEscrow(DuAn)));
             Assert.Equal(200000, Dong(e, AccountCodes.LabelerPending(Labeler)));
             Assert.Equal(60000, Dong(e, AccountCodes.PlatformFee));
@@ -247,20 +250,24 @@ namespace Crowd.Ledger.Tests
         }
 
         [Fact]
-        public void Ngan_sach_cong_link_chi_la_phan_vuot_muc_danh_cho_labeler()
+        public void Ngan_sach_cong_link_la_ngan_sach_rieng_khong_an_vao_phan_labeler()
         {
-            ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 20000, Luc);
-            e.DatRedundancy(1);
-            e.GhiDieuKhoan(6, 1000, 300, true);
-            Assert.Equal(7800, e.DanhChoChuyenNghiepVnd());
+            // 3 suat x (5000 + 1000) = 18000 cho labeler + 12200 cho cong link.
+            ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 30200, Luc);
+            e.GhiDieuKhoan(3, 5000, 1000, true, 12200);
+            Assert.Equal(18000, e.DanhChoLabelerVnd());
             Assert.Equal(12200, e.NganSachCongConLai());
 
             e.TieuChoCongLink(2600);
             Assert.Equal(9600, e.NganSachCongConLai());
 
-            ProjectEscrow khongBat = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 20000, Luc);
-            khongBat.DatRedundancy(1);
-            khongBat.GhiDieuKhoan(6, 1000, 300, false);
+            // Ngan sach cong khai cao hon ky quy thuc (khong nen xay ra): van khong an vao phan labeler.
+            ProjectEscrow thieu = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 20000, Luc);
+            thieu.GhiDieuKhoan(3, 5000, 1000, true, 12200);
+            Assert.Equal(2000, thieu.NganSachCongConLai());
+
+            ProjectEscrow khongBat = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 30200, Luc);
+            khongBat.GhiDieuKhoan(3, 5000, 1000, false, 0);
             Assert.Equal(0, khongBat.NganSachCongConLai());
         }
 
@@ -282,7 +289,9 @@ namespace Crowd.Ledger.Tests
         [Fact]
         public void Treo_3_ngay_moi_giai_phong()
         {
-            FundsHold h = FundsHold.Tao(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 200000, Luc, TimeSpan.FromDays(3));
+            FundsHold h = FundsHold.TaoChoBaiDat(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 200000, Luc, TimeSpan.FromDays(3));
+            Assert.Equal(HoldKind.ProjectReward, h.Kind);
+            Assert.Equal(Guid.Empty, h.TaskId);
 
             Assert.False(h.DenHan(Luc.AddDays(2)));
             Assert.Throws<RuleViolationException>(() => h.GiaiPhong(Luc.AddDays(2)));
@@ -293,38 +302,50 @@ namespace Crowd.Ledger.Tests
         }
 
         [Fact]
-        public void Chan_chi_vuot_redundancy_VD_M_03()
+        public void Thuong_treo_0_thi_den_han_ngay()
+        {
+            FundsHold h = FundsHold.TaoChoBaiDat(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 50000, Luc, TimeSpan.Zero);
+
+            Assert.True(h.DenHan(Luc));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                FundsHold.TaoChoBaiDat(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 50000, Luc, TimeSpan.FromSeconds(-1)));
+        }
+
+        [Fact]
+        public void Chan_tra_vuot_so_suat_VD_M_03()
         {
             ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 1000000, Luc);
-            Assert.False(e.VuotRedundancy(99));
+            Assert.False(e.VuotSoSuat(99));
+            Assert.False(e.DaCoDieuKhoan);
 
-            e.DatRedundancy(3);
-            Assert.False(e.VuotRedundancy(2));
-            Assert.True(e.VuotRedundancy(3));
+            e.GhiDieuKhoan(3, 50000, 5000, false, 0);
+            Assert.True(e.DaCoDieuKhoan);
+            Assert.False(e.VuotSoSuat(2));
+            Assert.True(e.VuotSoSuat(3));
         }
     }
 
     /// <summary>
-    /// NC-B-01: du an ket thuc khi annotation.approved chua toi ledger — ky quy DANG DONG,
-    /// chi du so nhan da duyet luc dong so moi hoan phan con lai.
+    /// NC-B-01: du an ket thuc khi project.graded / khieu nai chap nhan chua toi ledger — ky quy DANG
+    /// DONG, tra du so bai dat cuoi cung moi hoan phan con lai.
     /// </summary>
     public sealed class EscrowClosingTests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 10, 8, 0, 0, TimeSpan.Zero);
 
         [Fact]
-        public void Bat_dau_dong_giu_so_nhan_can_chi_va_ly_do()
+        public void Bat_dau_dong_giu_so_bai_can_tra_va_ly_do()
         {
             ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 1000, Luc);
             e.BatDauDong(2, false);
 
             Assert.Equal(EscrowState.Closing, e.State);
-            Assert.Equal(2, e.ExpectedPaidAnnotations);
+            Assert.Equal(2, e.ExpectedPaidAttempts);
             Assert.False(e.ClosingIsCancel);
         }
 
         [Fact]
-        public void Chi_du_so_nhan_moi_duoc_dong()
+        public void Tra_du_so_bai_moi_duoc_dong()
         {
             ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 1000, Luc);
             e.BatDauDong(2, true);
@@ -342,7 +363,7 @@ namespace Crowd.Ledger.Tests
         }
 
         [Fact]
-        public void Khong_bat_dau_dong_ky_quy_da_dong_hoac_so_nhan_khong_duong()
+        public void Khong_bat_dau_dong_ky_quy_da_dong_hoac_so_bai_khong_duong()
         {
             ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 1000, Luc);
             Assert.Throws<ArgumentOutOfRangeException>(() => e.BatDauDong(0, false));
@@ -355,8 +376,7 @@ namespace Crowd.Ledger.Tests
         public void Ky_quy_dang_dong_khong_con_ngan_sach_cong_link()
         {
             ProjectEscrow e = ProjectEscrow.Tao(Guid.NewGuid(), Guid.NewGuid(), 1_000_000, Luc);
-            e.DatRedundancy(1);
-            e.GhiDieuKhoan(1, 1000, 300, true);
+            e.GhiDieuKhoan(1, 1000, 300, true, 100_000);
             Assert.True(e.NganSachCongConLai() > 0);
 
             e.BatDauDong(1, false);

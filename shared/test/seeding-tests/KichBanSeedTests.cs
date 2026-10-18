@@ -36,21 +36,21 @@ namespace Crowd.Seeding.Tests
                 ids.AddRange(p.Samples.Select(s => s.Id));
                 ids.AddRange(p.Samples.Select(s => KichBanSeed.TaskIdCua(s.Id)));
                 ids.AddRange(p.Gold.Select(g => g.Id));
-                ids.AddRange(p.Submissions.Select(s => s.AssignmentId));
-                ids.AddRange(p.Submissions.Select(s => s.AnnotationId));
+                ids.AddRange(p.Attempts.Select(b => b.AttemptId));
+                ids.AddRange(p.Attempts.SelectMany(b => b.Answers).Where(a => p.LaCauVang(a.SampleId) == false).Select(a => a.AnnotationId));
             }
 
             Assert.Equal(ids.Count, ids.Distinct().Count());
         }
 
         [Fact]
-        public void Ngan_sach_moi_du_an_du_ky_quy_toi_thieu()
+        public void Ky_quy_bang_so_suat_nhan_thuong_cong_phi()
         {
             foreach (SeedProject p in KichBanSeed.Projects)
             {
-                // Cung cong thuc LabelingProject.ChiPhiUocTinhVnd.
-                long toiThieu = p.Samples.Count * (long)p.TranRedundancy * (p.UnitPriceVnd + p.PlatformFeePerLabelVnd);
-                Assert.True(p.BudgetVnd >= toiThieu, p.Key + ": ngan sach " + p.BudgetVnd + " < " + toiThieu);
+                // Cung cong thuc LabelingProject.ChiPhiUocTinhVnd (khong co cong link).
+                Assert.Equal(p.Slots * (p.RewardVnd + p.PlatformFeePerPassVnd), p.EscrowVnd);
+                Assert.InRange(p.PassThresholdPercent, 60, 95);
             }
         }
 
@@ -60,7 +60,7 @@ namespace Crowd.Seeding.Tests
             foreach (SeedUser u in KichBanSeed.Users)
             {
                 long nap = KichBanSeed.Deposits.Where(d => d.BusinessId == u.Id && d.DaThanhToan).Sum(d => d.AmountVnd);
-                long kyQuy = KichBanSeed.Projects.Where(p => p.OwnerId == u.Id && p.DaKyQuy).Sum(p => p.BudgetVnd);
+                long kyQuy = KichBanSeed.Projects.Where(p => p.OwnerId == u.Id && p.DaKyQuy).Sum(p => p.EscrowVnd);
                 Assert.True(nap >= kyQuy, u.Key + ": nap " + nap + " < ky quy " + kyQuy);
             }
         }
@@ -84,77 +84,80 @@ namespace Crowd.Seeding.Tests
                 DateTimeOffset lucTao = bayGio - p.CreatedAgo;
 
                 Assert.Equal(p.DaKyQuy, p.EscrowedAgo.HasValue);
-                Assert.Equal(p.Stage == SeedStage.Running, p.PublishedAgo.HasValue);
+                Assert.Equal(p.DaChay, p.PublishedAgo.HasValue);
 
                 if (p.DaKyQuy)
                 {
                     Assert.True(p.LucKyQuy(bayGio) >= lucTao, p.Key + ": ky quy truoc khi tao");
                 }
 
-                if (p.Stage == SeedStage.Running)
+                if (p.DaChay)
                 {
                     Assert.True(p.LucDuyet(bayGio) >= p.LucKyQuy(bayGio), p.Key + ": duyet truoc khi ky quy");
                 }
                 else
                 {
-                    Assert.Empty(p.Submissions);
+                    Assert.Empty(p.Attempts);
+                }
+
+                if (p.Stage == SeedStage.Completed)
+                {
+                    Assert.NotNull(p.GradedAgo);
+                    Assert.NotNull(p.CompletedAgo);
+                    Assert.True(p.GradedAgo >= p.CompletedAgo, p.Key + ": hoan thanh truoc khi cham");
+                    Assert.True(p.PublishedAgo >= p.GradedAgo, p.Key + ": cham truoc khi chay");
                 }
             }
         }
 
         [Fact]
-        public void Luot_nop_hop_le_voi_task_va_thanh_vien()
+        public void Bai_lam_hop_le_voi_cau_hoi_va_thanh_vien()
         {
             DateTimeOffset bayGio = DateTimeOffset.UtcNow;
 
             foreach (SeedProject p in KichBanSeed.Projects)
             {
                 HashSet<Guid> labeler = new HashSet<Guid>(p.Members.Where(m => m.Role == SeedMemberRole.Labeler).Select(m => m.UserId));
-                HashSet<Guid> duocDuyet = new HashSet<Guid>(p.Members.Where(m => m.Role == SeedMemberRole.Reviewer).Select(m => m.UserId));
-                duocDuyet.Add(p.OwnerId);
-                HashSet<Guid> mauVang = new HashSet<Guid>(p.Gold.Select(g => g.SampleId));
+                int soVangKiemTra = p.Gold.Count(g => !g.ForEntranceTest);
 
-                foreach (SeedSubmission s in p.Submissions)
+                // Moi labeler toi da MOT bai mot du an; bai da nop khong vuot so suat.
+                Assert.Equal(p.Attempts.Count, p.Attempts.Select(b => b.LabelerId).Distinct().Count());
+                Assert.True(p.Attempts.Count(b => b.State == SeedAttemptState.Submitted) <= p.Slots, p.Key + ": vuot so suat");
+
+                foreach (SeedAttempt b in p.Attempts)
                 {
-                    SeedSample? mau = p.Samples.FirstOrDefault(x => x.Id == s.SampleId);
-                    Assert.NotNull(mau);
-                    Assert.Equal(mau.StorageKey, s.StorageKey);
-                    Assert.Equal(KichBanSeed.TaskIdCua(s.SampleId), s.TaskId);
-                    Assert.DoesNotContain(s.SampleId, mauVang);
+                    Assert.Equal(p.Id, b.ProjectId);
+                    Assert.Contains(b.LabelerId, labeler);
+                    Assert.True(bayGio - b.StartedAgo > p.LucDuyet(bayGio), p.Key + ": lam bai truoc khi du an chay");
+                    Assert.InRange(b.GoldCorrect, 0, b.GoldTotal);
+                    Assert.Equal(soVangKiemTra, b.GoldTotal);
 
-                    Assert.Contains(s.LabelerId, labeler);
-                    // Nhan kiem nhu API that: tap nhan + metadata mau.
-                    LabelPayload nhan = SeedEvents.NhanCua(p, s);
-                    Assert.Equal(p.Modality, nhan.TaskType);
-                    Assert.True(bayGio - s.SubmittedAgo > p.LucDuyet(bayGio), "nop truoc khi du an chay");
-
-                    if (s.Review != SeedReview.PendingReview)
+                    foreach (SeedAnswer a in b.Answers)
                     {
-                        Assert.NotNull(s.ReviewerId);
-                        Assert.Contains(s.ReviewerId.Value, duocDuyet);
-                        Assert.NotEqual(s.LabelerId, s.ReviewerId.Value);
-                        Assert.True(s.ReviewedAgo <= s.SubmittedAgo, "duyet truoc khi nop");
+                        Assert.Contains(p.Samples, s => s.Id == a.SampleId);
+                        // Nhan kiem nhu API that: tap nhan + metadata mau.
+                        LabelPayload nhan = SeedEvents.NhanCua(p, a);
+                        Assert.Equal(p.Modality, nhan.TaskType);
+                    }
+
+                    if (b.State == SeedAttemptState.Submitted)
+                    {
+                        Assert.NotNull(b.SubmittedAgo);
+                        Assert.True(b.SubmittedAgo <= b.StartedAgo, "nop truoc khi bat dau");
+                    }
+                    else
+                    {
+                        Assert.Null(b.SubmittedAgo);
+                    }
+
+                    // Ket qua cham chi co o du an Completed, va dung luat: dat = du nguong VA dung het cau vang.
+                    Assert.Equal(p.Stage == SeedStage.Completed, b.Result != null);
+                    if (b.Result != null)
+                    {
+                        bool dat = b.Result.AgreementPercent >= p.PassThresholdPercent && b.GoldCorrect == b.GoldTotal;
+                        Assert.Equal(dat, b.Result.Passed);
                     }
                 }
-
-                // Moi task toi da redundancy luot nop, moi labeler mot luot.
-                foreach (IGrouping<Guid, SeedSubmission> nhom in p.Submissions.GroupBy(s => s.TaskId))
-                {
-                    Assert.True(nhom.Count() <= p.Redundancy, p.Key + ": task vuot redundancy");
-                    Assert.Equal(nhom.Count(), nhom.Select(s => s.LabelerId).Distinct().Count());
-                }
-            }
-        }
-
-        [Fact]
-        public void Khieu_nai_con_trong_han_7_ngay()
-        {
-            foreach (SeedSubmission s in KichBanSeed.Projects.SelectMany(p => p.Submissions).Where(x => x.Review == SeedReview.Appealed))
-            {
-                Assert.NotNull(s.AppealMessage);
-                Assert.NotNull(s.AppealedAgo);
-                Assert.True(s.AppealedAgo <= s.ReviewedAgo);
-                Assert.True(s.ReviewedAgo - s.AppealedAgo <= TimeSpan.FromDays(7));
             }
         }
 

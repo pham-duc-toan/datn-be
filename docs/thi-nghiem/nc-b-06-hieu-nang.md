@@ -2,6 +2,8 @@
 
 > Thí nghiệm cho mục **NC-B-06** ([sổ vấn đề](../van-de-can-giai-quyet.md)). Mã đo: [experiments/perf](../../experiments/perf). Số liệu thô: `experiments/perf/ket-qua/*.json`.
 >
+> **Phạm vi sau đợt dự án làm trung tâm ([kiến trúc 3.18](../kien-truc-backend.md#318-dự-án-làm-trung-tâm-làm-cả-bài-chấm-một-lần-trả-thưởng-theo-bài)):** phần *phân phối task* (lease 15 phút) đo đường nóng cũ đã bỏ. Đường nóng mới là lưu nháp câu trả lời của bài làm — một `UPDATE` theo khoá chính `(attempt_id, sample_id)`, không khoá hàng đợi chung — chưa đo lại.
+>
 > Hai câu hỏi:
 > 1. **Chi tiền cổng link (VD-M-08):** ghi sổ cái từng lượt (`perClick`) so với gộp lô (`batched`).
 > 2. **Phân phối task (VD-T-06):** lấy task bằng `FOR UPDATE SKIP LOCKED` có đúng và có mở rộng theo số labeler không.

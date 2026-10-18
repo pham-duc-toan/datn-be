@@ -7,7 +7,7 @@ message bi tu choi → DLQ: dung y do (VD-D-12), lech hop dong phai lo ra ngay.
 
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from app.messaging.envelope import HopDong, Payload
 
@@ -26,30 +26,33 @@ class LabelPayload(HopDong):
 
 
 class ProjectPublished(Payload):
+    """v2 — du an lam trung tam (docs 3.18): thuong / suat / nguong dat cho CA du an."""
+
     EVENT_TYPE = "project.published"
 
     project_id: uuid.UUID
     owner_id: uuid.UUID
     modality: str
     label_schema: dict[str, Any]
-    unit_price_vnd: int
+    reward_vnd: int
     platform_fee_vnd: int
-    redundancy: int
-    max_redundancy: int
-    gold_check_percent: int
+    slots: int
+    pass_threshold_percent: int
+    question_count: int
     deadline: datetime
     allow_professional: bool
     allow_link_gateway: bool
     allow_collaborative: bool
+    gate_unit_price_vnd: int | None = None
+    gate_platform_fee_vnd: int | None = None
+    gate_budget_vnd: int | None = None
     is_private: bool
     min_level: int | None
     min_reputation: int | None
     require_entrance_test: bool
     sample_count: int
-    # Noi dung nhay cam (muc 2.9) — khong bat buoc, ban tin cu khong co.
+    # Noi dung nhay cam (muc 2.9) — khong bat buoc.
     sensitive_content: bool | None = None
-    # Co can duyet tung nhan (false = annotation-svc tu duyet nhan khop dong thuan) — khong bat buoc.
-    require_review: bool | None = None
 
 
 class ProjectCompleted(Payload):
@@ -59,7 +62,7 @@ class ProjectCompleted(Payload):
 
     project_id: uuid.UUID
     owner_id: uuid.UUID
-    approved_annotation_count: int | None
+    passed_attempt_count: int
 
 
 class ProjectCancelled(Payload):
@@ -69,63 +72,53 @@ class ProjectCancelled(Payload):
     owner_id: uuid.UUID
     reason: str | None
     was_escrowed: bool
-    approved_annotation_count: int | None
 
 
-class AnnotationSubmitted(Payload):
-    EVENT_TYPE = "annotation.submitted"
+class AttemptAnswer(HopDong):
+    """Mot cau THAT trong bai nop; label_payload None = labeler bo trong cau nay."""
 
-    annotation_id: uuid.UUID
-    task_id: uuid.UUID
-    project_id: uuid.UUID
     sample_id: uuid.UUID
-    labeler_id: uuid.UUID | None
-    label_payload: LabelPayload
-    # Metadata cua mau (width / height...) — de so do lech diem moc / duong gap khuc khi gop nhan.
-    # Co mac dinh: message do ban truoc phat (chua co truong nay) van doc duoc luc nang cap.
-    sample_metadata: Any = None
-    source: Literal["professional", "linkGateway", "collaborative"]
-
-
-class AssignmentSubmitted(Payload):
-    """task-svc → annotation-svc (va quality-svc nghe them de chong gian lan, FM-07): co LeasedAt /
-    SubmittedAt de do toc do lam bai, ClientIp / DeviceId de phat hien nhieu tai khoan chung may."""
-
-    EVENT_TYPE = "assignment.submitted"
-
-    assignment_id: uuid.UUID
-    task_id: uuid.UUID
-    project_id: uuid.UUID
-    sample_id: uuid.UUID
-    storage_key: str | None
-    sample_content: Any | None
+    storage_key: str | None = None
+    sample_content: Any | None = None
     sample_metadata: Any
+    label_payload: LabelPayload | None = None
+
+
+class AttemptSubmitted(Payload):
+    """task-svc: labeler nop CA BAI. Cau vang chi mang so dung / tong (khong lo cau nao la vang).
+    StartedAt / SubmittedAt, ClientIp / DeviceId de chong gian lan (FM-07)."""
+
+    EVENT_TYPE = "attempt.submitted"
+
+    attempt_id: uuid.UUID
+    project_id: uuid.UUID
     labeler_id: uuid.UUID
-    label_payload: LabelPayload
-    leased_at: datetime
+    answers: list[AttemptAnswer]
+    gold_total: int
+    gold_correct: int
+    started_at: datetime
     submitted_at: datetime
-    client_ip: str | None
-    device_id: str | None
+    client_ip: str | None = None
+    device_id: str | None = None
 
 
-class TaskRedundancyReached(Payload):
-    EVENT_TYPE = "task.redundancy_reached"
-
-    task_id: uuid.UUID
-    project_id: uuid.UUID
-    sample_id: uuid.UUID
-    redundancy: int
-
-
-class GoldAnswered(Payload):
-    EVENT_TYPE = "gold.answered"
-
-    assignment_id: uuid.UUID
-    project_id: uuid.UUID
-    sample_id: uuid.UUID
+class SubmittedAttemptRef(HopDong):
+    attempt_id: uuid.UUID
     labeler_id: uuid.UUID
-    correct: bool
-    answered_at: datetime
+    gold_total: int
+    gold_correct: int
+
+
+class ProjectCollectionFinished(Payload):
+    """task-svc dong thu bai (du suat / het han / ket thuc som): danh sach bai PHAI cham + cau bi loai."""
+
+    EVENT_TYPE = "project.collection_finished"
+
+    project_id: uuid.UUID
+    reason: str
+    attempts: list[SubmittedAttemptRef]
+    excluded_sample_ids: list[uuid.UUID]
+    finished_at: datetime
 
 
 # =====================================================================
@@ -133,31 +126,28 @@ class GoldAnswered(Payload):
 # =====================================================================
 
 
-class RedundancyIncreaseRequested(Payload):
-    EVENT_TYPE = "redundancy.increase_requested"
-
-    task_id: uuid.UUID
-    project_id: uuid.UUID
-    sample_id: uuid.UUID
-    new_redundancy: int
-    reason: str
-
-
-class ConsensusVote(HopDong):
-    annotation_id: uuid.UUID
+class GradedAttempt(HopDong):
+    attempt_id: uuid.UUID
     labeler_id: uuid.UUID
-    agrees: bool | None
+    comparable_count: int
+    matched_count: int
+    agreement_percent: int
+    gold_total: int
+    gold_correct: int
+    passed: bool
+    answered_count: int
 
 
-class ConsensusReached(Payload):
-    EVENT_TYPE = "consensus.reached"
+class ProjectGraded(Payload):
+    """Cham xong ca du an: bai dat (ti le cau giong da so >= nguong VA dung het cau vang) duoc thuong."""
 
-    task_id: uuid.UUID
+    EVENT_TYPE = "project.graded"
+
     project_id: uuid.UUID
-    sample_id: uuid.UUID
-    status: Literal["agreed", "disputed", "notApplicable"]
-    final: dict[str, Any] | None
-    votes: list[ConsensusVote]
+    pass_threshold_percent: int
+    majority_used: bool
+    attempts: list[GradedAttempt]
+    graded_at: datetime
 
 
 class FraudCaseConfirmed(Payload):

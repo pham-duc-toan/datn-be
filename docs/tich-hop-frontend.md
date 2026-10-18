@@ -409,6 +409,8 @@ Sai hình dạng → 400 `tap_nhan_sai_dinh_dang` (`detail` liệt kê từng ch
 
 ### 4.5 Hướng dẫn, giá, kênh, điều kiện tham gia
 
+> **Phần giá (`pricing`), `quality-control`, `requireReview`, `budgetVnd` đã thay bằng [mục 18.1](#181-doanh-nghiệp-giá-cả-dự-án-kênh-checklist).** Hướng dẫn và điều kiện tham gia giữ nguyên.
+
 ```http
 PUT /projects/{id}/guideline
 { "markdown": "# Huong dan\n...", "examples": [ { "sampleId": "...", "label": "xe", "isCorrect": true, "explanation": "..." } ] }
@@ -680,6 +682,8 @@ Chặn labeler thì lượt task họ đang giữ bị thu hồi ngay.
 
 ### 4.10 Duyệt nhãn
 
+> **Đã thay bằng [mục 18](#18-dự-án-làm-trung-tâm-kiến-trúc-mục-318)** (dự án làm trung tâm). Phần dưới mô tả API cũ, giữ lại để đối chiếu.
+
 Chủ dự án và reviewer của dự án đều duyệt được. Không ai tự duyệt nhãn của chính mình.
 
 ```http
@@ -863,6 +867,8 @@ POST /tasks/reports/{reportId}/resolve   { "action": "dismiss" | "exclude" }   �
 
 ### 4.14 Tranh chấp nhãn đã duyệt (FM-06)
 
+> **Đã thay bằng [mục 18](#18-dự-án-làm-trung-tâm-kiến-trúc-mục-318)** (dự án làm trung tâm). Phần dưới mô tả API cũ, giữ lại để đối chiếu.
+
 Doanh nghiệp phát hiện một nhãn **đã duyệt** là sai (ví dụ sau khi kiểm tra lại) và đòi lại tiền. Chỉ mở được khi thù lao của nhãn **còn đang treo** (chưa về ví khả dụng của labeler — mặc định 3 ngày sau khi duyệt). Mỗi nhãn một tranh chấp.
 
 ```http
@@ -940,6 +946,8 @@ GET /projects/{id}/entrance-test/attempts   → lịch sử (tối đa 3 lần l
 
 ### 5.3 Nhận task
 
+> **Đã thay bằng [mục 18](#18-dự-án-làm-trung-tâm-kiến-trúc-mục-318)** (dự án làm trung tâm). Phần dưới mô tả API cũ, giữ lại để đối chiếu.
+
 ```http
 POST /tasks/projects/{id}/next
 → 200 LeaseResponse   |   204 hết task cho bạn   |   403 chưa đủ điều kiện (code cho biết lý do)
@@ -955,6 +963,8 @@ POST /tasks/projects/{id}/next
 Chi tiết `LeaseResponse` và cách dựng màn hình: **mục 6**.
 
 ### 5.4 Nộp, bỏ qua, xem task đang giữ
+
+> **Đã thay bằng [mục 18](#18-dự-án-làm-trung-tâm-kiến-trúc-mục-318)** (dự án làm trung tâm). Phần dưới mô tả API cũ, giữ lại để đối chiếu.
 
 ```http
 POST /tasks/assignments/{assignmentId}/submit   { "payload": { ... } }
@@ -991,6 +1001,8 @@ POST /tasks/assignments/{assignmentId}/report   { "reason": "broken|inappropriat
 Báo lỗi xong gọi `next` để lấy task khác. Không bị trừ uy tín.
 
 ### 5.5 Lịch sử và khiếu nại
+
+> **Đã thay bằng [mục 18](#18-dự-án-làm-trung-tâm-kiến-trúc-mục-318)** (dự án làm trung tâm). Phần dưới mô tả API cũ, giữ lại để đối chiếu.
 
 ```http
 GET /annotations/mine?status=rejected&page=1&pageSize=20
@@ -1933,6 +1945,8 @@ POST /users/admin/{userId}/unblock                                 → AdminUser
 
 ### 7.5 Phân xử tranh chấp (FM-06)
 
+> **Đã thay bằng [mục 18](#18-dự-án-làm-trung-tâm-kiến-trúc-mục-318)** (dự án làm trung tâm). Phần dưới mô tả API cũ, giữ lại để đối chiếu.
+
 ```http
 GET  /ledger/admin/disputes?status=open&page=1&pageSize=20     (cũ nhất trước)
 → { "items": [ DisputeResponse (mục 4.14) ], "page", "pageSize", "total" }
@@ -2763,3 +2777,86 @@ Tạo dự án từ mẫu: frontend tạo dự án với `modality` của mẫu 
 | 400 | `ngon_ngu_khong_hop_le` | Ngôn ngữ thông báo khác vi / en |
 | 409 | `media_hong` | File âm thanh / video hỏng, không nhúng watermark được |
 | 429 | `vuot_han_muc_moi_email` | Mời quá `project.email_invite_daily_max` email / 24 giờ (kèm `Retry-After`) |
+
+## 18. Dự án làm trung tâm (kiến trúc mục 3.18)
+
+Từ đợt này **tiền, bài làm và kết quả đi theo cả dự án**, không theo từng nhãn. Các mục cũ nói về đơn giá mỗi nhãn, lease task, duyệt / từ chối / khiếu nại / tranh chấp từng nhãn (4.5 phần giá, 4.9 phần tiến độ, 4.10, 4.14, 5.3–5.5, 7.5) **đã bị thay** bằng mục này.
+
+### 18.1 Doanh nghiệp: giá cả dự án, kênh, checklist
+
+```http
+PUT /projects/{id}/pricing
+{ "rewardVnd": 50000, "slots": 10, "passThresholdPercent": 80, "deadline": "2027-01-31T00:00:00Z" }
+
+PUT /projects/{id}/channels
+{ "allowProfessional": true, "allowLinkGateway": true, "allowCollaborative": false,
+  "gateUnitPriceVnd": 300, "gateBudgetVnd": 200000 }
+```
+
+- `rewardVnd`: thưởng cho **một bài đạt** (cả bài, không theo câu), ≥ `limits.minRewardVnd`. `slots`: số suất — tối đa bao nhiêu bài đạt được thưởng (`limits.minSlots`–`limits.maxSlots`).
+- `passThresholdPercent` = `t`: tỉ lệ câu giống đa số tối thiểu để đạt. Phải nằm trong `[limits.passThresholdMin, limits.passThresholdMax]` — admin đặt bằng setting `project.pass_threshold_min` / `project.pass_threshold_max`. Gợi ý UI: thanh trượt chỉ cho chọn trong khoảng này.
+- Cổng link (kênh phụ) có **đơn giá riêng mỗi nhãn khách gán** và **ngân sách riêng**; bật cổng mà thiếu một trong hai → checklist báo `chua_cau_hinh_cong_link`.
+- `PUT /projects/{id}/quality-control` **đã bỏ** (không còn tỉ lệ câu vàng, không còn chế độ duyệt).
+
+`GET /projects/{id}/readiness` (mới):
+
+```json
+{ "ready": true, "missing": [], "warnings": ["khong_co_cau_vang_kiem_tra"],
+  "sampleCount": 12, "questionCount": 10, "qualityGoldCount": 2, "entranceGoldCount": 0,
+  "platformFeePercent": 30, "platformFeePerPassVnd": 15000, "estimatedCostVnd": 650000,
+  "limits": { "passThresholdMin": 60, "passThresholdMax": 95, "minSlots": 3, "maxSlots": 50, "maxQuestions": 500, "minRewardVnd": 10000 } }
+```
+
+- `estimatedCostVnd` = ký quỹ khi publish = `slots × (rewardVnd + platformFeePerPassVnd) + gateBudgetVnd`.
+- `questionCount` = số câu THẬT (mẫu không phải câu vàng); câu vàng `qualityCheck` được chèn vào **mọi** bài, labeler không phân biệt được.
+- `warnings` không chặn publish. `missing` mới: `chua_cau_hinh_gia`, `thuong_duoi_toi_thieu`, `so_suat_khong_hop_le`, `nguong_dat_ngoai_khoang`, `qua_nhieu_cau`, `chua_cau_hinh_cong_link`.
+- `ProjectResponse` / `ProjectListItem` thay `unitPriceVnd`, `redundancy`, `maxRedundancy`, `goldCheckPercent`, `requireReview`, `budgetVnd` bằng: `rewardVnd`, `slots`, `passThresholdPercent`, `questionCount`, `toolKinds` (dạng gán nhãn, mỗi loại công cụ một lần — hiện trên thẻ chợ dự án), `gateUnitPriceVnd`, `gateBudgetVnd`, `finishRequestedAt`, `gradingStartedAt`, `closedAt`, `escrowVnd`, `platformFeePercent`. Trạng thái mới: `grading` (đã đóng thu bài, đang chấm / trong hạn khiếu nại).
+
+### 18.2 Doanh nghiệp: vận hành, kết thúc, kết quả
+
+| Việc | API |
+|---|---|
+| Tiến độ | `GET /tasks/projects/{id}/progress` → `{ slots, questionCount, inProgress, submitted, expired, cancelled, phase, finishReason, deadline, collectionFinishedAt, gradedAt, appealDeadline, settledAt, passedCount, openAppeals, estimatedCompletionAt }` |
+| Danh sách bài | `GET /tasks/projects/{id}/attempts` → `AttemptSummary[]` (mục 18.3) |
+| Kết thúc sớm | `POST /projects/{id}/finish` — đóng thu bài ngay: bài đã nộp được chấm, bài đang làm dở hết hạn. Không mở lại được |
+| Huỷ | `POST /projects/{id}/cancel` — chỉ khi **đã tạm dừng và chưa có bài nộp**; ngược lại 409 `chua_the_dong` + `closeCheck.reasons` (`chua_dong_bo_tam_dung` → thử lại vài giây; `da_co_bai_nop` → dùng kết thúc sớm) |
+| `POST /projects/{id}/complete` | **Đã bỏ** — dự án tự hoàn thành khi hết hạn khiếu nại |
+| Kết quả, xuất file | như mục 4.11, nhưng chỉ gồm nhãn của **bài đạt** (và bài được chấp nhận khiếu nại) |
+| Nhãn của dự án | `GET /annotations/projects/{id}?status=accepted|excluded|submitted&attemptId=` — `status`: `submitted` (chờ chấm), `accepted` (vào kết quả), `excluded` (bài trượt) |
+| Chất lượng | `GET /quality/projects/{id}/summary` → `attemptsSubmitted`, `attemptsGraded`, `attemptsPassed`, `attemptsFailed`, `collectionReason`, `gradedAt`, `majorityUsed`, `samplesEvaluated`, `agreed`, `disputed`, `notApplicable`, `goldAnswers`, `goldAccuracyPercent`, `tools[]`; `GET /quality/projects/{id}/labelers` → mỗi **bài**: `attemptId`, `labelCount` (đã trả lời) / `questionCount`, `agreementPercent`, `agreementSampleCount`, `matchedCount`, `passed`, câu vàng, DS / STAPLE, uy tín |
+| Chi phí | `GET /ledger/projects/{id}/cost` → `reservedVnd`, `balanceVnd`, `spentRewardsVnd`, `spentGateVnd`, `returnedVnd`, `slots`, `rewardPerAttemptVnd`, `platformFeePerAttemptVnd`, `paidAttempts`, `heldVnd`, `escrowState` (`active` / `closing` / `closed`) |
+
+`phase`: `open` (đang nhận bài) → `finished` (đóng thu bài, đang chấm) → `graded` (đã chấm, trong hạn khiếu nại) → `settled` (đã chốt). `finishReason`: `du_suat`, `het_han`, `ket_thuc_som`.
+
+### 18.3 Labeler: làm bài như bài kiểm tra
+
+```http
+GET  /tasks/projects/{projectId}/slots                  → suất còn lại + bài của tôi (mine)
+POST /tasks/projects/{projectId}/attempt                → bắt đầu, hoặc trả lại bài đang làm (idempotent); header X-Device-Id
+GET  /tasks/attempts/{attemptId}                        → bài + mọi câu + câu trả lời đã lưu
+PUT  /tasks/attempts/{attemptId}/answers/{sampleId}     { "data": { "<tên công cụ>": ... } }   data = null: bỏ trống câu
+POST /tasks/attempts/{attemptId}/submit                 → nộp CẢ BÀI (một lần)
+POST /tasks/attempts/{attemptId}/abandon                → bỏ bài, trả suất
+POST /tasks/attempts/{attemptId}/reports                { "sampleId", "reason", "note" }   báo lỗi một câu
+POST /tasks/attempts/{attemptId}/appeal                 { "message" }   khiếu nại cả bài (sau khi chấm, trong hạn)
+GET  /tasks/me/attempts                                 → AttemptSummary[] của tôi
+```
+
+`AttemptResponse`: `attemptId`, `projectId`, `state` (`inProgress` / `submitted` / `expired` / `cancelled`), `startedAt`, `expiresAt` (≤ hạn chót dự án), `submittedAt`, `labelSchema`, `schemaVersion`, `rewardVnd`, `passThresholdPercent`, `sensitiveContent`, `questionCount`, `answeredCount`, `questions[]` = `{ index, sampleId, modality, fileUrl, content, metadata, answer, answeredAt }` — **xáo trộn theo từng người**, câu vàng nằm lẫn và không có dấu hiệu nào.
+
+- **Lưu nháp từng câu**: `PUT answers` sau mỗi thay đổi (frontend tham khảo debounce ~1 giây và lưu ngay khi chuyển câu). Lưu nháp **không** kiểm định dạng nhãn — được lưu câu làm dở.
+- **Nộp**: server kiểm mọi câu đã trả lời bằng đúng bộ kiểm của Crowd.Labeling. Sai → 400 `bai_chua_hop_le`, body có `invalidAnswers: [{ index (1-based), sampleId, code, message }]`, bài **vẫn mở** để sửa. Câu bỏ trống được phép (tính là không giống đa số; câu vàng bỏ trống tính là sai).
+- Dự án tạm dừng → nộp bài trả 409 `du_an_tam_dung` (bài vẫn giữ, nộp lại khi dự án chạy tiếp). Hết suất → `het_suat`; đã đóng thu bài → `du_an_da_dong_thu_bai`; đã nộp bài cho dự án → `da_nop_bai`.
+- Link xem file sống ngắn: lỗi tải ảnh / âm thanh thì `GET /tasks/attempts/{id}` lấy link mới, **giữ** câu trả lời đang sửa trên máy.
+
+`AttemptSummary` (danh sách / kết quả): các trường trên + `comparableCount`, `matchedCount`, `agreementPercent`, `goldTotal`, `goldCorrect` (chỉ hiện **sau khi chấm**), `passed`, `finalPassed` (sau khiếu nại), `gradedAt`, `appealState` (`none` / `open` / `accepted` / `rejected`), `appealMessage`, `appealNote`, `appealDeadline`, `canAppeal`.
+
+Tiền: bài đạt được trả `rewardVnd` vào **số dư khả dụng ngay khi chấm** (`ledger.reward_hold` = 0; admin đặt > 0 thì treo như doanh thu link). Thu nhập `GET /ledger/me/earnings` có nguồn mới `projectReward`.
+
+### 18.4 Admin
+
+- Khiếu nại bài làm: `GET /tasks/admin/appeals?state=open|accepted|rejected` → `AttemptSummary[]`; `POST /tasks/admin/attempts/{id}/appeal/resolve { "accept": true, "note": "..." }`. Để so bài với đa số: `GET /annotations/projects/{projectId}?attemptId={id}` (nhãn của bài) cạnh `GET /annotations/projects/{projectId}/results` (kết quả gộp).
+- Hàng đợi duyệt chung: loại `appeal` nay là khiếu nại **bài làm** (`subjectId` = attemptId, `note` = "giống đa số A% / ngưỡng T%"); loại `dispute` đã bỏ.
+- Tổng quan `GET /admin/stats/overview`: `attemptsSubmitted`, `projectsGraded`, `projectsCompleted`, `labelerPayoutsVnd` (từ `funds.held`: thưởng + doanh thu link + hoa hồng), `appealsOpened`; `daily[]` có `attemptsSubmitted`, `projectsGraded`.
+- Setting mới: `project.pass_threshold_min` / `max` (x, y), `project.max_questions`, `project.min_slots` / `max_slots`, `project.min_reward_vnd`, `task.attempt_duration`, `task.attempt_max_bytes`, `task.appeal_window`, `ledger.reward_hold`.
+- Thông báo mới: loại `ket_qua_bai` (bài đạt / chưa đạt / kết quả khiếu nại; link `/attempts/{attemptId}`), chủ dự án nhận "dự án đã chấm xong". Loại `nhan_duyet`, `nhan_tu_choi`, `tranh_chap` đã bỏ.

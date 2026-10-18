@@ -1,10 +1,10 @@
-"""Chong gian lan (FM-07): phat hien tu assignment.submitted, mo HO SO NGHI VAN cho admin.
+"""Chong gian lan (FM-07): phat hien tu attempt.submitted (nop CA BAI), mo HO SO NGHI VAN cho admin.
 
 Ba tin hieu (nguong la setting he thong quality.fraud_*):
-  - qua_nhanh: trong N luot gan nhat cua labeler o mot du an, qua nhieu luot lam nhanh hon
-    max(so giay toi thieu, ti le x trung vi thoi gian lam cua du an);
-  - mot_nhan_lien_tuc: K cau phan loai lien tiep cung mot lop, trong khi nguoi khac trong du an
-    chon da dang (du lieu that su dong deu thi khong bao);
+  - qua_nhanh: so giay trung binh moi cau cua bai nhanh hon max(so giay toi thieu, ti le x trung vi
+    cua cac bai khac trong du an) — bai co it nhat quality.fraud_fast_window cau da tra loi moi xet;
+  - mot_nhan_lien_tuc: K cau phan loai lien tiep (theo thu tu de) cung mot lop, trong khi nguoi khac
+    trong du an chon da dang (du lieu that su dong deu thi khong bao);
   - chung_ip / chung_thiet_bi: nhieu tai khoan khac nhau nop tu cung IP / ma thiet bi trong mot
     khoang thoi gian.
 
@@ -26,8 +26,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import settings_store
-from app.contracts import AssignmentSubmitted
-from app.messaging.envelope import Envelope
+from app.contracts import AttemptSubmitted
 
 SO_LUOT_TINH_TRUNG_VI = 500
 
@@ -94,24 +93,41 @@ def dap_an_phan_loai(label_schema: dict[str, Any], du_lieu: dict[str, Any]) -> s
 # =====================================================================
 
 
-async def assignment_submitted(s: AsyncSession, env: Envelope[AssignmentSubmitted]) -> None:
-    p = env.payload
+def chuoi_dai_nhat(dap_an: list[str | None]) -> tuple[str | None, int]:
+    """(dap an, do dai) cua chuoi lien tiep dai nhat cung mot dap an (bo qua None)."""
+    tot, dai = None, 0
+    hien, dem = None, 0
+    for a in dap_an:
+        if a is not None and a == hien:
+            dem += 1
+        else:
+            hien, dem = a, (1 if a is not None else 0)
+        if dem > dai:
+            tot, dai = hien, dem
+    return tot, dai
+
+
+async def xet_bai(s: AsyncSession, p: AttemptSubmitted) -> None:
+    """Ghi dau vet bai nop roi xet (goi tu processors.attempt_submitted, trong transaction consumer)."""
     du_an = (await s.execute(text("SELECT label_schema FROM projects WHERE project_id = :p"), {"p": p.project_id})).first()
     schema = {} if du_an is None else (du_an.label_schema if isinstance(du_an.label_schema, dict) else json.loads(du_an.label_schema))
-    giay = max(0.0, (p.submitted_at - p.leased_at).total_seconds())
+    dap_an = [None if a.label_payload is None else dap_an_phan_loai(schema, a.label_payload.data) for a in p.answers]
+    so_cau = sum(1 for a in p.answers if a.label_payload is not None)
+    giay_moi_cau = max(0.0, (p.submitted_at - p.started_at).total_seconds()) / max(so_cau, 1)
+    lop, dai = chuoi_dai_nhat(dap_an)
 
     moi = (await s.execute(
         text(
             "INSERT INTO fraud_submissions (assignment_id, project_id, task_id, labeler_id, work_seconds, answer, client_ip, device_id, submitted_at) "
-            "VALUES (:a, :p, :t, :l, :g, :ans, :ip, :dev, :at) ON CONFLICT (assignment_id) DO NOTHING RETURNING assignment_id"),
-        {"a": p.assignment_id, "p": p.project_id, "t": p.task_id, "l": p.labeler_id, "g": giay,
-         "ans": dap_an_phan_loai(schema, p.label_payload.data), "ip": p.client_ip, "dev": p.device_id, "at": p.submitted_at},
+            "VALUES (:a, :p, NULL, :l, :g, :ans, :ip, :dev, :at) ON CONFLICT (assignment_id) DO NOTHING RETURNING assignment_id"),
+        {"a": p.attempt_id, "p": p.project_id, "l": p.labeler_id, "g": giay_moi_cau,
+         "ans": lop, "ip": p.client_ip, "dev": p.device_id, "at": p.submitted_at},
     )).first()
     if moi is None or not settings_store.dung_sai(settings_store.FRAUD_ENABLED):
         return
 
-    await _xet_qua_nhanh(s, p)
-    await _xet_mot_nhan(s, p)
+    await _xet_qua_nhanh(s, p, giay_moi_cau, so_cau)
+    await _xet_mot_nhan(s, p, schema, lop, dai)
     ip = ip_de_xet(p.client_ip, settings_store.dung_sai(settings_store.FRAUD_IGNORE_PRIVATE_IPS))
     if ip is not None:
         await _xet_chung(s, "chung_ip", "client_ip", ip, p.submitted_at)
@@ -119,50 +135,46 @@ async def assignment_submitted(s: AsyncSession, env: Envelope[AssignmentSubmitte
         await _xet_chung(s, "chung_thiet_bi", "device_id", p.device_id, p.submitted_at)
 
 
-async def _xet_qua_nhanh(s: AsyncSession, p: AssignmentSubmitted) -> None:
-    cua_so = settings_store.so_nguyen(settings_store.FRAUD_FAST_WINDOW)
-    gan_nhat = [r.work_seconds for r in (await s.execute(
-        text("SELECT work_seconds FROM fraud_submissions WHERE labeler_id = :l AND project_id = :p "
-             "ORDER BY submitted_at DESC LIMIT :n"), {"l": p.labeler_id, "p": p.project_id, "n": cua_so})).all()]
-    if len(gan_nhat) < cua_so:
+async def _xet_qua_nhanh(s: AsyncSession, p: AttemptSubmitted, giay_moi_cau: float, so_cau: int) -> None:
+    toi_thieu_cau = settings_store.so_nguyen(settings_store.FRAUD_FAST_WINDOW)
+    if so_cau < max(toi_thieu_cau, 1):
         return
 
-    du_an = [r.work_seconds for r in (await s.execute(
-        text("SELECT work_seconds FROM fraud_submissions WHERE project_id = :p ORDER BY submitted_at DESC LIMIT :n"),
-        {"p": p.project_id, "n": SO_LUOT_TINH_TRUNG_VI})).all()]
-    trung_vi = median(du_an) if du_an else None
+    khac = [r.work_seconds for r in (await s.execute(
+        text("SELECT work_seconds FROM fraud_submissions WHERE project_id = :p AND assignment_id <> :a "
+             "ORDER BY submitted_at DESC LIMIT :n"),
+        {"p": p.project_id, "a": p.attempt_id, "n": SO_LUOT_TINH_TRUNG_VI})).all()]
+    trung_vi = median(khac) if khac else None
     nguong = nguong_qua_nhanh(trung_vi, settings_store.so_thuc(settings_store.FRAUD_MIN_SECONDS),
                               settings_store.so_thuc(settings_store.FRAUD_FAST_RATIO))
-    ti_le = settings_store.so_thuc(settings_store.FRAUD_FAST_FRACTION)
-    if not la_qua_nhanh(gan_nhat, cua_so, nguong, ti_le):
+    if giay_moi_cau >= nguong:
         return
 
     await mo_ho_so(s, "qua_nhanh", f"qua_nhanh:{p.labeler_id}:{p.project_id}", p.project_id, [p.labeler_id], {
-        "windowSize": cua_so,
-        "fastCount": sum(1 for t in gan_nhat if t < nguong),
+        "attemptId": str(p.attempt_id),
+        "answeredCount": so_cau,
+        "secondsPerQuestion": round(giay_moi_cau, 3),
         "thresholdSeconds": round(nguong, 3),
         "projectMedianSeconds": None if trung_vi is None else round(trung_vi, 3),
-        "recentWorkSeconds": [round(t, 3) for t in gan_nhat],
     }, p.submitted_at)
 
 
-async def _xet_mot_nhan(s: AsyncSession, p: AssignmentSubmitted) -> None:
+async def _xet_mot_nhan(s: AsyncSession, p: AttemptSubmitted, schema: dict[str, Any], lop: str | None, dai: int) -> None:
     do_dai = settings_store.so_nguyen(settings_store.FRAUD_SAME_LABEL_STREAK)
-    gan_nhat = [r.answer for r in (await s.execute(
-        text("SELECT answer FROM fraud_submissions WHERE labeler_id = :l AND project_id = :p "
-             "ORDER BY submitted_at DESC LIMIT :n"), {"l": p.labeler_id, "p": p.project_id, "n": do_dai})).all()]
-    if len(gan_nhat) < do_dai:
+    if lop is None or do_dai <= 0 or dai < do_dai:
         return
 
-    khac = (await s.execute(
-        text("SELECT COUNT(DISTINCT answer) FROM fraud_submissions WHERE project_id = :p AND labeler_id <> :l AND answer IS NOT NULL"),
-        {"p": p.project_id, "l": p.labeler_id})).scalar_one()
-    lop = chuoi_mot_nhan(gan_nhat, do_dai, khac)
-    if lop is None:
+    # Nguoi khac trong du an chon bao nhieu dap an khac nhau (tu nhan da luu cua cac bai khac).
+    du_lieu = [r.data for r in (await s.execute(
+        text("SELECT data FROM labels WHERE project_id = :p AND labeler_id <> :l LIMIT :n"),
+        {"p": p.project_id, "l": p.labeler_id, "n": SO_LUOT_TINH_TRUNG_VI})).all()]
+    khac = len({a for a in (dap_an_phan_loai(schema, d if isinstance(d, dict) else json.loads(d)) for d in du_lieu) if a is not None})
+    if chuoi_mot_nhan([lop] * dai, do_dai, khac) is None:
         return
 
     await mo_ho_so(s, "mot_nhan_lien_tuc", f"mot_nhan:{p.labeler_id}:{p.project_id}", p.project_id, [p.labeler_id], {
-        "streak": do_dai,
+        "attemptId": str(p.attempt_id),
+        "streak": dai,
         "answer": lop,
         "otherLabelersDistinctAnswers": khac,
     }, p.submitted_at)

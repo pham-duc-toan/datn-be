@@ -31,6 +31,12 @@ namespace Crowd.Project.Domain.Projects
         Completed,
 
         Cancelled,
+
+        /// <summary>
+        /// Dang cham (docs 3.18): da dong thu bai (du suat / het han / ket thuc som), quality-svc cham,
+        /// labeler truot duoc khieu nai trong han. Het han va khong con khieu nai → Hoan thanh.
+        /// </summary>
+        Grading,
     }
 
     /// <summary>

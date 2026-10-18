@@ -314,7 +314,7 @@ namespace Crowd.Ledger.Api.Services
             string viDoanhNghiep = AccountCodes.BusinessAvailable(businessId);
 
             // Moi but toan trong thang cham ky quy cac du an cua doanh nghiep hoac vi doanh nghiep; du an
-            // cua but toan = du an co dong ky quy, khong co thi du an cua tranh chap (hoan tien ve vi).
+            // cua but toan = du an co dong ky quy (but toan chi cham vi doanh nghiep: nap tien, khong gan du an).
             List<DongTongHop> dong = await _db.Database.SqlQuery<DongTongHop>($@"
                 WITH du_an AS (
                     SELECT project_id, 'escrow:project:' || project_id AS ma FROM project_escrows WHERE owner_id = {businessId}
@@ -325,9 +325,7 @@ namespace Crowd.Ledger.Api.Services
                       AND (l.account_code IN (SELECT ma FROM du_an) OR l.account_code = {viDoanhNghiep})
                 ), gan AS (
                     SELECT b.id,
-                           COALESCE(
-                               (SELECT d.project_id FROM journal_lines x JOIN du_an d ON d.ma = x.account_code WHERE x.entry_id = b.id LIMIT 1),
-                               (SELECT t.project_id FROM disputes t WHERE 'dispute:' || t.id = b.reference)) AS project_id
+                           (SELECT d.project_id FROM journal_lines x JOIN du_an d ON d.ma = x.account_code WHERE x.entry_id = b.id LIMIT 1) AS project_id
                     FROM but_toan b
                 )
                 SELECT g.project_id AS ""ProjectId"",

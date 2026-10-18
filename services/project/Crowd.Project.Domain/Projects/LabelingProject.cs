@@ -70,38 +70,27 @@ namespace Crowd.Project.Domain.Projects
         /// <summary>null = chua viet huong dan.</summary>
         public Guideline? Guideline { get; private set; }
 
-        // ---- Cau hinh gia (FB-14). Tien la long, so nguyen dong (VD-M-07). ----
-
-        /// <summary>Thu lao cho MOT nhan. 0 = chua cau hinh.</summary>
-        public long UnitPriceVnd { get; private set; }
-
-        /// <summary>So nguoi gan cung mot mau. 0 = chua cau hinh.</summary>
-        public int Redundancy { get; private set; }
+        // ---- Cau hinh tien (FB-14) — theo CA DU AN (docs 3.18). Tien la long, so nguyen dong (VD-M-07). ----
 
         /// <summary>
-        /// Tran redundancy thich ung (>= Redundancy, docs 3.7). Mau tranh chap duoc
-        /// quality-svc xin them nguoi gan toi toi da so nay. Ky quy tinh theo TRAN —
-        /// phan khong dung tu hoan khi ket thuc du an.
+        /// Tien thuong cho MOT labeler lam DAT ca du an (moi labeler lam het cac cau trong mot bai).
+        /// 0 = chua cau hinh. Khong con don gia moi nhan.
         /// </summary>
-        public int MaxRedundancy { get; private set; }
+        public long RewardVnd { get; private set; }
+
+        /// <summary>So suat: toi da bay nhieu labeler lam bai. 0 = chua cau hinh.</summary>
+        public int Slots { get; private set; }
 
         /// <summary>
-        /// Phan tram so lan cap task la cau vang kiem tra (qualityCheck) tron vao,
-        /// 0-50. 0 = khong tron. Cau vang khong tra tien.
+        /// t — ti le % cau tra loi giong da so toi thieu de DAT (cung voi: khong sai cau vang nao).
+        /// Doanh nghiep chon trong khoang [x, y] admin dat (project.pass_threshold_min / _max).
         /// </summary>
-        public int GoldCheckPercent { get; private set; }
-
-        /// <summary>
-        /// Co can duyet tung nhan khong (mac dinh co). false = nhan KHOP dong thuan (va nhan cua du an
-        /// chi co cau tra loi mo — khong gop duoc) duoc he thong tu duyet va tra tien; nhan lech da so /
-        /// mau tranh chap van cho chu du an. Chot luc publish (dieu khoan voi labeler).
-        /// </summary>
-        public bool RequireReview { get; private set; }
-
-        /// <summary>Ngan sach toi da — cung la so tien ky quy khi publish.</summary>
-        public long BudgetVnd { get; private set; }
+        public int PassThresholdPercent { get; private set; }
 
         public DateTimeOffset? Deadline { get; private set; }
+
+        /// <summary>So cau that (mau khong phai cau vang) CHOT luc bam publish — hien o cho du an.</summary>
+        public int QuestionCount { get; private set; }
 
         // ---- Kenh phan phoi (FB-17) ----
 
@@ -110,6 +99,14 @@ namespace Crowd.Project.Domain.Projects
         public bool AllowLinkGateway { get; private set; }
 
         public bool AllowCollaborative { get; private set; }
+
+        /// <summary>
+        /// Cong vuot link (kenh phu): tinh tien theo LUOT khach gan (khach chi lam 1-3 cau), khong theo
+        /// ca bai. Gia moi nhan khach gan va ngan sach rieng cho cong link (nam trong ky quy).
+        /// </summary>
+        public long GateUnitPriceVnd { get; private set; }
+
+        public long GateBudgetVnd { get; private set; }
 
         // ---- Dieu kien tham gia (FB-15) ----
 
@@ -201,6 +198,12 @@ namespace Crowd.Project.Domain.Projects
 
         public DateTimeOffset? ClosedAt { get; private set; }
 
+        /// <summary>Doanh nghiep da bam "Ket thuc som" (cho task-svc dong thu bai). null = chua.</summary>
+        public DateTimeOffset? FinishRequestedAt { get; private set; }
+
+        /// <summary>Luc dong thu bai, bat dau cham (project.collection_finished).</summary>
+        public DateTimeOffset? GradingStartedAt { get; private set; }
+
         // =====================================================================
         // TAO VA CAU HINH — chi khi con Nhap
         // =====================================================================
@@ -238,9 +241,8 @@ namespace Crowd.Project.Domain.Projects
             // Mac dinh hop ly de doanh nghiep khong phai dien het moi thu.
             duAn.AllowProfessional = true;
             duAn.EntranceQuestionCount = quyDinh.SoCauTestMacDinh;
-            duAn.GoldCheckPercent = quyDinh.GoldCheckPercentMacDinh;
             duAn.EntrancePassPercent = quyDinh.NguongDauMacDinh;
-            duAn.RequireReview = true;
+            duAn.PassThresholdPercent = Math.Clamp(80, quyDinh.NguongDatToiThieu, quyDinh.NguongDatToiDa);
 
             return duAn;
         }
@@ -303,58 +305,44 @@ namespace Crowd.Project.Domain.Projects
             UpdatedAt = luc;
         }
 
+        /// <summary>
+        /// Tien theo CA DU AN (docs 3.18): thuong moi nguoi dat, so suat, nguong t, han chot.
+        /// Ky quy = so suat x (thuong + phi) (+ ngan sach cong link) — tinh tu dong, khong nhap tay.
+        /// </summary>
         public void DatCauHinhGia(
-            long unitPriceVnd,
-            int redundancy,
-            long budgetVnd,
-            DateTimeOffset deadline,
-            DateTimeOffset luc,
-            QuyDinhDuAn quyDinh)
-        {
-            DatCauHinhGia(unitPriceVnd, redundancy, redundancy, budgetVnd, deadline, luc, quyDinh);
-        }
-
-        /// <param name="maxRedundancy">Tran redundancy thich ung; bang redundancy = tat thich ung.</param>
-        public void DatCauHinhGia(
-            long unitPriceVnd,
-            int redundancy,
-            int maxRedundancy,
-            long budgetVnd,
+            long rewardVnd,
+            int slots,
+            int passThresholdPercent,
             DateTimeOffset deadline,
             DateTimeOffset luc,
             QuyDinhDuAn quyDinh)
         {
             ChiKhiNhap("doi cau hinh gia");
 
-            if (unitPriceVnd <= 0)
+            if (rewardVnd <= 0)
             {
-                throw new InvalidValueException("don_gia_khong_hop_le", "Don gia phai lon hon 0.");
+                throw new InvalidValueException("thuong_khong_hop_le", "Tien thuong phai lon hon 0.");
             }
 
-            if (unitPriceVnd < quyDinh.DonGiaToiThieu)
+            if (rewardVnd < quyDinh.ThuongToiThieu)
             {
                 throw new InvalidValueException(
-                    "don_gia_duoi_toi_thieu",
-                    "Don gia toi thieu cua nen tang la " + quyDinh.DonGiaToiThieu + "d moi nhan.");
+                    "thuong_duoi_toi_thieu",
+                    "Tien thuong toi thieu cua nen tang la " + quyDinh.ThuongToiThieu + "d cho moi nguoi lam dat.");
             }
 
-            if (redundancy < 1 || redundancy > quyDinh.RedundancyToiDa)
+            if (slots < quyDinh.SoSuatToiThieu || slots > quyDinh.SoSuatToiDa)
             {
                 throw new InvalidValueException(
-                    "redundancy_khong_hop_le",
-                    "So nguoi gan trung phai tu 1 den " + quyDinh.RedundancyToiDa + ".");
+                    "so_suat_khong_hop_le",
+                    "So suat phai tu " + quyDinh.SoSuatToiThieu + " den " + quyDinh.SoSuatToiDa + " nguoi.");
             }
 
-            if (maxRedundancy < redundancy || maxRedundancy > quyDinh.RedundancyToiDa)
+            if (passThresholdPercent < quyDinh.NguongDatToiThieu || passThresholdPercent > quyDinh.NguongDatToiDa)
             {
                 throw new InvalidValueException(
-                    "tran_redundancy_khong_hop_le",
-                    "Tran redundancy phai tu " + redundancy + " (bang redundancy) den " + quyDinh.RedundancyToiDa + ".");
-            }
-
-            if (budgetVnd <= 0)
-            {
-                throw new InvalidValueException("ngan_sach_khong_hop_le", "Ngan sach phai lon hon 0.");
+                    "nguong_dat_ngoai_khoang",
+                    "Nguong dat phai tu " + quyDinh.NguongDatToiThieu + "% den " + quyDinh.NguongDatToiDa + "%.");
             }
 
             if (deadline <= luc)
@@ -362,15 +350,17 @@ namespace Crowd.Project.Domain.Projects
                 throw new InvalidValueException("deadline_da_qua", "Deadline phai o tuong lai.");
             }
 
-            UnitPriceVnd = unitPriceVnd;
-            Redundancy = redundancy;
-            MaxRedundancy = maxRedundancy;
-            BudgetVnd = budgetVnd;
+            RewardVnd = rewardVnd;
+            Slots = slots;
+            PassThresholdPercent = passThresholdPercent;
             Deadline = deadline;
             UpdatedAt = luc;
         }
 
-        public void DatKenhPhanPhoi(bool professional, bool linkGateway, bool collaborative, DateTimeOffset luc)
+        /// <param name="gateUnitPriceVnd">Gia moi nhan khach vuot link gan (chi khi bat cong link).</param>
+        /// <param name="gateBudgetVnd">Ngan sach rieng cua cong link (chi khi bat cong link).</param>
+        public void DatKenhPhanPhoi(
+            bool professional, bool linkGateway, bool collaborative, long? gateUnitPriceVnd, long? gateBudgetVnd, DateTimeOffset luc)
         {
             ChiKhiNhap("doi kenh phan phoi");
 
@@ -379,9 +369,23 @@ namespace Crowd.Project.Domain.Projects
                 throw new InvalidValueException("khong_co_kenh", "Phai chon it nhat mot kenh phan phoi.");
             }
 
+            long gia = gateUnitPriceVnd ?? 0;
+            long nganSach = gateBudgetVnd ?? 0;
+            if (gia < 0 || nganSach < 0)
+            {
+                throw new InvalidValueException("gia_cong_link_khong_hop_le", "Gia va ngan sach cong link khong duoc am.");
+            }
+
+            if (linkGateway && nganSach > 0 && gia > 0 && nganSach < gia)
+            {
+                throw new InvalidValueException("ngan_sach_cong_link_qua_nho", "Ngan sach cong link phai du it nhat mot nhan.");
+            }
+
             AllowProfessional = professional;
             AllowLinkGateway = linkGateway;
             AllowCollaborative = collaborative;
+            GateUnitPriceVnd = linkGateway ? gia : 0;
+            GateBudgetVnd = linkGateway ? nganSach : 0;
             UpdatedAt = luc;
         }
 
@@ -423,30 +427,6 @@ namespace Crowd.Project.Domain.Projects
             RequireEntranceTest = requireEntranceTest;
             EntranceQuestionCount = entranceQuestionCount;
             EntrancePassPercent = entrancePassPercent;
-            UpdatedAt = luc;
-        }
-
-        /// <summary>
-        /// Ti le cau vang kiem tra tron vao luong task (FQ-04) va co can duyet tung nhan.
-        /// requireReview null = giu nguyen (client cu chi gui ti le cau vang).
-        /// </summary>
-        public void DatKiemSoatChatLuong(int goldCheckPercent, bool? requireReview, DateTimeOffset luc, QuyDinhDuAn quyDinh)
-        {
-            ChiKhiNhap("doi kiem soat chat luong");
-
-            if (goldCheckPercent < 0 || goldCheckPercent > quyDinh.GoldCheckPercentToiDa)
-            {
-                throw new InvalidValueException(
-                    "ti_le_cau_vang_khong_hop_le",
-                    "Ti le cau vang kiem tra phai tu 0 den " + quyDinh.GoldCheckPercentToiDa + "%.");
-            }
-
-            GoldCheckPercent = goldCheckPercent;
-            if (requireReview.HasValue)
-            {
-                RequireReview = requireReview.Value;
-            }
-
             UpdatedAt = luc;
         }
 
@@ -618,11 +598,12 @@ namespace Crowd.Project.Domain.Projects
         }
 
         /// <summary>
-        /// Cau hoi vang sua duoc khi Nhap hoac Tam dung — giong huong dan.
+        /// Cau hoi vang CHI sua duoc khi Nhap: moi bai lam deu cham theo cung bo cau vang — doi giua
+        /// chung thi nguoi lam truoc va nguoi lam sau bi cham theo hai luat khac nhau.
         /// </summary>
         public void KiemTraCoTheSuaCauHoiVang()
         {
-            if (Status != ProjectStatus.Draft && Status != ProjectStatus.Paused)
+            if (Status != ProjectStatus.Draft)
             {
                 throw KhongTheKhi("sua cau hoi vang");
             }
@@ -640,70 +621,52 @@ namespace Crowd.Project.Domain.Projects
         // =====================================================================
 
         /// <summary>
-        /// Phi nen tang cho MOT nhan, so nguyen dong, lam tron XUONG (VD-M-07).
-        /// Vd don gia 200.000d, phi 30% → 60.000d.
+        /// Phi nen tang tinh tren mot khoan tien (thuong moi nguoi dat, hoac gia moi nhan cong link), so
+        /// nguyen dong, lam tron XUONG (VD-M-07). Vd thuong 200.000d, phi 30% → 60.000d.
         /// </summary>
-        public static long PhiMoiNhanVnd(long donGiaVnd, int phanTramPhi)
+        public static long TinhPhiVnd(long soTienVnd, int phanTramPhi)
         {
-            return checked(donGiaVnd * phanTramPhi) / 100;
+            return checked(soTienVnd * phanTramPhi) / 100;
         }
 
         /// <summary>
-        /// Tien ky quy toi thieu (dac ta 2.11), tinh theo TRAN redundancy:
-        ///     so mau x tran redundancy x (don gia + phi moi nhan)
-        /// Vd 100 mau x 3 nguoi x (1.000 + 300) = 390.000d.
-        /// Tinh theo tran nen moi lan quality-svc xin them nguoi gan deu da co tien;
-        /// phan khong dung toi duoc ledger tra lai khi du an ket thuc.
+        /// Tien ky quy (dac ta 2.11, ban du an lam trung tam):
+        ///     so suat x (thuong + phi moi nguoi) + ngan sach cong link (neu bat)
+        /// Vd 5 suat x (200.000 + 60.000) = 1.300.000d. Suat khong ai dat → hoan khi du an ket thuc.
         /// Dung checked: tran so la NEM LOI, khong am tham quay vong thanh so am.
         /// </summary>
-        public long ChiPhiUocTinhVnd(int soMau, int phanTramPhi)
+        public long ChiPhiUocTinhVnd(int phanTramPhi)
         {
-            long moiNhan = checked(UnitPriceVnd + PhiMoiNhanVnd(UnitPriceVnd, phanTramPhi));
-            return checked(soMau * (long)TranRedundancy() * moiNhan);
-        }
-
-        /// <summary>Tran redundancy co hieu luc: du lieu cu chua co cot nay thi bang redundancy.</summary>
-        public int TranRedundancy()
-        {
-            return MaxRedundancy > Redundancy ? MaxRedundancy : Redundancy;
+            long moiNguoi = checked(RewardVnd + TinhPhiVnd(RewardVnd, phanTramPhi));
+            long congLink = AllowLinkGateway ? GateBudgetVnd : 0;
+            return checked(Slots * moiNguoi + congLink);
         }
 
         /// <summary>
-        /// Danh sach nhung gi con thieu de publish. Rong = san sang.
-        /// Frontend hien danh sach nay thanh checklist cho doanh nghiep.
+        /// Danh sach nhung gi con thieu de publish. Rong = san sang. Frontend hien thanh checklist.
         /// </summary>
-        public IReadOnlyList<string> NhungGiConThieu(int soMau, int soCauVangChoTest, int phanTramPhi, DateTimeOffset luc)
-        {
-            return NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, false, luc);
-        }
-
-        /// <summary>
-        /// coDuLieuDangXuLy: con lo du lieu (manifest) dang duoc worker xu ly —
-        /// chua biet het so mau nen chua tinh duoc ky quy, khong cho publish.
-        /// </summary>
+        /// <param name="soCauThat">So mau KHONG phai cau vang (moi labeler lam het).</param>
+        /// <param name="coDuLieuDangXuLy">Con lo du lieu dang xu ly — chua biet het so cau.</param>
+        /// <param name="congCuChoCongLink">Loai cong cu khach vang lai lam duoc (gate.allowed_tools); null = khong kiem.</param>
         public IReadOnlyList<string> NhungGiConThieu(
-            int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, DateTimeOffset luc)
-        {
-            return NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, 0, luc);
-        }
-
-        /// <param name="donGiaToiThieu">Don gia toi thieu hien hanh (FM-04): admin nang muc sau khi doanh nghiep cau hinh thi chan publish.</param>
-        public IReadOnlyList<string> NhungGiConThieu(
-            int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, long donGiaToiThieu, DateTimeOffset luc)
-        {
-            return NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, donGiaToiThieu, null, luc);
-        }
-
-        /// <param name="congCuChoCongLink">Loai cong cu khach vang lai lam duoc o trang vuot link (setting gate.allowed_tools); null = khong kiem.</param>
-        public IReadOnlyList<string> NhungGiConThieu(
-            int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, long donGiaToiThieu,
+            int soCauThat, int soCauVangChoTest, bool coDuLieuDangXuLy, QuyDinhDuAn quyDinh,
             IReadOnlyCollection<string>? congCuChoCongLink, DateTimeOffset luc)
         {
+            if (quyDinh == null)
+            {
+                throw new ArgumentNullException(nameof(quyDinh));
+            }
+
             List<string> thieu = new List<string>();
 
             if (congCuChoCongLink != null && CongCuKhongHopCongLink(congCuChoCongLink).Count > 0)
             {
                 thieu.Add("cong_cu_khong_hop_cong_link");
+            }
+
+            if (AllowLinkGateway && (GateUnitPriceVnd <= 0 || GateBudgetVnd <= 0))
+            {
+                thieu.Add("chua_cau_hinh_cong_link");
             }
 
             if (coDuLieuDangXuLy)
@@ -721,7 +684,7 @@ namespace Crowd.Project.Domain.Projects
                 thieu.Add("chua_co_huong_dan");
             }
 
-            if (UnitPriceVnd <= 0 || Redundancy < 1 || BudgetVnd <= 0 || Deadline == null)
+            if (RewardVnd <= 0 || Slots < 1 || Deadline == null)
             {
                 thieu.Add("chua_cau_hinh_gia");
             }
@@ -732,20 +695,30 @@ namespace Crowd.Project.Domain.Projects
                     thieu.Add("deadline_da_qua");
                 }
 
-                if (soMau > 0 && BudgetVnd < ChiPhiUocTinhVnd(soMau, phanTramPhi))
+                // Admin doi gioi han sau khi doanh nghiep cau hinh → chan publish, doanh nghiep sua lai.
+                if (RewardVnd < quyDinh.ThuongToiThieu)
                 {
-                    thieu.Add("ngan_sach_khong_du");
+                    thieu.Add("thuong_duoi_toi_thieu");
                 }
 
-                if (UnitPriceVnd < donGiaToiThieu)
+                if (Slots < quyDinh.SoSuatToiThieu || Slots > quyDinh.SoSuatToiDa)
                 {
-                    thieu.Add("don_gia_duoi_toi_thieu");
+                    thieu.Add("so_suat_khong_hop_le");
+                }
+
+                if (PassThresholdPercent < quyDinh.NguongDatToiThieu || PassThresholdPercent > quyDinh.NguongDatToiDa)
+                {
+                    thieu.Add("nguong_dat_ngoai_khoang");
                 }
             }
 
-            if (soMau <= 0)
+            if (soCauThat <= 0)
             {
                 thieu.Add("chua_co_du_lieu");
+            }
+            else if (soCauThat > quyDinh.SoCauToiDa)
+            {
+                thieu.Add("qua_nhieu_cau");
             }
 
             if (RequireEntranceTest && soCauVangChoTest < EntranceQuestionCount)
@@ -756,23 +729,16 @@ namespace Crowd.Project.Domain.Projects
             return thieu;
         }
 
-        /// <summary>
-        /// Doanh nghiep bam publish: Nhap → Cho ky quy. Service phat
-        /// project.publish_requested cho ledger (saga buoc 1).
-        /// </summary>
-        public void YeuCauPublish(int soMau, int soCauVangChoTest, int phanTramPhi, DateTimeOffset luc)
+        /// <summary>Canh bao KHONG chan publish: khong co cau vang kiem tra thi luat "khong sai cau vang" vo nghia.</summary>
+        public static IReadOnlyList<string> CanhBao(int soCauVangKiemTra)
         {
-            YeuCauPublish(soMau, soCauVangChoTest, phanTramPhi, false, luc);
-        }
+            List<string> ds = new List<string>();
+            if (soCauVangKiemTra <= 0)
+            {
+                ds.Add("khong_co_cau_vang_kiem_tra");
+            }
 
-        public void YeuCauPublish(int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, DateTimeOffset luc)
-        {
-            YeuCauPublish(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, 0, luc);
-        }
-
-        public void YeuCauPublish(int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, long donGiaToiThieu, DateTimeOffset luc)
-        {
-            YeuCauPublish(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, donGiaToiThieu, null, luc);
+            return ds;
         }
 
         /// <summary>
@@ -799,8 +765,12 @@ namespace Crowd.Project.Domain.Projects
             return ra;
         }
 
+        /// <summary>
+        /// Doanh nghiep bam publish: Nhap → Cho ky quy. Service phat project.publish_requested cho ledger
+        /// (saga buoc 1). Chot phi nen tang va so cau that.
+        /// </summary>
         public void YeuCauPublish(
-            int soMau, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, long donGiaToiThieu,
+            int soCauThat, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, QuyDinhDuAn quyDinh,
             IReadOnlyCollection<string>? congCuChoCongLink, DateTimeOffset luc)
         {
             ChiKhiNhap("publish");
@@ -810,7 +780,7 @@ namespace Crowd.Project.Domain.Projects
                 throw new InvalidValueException("phi_khong_hop_le", "Phi nen tang phai tu 0 den 100%.");
             }
 
-            IReadOnlyList<string> thieu = NhungGiConThieu(soMau, soCauVangChoTest, phanTramPhi, coDuLieuDangXuLy, donGiaToiThieu, congCuChoCongLink, luc);
+            IReadOnlyList<string> thieu = NhungGiConThieu(soCauThat, soCauVangChoTest, coDuLieuDangXuLy, quyDinh, congCuChoCongLink, luc);
             if (thieu.Count > 0)
             {
                 throw new RuleViolationException(
@@ -819,6 +789,7 @@ namespace Crowd.Project.Domain.Projects
             }
 
             PlatformFeePercent = phanTramPhi;
+            QuestionCount = soCauThat;
             DoiTrangThai(ProjectStatus.PendingEscrow, null, luc);
         }
 
@@ -910,24 +881,67 @@ namespace Crowd.Project.Domain.Projects
             DoiTrangThai(ProjectStatus.Running, null, luc);
         }
 
-        public void HoanThanh(DateTimeOffset luc)
+        /// <summary>
+        /// Doanh nghiep bam "Ket thuc som" (Dang chay / Tam dung): task-svc dong thu bai NGAY, bai dang lam
+        /// do bi huy, roi cham voi so bai da nop. Bam lai khi da yeu cau → 409.
+        /// </summary>
+        public void YeuCauKetThucSom(DateTimeOffset luc)
         {
-            if (Status == ProjectStatus.Running)
+            if (Status != ProjectStatus.Running && Status != ProjectStatus.Paused)
             {
-                throw CanTamDungTruoc("hoan thanh");
+                throw KhongTheKhi("ket thuc som");
             }
 
-            if (Status != ProjectStatus.Paused)
+            if (FinishRequestedAt.HasValue)
             {
-                throw KhongTheKhi("hoan thanh");
+                throw new RuleViolationException("da_yeu_cau_ket_thuc", "Da yeu cau ket thuc, he thong dang dong thu bai.");
             }
 
-            ClosedAt = luc;
-            DoiTrangThai(ProjectStatus.Completed, null, luc);
+            FinishRequestedAt = luc;
+            UpdatedAt = luc;
         }
 
         /// <summary>
-        /// Doanh nghiep huy du an.
+        /// task-svc dong thu bai (project.collection_finished: du suat / het han / ket thuc som):
+        /// Dang chay / Tam dung → Dang cham. Event den lai (da cham / da xong) → false, khong lam gi.
+        /// </summary>
+        public bool BatDauCham(DateTimeOffset luc)
+        {
+            if (Status == ProjectStatus.Grading || DaKetThuc())
+            {
+                return false;
+            }
+
+            if (Status != ProjectStatus.Running && Status != ProjectStatus.Paused)
+            {
+                throw KhongTheKhi("bat dau cham");
+            }
+
+            GradingStartedAt = luc;
+            DoiTrangThai(ProjectStatus.Grading, null, luc);
+            return true;
+        }
+
+        /// <summary>
+        /// Da cham, het han khieu nai, khong con khieu nai mo (project.settled): Dang cham → Hoan thanh.
+        /// Event den lai → false.
+        /// </summary>
+        public bool HoanThanh(DateTimeOffset luc)
+        {
+            if (Status == ProjectStatus.Completed)
+            {
+                return false;
+            }
+
+            ChiKhi(ProjectStatus.Grading, "hoan thanh");
+            ClosedAt = luc;
+            DoiTrangThai(ProjectStatus.Completed, null, luc);
+            return true;
+        }
+
+        /// <summary>
+        /// Doanh nghiep huy du an. Du an da chay phai TAM DUNG truoc va CHUA CO BAI NAO NOP (service hoi
+        /// task-svc) — co bai nop thi phai "ket thuc som" de cham, khong de ai lam khong cong.
         ///
         /// KHONG cho huy luc Cho ky quy: yeu cau giu tien dang tren duong toi
         /// ledger. Huy luc nay thi escrow.reserved toi SAU se giu tien cho mot du
@@ -1122,10 +1136,6 @@ namespace Crowd.Project.Domain.Projects
             }
         }
 
-        /// <summary>
-        /// Dong du an DA CHAY (ky quy sap tra ve doanh nghiep) phai qua Tam dung truoc: ngung
-        /// cap task moi, cho nguoi dang lam nop xong, duyet het — roi moi dong (xem DongDuAnService).
-        /// </summary>
         private void KiemTraKenhChuyenNghiep()
         {
             if (!AllowProfessional)
@@ -1140,7 +1150,7 @@ namespace Crowd.Project.Domain.Projects
         {
             return new RuleViolationException(
                 "can_tam_dung_truoc",
-                "Hay tam dung du an truoc khi " + hanhDong + ": ngung cap task moi, duyet het nhan roi moi dong.");
+                "Hay tam dung du an truoc khi " + hanhDong + ": ngung nhan nguoi lam va nop bai moi.");
         }
 
         private RuleViolationException KhongTheKhi(string hanhDong)

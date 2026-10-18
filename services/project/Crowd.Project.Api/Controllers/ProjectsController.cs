@@ -110,14 +110,7 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.DatCauHinhGiaAsync(id, body, ChuDuAn(), ct));
         }
 
-        /// <summary>PUT /projects/{id}/channels (FB-17)</summary>
-        /// <summary>PUT /projects/{id}/quality-control — ti le cau vang kiem tra tron vao task (FQ-04).</summary>
-        [HttpPut("{id:guid}/quality-control")]
-        public async Task<IActionResult> DatKiemSoatChatLuong(Guid id, [FromBody] QualityControlRequest body, CancellationToken ct)
-        {
-            return Ok(await _service.DatKiemSoatChatLuongAsync(id, body, ChuDuAn(), ct));
-        }
-
+        /// <summary>PUT /projects/{id}/channels (FB-17) — kem gia / ngan sach cong link.</summary>
         [HttpPut("{id:guid}/channels")]
         public async Task<IActionResult> DatKenh(Guid id, [FromBody] ChannelsRequest body, CancellationToken ct)
         {
@@ -152,10 +145,14 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.TiepTucAsync(id, ChuDuAn(), ct));
         }
 
-        [HttpPost("{id:guid}/complete")]
-        public async Task<IActionResult> HoanThanh(Guid id, CancellationToken ct)
+        /// <summary>
+        /// POST /projects/{id}/finish — "Ket thuc som": dong thu bai ngay (bai dang lam do bi huy), cham
+        /// voi cac bai da nop. Du an tu Hoan thanh khi cham xong va het han khieu nai.
+        /// </summary>
+        [HttpPost("{id:guid}/finish")]
+        public async Task<IActionResult> KetThucSom(Guid id, CancellationToken ct)
         {
-            return Ok(await _service.HoanThanhAsync(id, ChuDuAn(), ct));
+            return Ok(await _service.KetThucSomAsync(id, ChuDuAn(), ct));
         }
 
         [HttpPost("{id:guid}/cancel")]

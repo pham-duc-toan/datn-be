@@ -103,9 +103,10 @@ try:
     kiem("khong token → 401", requests.get(G + "/notifications/me").status_code == 401)
 
     tc = requests.get(G + "/notifications/me/preferences", headers=biz["h"]).json()
-    kiem("16 loai, rut_tien bat buoc, nhan_duyet mac dinh tat email",
-         len(tc) == 16 and next(x for x in tc if x["type"] == "rut_tien")["mandatory"]
-         and not next(x for x in tc if x["type"] == "nhan_duyet")["emailEnabled"], tc)
+    kiem("14 loai, rut_tien bat buoc, ket_qua_bai co email, tien_kha_dung mac dinh tat email",
+         len(tc) == 14 and next(x for x in tc if x["type"] == "rut_tien")["mandatory"]
+         and next(x for x in tc if x["type"] == "ket_qua_bai")["emailEnabled"]
+         and not next(x for x in tc if x["type"] == "tien_kha_dung")["emailEnabled"], tc)
     r = requests.put(G + "/notifications/me/preferences", headers=biz["h"], json={"items": [{"type": "rut_tien", "emailEnabled": False}]})
     kiem("tat email loai bat buoc → 400", r.status_code == 400 and "loai_bat_buoc" in r.text, r.text)
     r = requests.put(G + "/notifications/me/preferences", headers=biz["h"], json={"items": [{"type": "khong_co", "emailEnabled": False}]})
@@ -124,44 +125,27 @@ try:
     kiem("da tat email du_an → KHONG co email 'Du an da duoc duyet'", "Dự án đã được duyệt" not in thu_cua(biz["email"]), thu_cua(biz["email"]))
 
     # =================================================================================
-    print("\n[3] Thong bao cho labeler: nhan bi tu choi / duoc duyet, rut tien")
-    dat_va_cho("ledger.hold_duration", 0, ("ledger",))
-    dat_va_cho("ledger.hold_release_interval", 5, ("ledger",))
+    print("\n[3] Thong bao cho labeler: ket qua cham bai, tien kha dung, rut tien")
+    dat_va_cho("ledger.reward_hold", 0, ("ledger",))
     dat_va_cho("ledger.withdraw_min_vnd", 10000, ("ledger",))
     dat_va_cho("ledger.withdraw_auto_approve_max_vnd", 15000, ("ledger",))
     requests.post(G + f"/projects/{P}/join", headers=lab["h"]).raise_for_status()
-    for _ in range(4):
-        t = nhan_task(lab, P, 20)
-        nop(lab, t["assignmentId"], "a").raise_for_status()
-    nhan = cho(lambda: (lambda x: x if len(x) == 4 else None)([a for a in ds_nhan(biz, P) if a["status"] == "pendingReview"]), 30)
-
-    def duyet(aid, viec, body=None):
-        # quality-svc cap nhat co dong thuan cua nhan cung luc → 409 xung_dot_dong_thoi: tai lai, thu lai
-        # (dung cach frontend duoc huong dan, tich-hop-frontend muc 1).
-        for _ in range(5):
-            r = requests.post(G + f"/annotations/{aid}/{viec}", headers=biz["h"], json=body)
-            if r.status_code != 409 or "xung_dot_dong_thoi" not in r.text:
-                break
-            time.sleep(0.5)
-        assert r.status_code == 200, r.text
-
-    duyet(nhan[0]["id"], "reject", {"reason": "Sai lop"})
-    for a in nhan[1:]:
-        duyet(a["id"], "approve")
-    kiem("nhan bi tu choi → thong bao + email (kem ly do)",
-         co_tb(lab, "Nhãn bị từ chối") and co_thu(lab, "Nhãn bị từ chối"), thu_cua(lab["email"]))
+    b, r = lam_bai(lab, P, lambda t: "a")
+    r.raise_for_status()
+    ket_thuc_som(biz, P)
+    # Mot bai (< 3) → chi xet cau vang; du an khong co cau vang → dat, nhan thuong 80.000.
+    kiem("bai dat → thong bao + email 'Bai lam da dat' (loai ket_qua_bai, link /attempts/{id})",
+         co_tb(lab, "Bài làm đã đạt", 60) and co_thu(lab, "Bài làm đã đạt")
+         and any(x["link"] == f"/attempts/{b['attemptId']}" for x in tb(lab)["items"] if x["title"] == "Bài làm đã đạt"), thu_cua(lab["email"]))
+    kiem("chu du an: thong bao 'Du an da cham xong' (1/1 bai dat)",
+         co_tb(biz, "Dự án đã chấm xong", 30) and any(x["body"].startswith("1/1 bài đạt") for x in tb(biz)["items"] if x["title"] == "Dự án đã chấm xong"))
 
     def cung_loai(tieu_de):
         return [x for x in tb(lab)["items"] if x["title"] == tieu_de]
 
-    # Loai ban nhieu: 3 nhan duoc duyet / 3 khoan treo het han → MOT thong bao cong don, khong phai 3.
-    kiem("3 nhan duoc duyet → GOP thanh 1 thong bao '3 nhan duoc duyet, tong +60.000 d'",
-         cho(lambda: any(x["body"].startswith("3 nhãn được duyệt, tổng +60.000 đ") for x in cung_loai("Nhãn được duyệt")), 30)
-         and len(cung_loai("Nhãn được duyệt")) == 1, cung_loai("Nhãn được duyệt"))
-    kiem("3 khoan treo kha dung → GOP thanh 1 thong bao '60.000 d (3 khoan)'",
-         cho(lambda: any(x["body"].startswith("60.000 đ (3 khoản)") for x in cung_loai("Tiền đã khả dụng")), 40)
-         and len(cung_loai("Tiền đã khả dụng")) == 1, cung_loai("Tiền đã khả dụng"))
-    kiem("nhan duoc duyet: mac dinh KHONG email", "Nhãn được duyệt" not in thu_cua(lab["email"]), thu_cua(lab["email"]))
+    kiem("thuong vao so du kha dung ngay → thong bao 'Tien da kha dung' 80.000 d",
+         cho(lambda: any(x["body"].startswith("80.000 đ") for x in cung_loai("Tiền đã khả dụng")), 40), cung_loai("Tiền đã khả dụng"))
+    kiem("tien kha dung: mac dinh KHONG email", "Tiền đã khả dụng" not in thu_cua(lab["email"]), thu_cua(lab["email"]))
 
     def rut(so):
         return requests.post(G + "/ledger/withdrawals", headers=dict(lab["h"], **{"Idempotency-Key": uuid.uuid4().hex}),
@@ -190,7 +174,7 @@ try:
     kiem("dang nhap khi bi khoa → 403", login_raw(lab["email"]).status_code == 403)
     kiem("refresh token cu bi thu hoi → 401", requests.post(G + "/auth/refresh", json={"refreshToken": lab["refresh"]}).status_code == 401)
     kiem("access token con han bi gateway chan ngay (401 phien_da_bi_thu_hoi, VD-S-11)",
-         cho(lambda: requests.post(G + f"/tasks/projects/{P}/next", headers=lab["h"]).status_code == 401, 20))
+         cho(lambda: requests.get(G + "/tasks/me/attempts", headers=lab["h"]).status_code == 401, 20))
     # Token cua lab da bi thu hoi → khong doc thong bao trong ung dung duoc luc nay; kiem email,
     # thong bao trong ung dung kiem sau khi mo khoa + dang nhap lai.
     kiem("email 'Tai khoan bi khoa' (bat buoc)", co_thu(lab, "Tài khoản bị khoá"), thu_cua(lab["email"]))

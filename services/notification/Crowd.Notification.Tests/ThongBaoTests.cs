@@ -20,7 +20,7 @@ namespace Crowd.Notification.Tests
         public void Loai_thuong_theo_tuy_chon_nguoi_dung_khong_co_thi_theo_mac_dinh()
         {
             LoaiThongBao duAn = LoaiThongBao.Tim(LoaiThongBao.DuAn)!;
-            LoaiThongBao duyet = LoaiThongBao.Tim(LoaiThongBao.NhanDuyet)!;
+            LoaiThongBao duyet = LoaiThongBao.Tim(LoaiThongBao.TienKhaDung)!;
 
             Assert.True(duAn.GuiEmail(null));
             Assert.False(duAn.GuiEmail(false));
@@ -129,7 +129,7 @@ namespace Crowd.Notification.Tests
         {
             foreach (LoaiThongBao l in LoaiThongBao.TatCa)
             {
-                bool nenGop = l.Ma == LoaiThongBao.NhanDuyet || l.Ma == LoaiThongBao.TienKhaDung;
+                bool nenGop = l.Ma == LoaiThongBao.TienKhaDung;
                 Assert.Equal(nenGop, l.Gop);
                 // Loai bat buoc (tien, tai khoan) luon la tung thong bao rieng.
                 Assert.False(l.Gop && l.BatBuoc);
@@ -157,25 +157,40 @@ namespace Crowd.Notification.Tests
         }
 
         [Fact]
-        public void Nhan_duoc_duyet_mot_va_nhieu_nhan()
+        public void Bai_dat_neu_ti_le_va_nguong()
         {
-            Guid p = Guid.NewGuid();
+            Guid b = Guid.NewGuid();
+            NoiDung dat = NoiDungThongBao.BaiDat(b, 85, 80, true);
+            NoiDung itBai = NoiDungThongBao.BaiDat(b, 100, 80, false);
 
-            Assert.Equal("+5.000 đ (đang treo, sẽ chuyển sang khả dụng sau thời gian treo).", NoiDungThongBao.NhanDuocDuyet(p, 5000, 1).NoiDungChinh);
-            Assert.StartsWith("3 nhãn được duyệt, tổng +15.000 đ", NoiDungThongBao.NhanDuocDuyet(p, 15000, 3).NoiDungChinh, StringComparison.Ordinal);
+            Assert.Equal("Bài làm đã đạt", dat.TieuDe);
+            Assert.Contains("85% (ngưỡng 80%)", dat.NoiDungChinh, StringComparison.Ordinal);
+            Assert.Contains("quá ít bài nộp", itBai.NoiDungChinh, StringComparison.Ordinal);
+            Assert.Equal("/attempts/" + b, dat.DuongDan);
         }
 
         [Fact]
-        public void Tu_choi_lan_dau_va_khieu_nai_bi_bac_khac_nhau()
+        public void Bai_truot_neu_dung_ly_do_va_cho_khieu_nai()
         {
-            Guid p = Guid.NewGuid();
-            NoiDung lanDau = NoiDungThongBao.NhanBiTuChoi(p, "Sai lop", false);
-            NoiDung cuoi = NoiDungThongBao.NhanBiTuChoi(p, "Giu nguyen", true);
+            Guid b = Guid.NewGuid();
+            NoiDung thieuDaSo = NoiDungThongBao.BaiTruot(b, 55, 80, 2, 2, true);
+            NoiDung saiVang = NoiDungThongBao.BaiTruot(b, 90, 80, 1, 2, true);
 
-            Assert.Equal("Nhãn bị từ chối", lanDau.TieuDe);
-            Assert.Contains("khiếu nại", lanDau.NoiDungChinh, StringComparison.Ordinal);
-            Assert.Equal("Khiếu nại bị bác", cuoi.TieuDe);
-            Assert.Equal("/projects/" + p, cuoi.DuongDan);
+            Assert.Equal("Bài làm chưa đạt", thieuDaSo.TieuDe);
+            Assert.Contains("giống đa số 55% (cần từ 80%)", thieuDaSo.NoiDungChinh, StringComparison.Ordinal);
+            Assert.DoesNotContain("câu kiểm tra", thieuDaSo.NoiDungChinh, StringComparison.Ordinal);
+            Assert.Contains("đúng 1/2 câu kiểm tra", saiVang.NoiDungChinh, StringComparison.Ordinal);
+            Assert.DoesNotContain("đa số", saiVang.NoiDungChinh, StringComparison.Ordinal);
+            Assert.Contains("khiếu nại", saiVang.NoiDungChinh, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Ket_qua_khieu_nai_chap_nhan_va_bac()
+        {
+            Guid b = Guid.NewGuid();
+
+            Assert.Equal("Khiếu nại được chấp nhận", NoiDungThongBao.KetQuaKhieuNai(b, true, null).TieuDe);
+            Assert.EndsWith("Ghi chú: Giu nguyen.", NoiDungThongBao.KetQuaKhieuNai(b, false, "Giu nguyen").NoiDungChinh, StringComparison.Ordinal);
         }
     }
 
@@ -216,22 +231,17 @@ namespace Crowd.Notification.Tests
         }
 
         [Fact]
-        public void Ket_qua_tranh_chap_khac_nhau_cho_hai_ben()
+        public void Du_an_da_cham_bao_so_bai_dat()
         {
-            Guid p = Guid.NewGuid();
-            NoiDung choLabeler = NoiDungThongBao.TranhChapKetQua(p, 20000, true, true, "Nhan sai");
-            NoiDung choDoanhNghiep = NoiDungThongBao.TranhChapKetQua(p, 20000, false, true, "Nhan sai");
-
-            Assert.Contains("không được trả", choLabeler.NoiDungChinh, StringComparison.Ordinal);
-            Assert.Contains("được hoàn lại", choDoanhNghiep.NoiDungChinh, StringComparison.Ordinal);
+            Assert.StartsWith("2/3 bài đạt", NoiDungThongBao.DuAnDaCham(Guid.NewGuid(), 2, 3).NoiDungChinh, StringComparison.Ordinal);
         }
 
         [Fact]
-        public void Loai_tranh_chap_bat_buoc_email_cap_do_mac_dinh_tat()
+        public void Ket_qua_bai_mac_dinh_gui_email_cap_do_mac_dinh_tat()
         {
-            Assert.True(LoaiThongBao.Tim(LoaiThongBao.TranhChap)!.BatBuoc);
+            Assert.True(LoaiThongBao.Tim(LoaiThongBao.KetQuaBai)!.GuiEmail(null));
             Assert.False(LoaiThongBao.Tim(LoaiThongBao.CapDo)!.GuiEmail(null));
-            Assert.Equal(16, LoaiThongBao.TatCa.Count);
+            Assert.Equal(14, LoaiThongBao.TatCa.Count);
         }
 
         [Fact]
@@ -261,9 +271,9 @@ namespace Crowd.Notification.Tests
                 NoiDungThongBao.DoanhNghiepDaXacMinh(), NoiDungThongBao.DoanhNghiepBiTuChoi("x"), NoiDungThongBao.TaiKhoanBiKhoa(null),
                 NoiDungThongBao.TaiKhoanMoKhoa(), NoiDungThongBao.NapTienThanhCong(1000), NoiDungThongBao.DuAnDangChay(p),
                 NoiDungThongBao.DuAnThieuKyQuy(p, "x"), NoiDungThongBao.DuAnBiHuy(p, "x"), NoiDungThongBao.HoanKyQuy(p, 1),
-                NoiDungThongBao.NhanDuocDuyet(p, 1, 2), NoiDungThongBao.NhanBiTuChoi(p, "x", true), NoiDungThongBao.TienKhaDung(1, 1),
+                NoiDungThongBao.BaiDat(p, 90, 80, true), NoiDungThongBao.BaiTruot(p, 50, 80, 0, 1, true), NoiDungThongBao.TienKhaDung(1, 1),
                 NoiDungThongBao.RutThanhCong(1), NoiDungThongBao.RutThatBai("x"), NoiDungThongBao.RutBiTuChoi(1, "x"),
-                NoiDungThongBao.TranhChapMo(p, 1, "x"), NoiDungThongBao.TranhChapKetQua(p, 1, true, true, "x"), NoiDungThongBao.CapDoMoi(2),
+                NoiDungThongBao.KetQuaKhieuNai(p, true, "x"), NoiDungThongBao.DuAnDaCham(p, 1, 2), NoiDungThongBao.CapDoMoi(2),
                 NoiDungThongBao.HuyHieuMoi("x"), NoiDungThongBao.DuocThemVaoDuAn(p, "x"), NoiDungThongBao.DonThamGiaMoi(p, "x", null),
                 NoiDungThongBao.KetQuaDonThamGia(p, "x", false, "het_han"), NoiDungThongBao.LoiMoiDuAn(p, "x", true, DateTimeOffset.UnixEpoch),
                 NoiDungThongBao.EmailLoiMoiNguoiMoi("x", "http://l", DateTimeOffset.UnixEpoch), NoiDungThongBao.HaiLopThayDoi(false, "disabled"),

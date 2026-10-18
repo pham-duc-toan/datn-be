@@ -8,7 +8,7 @@ namespace Crowd.Notification.Api.Services
     /// <summary>
     /// Danh muc loai thong bao. Trong ung dung luon co; EMAIL theo tuy chon nguoi dung, tru loai
     /// BAT BUOC (anh huong tai khoan / tien da ra khoi vi) — nguoi dung khong tat duoc.
-    /// Loai ban nhieu (moi nhan duoc duyet, moi khoan treo giai phong) mac dinh TAT email.
+    /// Loai ban nhieu (moi khoan treo giai phong, moi luot vuot link) mac dinh TAT email.
     /// </summary>
     public sealed class LoaiThongBao
     {
@@ -17,10 +17,8 @@ namespace Crowd.Notification.Api.Services
         public const string RutTien = "rut_tien";
         public const string NapTien = "nap_tien";
         public const string DuAn = "du_an";
-        public const string NhanTuChoi = "nhan_tu_choi";
-        public const string NhanDuyet = "nhan_duyet";
+        public const string KetQuaBai = "ket_qua_bai";
         public const string TienKhaDung = "tien_kha_dung";
-        public const string TranhChap = "tranh_chap";
         public const string HeThong = "he_thong";
         public const string CapDo = "cap_do";
         public const string ThanhVien = "thanh_vien";
@@ -36,10 +34,8 @@ namespace Crowd.Notification.Api.Services
             new LoaiThongBao(RutTien, "Kết quả rút tiền", true, true, false),
             new LoaiThongBao(NapTien, "Nạp tiền thành công", false, true, false),
             new LoaiThongBao(DuAn, "Trạng thái dự án (duyệt, ký quỹ, hoàn tiền)", false, true, false),
-            new LoaiThongBao(NhanTuChoi, "Nhãn bị từ chối / kết quả khiếu nại", false, true, false),
-            new LoaiThongBao(NhanDuyet, "Nhãn được duyệt", false, false, true),
-            new LoaiThongBao(TienKhaDung, "Tiền treo chuyển sang khả dụng", false, false, true),
-            new LoaiThongBao(TranhChap, "Tranh chấp nhãn đã duyệt", true, true, false),
+            new LoaiThongBao(KetQuaBai, "Kết quả chấm bài làm / khiếu nại", false, true, false),
+            new LoaiThongBao(TienKhaDung, "Tiền thưởng / doanh thu vào số dư khả dụng", false, false, true),
             new LoaiThongBao(HeThong, "Thông báo từ quản trị viên", false, true, false),
             new LoaiThongBao(CapDo, "Cấp độ và huy hiệu", false, false, false),
             new LoaiThongBao(ThanhVien, "Được thêm vào dự án / kết quả đơn xin tham gia", false, true, false),
@@ -68,7 +64,7 @@ namespace Crowd.Notification.Api.Services
         public bool MacDinhEmail { get; }
 
         /// <summary>
-        /// Loai ban nhieu (moi nhan duoc duyet, moi khoan treo — voi sharer la MOI LUOT CLICK): su kien moi
+        /// Loai ban nhieu (moi khoan treo — voi sharer la MOI LUOT CLICK): su kien moi
         /// CONG DON vao thong bao cung loai con chua doc, khong tao dong moi (xem ThongBaoWriter.GhiGopAsync).
         /// </summary>
         public bool Gop { get; }
@@ -151,8 +147,8 @@ namespace Crowd.Notification.Api.Services
 
         public static NoiDung DuAnDangChay(Guid projectId)
         {
-            return new NoiDung("Dự án đã được duyệt", "Dự án đã được duyệt và đang chạy — labeler bắt đầu nhận task.", "/projects/" + projectId)
-                .En("Project approved", "Your project has been approved and is running — labelers can now take tasks.");
+            return new NoiDung("Dự án đã được duyệt", "Dự án đã được duyệt và đang chạy — labeler bắt đầu làm bài.", "/projects/" + projectId)
+                .En("Project approved", "Your project has been approved and is running — labelers can now start their attempts.");
         }
 
         public static NoiDung DuAnThieuKyQuy(Guid projectId, string lyDo)
@@ -176,22 +172,58 @@ namespace Crowd.Notification.Api.Services
                 .En("Escrow refunded", TienEn(vnd) + " of unused escrow has been returned to your business wallet.");
         }
 
-        /// <summary>soNhan &gt; 1: da gop nhieu nhan cung du an (vnd la tong).</summary>
-        public static NoiDung NhanDuocDuyet(Guid projectId, long vnd, int soNhan)
+        // ---- ket qua cham ca du an (docs 3.18) ----
+
+        public static NoiDung BaiDat(Guid attemptId, int phanTram, int nguong, bool dungDaSo)
         {
-            string dau = soNhan > 1 ? soNhan + " nhãn được duyệt, tổng +" : "+";
-            string dauEn = soNhan > 1 ? soNhan + " labels approved, total +" : "+";
-            return new NoiDung("Nhãn được duyệt", dau + Tien(vnd) + " (đang treo, sẽ chuyển sang khả dụng sau thời gian treo).", "/projects/" + projectId)
-                .En("Label approved", dauEn + TienEn(vnd) + " (on hold, becomes available after the holding period).");
+            string ly = dungDaSo
+                ? "Bạn giống đa số " + phanTram + "% (ngưỡng " + nguong + "%) và đúng hết câu kiểm tra."
+                : "Bạn đúng hết câu kiểm tra (dự án có quá ít bài nộp để so đa số).";
+            string lyEn = dungDaSo
+                ? "You matched the majority on " + phanTram + "% (threshold " + nguong + "%) and answered every check question correctly."
+                : "You answered every check question correctly (too few submissions to compare with the majority).";
+            return new NoiDung("Bài làm đã đạt", ly + " Tiền thưởng của dự án đã được trả vào ví.", "/attempts/" + attemptId)
+                .En("Attempt passed", lyEn + " The project reward has been paid to your wallet.");
         }
 
-        public static NoiDung NhanBiTuChoi(Guid projectId, string lyDo, bool cuoiCung)
+        public static NoiDung BaiTruot(Guid attemptId, int phanTram, int nguong, int vangDung, int vangTong, bool dungDaSo)
         {
-            return cuoiCung
-                ? new NoiDung("Khiếu nại bị bác", "Nhãn bị từ chối vĩnh viễn. Ghi chú: " + lyDo + ".", "/projects/" + projectId)
-                    .En("Appeal rejected", "The label is permanently rejected. Note: " + lyDo + ".")
-                : new NoiDung("Nhãn bị từ chối", "Lý do: " + lyDo + ". Bạn có thể khiếu nại trong thời hạn cho phép.", "/projects/" + projectId)
-                    .En("Label rejected", "Reason: " + lyDo + ". You may appeal within the allowed period.");
+            List<string> ly = new List<string>();
+            List<string> lyEn = new List<string>();
+            if (dungDaSo && phanTram < nguong)
+            {
+                ly.Add("giống đa số " + phanTram + "% (cần từ " + nguong + "%)");
+                lyEn.Add("matched the majority on " + phanTram + "% (needs " + nguong + "%)");
+            }
+
+            if (vangDung < vangTong)
+            {
+                ly.Add("đúng " + vangDung + "/" + vangTong + " câu kiểm tra");
+                lyEn.Add(vangDung + "/" + vangTong + " check questions correct");
+            }
+
+            return new NoiDung("Bài làm chưa đạt",
+                "Bài của bạn " + string.Join(", ", ly) + ". Bạn có thể khiếu nại cả bài trong thời hạn cho phép.", "/attempts/" + attemptId)
+                .En("Attempt not passed", "Your attempt " + string.Join(", ", lyEn) + ". You may appeal the whole attempt within the allowed period.");
+        }
+
+        public static NoiDung KetQuaKhieuNai(Guid attemptId, bool chapNhan, string? ghiChu)
+        {
+            string chu = string.IsNullOrWhiteSpace(ghiChu) ? string.Empty : " Ghi chú: " + ghiChu + ".";
+            return chapNhan
+                ? new NoiDung("Khiếu nại được chấp nhận", "Bài làm được tính là đạt và đã được trả thưởng." + chu, "/attempts/" + attemptId)
+                    .En("Appeal accepted", "Your attempt now counts as passed and the reward has been paid." + chu)
+                : new NoiDung("Khiếu nại bị bác", "Kết quả chấm giữ nguyên." + chu, "/attempts/" + attemptId)
+                    .En("Appeal rejected", "The grading result stands." + chu);
+        }
+
+        public static NoiDung DuAnDaCham(Guid projectId, int soDat, int soBai)
+        {
+            return new NoiDung("Dự án đã chấm xong",
+                soDat + "/" + soBai + " bài đạt và đã được trả thưởng. Kết quả gán nhãn đã sẵn sàng; phần ký quỹ còn dư hoàn về ví khi hết hạn khiếu nại.",
+                "/projects/" + projectId)
+                .En("Project graded",
+                    soDat + "/" + soBai + " attempts passed and were paid. Results are ready; unused escrow returns to your wallet after the appeal window.");
         }
 
         /// <summary>soKhoan &gt; 1: da gop nhieu khoan treo (vnd la tong).</summary>
@@ -220,44 +252,6 @@ namespace Crowd.Notification.Api.Services
             return new NoiDung("Lệnh rút bị từ chối",
                 "Lệnh rút " + Tien(vnd) + " bị quản trị viên từ chối. Lý do: " + lyDo + ". Tiền đã về lại ví.", "/ledger/withdrawals")
                 .En("Withdrawal rejected", "Your withdrawal of " + TienEn(vnd) + " was rejected by an administrator. Reason: " + lyDo + ". The money is back in your wallet.");
-        }
-
-        // ---- tranh chap (FM-06) ----
-
-        public static NoiDung TranhChapMo(Guid projectId, long vnd, string lyDo)
-        {
-            return new NoiDung("Nhãn đã duyệt bị tranh chấp",
-                "Doanh nghiệp phản đối một nhãn đã duyệt của bạn. Khoản " + Tien(vnd) + " đang được giữ lại chờ quản trị viên phân xử. Lý do: " + lyDo + ".",
-                "/projects/" + projectId)
-                .En("Approved label disputed",
-                    "The business disputed one of your approved labels. " + TienEn(vnd) + " is held until an administrator decides. Reason: " + lyDo + ".");
-        }
-
-        public static NoiDung TranhChapKetQua(Guid projectId, long vnd, bool laLabeler, bool doanhNghiepThang, string ghiChu)
-        {
-            string ketCuc;
-            string ketCucEn;
-            if (doanhNghiepThang)
-            {
-                ketCuc = laLabeler
-                    ? "Quản trị viên xử doanh nghiệp đúng: nhãn bị loại, khoản " + Tien(vnd) + " không được trả."
-                    : "Quản trị viên xử bạn đúng: nhãn bị loại, " + Tien(vnd) + " cùng phí nền tảng được hoàn lại.";
-                ketCucEn = laLabeler
-                    ? "The administrator sided with the business: the label is removed and " + TienEn(vnd) + " will not be paid."
-                    : "The administrator sided with you: the label is removed and " + TienEn(vnd) + " plus the platform fee is refunded.";
-            }
-            else
-            {
-                ketCuc = laLabeler
-                    ? "Quản trị viên xử bạn đúng: khoản " + Tien(vnd) + " tiếp tục được trả như bình thường."
-                    : "Quản trị viên giữ nguyên nhãn: khoản " + Tien(vnd) + " vẫn trả cho labeler.";
-                ketCucEn = laLabeler
-                    ? "The administrator sided with you: " + TienEn(vnd) + " will be paid as usual."
-                    : "The administrator kept the label: " + TienEn(vnd) + " is still paid to the labeler.";
-            }
-
-            return new NoiDung("Kết quả tranh chấp", ketCuc + " Ghi chú: " + ghiChu + ".", "/projects/" + projectId)
-                .En("Dispute outcome", ketCucEn + " Note: " + ghiChu + ".");
         }
 
         // ---- cap do, huy hieu (FL-12) ----

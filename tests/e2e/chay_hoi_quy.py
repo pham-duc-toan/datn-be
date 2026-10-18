@@ -42,9 +42,10 @@ def chay(ten, file):
 HAN_MUC_CU = mo_rong_gioi_han(admin())
 
 ok = True
+# Du an lam trung tam (kien truc 3.18): luong chinh lam bai → cham → thuong → khieu nai → chot.
+ok &= chay("du_an_trung_tam", "e2e_du_an_trung_tam.py")
 ok &= chay("tong_the", "e2e_tong_the.py")
 ok &= chay("settings", "e2e_settings.py")
-ok &= chay("p3_chat_luong", "e2e_p3.py")
 ok &= chay("p2_cong_link_perClick", "e2e_p2.py")
 ok &= chay("modality", "e2e_modality.py")
 ok &= chay("ep_race_quality", "ep_race_quality.py")
@@ -67,7 +68,6 @@ ok &= chay("chi_so_chat_luong", "e2e_chi_so_chat_luong.py")
 ok &= chay("watermark_av", "e2e_watermark_av.py")
 ok &= chay("hang_doi_duyet", "e2e_hang_doi_duyet.py")
 ok &= chay("thong_bao_realtime", "e2e_thong_bao_realtime.py")
-ok &= chay("tu_duyet", "e2e_tu_duyet.py")
 
 dat("ledger.gate_batch_interval", 2)
 dat("ledger.gate_payout_mode", "batched")

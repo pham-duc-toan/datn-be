@@ -21,9 +21,9 @@ namespace Crowd.Project.Tests
             LabelingProject p = LabelingProject.Tao(Owner, "du an", null, Modalities.Image, cheDo, Luc, QuyDinhMau.DuAn);
             p.DatLabelSchema(LabelingProjectTests.PhanLoaiAnh("a", "b"), Luc);
             p.DatHuongDan(Guideline.Tao("x", null, QuyDinhMau.DuAn), Luc);
-            p.DatCauHinhGia(1000, 1, 1300, Luc.AddDays(1), Luc, QuyDinhMau.DuAn);
+            p.DatCauHinhGia(100000, 3, 80, Luc.AddDays(1), Luc, QuyDinhMau.DuAn);
             p.DatDieuKienThamGia(minLevel, minReputation, false, 1, 80, Luc, QuyDinhMau.DuAn);
-            p.YeuCauPublish(1, 0, 30, Luc);
+            p.YeuCauPublish(1, 0, 30, false, QuyDinhMau.DuAn, null, Luc);
             p.XacNhanDaKyQuy(Luc);
             p.Duyet(Luc);
             return p;

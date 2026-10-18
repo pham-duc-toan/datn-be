@@ -3,7 +3,7 @@ using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Labeling;
 using Crowd.Settings;
-using Crowd.Tasking.Domain.Assignments;
+using Crowd.Tasking.Domain.Attempts;
 using Crowd.Tasking.Domain.Labelers;
 using Crowd.Tasking.Domain.Members;
 using Crowd.Tasking.Domain.Projects;
@@ -18,7 +18,8 @@ namespace Crowd.Tasking.Infrastructure.Persistence
     /// DbContext cua task-svc, noi toi task_db (cong 5403).
     ///
     /// Hai loai bang:
-    ///   - SO HUU: tasks, assignments — task-svc la nguon su that.
+    ///   - SO HUU: tasks (cau hoi), attempts + attempt_answers (bai lam, docs 3.18) — task-svc la
+    ///     nguon su that.
     ///   - BAN SAO READ-ONLY: project_snapshots, project_members_cache,
     ///     labeler_cache, gold_samples — dung tu event, KHONG BAO GIO sua tu API.
     /// </summary>
@@ -40,7 +41,9 @@ namespace Crowd.Tasking.Infrastructure.Persistence
 
         public DbSet<LabelingTask> Tasks => Set<LabelingTask>();
 
-        public DbSet<Assignment> Assignments => Set<Assignment>();
+        public DbSet<Attempt> Attempts => Set<Attempt>();
+
+        public DbSet<AttemptAnswer> AttemptAnswers => Set<AttemptAnswer>();
 
         public DbSet<ProjectSnapshot> ProjectSnapshots => Set<ProjectSnapshot>();
 
@@ -66,7 +69,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence
             base.OnModelCreating(modelBuilder);
 
             CauHinhTasks(modelBuilder);
-            CauHinhAssignments(modelBuilder);
+            CauHinhBaiLam(modelBuilder);
             CauHinhBanSao(modelBuilder);
             CauHinhBaoLoi(modelBuilder);
 
@@ -97,92 +100,89 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property(x => x.Content).HasColumnName("content").HasColumnType("jsonb").HasConversion(RawJsonCotNull);
                 b.Property(x => x.Metadata).HasColumnName("metadata").HasColumnType("jsonb").HasConversion(RawJsonCot).IsRequired();
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
-                b.Property(x => x.RedundancyTarget).HasColumnName("redundancy_target").IsRequired();
-                b.Property(x => x.ActiveLeaseCount).HasColumnName("active_lease_count").IsRequired();
-                b.Property(x => x.SubmittedCount).HasColumnName("submitted_count").IsRequired();
                 b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
                 b.Property(x => x.CompletedAt).HasColumnName("completed_at");
 
                 // Mot mau chi thanh MOT task — dataset.ingested giao lai khong nhan doi.
                 b.HasIndex(x => new { x.ProjectId, x.SampleId }).IsUnique().HasDatabaseName("ux_tasks_project_sample");
 
-                // Index cho cau chon ung vien: loc theo du an + trang thai, sap theo id.
+                // Lay de cho bai lam: loc theo du an + trang thai.
                 b.HasIndex(x => new { x.ProjectId, x.State, x.Id }).HasDatabaseName("ix_tasks_pool");
             });
         }
 
-        private static void CauHinhAssignments(ModelBuilder mb)
+        private static void CauHinhBaiLam(ModelBuilder mb)
         {
-            mb.Entity<Assignment>(b =>
+            mb.Entity<Attempt>(b =>
             {
-                // Ba cot nhan di cung nhau: hoac ca ba null (chua nop) hoac ca ba
-                // co gia tri, va CHI luot da nop moi co nhan. Database tu chan
-                // trang thai nua voi, khong chi trong cay vao code.
-                b.ToTable("assignments", t => t.HasCheckConstraint(
-                    "ck_assignments_payload",
-                    "(task_type IS NULL) = (payload IS NULL) " +
-                    "AND (schema_version IS NULL) = (payload IS NULL) " +
-                    "AND (state = 'Submitted') = (payload IS NOT NULL)"));
+                b.ToTable("attempts");
                 b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
                 b.HasKey(x => x.Id);
-                b.Property(x => x.TaskId).HasColumnName("task_id").IsRequired();
                 b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
-                b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
                 b.Property(x => x.LabelerId).HasColumnName("labeler_id").IsRequired();
-                b.Property(x => x.IsGold).HasColumnName("is_gold").IsRequired();
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
-                b.Property(x => x.LeasedAt).HasColumnName("leased_at").IsRequired();
+                b.Property(x => x.StartedAt).HasColumnName("started_at").IsRequired();
                 b.Property(x => x.ExpiresAt).HasColumnName("expires_at").IsRequired();
+                b.Property(x => x.SubmittedAt).HasColumnName("submitted_at");
                 b.Property(x => x.EndedAt).HasColumnName("ended_at");
 
-                // Nhan da nop o dinh dang chung (Crowd.Labeling): ba cot, null khi
-                // chua nop. payload la jsonb — moi loai nhan mot hinh dang.
-                b.Ignore(x => x.Payload);
-                b.Property<string?>("_payloadTaskType").HasColumnName("task_type").HasMaxLength(50);
-                b.Property<int?>("_payloadSchemaVersion").HasColumnName("schema_version");
-                b.Property<string?>("_payloadJson").HasColumnName("payload").HasColumnType("jsonb");
+                // Thu tu cau hoi rieng cua bai (uuid[]).
+                b.Ignore(x => x.QuestionOrder);
+                b.Property<System.Collections.Generic.List<Guid>>("_questionOrder").HasColumnName("question_order").IsRequired();
 
-                // Ban nhap (FL-05): JSON tho, chua kiem luat.
-                b.Ignore(x => x.DraftJson);
-                b.Property<string?>("_draftJson").HasColumnName("draft").HasColumnType("jsonb");
-                b.Property(x => x.DraftSavedAt).HasColumnName("draft_saved_at");
+                b.Property(x => x.GoldTotal).HasColumnName("gold_total").IsRequired();
+                b.Property(x => x.GoldCorrect).HasColumnName("gold_correct").IsRequired();
+                b.Property(x => x.ClientIp).HasColumnName("client_ip").HasMaxLength(64);
+                b.Property(x => x.DeviceId).HasColumnName("device_id").HasMaxLength(100);
 
-                // Khoa lac quan: reaper va nguoi nop cham cung mot dong — ben den sau
-                // nhan 0 dong thay vi ghi de (VD-D-11).
+                b.Property(x => x.ComparableCount).HasColumnName("comparable_count");
+                b.Property(x => x.MatchedCount).HasColumnName("matched_count");
+                b.Property(x => x.AgreementPercent).HasColumnName("agreement_percent");
+                b.Property(x => x.Passed).HasColumnName("passed");
+                b.Property(x => x.GradedAt).HasColumnName("graded_at");
+
+                b.Property(x => x.AppealState).HasColumnName("appeal_state").HasConversion<string>().HasMaxLength(20).IsRequired();
+                b.Property(x => x.AppealMessage).HasColumnName("appeal_message").HasMaxLength(Attempt.DoDaiKhieuNaiToiDa);
+                b.Property(x => x.AppealedAt).HasColumnName("appealed_at");
+                b.Property(x => x.AppealNote).HasColumnName("appeal_note").HasMaxLength(Attempt.DoDaiKhieuNaiToiDa);
+                b.Property(x => x.AppealResolvedBy).HasColumnName("appeal_resolved_by");
+                b.Property(x => x.AppealResolvedAt).HasColumnName("appeal_resolved_at");
+
+                b.Ignore(x => x.DangLam);
+                b.Ignore(x => x.DatCuoiCung);
+
+                // Khoa lac quan: worker het han va nguoi nop cham cung mot dong — ben den sau nhan 0 dong
+                // thay vi ghi de (VD-D-11). Moi duong ghi deu khoa FOR UPDATE truoc nen hiem khi gap.
                 b.Property<uint>("RowVersion").IsRowVersion();
 
-                // Khoa ngoai tro toi bang phan vung phai gom cot phan vung (project_id).
-                b.HasOne<LabelingTask>().WithMany().HasForeignKey(x => new { x.ProjectId, x.TaskId }).OnDelete(DeleteBehavior.Cascade);
-
-                // MOT NGUOI KHONG GAN CUNG MOT TASK HAI LAN — neu khong redundancy=3
-                // co the la cung mot nguoi 3 lan, dong thuan gia. Chi tinh luot dang
-                // giu hoac da nop; bo qua/het han thi duoc nhan lai.
-                b.HasIndex(x => new { x.TaskId, x.LabelerId })
-                    .IsUnique()
-                    .HasFilter("state IN ('Leased','Submitted')")
-                    .HasDatabaseName("ux_assignments_task_labeler_active");
-
-                // Cung cap do theo chieu NGUOC (labeler truoc) cho NOT EXISTS cua cau lay
-                // task: "cac task labeler nay dang giu / da nop". Chi muc tren bat dau bang
-                // task_id nen Postgres phai quet TUAN TU ca bang assignments moi lan lay
-                // task — NC-B-06: 28 ms / lan voi 34.000 luot, tang theo so luot da giao.
-                // Co chi muc nay: doc dung cac dong cua labeler (Merge Anti Join), ~2 ms.
-                b.HasIndex(x => new { x.LabelerId, x.TaskId })
-                    .HasFilter("state IN ('Leased','Submitted')")
-                    .HasDatabaseName("ix_assignments_labeler_active");
-
-                // Moi labeler giu toi da MOT task moi du an cung luc.
+                // MOT NGUOI MOT BAI moi du an (dang lam hoac da nop). Bai het han / bo thi lam lai duoc.
                 b.HasIndex(x => new { x.ProjectId, x.LabelerId })
                     .IsUnique()
-                    .HasFilter("state = 'Leased'")
-                    .HasDatabaseName("ux_assignments_one_lease_per_project");
+                    .HasFilter("state IN ('InProgress','Submitted')")
+                    .HasDatabaseName("ux_attempts_project_labeler_active");
 
-                // Chi muc DAY DU theo task (cac chi muc tren deu loc theo state): xoa task cua du an da dong
-                // phai tim luot giu theo task_id — thieu thi moi task bi xoa la mot lan quet ca bang (khoa ngoai).
-                b.HasIndex(x => x.TaskId).HasDatabaseName("ix_assignments_task");
+                // Dem suat + liet ke bai cua du an.
+                b.HasIndex(x => new { x.ProjectId, x.State }).HasDatabaseName("ix_attempts_project_state");
 
-                // Reaper tim lease qua han.
-                b.HasIndex(x => x.ExpiresAt).HasFilter("state = 'Leased'").HasDatabaseName("ix_assignments_reaper");
+                // "Bai cua toi".
+                b.HasIndex(x => new { x.LabelerId, x.StartedAt }).HasDatabaseName("ix_attempts_labeler");
+
+                // Worker tim bai qua han giu.
+                b.HasIndex(x => x.ExpiresAt).HasFilter("state = 'InProgress'").HasDatabaseName("ix_attempts_het_han");
+
+                // Hang doi khieu nai cua admin.
+                b.HasIndex(x => x.AppealedAt).HasFilter("appeal_state = 'Open'").HasDatabaseName("ix_attempts_khieu_nai_mo");
+            });
+
+            mb.Entity<AttemptAnswer>(b =>
+            {
+                b.ToTable("attempt_answers");
+                b.Property(x => x.AttemptId).HasColumnName("attempt_id");
+                b.Property(x => x.SampleId).HasColumnName("sample_id");
+                b.HasKey(x => new { x.AttemptId, x.SampleId });
+                b.Property(x => x.DataJson).HasColumnName("data").HasColumnType("jsonb").IsRequired();
+                b.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+                b.HasOne<Attempt>().WithMany().HasForeignKey(x => x.AttemptId).OnDelete(DeleteBehavior.Cascade);
             });
         }
 
@@ -193,7 +193,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.ToTable("task_reports");
                 b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
                 b.HasKey(x => x.Id);
-                b.Property(x => x.AssignmentId).HasColumnName("assignment_id").IsRequired();
+                b.Property(x => x.AttemptId).HasColumnName("attempt_id").IsRequired();
                 b.Property(x => x.TaskId).HasColumnName("task_id").IsRequired();
                 b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
                 b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
@@ -205,9 +205,8 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property(x => x.ResolvedAt).HasColumnName("resolved_at");
                 b.Property(x => x.ResolvedBy).HasColumnName("resolved_by");
 
-                // Mot luot lease bao loi mot lan.
-                b.HasIndex(x => x.AssignmentId).IsUnique().HasDatabaseName("ux_task_reports_assignment");
-                // NOT EXISTS trong cau lay task: "labeler nay da bao loi task nay chua".
+                // Moi bai bao mot cau mot lan.
+                b.HasIndex(x => new { x.AttemptId, x.SampleId }).IsUnique().HasDatabaseName("ux_task_reports_attempt_sample");
                 b.HasIndex(x => new { x.LabelerId, x.TaskId }).HasDatabaseName("ix_task_reports_labeler_task");
                 // Chu du an xem bao loi cua du an; dem so nguoi bao moi task.
                 b.HasIndex(x => new { x.ProjectId, x.State, x.CreatedAt }).HasDatabaseName("ix_task_reports_du_an");
@@ -231,10 +230,17 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 // Tap nhan dang chuan, chep nguyen tu project.published. null khi chua publish.
                 b.Ignore(x => x.LabelSchema);
                 b.Property<string?>("_labelSchemaJson").HasColumnName("label_schema").HasColumnType("jsonb");
-                b.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
-                b.Property(x => x.Redundancy).HasColumnName("redundancy").IsRequired();
-                b.Property(x => x.MaxRedundancy).HasColumnName("max_redundancy").IsRequired();
-                b.Property(x => x.GoldCheckPercent).HasColumnName("gold_check_percent").IsRequired();
+                b.Property(x => x.RewardVnd).HasColumnName("reward_vnd").IsRequired();
+                b.Property(x => x.Slots).HasColumnName("slots").IsRequired();
+                b.Property(x => x.PassThresholdPercent).HasColumnName("pass_threshold_percent").IsRequired();
+                b.Property(x => x.QuestionCount).HasColumnName("question_count").IsRequired();
+                b.Property(x => x.CollectionFinishedAt).HasColumnName("collection_finished_at");
+                b.Property(x => x.FinishReason).HasColumnName("finish_reason").HasMaxLength(20);
+                b.Property(x => x.GradedAt).HasColumnName("graded_at");
+                b.Property(x => x.AppealDeadline).HasColumnName("appeal_deadline");
+                b.Property(x => x.SettledAt).HasColumnName("settled_at");
+                b.Property(x => x.PassedCount).HasColumnName("passed_count");
+                b.Property(x => x.PausedAt).HasColumnName("paused_at");
                 b.Property(x => x.Deadline).HasColumnName("deadline");
                 b.Property(x => x.AllowProfessional).HasColumnName("allow_professional").IsRequired();
                 b.Property(x => x.IsPrivate).HasColumnName("is_private").IsRequired();
@@ -249,6 +255,14 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.HasIndex(x => x.StatusChangedAt)
                     .HasFilter("status = 'Closed' AND data_purged_at IS NULL")
                     .HasDatabaseName("ix_project_snapshots_cho_don");
+
+                // Worker: du an het han chot chua dong thu bai; du an da cham cho chot.
+                b.HasIndex(x => x.Deadline)
+                    .HasFilter("collection_finished_at IS NULL AND is_configured")
+                    .HasDatabaseName("ix_project_snapshots_cho_dong_thu_bai");
+                b.HasIndex(x => x.AppealDeadline)
+                    .HasFilter("graded_at IS NOT NULL AND settled_at IS NULL")
+                    .HasDatabaseName("ix_project_snapshots_cho_chot");
             });
 
             mb.Entity<MemberCache>(b =>

@@ -1,12 +1,12 @@
 # E2E LUU TRU & DON DEP: nhung thay doi de database khong phinh theo so nguoi dung.
 #   [1] Phien dang nhap: MOT dong moi phien du lam moi bao nhieu lan; dung lai token cu → thu hoi ca phien.
 #   [2] Claim email_verified / kyb_verified nam trong access token (khong con ban sao o ledger / project).
-#   [3] Event tan suat cao: bo task.leased; audit KHONG luu chi tiet annotation.submitted nhung bao cao van dem.
+#   [3] Event tan suat cao: audit KHONG luu chi tiet attempt.submitted (ca bai) nhung bao cao van dem.
 #   [4] Thong tin mau luu MOT lan (annotation_samples), nhan chi tro sample_id.
 #   [5] gate-svc chi giu mau cua du an BAT cong link.
 #   [6] Don outbox da gui qua han o MOI service.
-#   [7] Du an da dong: don task / luot giu (task-svc) va nhan tho (quality-svc) — tien do, bao cao chat luong,
-#       nhan da nop va uy tin labeler GIU NGUYEN.
+#   [7] Du an da dong: don cau hoi / cau tra loi nhap (task-svc) va nhan tho, bai nop (quality-svc) — tien do,
+#       bao cao chat luong, bai lam, nhan va uy tin labeler GIU NGUYEN.
 # Tu tao tai khoan + du an moi. Chay: python e2e_luu_tru.py   (stack demo: E2E_PROFILE=demo)
 import base64, json, os, sys, time, uuid
 import requests
@@ -52,16 +52,6 @@ def dang_nhap(email):
 
 def lam_moi(tok):
     return requests.post(G + "/auth/refresh", json={"refreshToken": tok})
-
-
-def duyet(chu, aid):
-    """Duyet nhan; 409 xung_dot_dong_thoi (quality-svc vua cap nhat nhan) → thu lai."""
-    for _ in range(6):
-        r = requests.post(G + f"/annotations/{aid}/approve", headers=chu["h"])
-        if r.status_code != 409 or code(r) != "xung_dot_dong_thoi":
-            break
-        time.sleep(0.5)
-    assert r.status_code == 200, r.text
 
 
 def thong_ke():
@@ -119,29 +109,30 @@ try:
                         "and (table_name like '%business%' or table_name like '%email%')") == "0")
 
     # =================================================================================
-    print("\n[3] Event tan suat cao: bo task.leased; audit khong luu chi tiet annotation.submitted nhung van dem")
+    print("\n[3] Event tan suat cao: audit khong luu chi tiet attempt.submitted nhung van dem")
     nap(biz, 1_000_000)
     l1 = dang_ky(["labeler"], "l1")
     l2 = dang_ky(["labeler"], "l2")
+    l3 = dang_ky(["labeler"], "l3")
+    LAB = (l1, l2, l3)
     t0 = sql("admin", "select now()")
     tk_truoc = thong_ke()
-    P, ids = tao_du_an(biz, "LUUTRU", {"s1": "Mau mot", "s2": "Mau hai", "s3": "Mau ba"}, 2, 2, GIA)
+    # 4 suat, 3 nguoi lam → khong tu dong thu bai (muc [7] moi ket thuc som).
+    P, ids = tao_du_an(biz, "LUUTRU", {"s1": "Mau mot", "s2": "Mau hai", "s3": "Mau ba"}, suat=4, gia=GIA)
     publish_va_duyet(biz, P)
-    for u in (l1, l2):
+    for u in LAB:
         tham_gia(u, P)
         lam_het(u, P, lambda _: "a")
-    nhan = cho(lambda: (lambda x: x if len(x) == 6 else None)(ds_nhan(biz, P)), 40)
-    kiem("2 labeler x 3 mau → 6 nhan", nhan is not None, len(ds_nhan(biz, P)))
+    nhan = cho(lambda: (lambda x: x if len(x) == 9 else None)(ds_nhan(biz, P)), 40)
+    kiem("3 bai x 3 cau → 9 nhan (cho cham)", nhan is not None and all(x["status"] == "submitted" for x in nhan), len(ds_nhan(biz, P)))
 
-    kiem("task-svc khong con phat task.leased",
-         sql("task", f"select count(*) from outbox where event_type='task.leased' and occurred_at >= '{t0}'") == "0")
-    kiem("task-svc van phat assignment.submitted (6)",
-         sql("task", f"select count(*) from outbox where event_type='assignment.submitted' and envelope_json->'payload'->>'projectId'='{P}'") == "6")
-    kiem("bao cao van DEM du 6 nhan da nop",
-         cho(lambda: thong_ke()["annotationsSubmitted"] >= tk_truoc["annotationsSubmitted"] + 6, 30),
-         (tk_truoc["annotationsSubmitted"], thong_ke()["annotationsSubmitted"]))
-    kiem("audit KHONG luu chi tiet annotation.submitted",
-         sql("admin", f"select count(*) from audit_events where event_type='annotation.submitted' and occurred_at >= '{t0}'") == "0")
+    kiem("task-svc phat MOT attempt.submitted moi bai (3)",
+         sql("task", f"select count(*) from outbox where event_type='attempt.submitted' and envelope_json->'payload'->>'projectId'='{P}'") == "3")
+    kiem("bao cao van DEM du 3 bai da nop",
+         cho(lambda: thong_ke()["attemptsSubmitted"] >= tk_truoc["attemptsSubmitted"] + 3, 30),
+         (tk_truoc["attemptsSubmitted"], thong_ke()["attemptsSubmitted"]))
+    kiem("audit KHONG luu chi tiet attempt.submitted",
+         sql("admin", f"select count(*) from audit_events where event_type='attempt.submitted' and occurred_at >= '{t0}'") == "0")
     kiem("audit VAN luu thao tac quan trong (project.published cua du an nay)",
          cho(lambda: sql("admin", f"select count(*) from audit_events where event_type='project.published' and payload->>'projectId'='{P}'") == "1", 20))
     j = requests.get(G + "/admin/audit", headers=admin, params={"eventType": "kyb.", "pageSize": 5})
@@ -149,9 +140,9 @@ try:
 
     # =================================================================================
     print("\n[4] Thong tin mau luu MOT lan, nhan tro sample_id")
-    kiem("3 mau → 3 dong annotation_samples (6 nhan)",
+    kiem("3 mau → 3 dong annotation_samples (9 nhan)",
          sql("annotation", f"select count(*) from annotation_samples where project_id='{P}'") == "3"
-         and sql("annotation", f"select count(*) from annotations where project_id='{P}'") == "6",
+         and sql("annotation", f"select count(*) from annotations where project_id='{P}'") == "9",
          sql("annotation", f"select count(*) from annotation_samples where project_id='{P}'"))
     kiem("bang annotations khong con cot noi dung mau",
          sql("annotation", "select count(*) from information_schema.columns where table_name='annotations' "
@@ -198,13 +189,12 @@ try:
     r = requests.post(G + f"/tasks/admin/projects/{uuid.uuid4()}/purge", headers=admin)
     kiem("du an khong ton tai → 404", r.status_code == 404, r.text)
 
-    # Cho dong thuan xong roi duyet het, tam dung, hoan thanh.
-    cho(lambda: sql("quality", f"select count(*) from consensus_rounds where project_id='{P}'") == "3", 30)
-    for x in nhan:
-        duyet(biz, x["id"])
-    requests.post(G + f"/projects/{P}/pause", headers=biz["h"]).raise_for_status()
-    xong = cho(lambda: (lambda x: x if x.status_code == 200 else None)(requests.post(G + f"/projects/{P}/complete", headers=biz["h"], json={"reason": "e2e"})), 40)
-    kiem("hoan thanh du an → 200", xong is not None, requests.post(G + f"/projects/{P}/complete", headers=biz["h"], json={"reason": "e2e"}).text)
+    # Han khieu nai ngan de du an tu chot; ket thuc som → cham (3 bai, dung da so) → het han → completed.
+    dat_va_cho("task.appeal_window", 5, ("task",))
+    dat_va_cho("task.reaper_interval", 2, ("task",))
+    ket_thuc_som(biz, P)
+    xong = cho(lambda: requests.get(G + f"/projects/{P}", headers=biz["h"]).json()["status"] == "completed", 60)
+    kiem("ket thuc som → cham → het han khieu nai → completed", xong, requests.get(G + f"/projects/{P}", headers=biz["h"]).json()["status"])
     kiem("task-svc + quality-svc da ghi nhan du an dong",
          cho(lambda: sql("task", f"select status from project_snapshots where project_id='{P}'") == "Closed"
              and sql("quality", f"select closed_at is not null from projects where project_id='{P}'") == "t", 30))
@@ -215,67 +205,70 @@ try:
     time.sleep(2)
     tq_truoc = requests.get(G + f"/quality/projects/{P}/summary", headers=biz["h"]).json()
     lb_truoc = requests.get(G + f"/quality/projects/{P}/labelers", headers=biz["h"]).json()
+    ids_lab = "','".join(u["id"] for u in LAB)
     uy_tin = "select string_agg(labeler_id||':'||reputation||':'||agree_total||':'||agree_count, ',' order by labeler_id) " \
-             f"from reputations where labeler_id in ('{l1['id']}','{l2['id']}')"
+             f"from reputations where labeler_id in ('{ids_lab}')"
     ut_truoc = sql("quality", uy_tin)
-    khop_truoc = sql("quality", f"select count(*) from label_agreements where project_id='{P}'")
-    kiem("truoc khi don: tien do 3 task xong, bao cao 6 nhan / 3 task dong thuan",
-         td_truoc["totalTasks"] == 3 and td_truoc["completedTasks"] == 3 and td_truoc.get("frozenAt") is None
-         and tq_truoc["labelCount"] == 6 and tq_truoc["agreed"] == 3 and tq_truoc["archivedAt"] is None and len(lb_truoc) == 2,
+    cham_truoc = sql("quality", f"select count(*) from attempt_grades where project_id='{P}'")
+    kiem("truoc khi don: 3 bai nop, bao cao 9 nhan / 3 bai cham / 3 cau co da so",
+         td_truoc["submitted"] == 3 and td_truoc["phase"] == "settled" and td_truoc.get("frozenAt") is None
+         and tq_truoc["labelCount"] == 9 and tq_truoc["attemptsGraded"] == 3 and tq_truoc["agreed"] == 3
+         and tq_truoc["archivedAt"] is None and len(lb_truoc) == 3,
          (td_truoc, tq_truoc))
 
     r = requests.post(G + f"/tasks/admin/projects/{P}/purge", headers=admin)
     j = r.json() if r.status_code == 200 else {}
-    kiem("admin don du an da dong → 200, xoa 3 task + 6 luot giu",
-         r.status_code == 200 and j["purgedNow"] is True and j["deletedTasks"] == 3 and j["deletedAssignments"] == 6, r.text)
-    kiem("task-svc khong con task / luot giu cua du an",
-         sql("task", f"select (select count(*) from tasks where project_id='{P}') + (select count(*) from assignments where project_id='{P}')") == "0")
+    kiem("admin don du an da dong → 200, xoa 3 cau hoi + 9 cau tra loi nhap",
+         r.status_code == 200 and j["purgedNow"] is True and j["deletedTasks"] == 3 and j["deletedAnswers"] == 9, r.text)
+    kiem("task-svc khong con cau hoi / cau tra loi cua du an, bai lam van giu",
+         sql("task", f"select (select count(*) from tasks where project_id='{P}') + (select count(*) from attempt_answers x join attempts a on a.id = x.attempt_id where a.project_id='{P}')") == "0"
+         and sql("task", f"select count(*) from attempts where project_id='{P}'") == "3")
     td_sau = requests.get(G + f"/tasks/projects/{P}/progress", headers=biz["h"]).json()
     kiem("tien do van xem duoc, dung so cu (ban chup, frozenAt co gia tri)",
          td_sau.get("frozenAt") is not None
-         and bo(td_sau, "frozenAt", "submissionsLast24h", "estimatedCompletionAt") == bo(td_truoc, "frozenAt", "submissionsLast24h", "estimatedCompletionAt"),
+         and bo(td_sau, "frozenAt", "estimatedCompletionAt") == bo(td_truoc, "frozenAt", "estimatedCompletionAt"),
          (td_truoc, td_sau))
     r = requests.post(G + f"/tasks/admin/projects/{P}/purge", headers=admin)
     kiem("don lan hai → 200 purgedNow = false (khong lam lai)", r.status_code == 200 and r.json()["purgedNow"] is False, r.text)
-    kiem("labeler khong con thay luot giu cua du an da don",
-         all(x["projectId"] != P for x in requests.get(G + "/tasks/assignments/mine", headers=l1["h"]).json()))
+    kiem("labeler van thay bai lam (ket qua) cua du an da don",
+         any(x["projectId"] == P and x["passed"] is not None for x in requests.get(G + "/tasks/me/attempts", headers=l1["h"]).json()))
 
     r = requests.post(G + f"/quality/admin/projects/{P}/archive", headers=admin)
     j = r.json() if r.status_code == 200 else {}
-    kiem("admin luu tru chat luong → 200, xoa 6 nhan tho + 3 vong dong thuan + 3 target",
-         r.status_code == 200 and j["purgedNow"] is True and j["deleted"].get("labels") == 6
-         and j["deleted"].get("consensus_rounds") == 3 and j["deleted"].get("task_targets") == 3, r.text)
-    kiem("quality-svc khong con nhan tho cua du an",
-         sql("quality", f"select (select count(*) from labels where project_id='{P}') + (select count(*) from consensus_rounds where project_id='{P}') "
-                        f"+ (select count(*) from task_targets where project_id='{P}')") == "0")
+    kiem("admin luu tru chat luong → 200, xoa 9 nhan tho + 3 bai nop + 3 ket qua gop tung cau",
+         r.status_code == 200 and j["purgedNow"] is True and j["deleted"].get("labels") == 9
+         and j["deleted"].get("attempts") == 3 and j["deleted"].get("sample_majorities") == 3, r.text)
+    kiem("quality-svc khong con nhan tho / bai nop cua du an",
+         sql("quality", f"select (select count(*) from labels where project_id='{P}') + (select count(*) from attempts where project_id='{P}') "
+                        f"+ (select count(*) from sample_majorities where project_id='{P}')") == "0")
     tq_sau = requests.get(G + f"/quality/projects/{P}/summary", headers=biz["h"]).json()
     lb_sau = requests.get(G + f"/quality/projects/{P}/labelers", headers=biz["h"]).json()
     kiem("bao cao chat luong van xem duoc, dung so cu (archivedAt co gia tri)",
          tq_sau.get("archivedAt") is not None and bo(tq_sau, "archivedAt") == bo(tq_truoc, "archivedAt"), (tq_truoc, tq_sau))
-    kiem("bao cao theo labeler giu nguyen", lb_sau == lb_truoc, (lb_truoc, lb_sau))
+    kiem("bao cao theo bai giu nguyen", lb_sau == lb_truoc, (lb_truoc, lb_sau))
     r = requests.post(G + f"/quality/admin/projects/{P}/archive", headers=admin)
     kiem("luu tru lan hai → 200 purgedNow = false", r.status_code == 200 and r.json()["purgedNow"] is False, r.text)
 
-    kiem("du lieu tinh uy tin (label_agreements) KHONG bi xoa",
-         sql("quality", f"select count(*) from label_agreements where project_id='{P}'") == khop_truoc and int(khop_truoc) == 6, khop_truoc)
-    kiem("uy tin 2 labeler KHONG doi ngay sau khi don", sql("quality", uy_tin) == ut_truoc, (ut_truoc, sql("quality", uy_tin)))
+    kiem("du lieu tinh uy tin (attempt_grades) KHONG bi xoa",
+         sql("quality", f"select count(*) from attempt_grades where project_id='{P}'") == cham_truoc and int(cham_truoc) == 3, cham_truoc)
+    kiem("uy tin 3 labeler KHONG doi ngay sau khi don", sql("quality", uy_tin) == ut_truoc, (ut_truoc, sql("quality", uy_tin)))
 
-    # Ep quality-svc TINH LAI uy tin cua hai labeler bang mot du an moi: so lan khop phai CONG DON
-    # (3 cua du an da don + 1 moi), khong tut ve 1 — tuc du lieu tinh uy tin cua du an da don con nguyen.
+    # Ep quality-svc TINH LAI uy tin bang mot du an moi: so cau so duoc phai CONG DON (3 cua du an da don + 1
+    # moi), khong tut ve 1 — tuc du lieu tinh uy tin cua du an da don con nguyen.
     khop = "select string_agg(agree_total::text, ',' order by labeler_id) from reputations " \
-           f"where labeler_id in ('{l1['id']}','{l2['id']}')"
-    kiem("truoc du an moi: moi labeler co 3 lan so khop", sql("quality", khop) == "3,3", sql("quality", khop))
-    P2, _ = tao_du_an(biz, "SAUDON", {"k1": "Mau sau khi don"}, 2, 2, GIA)
+           f"where labeler_id in ('{ids_lab}')"
+    kiem("truoc du an moi: moi labeler co 3 cau so duoc", sql("quality", khop) == "3,3,3", sql("quality", khop))
+    P2, _ = tao_du_an(biz, "SAUDON", {"k1": "Mau sau khi don"}, gia=GIA)
     publish_va_duyet(biz, P2)
-    for u in (l1, l2):
+    for u in LAB:
         tham_gia(u, P2)
         lam_het(u, P2, lambda _: "a")
-    kiem("sau du an moi: 4 lan so khop (3 cu + 1 moi) — uy tin van tinh tren ca du an da don",
-         cho(lambda: sql("quality", khop) == "4,4", 40), sql("quality", khop))
+    kiem("sau du an moi (du 3 suat → tu cham): 4 cau so duoc (3 cu + 1 moi)",
+         cho(lambda: sql("quality", khop) == "4,4,4", 60), sql("quality", khop))
 
     sau = ds_nhan(biz, P)
-    kiem("nhan da duyet van con du 6, kem noi dung mau",
-         len(sau) == 6 and all(x["status"] == "approved" and (x.get("sampleContent") or {}).get("text") for x in sau), sau[:1])
+    kiem("nhan vao ket qua van con du 9, kem noi dung mau",
+         len(sau) == 9 and all(x["status"] == "accepted" and (x.get("sampleContent") or {}).get("text") for x in sau), sau[:1])
     r = requests.get(G + f"/annotations/projects/{P}/results", headers=biz["h"])
     kiem("ket qua du an van lay duoc", r.status_code == 200, r.text[:200])
     rec = requests.get(G + "/ledger/admin/reconciliation", headers=admin).json()

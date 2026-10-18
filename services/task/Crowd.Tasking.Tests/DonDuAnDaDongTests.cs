@@ -17,7 +17,7 @@ namespace Crowd.Tasking.Tests
         private static ProjectSnapshot DuAnDangChay()
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), Luc);
-            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 1000, 2, 2, 0, Luc.AddDays(10), true, false, null, null, Luc);
+            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 100000, 3, 80, 5, Luc.AddDays(10), true, false, null, null, false, Luc);
             return s;
         }
 
@@ -74,15 +74,16 @@ namespace Crowd.Tasking.Tests
             ProgressResponse goc = new ProgressResponse
             {
                 ProjectId = Guid.NewGuid(),
-                TotalTasks = 5,
-                OpenTasks = 0,
-                CompletedTasks = 4,
-                ExcludedTasks = 1,
-                ActiveLeases = 0,
-                Submissions = 8,
-                RequiredSubmissions = 8,
-                CancelledTasks = 0,
-                SubmissionsLast24h = 0,
+                Slots = 5,
+                QuestionCount = 20,
+                InProgress = 0,
+                Submitted = 4,
+                Expired = 1,
+                Cancelled = 0,
+                Phase = "settled",
+                FinishReason = "het_han",
+                PassedCount = 3,
+                OpenAppeals = 0,
                 EstimatedCompletionAt = null,
                 FrozenAt = Luc,
             };
@@ -92,9 +93,10 @@ namespace Crowd.Tasking.Tests
 
             Assert.NotNull(doc);
             Assert.Equal(goc.ProjectId, doc.ProjectId);
-            Assert.Equal(5, doc.TotalTasks);
-            Assert.Equal(4, doc.CompletedTasks);
-            Assert.Equal(8, doc.Submissions);
+            Assert.Equal(5, doc.Slots);
+            Assert.Equal(4, doc.Submitted);
+            Assert.Equal("settled", doc.Phase);
+            Assert.Equal(3, doc.PassedCount);
             Assert.Equal(Luc, doc.FrozenAt);
             Assert.Null(doc.EstimatedCompletionAt);
         }

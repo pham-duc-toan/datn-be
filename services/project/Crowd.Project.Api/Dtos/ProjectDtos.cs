@@ -48,21 +48,19 @@ namespace Crowd.Project.Api.Dtos
         public string? Explanation { get; init; }
     }
 
+    /// <summary>Tien theo CA DU AN (docs 3.18) — ky quy tinh tu dong, khong nhap ngan sach.</summary>
     public sealed class PricingRequest
     {
-        public long UnitPriceVnd { get; init; }
+        /// <summary>Thuong cho MOT nguoi lam dat ca du an.</summary>
+        public long RewardVnd { get; init; }
 
-        public int Redundancy { get; init; }
+        /// <summary>So suat (so nguoi lam bai), trong [project.min_slots, project.max_slots].</summary>
+        public int Slots { get; init; }
 
-        public long BudgetVnd { get; init; }
+        /// <summary>t — % cau giong da so toi thieu de dat, trong [x, y] admin dat.</summary>
+        public int PassThresholdPercent { get; init; }
 
         public DateTimeOffset? Deadline { get; init; }
-
-        /// <summary>
-        /// Tran redundancy thich ung (>= redundancy). Bo trong = bang redundancy (tat
-        /// thich ung). Ky quy toi thieu tinh theo tran nay.
-        /// </summary>
-        public int? MaxRedundancy { get; init; }
     }
 
     public sealed class ChannelsRequest
@@ -72,6 +70,12 @@ namespace Crowd.Project.Api.Dtos
         public bool AllowLinkGateway { get; init; }
 
         public bool AllowCollaborative { get; init; }
+
+        /// <summary>Cong link: gia moi nhan khach vuot link gan (kenh phu, tinh theo luot).</summary>
+        public long? GateUnitPriceVnd { get; init; }
+
+        /// <summary>Cong link: ngan sach rieng (nam trong ky quy).</summary>
+        public long? GateBudgetVnd { get; init; }
     }
 
     public sealed class EligibilityRequest
@@ -85,15 +89,6 @@ namespace Crowd.Project.Api.Dtos
         public int EntranceQuestionCount { get; init; }
 
         public int EntrancePassPercent { get; init; }
-    }
-
-    public sealed class QualityControlRequest
-    {
-        /// <summary>Phan tram so lan cap task la cau vang kiem tra, 0-50.</summary>
-        public int GoldCheckPercent { get; init; }
-
-        /// <summary>Co can duyet tung nhan khong. Bo trong = giu nguyen.</summary>
-        public bool? RequireReview { get; init; }
     }
 
     public sealed class ReasonRequest
@@ -134,18 +129,31 @@ namespace Crowd.Project.Api.Dtos
 
         public GuidelineResponse? Guideline { get; init; }
 
-        public required long UnitPriceVnd { get; init; }
+        /// <summary>Thuong cho MOT nguoi lam dat ca du an (moi labeler lam het cac cau trong mot bai).</summary>
+        public required long RewardVnd { get; init; }
 
-        public required int Redundancy { get; init; }
+        /// <summary>So suat (so nguoi lam bai).</summary>
+        public required int Slots { get; init; }
 
-        /// <summary>Tran redundancy thich ung (= redundancy khi khong bat).</summary>
-        public required int MaxRedundancy { get; init; }
+        /// <summary>t — % cau giong da so toi thieu de dat (kem: khong sai cau vang nao).</summary>
+        public required int PassThresholdPercent { get; init; }
 
-        /// <summary>Phan tram cau vang kiem tra tron vao luong task.</summary>
-        public required int GoldCheckPercent { get; init; }
+        /// <summary>So cau that cua de (chot luc publish; nhap thi la so mau hien co tru cau vang).</summary>
+        public required int QuestionCount { get; init; }
 
-        /// <summary>false = nhan khop dong thuan duoc tu duyet (khong can duyet tung nhan).</summary>
-        public required bool RequireReview { get; init; }
+        /// <summary>Cac loai cong cu gan nhan cua de (classification, bbox, ...) — "dang gan nhan".</summary>
+        public required IReadOnlyList<string> ToolKinds { get; init; }
+
+        public required long GateUnitPriceVnd { get; init; }
+
+        public required long GateBudgetVnd { get; init; }
+
+        /// <summary>Doanh nghiep da bam "Ket thuc som" (dang cho dong thu bai).</summary>
+        public DateTimeOffset? FinishRequestedAt { get; init; }
+
+        public DateTimeOffset? GradingStartedAt { get; init; }
+
+        public DateTimeOffset? ClosedAt { get; init; }
 
         public DateTimeOffset? Deadline { get; init; }
 
@@ -199,7 +207,10 @@ namespace Crowd.Project.Api.Dtos
 
         public Guid? OwnerId { get; init; }
 
-        public long? BudgetVnd { get; init; }
+        /// <summary>Tien ky quy (= so suat x (thuong + phi) + ngan sach cong link). Chi chu du an.</summary>
+        public long? EscrowVnd { get; init; }
+
+        public int? PlatformFeePercent { get; init; }
 
         public string? StatusReason { get; init; }
 
@@ -220,7 +231,16 @@ namespace Crowd.Project.Api.Dtos
 
         public required ProjectVisibility Visibility { get; init; }
 
-        public required long UnitPriceVnd { get; init; }
+        /// <summary>Thuong cho MOT nguoi lam dat ca du an.</summary>
+        public required long RewardVnd { get; init; }
+
+        public required int Slots { get; init; }
+
+        public required int PassThresholdPercent { get; init; }
+
+        public required int QuestionCount { get; init; }
+
+        public required IReadOnlyList<string> ToolKinds { get; init; }
 
         public DateTimeOffset? Deadline { get; init; }
 
@@ -250,27 +270,55 @@ namespace Crowd.Project.Api.Dtos
         public required int Total { get; init; }
     }
 
-    /// <summary>Checklist truoc khi publish.</summary>
+    /// <summary>Checklist truoc khi publish + gioi han hien hanh de frontend dung form.</summary>
     public sealed class ReadinessResponse
     {
         public required bool Ready { get; init; }
 
-        /// <summary>Ma nhung muc con thieu, vd "chua_co_huong_dan".</summary>
+        /// <summary>Ma nhung muc con thieu (chan publish), vd "chua_co_huong_dan".</summary>
         public required IReadOnlyList<string> Missing { get; init; }
 
+        /// <summary>Canh bao KHONG chan publish, vd "khong_co_cau_vang_kiem_tra".</summary>
+        public required IReadOnlyList<string> Warnings { get; init; }
+
         public required int SampleCount { get; init; }
+
+        /// <summary>So cau that (mau khong phai cau vang) — moi labeler lam het chung nay.</summary>
+        public required int QuestionCount { get; init; }
+
+        /// <summary>So cau vang kiem tra tron vao moi bai.</summary>
+        public required int QualityGoldCount { get; init; }
 
         public required int EntranceGoldCount { get; init; }
 
         /// <summary>Phi nen tang se chot neu publish luc nay.</summary>
         public required int PlatformFeePercent { get; init; }
 
-        public required long PlatformFeePerLabelVnd { get; init; }
+        /// <summary>Phi tren MOI nguoi dat.</summary>
+        public required long PlatformFeePerPassVnd { get; init; }
 
-        /// <summary>
-        /// SampleCount x Redundancy x (UnitPrice + PlatformFeePerLabel) — so tien ky
-        /// quy toi thieu (dac ta 2.11). Ngan sach phai >= con so nay.
-        /// </summary>
+        /// <summary>Tien ky quy = so suat x (thuong + phi) + ngan sach cong link.</summary>
         public required long EstimatedCostVnd { get; init; }
+
+        public required ProjectLimits Limits { get; init; }
     }
+
+    /// <summary>Gioi han admin dat (setting) — frontend gioi han o nhap lieu.</summary>
+    public sealed class ProjectLimits
+    {
+        /// <summary>x — nguong dat thap nhat doanh nghiep duoc chon.</summary>
+        public required int PassThresholdMin { get; init; }
+
+        /// <summary>y — nguong dat cao nhat.</summary>
+        public required int PassThresholdMax { get; init; }
+
+        public required int MinSlots { get; init; }
+
+        public required int MaxSlots { get; init; }
+
+        public required int MaxQuestions { get; init; }
+
+        public required long MinRewardVnd { get; init; }
+    }
+
 }

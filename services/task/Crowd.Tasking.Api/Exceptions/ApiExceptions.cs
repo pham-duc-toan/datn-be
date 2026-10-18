@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Labeling;
@@ -41,21 +42,18 @@ namespace Crowd.Tasking.Api.Exceptions
     ///   RuleViolationException, DbUpdateConcurrencyException → 409
     /// </summary>
     /// <summary>
-    /// Phai nghi giua phien lam du an nhay cam (muc 2.9) → 429 can_nghi_giai_lao + Retry-After +
-    /// retryAfterSeconds / breakUntil de frontend hien dong ho dem nguoc.
+    /// Nop bai co cau tra loi SAI DINH DANG (khung ngoai anh, thieu cong cu bat buoc...) → 400
+    /// bai_chua_hop_le kem invalidAnswers: frontend nhay toi tung cau de sua. Bai VAN dang lam.
     /// </summary>
-    public sealed class CanNghiException : Exception
+    public sealed class BaiChuaHopLeException : Exception
     {
-        public CanNghiException(DateTimeOffset nghiDen, TimeSpan conLai)
-            : base("Ban da xem noi dung nhay cam lien tuc kha lau — hay nghi giai lao truoc khi nhan task tiep.")
+        public BaiChuaHopLeException(IReadOnlyList<Crowd.Tasking.Api.Dtos.InvalidAnswer> cauSai)
+            : base("Co " + (cauSai == null ? 0 : cauSai.Count) + " cau tra loi chua dung dinh dang — sua roi nop lai.")
         {
-            NghiDen = nghiDen;
-            ConLai = conLai;
+            CauSai = cauSai ?? new List<Crowd.Tasking.Api.Dtos.InvalidAnswer>();
         }
 
-        public DateTimeOffset NghiDen { get; }
-
-        public TimeSpan ConLai { get; }
+        public IReadOnlyList<Crowd.Tasking.Api.Dtos.InvalidAnswer> CauSai { get; }
     }
 
     public sealed class ApiExceptionHandler : IExceptionHandler
@@ -115,10 +113,10 @@ namespace Crowd.Tasking.Api.Exceptions
                 status = StatusCodes.Status409Conflict;
                 code = "xung_dot_dong_thoi";
             }
-            else if (exception is CanNghiException)
+            else if (exception is BaiChuaHopLeException)
             {
-                status = StatusCodes.Status429TooManyRequests;
-                code = "can_nghi_giai_lao";
+                status = StatusCodes.Status400BadRequest;
+                code = "bai_chua_hop_le";
             }
             else
             {
@@ -134,13 +132,10 @@ namespace Crowd.Tasking.Api.Exceptions
             chiTiet.Detail = exception.Message;
             chiTiet.Extensions["code"] = code;
 
-            CanNghiException? nghi = exception as CanNghiException;
-            if (nghi != null)
+            BaiChuaHopLeException? baiSai = exception as BaiChuaHopLeException;
+            if (baiSai != null)
             {
-                int giay = (int)Math.Ceiling(nghi.ConLai.TotalSeconds);
-                httpContext.Response.Headers.RetryAfter = giay.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                chiTiet.Extensions["retryAfterSeconds"] = giay;
-                chiTiet.Extensions["breakUntil"] = nghi.NghiDen;
+                chiTiet.Extensions["invalidAnswers"] = baiSai.CauSai;
             }
 
             ProblemDetailsContext ngucanh = new ProblemDetailsContext

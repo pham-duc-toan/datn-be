@@ -7,7 +7,7 @@ using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Settings;
 using Crowd.Tasking.Api.Dtos;
 using Crowd.Tasking.Api.Exceptions;
-using Crowd.Tasking.Domain.Assignments;
+using Crowd.Tasking.Domain.Attempts;
 using Crowd.Tasking.Domain.Common;
 using Crowd.Tasking.Domain.Projects;
 using Crowd.Tasking.Domain.Reports;
@@ -18,11 +18,12 @@ using Microsoft.EntityFrameworkCore;
 namespace Crowd.Tasking.Api.Services
 {
     /// <summary>
-    /// Bao task loi (FL-07).
-    ///   - Labeler bao: luot lease tra lai pool (nhu bo qua), labeler khong nhan lai task nay, chu du
-    ///     an thay bao loi. Du task.report_auto_exclude NGUOI KHAC NHAU bao cung mau → tu loai mau.
+    /// Bao loi CAU HOI (FL-07) trong bai lam:
+    ///   - Labeler bao mot cau trong bai DANG LAM bi loi (file hong, khong phu hop, mo ta khong ro) — van lam
+    ///     tiep bai, chu du an thay bao loi. Du task.report_auto_exclude NGUOI KHAC NHAU bao cung mau → tu loai.
     ///   - Chu du an xem bao loi cua du an, bo qua (mau khong sao) hoac loai mau.
-    /// Loai mau = huy task, CHI khi khong ai dang giu (nguoi dang lam van nop duoc, khong mat cong).
+    /// Loai mau = cau hoi Cancelled: khong vao bai MOI, va bi bo khoi phan cham (project.collection_finished
+    /// mang ExcludedSampleIds) — ai da tra loi cau do cung khong bi tinh.
     /// </summary>
     public sealed class BaoLoiService
     {
@@ -52,45 +53,70 @@ namespace Crowd.Tasking.Api.Services
             _clock = clock;
         }
 
-        public async Task<TaskReportResponse> BaoLoiAsync(Guid assignmentId, ReportTaskRequest body, Caller caller, CancellationToken ct)
+        public async Task<TaskReportResponse> BaoLoiAsync(Guid attemptId, ReportTaskRequest body, Caller caller, CancellationToken ct)
         {
             if (body == null)
             {
                 throw new ArgumentNullException(nameof(body));
             }
 
+            if (!body.SampleId.HasValue)
+            {
+                throw new InvalidValueException("thieu_mau", "Can truong sampleId cua cau bi loi.");
+            }
+
             Guid labelerId = caller.LayUserId();
+            Guid sampleId = body.SampleId.Value;
+
             var tx = await _db.Database.BeginTransactionAsync(ct);
+
             try
             {
-                Assignment? a = await TaskQueries.KhoaAssignmentAsync(_db, assignmentId, ct);
+                Attempt? a = await TaskQueries.KhoaBaiAsync(_db, attemptId, ct);
                 if (a == null || a.LabelerId != labelerId)
                 {
-                    throw new NotFoundException("Khong tim thay luot nhan task.");
+                    throw new NotFoundException("Khong tim thay bai lam.");
                 }
 
                 DateTimeOffset bayGio = _clock.GetUtcNow();
-                if (!a.DangGiu(bayGio))
+                a.KiemConLamDuoc(bayGio);
+
+                if (!a.CoCauHoi(sampleId))
                 {
-                    throw new RuleViolationException("lease_khong_con", "Khong con giu task nay — khong bao loi duoc.");
+                    throw new NotFoundException("Cau hoi khong thuoc bai lam nay.");
                 }
 
-                TaskReport r = TaskReport.Tao(a.Id, a.TaskId, a.ProjectId, a.SampleId, labelerId, body.Reason, body.Note, bayGio);
-                LabelingTask task = (await TaskQueries.KhoaTaskAsync(_db, new[] { a.TaskId }, ct))[0];
-                a.BoQua(task, bayGio);
+                LabelingTask? task = await _db.Tasks.FirstOrDefaultAsync(t => t.ProjectId == a.ProjectId && t.SampleId == sampleId, ct);
+                if (task == null)
+                {
+                    throw new NotFoundException("Khong tim thay cau hoi.");
+                }
+
+                if (await _db.TaskReports.AnyAsync(r => r.AttemptId == a.Id && r.SampleId == sampleId, ct))
+                {
+                    throw new RuleViolationException("da_bao_loi", "Ban da bao loi cau nay.");
+                }
+
+                TaskReport r = TaskReport.Tao(a.Id, task.Id, a.ProjectId, sampleId, labelerId, body.Reason, body.Note, bayGio);
                 _db.TaskReports.Add(r);
 
-                // Du nguoi bao (tinh ca bao nay) → tu loai mau neu khong ai dang giu.
-                int soNguoiBao = 1 + await _db.TaskReports.Where(x => x.TaskId == a.TaskId && x.LabelerId != labelerId)
+                // Du nguoi bao (tinh ca bao nay) → tu loai mau.
+                int soNguoiBao = 1 + await _db.TaskReports.Where(x => x.TaskId == task.Id && x.LabelerId != labelerId)
                     .Select(x => x.LabelerId).Distinct().CountAsync(ct);
-                if (soNguoiBao >= _settings.SoNguyen(SettingKeys.TaskReportAutoExclude) && task.HuyNeuKhongAiGiu(bayGio))
+
+                if (soNguoiBao >= _settings.SoNguyen(SettingKeys.TaskReportAutoExclude))
                 {
-                    await DanhDauDaLoaiAsync(a.TaskId, null, bayGio, ct);
-                    r.XuLy(ReportState.Excluded, null, bayGio);
+                    LabelingTask khoa = (await TaskQueries.KhoaTaskAsync(_db, new[] { task.Id }, ct))[0];
+                    if (khoa.LoaiBo(bayGio))
+                    {
+                        await DanhDauDaLoaiAsync(task.Id, null, bayGio, ct);
+                        r.XuLy(ReportState.Excluded, null, bayGio);
+                    }
                 }
 
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
+
                 return TaoResponse(r, soNguoiBao);
             }
             finally
@@ -129,8 +155,8 @@ namespace Crowd.Tasking.Api.Services
         }
 
         /// <summary>
-        /// Chu du an xu ly: dismiss = mau khong sao (chi bao nay); exclude = loai mau (moi bao cua task
-        /// thanh excluded). Dang co nguoi giu task → 409 con_nguoi_dang_lam, thu lai sau.
+        /// Chu du an xu ly: dismiss = mau khong sao (chi bao nay); exclude = loai mau (moi bao cua cau thanh
+        /// excluded) — cau bi bo khoi bai moi va khoi phan cham.
         /// </summary>
         public async Task<TaskReportResponse> XuLyAsync(Guid reportId, ResolveReportRequest body, Caller caller, CancellationToken ct)
         {
@@ -159,11 +185,7 @@ namespace Crowd.Tasking.Api.Services
                 else if (string.Equals(body.Action, "exclude", StringComparison.OrdinalIgnoreCase))
                 {
                     LabelingTask task = (await TaskQueries.KhoaTaskAsync(_db, new[] { r.TaskId }, ct))[0];
-                    if (task.State == TaskState.Open && !task.HuyNeuKhongAiGiu(bayGio))
-                    {
-                        throw new RuleViolationException("con_nguoi_dang_lam", "Dang co labeler giu mau nay — thu lai sau khi ho nop hoac het han.");
-                    }
-
+                    task.LoaiBo(bayGio);
                     await DanhDauDaLoaiAsync(r.TaskId, nguoiXuLy, bayGio, ct);
                 }
                 else

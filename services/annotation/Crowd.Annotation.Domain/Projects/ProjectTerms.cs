@@ -1,25 +1,18 @@
 using System;
-using Crowd.Annotation.Domain.Common;
 using Crowd.Labeling;
 
 namespace Crowd.Annotation.Domain.Projects
 {
     /// <summary>
-    /// "Dieu khoan" cua du an ma annotation-svc can: chu du an, don gia, phi da
-    /// chot, tap nhan. Dung tu project.published — BAT BIEN sau publish, nen
-    /// khong co chuyen event den sai thu tu ghi de nhau.
+    /// Ban sao du an ma annotation-svc can: chu du an, loai du lieu, tap nhan (de gop ket qua va xuat file).
+    /// Dung tu project.published — BAT BIEN sau publish.
     ///
-    /// Rieng trang thai DONG SO thay doi duoc: project-svc goi "dong so" truoc khi
-    /// hoan thanh / huy du an (ky quy sap tra ve doanh nghiep). Da dong thi khong
-    /// duyet, khieu nai, phan xu them duoc — tien khong con de tra.
-    ///
-    /// annotation-svc KHONG hoi project-svc "don gia bao nhieu" luc duyet; no doc
-    /// ban sao nay (luat 1, muc 4 docs).
+    /// Du an lam trung tam (docs 3.18): tien KHONG con di qua annotation-svc (ledger tra thuong theo ca bai),
+    /// nen o day khong giu don gia / phi, khong con "dong so" chan duyet. Chi danh dau du an da ket thuc.
     /// </summary>
     public sealed class ProjectTerms
     {
-        // Tap nhan dang chuan (Crowd.Labeling) — cot jsonb. Doc thanh LabelSchema
-        // mot lan roi giu lai.
+        // Tap nhan dang chuan (Crowd.Labeling) — cot jsonb. Doc thanh LabelSchema mot lan roi giu lai.
         private string _labelSchemaJson;
         private LabelSchema? _labelSchema;
 
@@ -33,30 +26,13 @@ namespace Crowd.Annotation.Domain.Projects
 
         public Guid OwnerId { get; private set; }
 
-        /// <summary>Thu lao labeler moi nhan duoc duyet.</summary>
-        public long UnitPriceVnd { get; private set; }
-
-        /// <summary>Phi nen tang moi nhan, da chot luc publish (VD-M-15).</summary>
-        public long PlatformFeeVnd { get; private set; }
-
-        /// <summary>Loai du lieu (image / text / audio / video / pair).</summary>
+        /// <summary>Loai du lieu (image / text / audio / video / pair / list).</summary>
         public string Modality { get; private set; }
 
-        /// <summary>
-        /// false = du an khong can duyet tung nhan: nhan khop dong thuan (hoac du an chi co cau tra
-        /// loi mo) duoc tu duyet ngay khi co ket qua dong thuan.
-        /// </summary>
-        public bool RequireReview { get; private set; }
-
-        /// <summary>
-        /// Luc dong so (project-svc goi truoc khi hoan thanh / huy). null = dang mo.
-        /// </summary>
+        /// <summary>Luc du an ket thuc (project.completed / project.cancelled). null = dang mo.</summary>
         public DateTimeOffset? ClosedAt { get; private set; }
 
-        /// <summary>
-        /// Da nhan project.completed / project.cancelled: dong VINH VIEN, khong event
-        /// project.resumed nao mo lai duoc.
-        /// </summary>
+        /// <summary>Da nhan project.completed / project.cancelled.</summary>
         public bool IsFinal { get; private set; }
 
         public bool DaDong
@@ -78,13 +54,7 @@ namespace Crowd.Annotation.Domain.Projects
             }
         }
 
-        public static ProjectTerms Tao(
-            Guid projectId,
-            Guid ownerId,
-            long unitPriceVnd,
-            long platformFeeVnd,
-            LabelSchema labelSchema,
-            bool requireReview)
+        public static ProjectTerms Tao(Guid projectId, Guid ownerId, LabelSchema labelSchema)
         {
             if (labelSchema == null)
             {
@@ -94,57 +64,21 @@ namespace Crowd.Annotation.Domain.Projects
             ProjectTerms t = new ProjectTerms();
             t.ProjectId = projectId;
             t.OwnerId = ownerId;
-            t.UnitPriceVnd = unitPriceVnd;
-            t.PlatformFeeVnd = platformFeeVnd;
-            t.RequireReview = requireReview;
             t.Modality = labelSchema.Modality;
             t._labelSchemaJson = labelSchema.ToRawJson().Json;
             t._labelSchema = labelSchema;
             return t;
         }
 
-        /// <summary>Dong so (idempotent — da dong thi giu moc cu).</summary>
-        public void DongSo(DateTimeOffset luc)
+        /// <summary>project.completed / project.cancelled: ket thuc (idempotent — giu moc dau).</summary>
+        public void KetThuc(DateTimeOffset luc)
         {
             if (!ClosedAt.HasValue)
             {
                 ClosedAt = luc;
             }
-        }
 
-        /// <summary>
-        /// project.resumed: doanh nghiep chay tiep sau lan dong so ma project-svc chua
-        /// kip chot (vd loi giua chung). Chi mo lai khi event MOI HON luc dong so va du
-        /// an chua ket thuc han — event cu giao tre khong mo nham du an da dong.
-        /// Tra ve true neu da mo lai.
-        /// </summary>
-        public bool MoLai(DateTimeOffset luc)
-        {
-            if (IsFinal || !ClosedAt.HasValue || luc <= ClosedAt.Value)
-            {
-                return false;
-            }
-
-            ClosedAt = null;
-            return true;
-        }
-
-        /// <summary>project.completed / project.cancelled: dong vinh vien.</summary>
-        public void KetThuc(DateTimeOffset luc)
-        {
-            DongSo(luc);
             IsFinal = true;
-        }
-
-        /// <summary>Nem 409 neu du an da dong so — goi truoc moi thao tac lam doi tien.</summary>
-        public void KiemConMo()
-        {
-            if (ClosedAt.HasValue)
-            {
-                throw new RuleViolationException(
-                    "du_an_da_ket_thuc",
-                    "Du an da hoan thanh hoac da huy — khong duyet, khieu nai hay phan xu them duoc.");
-            }
         }
     }
 }

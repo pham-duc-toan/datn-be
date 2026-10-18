@@ -15,10 +15,12 @@ namespace Crowd.Annotation.Api.Controllers
     /// <summary>
     /// Moi endpoint nam duoi /annotations — gateway chi can MOT route.
     ///
+    /// Du an lam trung tam (docs 3.18): KHONG con duyet / tu choi / khieu nai tung nhan. annotation-svc chi
+    /// LUU nhan theo bai lam va tra ket qua / file xuat.
+    ///
     /// Quyen:
-    ///   - Duyet/xem nhan cua du an: chu du an hoac reviewer (ban sao thanh vien), hoac admin.
-    ///   - Lich su, khieu nai: labeler, CHI nhan cua chinh minh.
-    ///   - Phan xu khieu nai: admin.
+    ///   - Xem nhan, ket qua, xuat file cua du an: chu du an (ban sao thanh vien) hoac admin.
+    ///   - Lich su, nhan cua toi: labeler, CHI nhan cua chinh minh.
     /// </summary>
     [ApiController]
     [Route("annotations")]
@@ -37,57 +39,33 @@ namespace Crowd.Annotation.Api.Controllers
             _service = service;
         }
 
-        // ---- Doanh nghiep / reviewer ----
+        // ---- Doanh nghiep ----
 
-        /// <summary>GET /annotations/projects/{projectId}?status=pendingReview</summary>
+        /// <summary>GET /annotations/projects/{projectId}?status=accepted&amp;attemptId= — nhan cua du an.</summary>
         [HttpGet("projects/{projectId:guid}")]
         public async Task<IActionResult> DanhSachDuAn(
             Guid projectId,
             [FromQuery] AnnotationStatus? status,
-            [FromQuery] bool? consensusAgrees,
+            [FromQuery] Guid? attemptId,
             [FromQuery] int page,
             [FromQuery] int pageSize,
             CancellationToken ct)
         {
-            return Ok(await _service.DanhSachDuAnAsync(projectId, status, consensusAgrees, page, pageSize, NguoiDuyet(), ct));
+            return Ok(await _service.DanhSachDuAnAsync(projectId, status, attemptId, page, pageSize, ChuDuAn(), ct));
         }
 
-        /// <summary>
-        /// POST /annotations/projects/{projectId}/approve-agreed — duyet hang loat cac
-        /// nhan cho duyet khop dong thuan cua quality-svc (toi da 500 moi lan).
-        /// </summary>
-        [HttpPost("projects/{projectId:guid}/approve-agreed")]
-        public async Task<IActionResult> DuyetKhopDongThuan(Guid projectId, CancellationToken ct)
-        {
-            return Ok(await _service.DuyetKhopDongThuanAsync(projectId, NguoiDuyet(), ct));
-        }
-
-        /// <summary>POST /annotations/{id}/approve (FB-21) — sinh ra tien cho labeler.</summary>
-        [HttpPost("{id:guid}/approve")]
-        public async Task<IActionResult> Duyet(Guid id, CancellationToken ct)
-        {
-            return Ok(await _service.DuyetAsync(id, NguoiDuyet(), ct));
-        }
-
-        /// <summary>POST /annotations/{id}/reject {reason} (FB-21)</summary>
-        [HttpPost("{id:guid}/reject")]
-        public async Task<IActionResult> TuChoi(Guid id, [FromBody] ReasonRequest? body, CancellationToken ct)
-        {
-            return Ok(await _service.TuChoiAsync(id, body == null ? null : body.Reason, NguoiDuyet(), ct));
-        }
-
-        /// <summary>GET /annotations/{id}/history — nhat ky vong doi.</summary>
+        /// <summary>GET /annotations/{id}/history — vong doi mot nhan.</summary>
         [HttpGet("{id:guid}/history")]
         public async Task<IActionResult> LichSu(Guid id, CancellationToken ct)
         {
-            return Ok(await _service.LichSuAsync(id, NguoiDuyet(), ct));
+            return Ok(await _service.LichSuAsync(id, ChuDuAn(), ct));
         }
 
-        /// <summary>GET /annotations/projects/{projectId}/results — nhan chot + tranh chap (FB-22).</summary>
+        /// <summary>GET /annotations/projects/{projectId}/results — ket qua gop tu nhan DA CHOT (FB-22).</summary>
         [HttpGet("projects/{projectId:guid}/results")]
         public async Task<IActionResult> KetQua(Guid projectId, CancellationToken ct)
         {
-            ProjectResultsResponse kq = await _service.KetQuaAsync(projectId, NguoiDuyet(), ct);
+            ProjectResultsResponse kq = await _service.KetQuaAsync(projectId, ChuDuAn(), ct);
             // Bo nho dem ket qua gop: bao bao nhieu mau dung lai / tinh moi (do hieu nang, kiem thu).
             Response.Headers["X-Results-Cache"] = "hits=" + kq.CacheHits + "; misses=" + kq.CacheMisses;
             return Ok(kq);
@@ -97,61 +75,31 @@ namespace Crowd.Annotation.Api.Controllers
         [HttpGet("projects/{projectId:guid}/distribution")]
         public async Task<IActionResult> PhanBo(Guid projectId, CancellationToken ct)
         {
-            return Ok(await _service.PhanBoAsync(projectId, NguoiDuyet(), ct));
+            return Ok(await _service.PhanBoAsync(projectId, ChuDuAn(), ct));
         }
 
-        /// <summary>GET /annotations/projects/{projectId}/export?format=json|csv|coco|yolo|voc (FB-25)</summary>
+        /// <summary>GET /annotations/projects/{projectId}/export?format=json|csv|coco|yolo|voc|... (FB-25)</summary>
         [HttpGet("projects/{projectId:guid}/export")]
         public async Task<IActionResult> Xuat(Guid projectId, [FromQuery] string? format, CancellationToken ct)
         {
-            ExportFile f = await _service.XuatAsync(projectId, format, NguoiDuyet(), ct);
+            ExportFile f = await _service.XuatAsync(projectId, format, ChuDuAn(), ct);
             return File(f.NoiDung, f.ContentType, f.TenFile);
         }
 
         // ---- Labeler ----
 
-        /// <summary>GET /annotations/mine — lich su + ti le duyet (FL-08).</summary>
+        /// <summary>GET /annotations/mine?status=&amp;projectId= — nhan cua toi (FL-08).</summary>
         [HttpGet("mine")]
         [Authorize(Roles = CrowdRoles.Labeler)]
         public async Task<IActionResult> CuaToi(
-            [FromQuery] AnnotationStatus? status, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
+            [FromQuery] AnnotationStatus? status, [FromQuery] Guid? projectId, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
         {
-            return Ok(await _service.CuaToiAsync(status, page, pageSize, Labeler(), ct));
+            return Ok(await _service.CuaToiAsync(status, projectId, page, pageSize, Caller.TuHttp(HttpContext, ActorRole.Labeler), ct));
         }
 
-        /// <summary>POST /annotations/{id}/appeal {message} (FL-09)</summary>
-        [HttpPost("{id:guid}/appeal")]
-        [Authorize(Roles = CrowdRoles.Labeler)]
-        public async Task<IActionResult> KhieuNai(Guid id, [FromBody] AppealRequest? body, CancellationToken ct)
-        {
-            return Ok(await _service.KhieuNaiAsync(id, body == null ? null : body.Message, Labeler(), ct));
-        }
-
-        // ---- Admin ----
-
-        [HttpGet("appeals")]
-        [Authorize(Roles = CrowdRoles.Admin)]
-        public async Task<IActionResult> DanhSachKhieuNai([FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
-        {
-            return Ok(await _service.DanhSachKhieuNaiAsync(page, pageSize, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
-        }
-
-        /// <summary>POST /annotations/{id}/appeal/resolve {accept, note}</summary>
-        [HttpPost("{id:guid}/appeal/resolve")]
-        [Authorize(Roles = CrowdRoles.Admin)]
-        public async Task<IActionResult> PhanXu(Guid id, [FromBody] ResolveAppealRequest body, CancellationToken ct)
-        {
-            return Ok(await _service.XuLyKhieuNaiAsync(id, body, Caller.TuHttp(HttpContext, ActorRole.Admin), ct));
-        }
-
-        private Caller NguoiDuyet()
+        private Caller ChuDuAn()
         {
             return Caller.TuHttp(HttpContext, ActorRole.Business);
-        }
-
-        private Caller Labeler()
-        {
-            return Caller.TuHttp(HttpContext, ActorRole.Labeler);
         }
     }
 }

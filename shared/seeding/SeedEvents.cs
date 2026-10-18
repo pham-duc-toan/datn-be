@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using Crowd.BuildingBlocks.Messaging;
-using Crowd.Contracts.Annotation;
 using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
+using Crowd.Contracts.Quality;
+using Crowd.Contracts.Tasking;
 using Crowd.Labeling;
 
 namespace Crowd.Seeding
@@ -49,7 +50,7 @@ namespace Crowd.Seeding
                 {
                     ProjectId = p.Id,
                     UserId = m.UserId,
-                    Role = m.Role == SeedMemberRole.Reviewer ? ProjectMemberRole.Reviewer : ProjectMemberRole.Labeler,
+                    Role = ProjectMemberRole.Labeler,
                 });
             }
 
@@ -83,7 +84,7 @@ namespace Crowd.Seeding
             return new GoldSetUpdated { ProjectId = p.Id, Items = items };
         }
 
-        /// <summary>project.publish_requested — so tien ky quy = ngan sach (giong ProjectService).</summary>
+        /// <summary>project.publish_requested — ky quy = so suat x (thuong + phi) (giong ProjectService).</summary>
         public static ProjectPublishRequested YeuCauKyQuy(SeedProject p)
         {
             if (p == null)
@@ -95,7 +96,8 @@ namespace Crowd.Seeding
             {
                 ProjectId = p.Id,
                 OwnerId = p.OwnerId,
-                EscrowAmountVnd = p.BudgetVnd,
+                EscrowAmountVnd = p.EscrowVnd,
+                ProjectName = p.Name,
             };
         }
 
@@ -113,11 +115,11 @@ namespace Crowd.Seeding
                 OwnerId = p.OwnerId,
                 Modality = p.Modality,
                 LabelSchema = p.TapNhan().ToRawJson(),
-                UnitPriceVnd = p.UnitPriceVnd,
-                PlatformFeeVnd = p.PlatformFeePerLabelVnd,
-                Redundancy = p.Redundancy,
-                MaxRedundancy = p.TranRedundancy,
-                GoldCheckPercent = KichBanSeed.TiLeCauVangKiemTra,
+                RewardVnd = p.RewardVnd,
+                PlatformFeeVnd = p.PlatformFeePerPassVnd,
+                Slots = p.Slots,
+                PassThresholdPercent = p.PassThresholdPercent,
+                QuestionCount = p.QuestionCount,
                 Deadline = p.Deadline(bayGio),
                 AllowProfessional = true,
                 AllowLinkGateway = false,
@@ -130,45 +132,172 @@ namespace Crowd.Seeding
             };
         }
 
-        /// <summary>Nhan cua mot luot nop — KIEM theo tap nhan va thong tin mau nhu khi labeler nop that.</summary>
-        public static LabelPayload NhanCua(SeedProject p, SeedSubmission s)
+        /// <summary>Nhan cua mot cau tra loi — KIEM theo tap nhan va thong tin mau nhu khi labeler nop that.</summary>
+        public static LabelPayload NhanCua(SeedProject p, SeedAnswer a)
         {
             if (p == null)
             {
                 throw new ArgumentNullException(nameof(p));
             }
 
-            if (s == null)
+            if (a == null)
             {
-                throw new ArgumentNullException(nameof(s));
+                throw new ArgumentNullException(nameof(a));
             }
 
-            return LabelPayload.Tao(p.TapNhan(), s.PayloadJson, p.Mau(s.SampleId).Metadata);
+            return LabelPayload.Tao(p.TapNhan(), a.PayloadJson, p.Mau(a.SampleId).Metadata);
         }
 
-        /// <summary>annotation.approved — so tien chot theo dieu khoan luc publish.</summary>
-        public static AnnotationApproved DaDuyet(SeedSubmission s, SeedProject p)
+        /// <summary>attempt.submitted — chi cau THAT (cau vang chi mang so dung / tong), giong LamBaiService.</summary>
+        public static AttemptSubmitted BaiNop(SeedProject p, SeedAttempt b, DateTimeOffset bayGio)
         {
-            if (s == null)
-            {
-                throw new ArgumentNullException(nameof(s));
-            }
-
             if (p == null)
             {
                 throw new ArgumentNullException(nameof(p));
             }
 
-            return new AnnotationApproved
+            if (b == null)
             {
-                AnnotationId = s.AnnotationId,
-                TaskId = s.TaskId,
-                ProjectId = s.ProjectId,
-                LabelerId = s.LabelerId,
-                AmountVnd = p.UnitPriceVnd,
-                PlatformFeeVnd = p.PlatformFeePerLabelVnd,
-                Source = AnnotationSource.Professional,
+                throw new ArgumentNullException(nameof(b));
+            }
+
+            if (b.State != SeedAttemptState.Submitted || !b.SubmittedAgo.HasValue)
+            {
+                throw new InvalidOperationException("Bai " + b.AttemptId + " chua nop.");
+            }
+
+            List<AttemptAnswer> ds = new List<AttemptAnswer>();
+            foreach (SeedSample s in p.Samples)
+            {
+                if (p.LaCauVang(s.Id))
+                {
+                    continue;
+                }
+
+                SeedAnswer? tl = null;
+                foreach (SeedAnswer a in b.Answers)
+                {
+                    if (a.SampleId == s.Id)
+                    {
+                        tl = a;
+                    }
+                }
+
+                ds.Add(new AttemptAnswer
+                {
+                    SampleId = s.Id,
+                    StorageKey = s.StorageKey,
+                    SampleContent = s.ContentJson == null ? null : RawJson.Tu(s.ContentJson),
+                    SampleMetadata = s.Metadata.ToRawJson(),
+                    LabelPayload = tl == null ? null : NhanCua(p, tl),
+                });
+            }
+
+            return new AttemptSubmitted
+            {
+                AttemptId = b.AttemptId,
+                ProjectId = p.Id,
+                LabelerId = b.LabelerId,
+                Answers = ds,
+                GoldTotal = b.GoldTotal,
+                GoldCorrect = b.GoldCorrect,
+                StartedAt = bayGio - b.StartedAgo,
+                SubmittedAt = bayGio - b.SubmittedAgo.Value,
             };
+        }
+
+        /// <summary>project.collection_finished — du an Completed: moi bai trong kich ban da nop.</summary>
+        public static ProjectCollectionFinished DongThuBai(SeedProject p, DateTimeOffset bayGio)
+        {
+            if (p == null || !p.GradedAgo.HasValue)
+            {
+                throw new InvalidOperationException("Du an seed chua cham.");
+            }
+
+            List<SubmittedAttemptRef> ds = new List<SubmittedAttemptRef>();
+            foreach (SeedAttempt b in p.Attempts)
+            {
+                ds.Add(new SubmittedAttemptRef { AttemptId = b.AttemptId, LabelerId = b.LabelerId, GoldTotal = b.GoldTotal, GoldCorrect = b.GoldCorrect });
+            }
+
+            return new ProjectCollectionFinished
+            {
+                ProjectId = p.Id,
+                Reason = ds.Count >= p.Slots ? "du_suat" : "het_han",
+                Attempts = ds,
+                ExcludedSampleIds = Array.Empty<Guid>(),
+                FinishedAt = bayGio - p.GradedAgo.Value,
+            };
+        }
+
+        /// <summary>project.graded — ket qua tinh san trong kich ban (cung luat quality-svc).</summary>
+        public static ProjectGraded DaCham(SeedProject p, DateTimeOffset bayGio)
+        {
+            if (p == null || !p.GradedAgo.HasValue)
+            {
+                throw new InvalidOperationException("Du an seed chua cham.");
+            }
+
+            List<GradedAttempt> ds = new List<GradedAttempt>();
+            foreach (SeedAttempt b in p.Attempts)
+            {
+                if (b.Result == null)
+                {
+                    throw new InvalidOperationException("Bai " + b.AttemptId + " chua co ket qua cham.");
+                }
+
+                ds.Add(new GradedAttempt
+                {
+                    AttemptId = b.AttemptId,
+                    LabelerId = b.LabelerId,
+                    ComparableCount = b.Result.ComparableCount,
+                    MatchedCount = b.Result.MatchedCount,
+                    AgreementPercent = b.Result.AgreementPercent,
+                    GoldTotal = b.GoldTotal,
+                    GoldCorrect = b.GoldCorrect,
+                    Passed = b.Result.Passed,
+                    AnsweredCount = b.Answers.Count,
+                });
+            }
+
+            return new ProjectGraded
+            {
+                ProjectId = p.Id,
+                PassThresholdPercent = p.PassThresholdPercent,
+                MajorityUsed = p.Attempts.Count >= 3,
+                Attempts = ds,
+                GradedAt = bayGio - p.GradedAgo.Value,
+            };
+        }
+
+        public static int SoNguoiDat(SeedProject p)
+        {
+            if (p == null)
+            {
+                throw new ArgumentNullException(nameof(p));
+            }
+
+            int n = 0;
+            foreach (SeedAttempt b in p.Attempts)
+            {
+                if (b.Result != null && b.Result.Passed)
+                {
+                    n++;
+                }
+            }
+
+            return n;
+        }
+
+        /// <summary>project.completed — so nguoi dat cuoi cung.</summary>
+        public static ProjectCompleted HoanThanh(SeedProject p)
+        {
+            if (p == null)
+            {
+                throw new ArgumentNullException(nameof(p));
+            }
+
+            return new ProjectCompleted { ProjectId = p.Id, OwnerId = p.OwnerId, PassedAttemptCount = SoNguoiDat(p) };
         }
 
         /// <summary>deposit.confirmed — chi cho lenh nap da thanh toan.</summary>

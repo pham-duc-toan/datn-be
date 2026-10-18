@@ -24,10 +24,10 @@ namespace Crowd.Annotation.Tests
 
         private static LabelAnnotation Nhan(Guid mau, string duLieu, int phutSau)
         {
-            LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
-                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), mau, Guid.NewGuid(),
+            LabelAnnotation a = LabelAnnotation.TaoTuBaiNop(
+                Guid.NewGuid(), Guid.NewGuid(), mau, Guid.NewGuid(),
                 LabelPayload.Tao(TapNhan, duLieu, Anh4x4), DateTimeOffset.UnixEpoch.AddMinutes(phutSau));
-            a.Duyet(Guid.NewGuid(), DateTimeOffset.UnixEpoch.AddHours(1));
+            a.ChotTheoKetQua(true, DateTimeOffset.UnixEpoch.AddHours(1));
             return a;
         }
 

@@ -42,18 +42,21 @@ try:
     nap_tien(biz, 3000000)
 
     # =================================================================================
-    print("\n[1] FM-04 don gia toi thieu")
-    dat_va_cho("project.min_unit_price_vnd", 1000, ["project"])
+    print("\n[1] FM-04 tien thuong toi thieu (project.min_reward_vnd) — gia tinh cho CA DU AN")
+    dat_va_cho("project.min_reward_vnd", 20000, ["project"])
     r = requests.post(G + "/projects", headers=biz["h"], json={"name": f"[e2e] gia {TAG}", "description": "x", "modality": "text", "visibility": "public"})
     p0 = r.json()["id"]
-    r = requests.put(G + f"/projects/{p0}/pricing", headers=biz["h"], json={"unitPriceVnd": 500, "redundancy": 1, "budgetVnd": 100000, "deadline": "2027-12-31T00:00:00Z"})
-    kiem("don gia 500 < toi thieu 1000 → 400 don_gia_duoi_toi_thieu", r.status_code == 400 and "don_gia_duoi_toi_thieu" in r.text, r.text)
-    r = requests.put(G + f"/projects/{p0}/pricing", headers=biz["h"], json={"unitPriceVnd": 1500, "redundancy": 1, "budgetVnd": 100000, "deadline": "2027-12-31T00:00:00Z"})
-    kiem("don gia 1500 → 200", r.status_code == 200, r.text)
-    dat_va_cho("project.min_unit_price_vnd", 2000, ["project"])
-    kiem("admin nang muc sau khi cau hinh → readiness bao don_gia_duoi_toi_thieu",
-         "don_gia_duoi_toi_thieu" in requests.get(G + f"/projects/{p0}/readiness", headers=biz["h"]).json()["missing"])
-    dat_va_cho("project.min_unit_price_vnd", 100, ["project"])
+    gia = lambda thuong: requests.put(G + f"/projects/{p0}/pricing", headers=biz["h"], json={
+        "rewardVnd": thuong, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"})
+    r = gia(15000)
+    kiem("thuong 15.000 < toi thieu 20.000 → bi chan (luu hoac checklist)",
+         (r.status_code == 400 and "thuong" in r.text) or "thuong_duoi_toi_thieu" in requests.get(G + f"/projects/{p0}/readiness", headers=biz["h"]).json()["missing"], r.text)
+    r = gia(25000)
+    kiem("thuong 25.000 → 200", r.status_code == 200, r.text)
+    dat_va_cho("project.min_reward_vnd", 30000, ["project"])
+    kiem("admin nang muc sau khi cau hinh → readiness bao thuong_duoi_toi_thieu",
+         "thuong_duoi_toi_thieu" in requests.get(G + f"/projects/{p0}/readiness", headers=biz["h"]).json()["missing"])
+    dat_va_cho("project.min_reward_vnd", 10000, ["project"])
 
     # =================================================================================
     print("\n[2] Du an noi dung nhay cam + NDA (muc 2.9, FP-01)")
@@ -89,26 +92,22 @@ try:
     c = requests.get(G + f"/projects/{P}/consents", headers=biz["h"]).json()
     kiem("chu du an thay chu ky NDA (ten, ban bam, IP)", any(x["userId"] == lab["id"] and x["ndaSignedName"] == "Nguyen Van Lab" and len(x["ndaTextHash"]) == 64 and x["ip"] for x in c), c)
     kiem("labeler khong xem duoc danh sach chu ky", requests.get(G + f"/projects/{P}/consents", headers=lab["h"]).status_code == 403)
-    t = nhan_task(lab, P, 20)
-    kiem("task cua du an nhay cam co sensitiveContent = true (frontend lam mo)", t is not None and t.get("sensitiveContent") is True, t)
+    b = bat_dau(lab, P, 20)
+    kiem("bai cua du an nhay cam co sensitiveContent = true (frontend lam mo)", isinstance(b, dict) and b.get("sensitiveContent") is True, b)
 
-    print("\n[3] Ep nghi giua phien (welfare.max_continuous_minutes / break_minutes)")
-    nop(lab, t["assignmentId"], "a").raise_for_status()
-    # Gia lap da lam lien tuc 50 phut: doi lai moc cua luot vua nop.
-    sql("task", f"update assignments set leased_at = now() - interval '50 minutes', ended_at = now() - interval '1 minute' where labeler_id = '{lab['id']}' and project_id = '{P}'")
-    r = requests.post(G + f"/tasks/projects/{P}/next", headers=lab["h"])
-    kiem("lam lien tuc 50 phut → 429 can_nghi_giai_lao + Retry-After",
-         r.status_code == 429 and r.json().get("code") == "can_nghi_giai_lao" and int(r.headers.get("Retry-After", "0")) > 0 and r.json().get("retryAfterSeconds"), r.text)
-    sql("task", f"update assignments set leased_at = now() - interval '80 minutes', ended_at = now() - interval '30 minutes' where labeler_id = '{lab['id']}' and project_id = '{P}'")
-    r = requests.post(G + f"/tasks/projects/{P}/next", headers=lab["h"])
-    kiem("da nghi 30 phut → nhan task duoc", r.status_code == 200, r.text)
-    if r.status_code == 200:
-        requests.post(G + f"/tasks/assignments/{r.json()['assignmentId']}/skip", headers=lab["h"])
+    print("\n[3] Bo bai: tra suat, bat dau lai duoc bai moi")
+    r = requests.post(G + f"/tasks/attempts/{b['attemptId']}/abandon", headers=lab["h"])
+    kiem("bo bai → 200", r.status_code in (200, 204), r.text)
+    b2 = bat_dau(lab, P, 20)
+    kiem("bat dau lai → bai MOI", isinstance(b2, dict) and b2["attemptId"] != b["attemptId"], b2)
 
     print("\n[4] Roi du an bat ky luc nao")
     r = requests.post(G + f"/projects/{P}/leave", headers=lab["h"])
     kiem("labeler roi du an → 204", r.status_code == 204, r.text)
     kiem("khong con la thanh vien", lab["id"] not in thanh_vien(biz, P))
+    kiem("roi du an → bai dang lam bi huy",
+         cho(lambda: sql("task", f"select state from attempts where id='{b2['attemptId']}'") == "Cancelled", 20),
+         sql("task", f"select state from attempts where id='{b2['attemptId']}'"))
     kiem("vao lai duoc (da dong y tu truoc)", requests.post(G + f"/projects/{P}/join", headers=lab["h"]).status_code == 200)
 
     # =================================================================================

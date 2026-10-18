@@ -92,7 +92,7 @@ namespace Crowd.Ledger.Api.Services
 
             Dictionary<string, long> theoNguon = new Dictionary<string, long>(StringComparer.Ordinal)
             {
-                ["annotation"] = 0,
+                ["projectReward"] = 0,
                 ["gateClick"] = 0,
                 ["referral"] = 0,
             };
@@ -139,7 +139,7 @@ namespace Crowd.Ledger.Api.Services
 
             Dictionary<string, long> tong = theoLoai.ToDictionary(x => x.Loai, x => x.Tong, StringComparer.Ordinal);
             List<FundsHold> treo = await _db.Holds.AsNoTracking()
-                .Where(h => h.ProjectId == projectId && h.Kind == HoldKind.Annotation)
+                .Where(h => h.ProjectId == projectId && (h.Kind == HoldKind.ProjectReward || h.Kind == HoldKind.Annotation))
                 .ToListAsync(ct);
 
             return new ProjectCostResponse
@@ -148,13 +148,16 @@ namespace Crowd.Ledger.Api.Services
                 EscrowState = char.ToLowerInvariant(escrow.State.ToString()[0]) + escrow.State.ToString().Substring(1),
                 ReservedVnd = Lay(tong, JournalEntryType.EscrowReserve),
                 BalanceVnd = tong.Values.Sum(),
-                SpentAnnotationsVnd = -Lay(tong, JournalEntryType.AnnotationPayout),
+                // Du lieu cu (chi theo nhan) cong chung vao tien thuong.
+                SpentRewardsVnd = -(Lay(tong, JournalEntryType.RewardPayout) + Lay(tong, JournalEntryType.AnnotationPayout)
+                                    + Lay(tong, JournalEntryType.DisputeRefund)),
                 SpentGateVnd = -Lay(tong, JournalEntryType.GateClickPayout),
-                DisputeRefundsVnd = Lay(tong, JournalEntryType.DisputeRefund),
                 ReturnedVnd = -(Lay(tong, JournalEntryType.Refund) + Lay(tong, JournalEntryType.EscrowRelease)),
-                PaidAnnotations = treo.Count(h => h.State != HoldState.Refunded),
+                Slots = escrow.Slots,
+                RewardPerAttemptVnd = escrow.RewardVnd,
+                PlatformFeePerAttemptVnd = escrow.PlatformFeeVnd,
+                PaidAttempts = treo.Count(h => h.Kind == HoldKind.ProjectReward),
                 HeldVnd = treo.Where(h => h.State == HoldState.Held).Sum(h => h.AmountVnd),
-                DisputedVnd = treo.Where(h => h.State == HoldState.Disputed).Sum(h => h.AmountVnd),
             };
         }
 

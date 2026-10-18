@@ -8,6 +8,7 @@ using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
+using Crowd.Contracts.Tasking;
 using Crowd.Project.Api.Consumers;
 using Crowd.Project.Api.Exceptions;
 using Crowd.Project.Api.Helpers;
@@ -46,6 +47,12 @@ builder.Services.AddEventConsumer<ProjectDbContext, EscrowReserved, EscrowReserv
     builder.Configuration, "project-svc.escrow-reserved");
 builder.Services.AddEventConsumer<ProjectDbContext, EscrowRejected, EscrowRejectedProcessor>(
     builder.Configuration, "project-svc.escrow-rejected");
+
+// Du an lam trung tam (docs 3.18): task-svc dong thu bai → Dang cham; het han khieu nai → Hoan thanh.
+builder.Services.AddEventConsumer<ProjectDbContext, ProjectCollectionFinished, CollectionFinishedProcessor>(
+    builder.Configuration, "project-svc.collection-finished");
+builder.Services.AddEventConsumer<ProjectDbContext, ProjectSettled, ProjectSettledProcessor>(
+    builder.Configuration, "project-svc.project-settled");
 
 // Email vua xac thuc → nhan loi moi cho gui toi email do.
 builder.Services.AddEventConsumer<ProjectDbContext, UserEmailVerified, UserEmailVerifiedProcessor>(

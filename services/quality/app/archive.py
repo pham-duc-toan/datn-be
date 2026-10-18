@@ -1,7 +1,7 @@
 """Luu tru du an DA DONG: chup bao cao chat luong roi xoa du lieu chi dung khi du an dang chay.
 
-XOA: labels (nhan tho), consensus_rounds, task_targets, ds_state.
-GIU: label_agreements, gold_answers, ds_skills, project_metrics — uy tin labeler tinh TOAN CUC tu ba bang
+XOA: labels (nhan tho), attempts (bai nop), sample_majorities, consensus_rounds / task_targets (du lieu cu), ds_state.
+GIU: attempt_grades, label_agreements, gold_answers, ds_skills, project_metrics — uy tin labeler tinh TOAN CUC tu bon bang
      dau (processors.cap_nhat_uy_tin), xoa la doi diem cua nguoi ta; va chung nho (khong mang jsonb nhan).
 
 BA BUOC, dung giua chung thi vong sau chay tiep:
@@ -29,6 +29,8 @@ DU_AN_MOI_VONG = 20
 # (ten bang, khoa chinh de chon lo)
 BANG_XOA = [
     ("labels", "annotation_id"),
+    ("attempts", "attempt_id"),
+    ("sample_majorities", "project_id, sample_id"),
     ("consensus_rounds", "task_id, target"),
     ("task_targets", "task_id"),
     ("ds_state", "project_id"),

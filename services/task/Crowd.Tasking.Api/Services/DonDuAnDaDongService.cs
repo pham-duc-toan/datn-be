@@ -34,20 +34,20 @@ namespace Crowd.Tasking.Api.Services
         public const int KichThuocLo = 2000;
 
         private readonly TaskDbContext _db;
-        private readonly LeaseService _lease;
+        private readonly LamBaiService _lamBai;
         private readonly TimeProvider _clock;
         private readonly ILogger<DonDuAnDaDongService> _logger;
 
-        public DonDuAnDaDongService(TaskDbContext db, LeaseService lease, TimeProvider clock, ILogger<DonDuAnDaDongService> logger)
+        public DonDuAnDaDongService(TaskDbContext db, LamBaiService lamBai, TimeProvider clock, ILogger<DonDuAnDaDongService> logger)
         {
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
             }
 
-            if (lease == null)
+            if (lamBai == null)
             {
-                throw new ArgumentNullException(nameof(lease));
+                throw new ArgumentNullException(nameof(lamBai));
             }
 
             if (clock == null)
@@ -61,7 +61,7 @@ namespace Crowd.Tasking.Api.Services
             }
 
             _db = db;
-            _lease = lease;
+            _lamBai = lamBai;
             _clock = clock;
             _logger = logger;
         }
@@ -109,7 +109,7 @@ namespace Crowd.Tasking.Api.Services
                         PurgedAt = duAn.DataPurgedAt.Value,
                         PurgedNow = false,
                         DeletedTasks = 0,
-                        DeletedAssignments = 0,
+                        DeletedAnswers = 0,
                         DeletedReports = 0,
                         DeletedGoldSamples = 0,
                     };
@@ -117,21 +117,27 @@ namespace Crowd.Tasking.Api.Services
 
                 if (duAn.FinalProgressJson == null)
                 {
-                    ProgressResponse tienDo = await _lease.TinhTienDoAsync(projectId, ct);
+                    ProgressResponse tienDo = await _lamBai.TinhTienDoAsync(duAn, ct);
                     ProgressResponse banChup = new ProgressResponse
                     {
                         ProjectId = tienDo.ProjectId,
-                        TotalTasks = tienDo.TotalTasks,
-                        OpenTasks = tienDo.OpenTasks,
-                        CompletedTasks = tienDo.CompletedTasks,
-                        ExcludedTasks = tienDo.ExcludedTasks,
-                        ActiveLeases = tienDo.ActiveLeases,
-                        Submissions = tienDo.Submissions,
-                        RequiredSubmissions = tienDo.RequiredSubmissions,
-                        CancelledTasks = tienDo.CancelledTasks,
+                        Slots = tienDo.Slots,
+                        QuestionCount = tienDo.QuestionCount,
+                        InProgress = tienDo.InProgress,
+                        Submitted = tienDo.Submitted,
+                        Expired = tienDo.Expired,
+                        Cancelled = tienDo.Cancelled,
+                        Phase = tienDo.Phase,
+                        FinishReason = tienDo.FinishReason,
+                        Deadline = tienDo.Deadline,
+                        CollectionFinishedAt = tienDo.CollectionFinishedAt,
+                        GradedAt = tienDo.GradedAt,
+                        AppealDeadline = tienDo.AppealDeadline,
+                        SettledAt = tienDo.SettledAt,
+                        PassedCount = tienDo.PassedCount,
+                        OpenAppeals = tienDo.OpenAppeals,
 
-                        // Du an da dong: khong con toc do, khong con uoc tinh.
-                        SubmissionsLast24h = 0,
+                        // Du an da dong: khong con uoc tinh.
                         EstimatedCompletionAt = null,
                         FrozenAt = _clock.GetUtcNow(),
                     };
@@ -142,16 +148,16 @@ namespace Crowd.Tasking.Api.Services
                 await tx.CommitAsync(ct);
             }
 
-            // BUOC 2: xoa theo lo. Bao loi truoc (tro toi luot giu), roi luot giu + task cung lo, cuoi la cau vang.
+            // BUOC 2: xoa theo lo. Bao loi, cau tra loi cua cac bai (nhap / da nop — nhan da nop nam o
+            // annotation-svc), roi cau hoi, cuoi la cau vang. Bang attempts GIU NGUYEN: ket qua cham, khieu nai.
             int baoLoi = await XoaBaoLoiAsync(projectId, ct);
-            int luotGiu = 0;
+            int traLoi = await XoaCauTraLoiAsync(projectId, ct);
             int task = 0;
             while (true)
             {
-                int[] so = await XoaMotLoTaskAsync(projectId, ct);
-                luotGiu = luotGiu + so[0];
-                task = task + so[1];
-                if (so[1] < KichThuocLo)
+                int so = await XoaMotLoTaskAsync(projectId, ct);
+                task = task + so;
+                if (so < KichThuocLo)
                 {
                     break;
                 }
@@ -175,8 +181,8 @@ namespace Crowd.Tasking.Api.Services
             }
 
             _logger.LogInformation(
-                "Don du an da dong {ProjectId}: {Task} task, {LuotGiu} luot giu, {BaoLoi} bao loi, {CauVang} cau vang",
-                projectId, task, luotGiu, baoLoi, cauVang);
+                "Don du an da dong {ProjectId}: {Task} cau hoi, {TraLoi} cau tra loi, {BaoLoi} bao loi, {CauVang} cau vang",
+                projectId, task, traLoi, baoLoi, cauVang);
 
             return new PurgeResponse
             {
@@ -184,7 +190,7 @@ namespace Crowd.Tasking.Api.Services
                 PurgedAt = luc,
                 PurgedNow = true,
                 DeletedTasks = task,
-                DeletedAssignments = luotGiu,
+                DeletedAnswers = traLoi,
                 DeletedReports = baoLoi,
                 DeletedGoldSamples = cauVang,
             };
@@ -206,23 +212,29 @@ namespace Crowd.Tasking.Api.Services
             }
         }
 
-        /// <summary>
-        /// Mot lo: chon toi da KichThuocLo task cua du an, xoa luot giu cua chung roi xoa chung — trong MOT
-        /// transaction (hai cau cung nhin mot tap task nho ORDER BY id). Tra ve [so luot giu, so task].
-        /// </summary>
-        private async Task<int[]> XoaMotLoTaskAsync(Guid projectId, CancellationToken ct)
+        private async Task<int> XoaCauTraLoiAsync(Guid projectId, CancellationToken ct)
         {
-            using (IDbContextTransaction tx = await _db.Database.BeginTransactionAsync(ct))
+            int tong = 0;
+            while (true)
             {
-                int luotGiu = await _db.Database.ExecuteSqlInterpolatedAsync(
-                    $@"DELETE FROM assignments WHERE task_id IN (
-                           SELECT id FROM tasks WHERE project_id = {projectId} ORDER BY id LIMIT {KichThuocLo})", ct);
-                int task = await _db.Database.ExecuteSqlInterpolatedAsync(
-                    $@"DELETE FROM tasks WHERE id IN (
-                           SELECT id FROM tasks WHERE project_id = {projectId} ORDER BY id LIMIT {KichThuocLo})", ct);
-                await tx.CommitAsync(ct);
-                return new int[] { luotGiu, task };
+                int so = await _db.Database.ExecuteSqlInterpolatedAsync(
+                    $@"DELETE FROM attempt_answers WHERE ctid IN (
+                           SELECT x.ctid FROM attempt_answers x JOIN attempts a ON a.id = x.attempt_id
+                            WHERE a.project_id = {projectId} LIMIT {KichThuocLo})", ct);
+                tong = tong + so;
+                if (so < KichThuocLo)
+                {
+                    return tong;
+                }
             }
+        }
+
+        /// <summary>Mot lo cau hoi (toi da KichThuocLo) cua du an. Tra ve so cau da xoa.</summary>
+        private async Task<int> XoaMotLoTaskAsync(Guid projectId, CancellationToken ct)
+        {
+            return await _db.Database.ExecuteSqlInterpolatedAsync(
+                $@"DELETE FROM tasks WHERE id IN (
+                       SELECT id FROM tasks WHERE project_id = {projectId} ORDER BY id LIMIT {KichThuocLo})", ct);
         }
     }
 }

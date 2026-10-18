@@ -13,19 +13,20 @@ import e2e_cong_cu_helpers as h  # noqa: E402
 
 
 def lam(u, pid, payload):
-    t = nhan_task(u, pid, 20)
-    assert t is not None, "khong co task"
-    return requests.post(G + f"/tasks/assignments/{t['assignmentId']}/submit", headers=u["h"], json={"payload": payload})
+    """Lam ca bai (moi cau cung payload) va nop. Tra response nop."""
+    b = bat_dau(u, pid, 20)
+    assert isinstance(b, dict), "khong bat dau duoc bai"
+    for q in b["questions"]:
+        luu(u, b["attemptId"], q["sampleId"], payload).raise_for_status()
+    return nop_bai(u, b["attemptId"])
 
 
 def duyet_het(chu, pid, so):
-    ds_ = cho(lambda: ds_nhan(chu, pid) if len(ds_nhan(chu, pid)) >= so else None, 40)
-    for a in ds_ or []:
-        # 409 xung_dot_dong_thoi: consumer vua cap nhat nhan cung luc — client thu lai.
-        r = cho(lambda: (lambda x: x if x.status_code != 409 or "xung_dot_dong_thoi" not in x.text else None)(
-            requests.post(G + f"/annotations/{a['id']}/approve", headers=chu["h"])), 10)
-        assert r is not None, "approve van xung dot sau 10s"
-        r.raise_for_status()
+    """Du an lam trung tam: khong duyet tung nhan — dong thu bai (neu chua), doi cham, nhan bai dat vao ket qua."""
+    if requests.get(G + f"/projects/{pid}", headers=chu["h"]).json()["status"] == "running":
+        ket_thuc_som(chu, pid)
+    ok = cho(lambda: len(ds_nhan(chu, pid, "accepted")) >= so, 60)
+    assert ok, f"chua du {so} nhan vao ket qua: {[(a['status']) for a in ds_nhan(chu, pid)]}"
 
 
 def xuat(chu, pid, dd):
@@ -61,15 +62,17 @@ try:
                 "vung": [{"labelId": "mat_duong", "points": [[10 + dx, 100], [90 + dx, 100], [90 + dx, 140], [10 + dx, 140]]}],
                 "diem": [{"labelId": "mui", "x": 100 + dx, "y": 60}, {"labelId": "mat", "x": 90 + dx, "y": 40}]}
 
-    t0 = nhan_task(L[0], P, 20)
-    r = requests.post(G + f"/tasks/assignments/{t0['assignmentId']}/submit", headers=L[0]["h"], json={"payload": {**anh_nhan(15, 0),
-        "khung_thang": [{"labelId": "bien", "x": 10, "y": 10, "w": 20, "h": 20, "angle": 10}]}})
-    kiem("goc xoay tren cong cu KHONG rotatable → 400", r.status_code == 400 and "rotatable" in r.text, r.text)
-    r = requests.post(G + f"/tasks/assignments/{t0['assignmentId']}/submit", headers=L[0]["h"], json={"payload": {**anh_nhan(45, 0),
-        "khung": [{"labelId": "bien", "x": 150, "y": 50, "w": 80, "h": 30, "angle": 45}]}})
-    kiem("khung xoay co dinh ra ngoai anh → 400", r.status_code == 400 and "ngoai anh" in r.text, r.text)
-    r = requests.post(G + f"/tasks/assignments/{t0['assignmentId']}/submit", headers=L[0]["h"], json={"payload": anh_nhan(15, 0)})
-    kiem("khung xoay hop le → nop duoc", r.status_code == 200, r.text)
+    b0 = bat_dau(L[0], P, 20)
+    s0 = b0["questions"][0]["sampleId"]
+    luu(L[0], b0["attemptId"], s0, {**anh_nhan(15, 0), "khung_thang": [{"labelId": "bien", "x": 10, "y": 10, "w": 20, "h": 20, "angle": 10}]}).raise_for_status()
+    r = nop_bai(L[0], b0["attemptId"])
+    kiem("goc xoay tren cong cu KHONG rotatable → nop bai 400 (danh sach cau sai)", r.status_code == 400 and "bai_chua_hop_le" in r.text and "rotatable" in r.text, r.text)
+    luu(L[0], b0["attemptId"], s0, {**anh_nhan(45, 0), "khung": [{"labelId": "bien", "x": 150, "y": 50, "w": 80, "h": 30, "angle": 45}]}).raise_for_status()
+    r = nop_bai(L[0], b0["attemptId"])
+    kiem("khung xoay co dinh ra ngoai anh → nop bai 400", r.status_code == 400 and "ngoai anh" in r.text, r.text)
+    luu(L[0], b0["attemptId"], s0, anh_nhan(15, 0)).raise_for_status()
+    r = nop_bai(L[0], b0["attemptId"])
+    kiem("sua lai khung xoay hop le → nop duoc", r.status_code == 200, r.text)
     kiem("nguoi 2 nop", lam(L[1], P, anh_nhan(16, 1)).status_code == 200)
     kiem("nguoi 3 nop", lam(L[2], P, anh_nhan(14, -1)).status_code == 200)
     duyet_het(biz, P, 3)
@@ -146,7 +149,6 @@ try:
     kiem("mot: co dong o 0–2s va 4–6s, KHONG co dong trong doan an (2–4s)",
          r.status_code == 200 and khung and min(khung) == 1 and any(f <= 20 for f in khung) and not any(22 <= f <= 40 for f in khung) and any(f >= 42 for f in khung),
          (fps, khung[:5], khung[-5:]))
-    t = requests.post(G + f"/tasks/projects/{V}/next", headers=L[2]["h"])
 finally:
     for k, v in GOC.items():
         requests.put(G + f"/admin/settings/{k}", headers=admin, json={"value": v, "reason": "tra lai sau e2e"})

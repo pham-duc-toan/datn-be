@@ -752,10 +752,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("allow_professional");
 
-                    b.Property<long>("BudgetVnd")
-                        .HasColumnType("bigint")
-                        .HasColumnName("budget_vnd");
-
                     b.Property<DateTimeOffset?>("ClosedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("closed_at");
@@ -797,9 +793,21 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("files_purged_at");
 
-                    b.Property<int>("GoldCheckPercent")
-                        .HasColumnType("integer")
-                        .HasColumnName("gold_check_percent");
+                    b.Property<DateTimeOffset?>("FinishRequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("finish_requested_at");
+
+                    b.Property<long>("GateBudgetVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("gate_budget_vnd");
+
+                    b.Property<long>("GateUnitPriceVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("gate_unit_price_vnd");
+
+                    b.Property<DateTimeOffset?>("GradingStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("grading_started_at");
 
                     b.Property<string>("Guideline")
                         .HasColumnType("jsonb")
@@ -808,10 +816,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<string>("LabelSchema")
                         .HasColumnType("jsonb")
                         .HasColumnName("label_schema");
-
-                    b.Property<int>("MaxRedundancy")
-                        .HasColumnType("integer")
-                        .HasColumnName("max_redundancy");
 
                     b.Property<int?>("MinLevel")
                         .HasColumnType("integer")
@@ -854,6 +858,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
 
+                    b.Property<int>("PassThresholdPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("pass_threshold_percent");
+
                     b.Property<int>("PlatformFeePercent")
                         .HasColumnType("integer")
                         .HasColumnName("platform_fee_percent");
@@ -862,23 +870,23 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("published_at");
 
-                    b.Property<int>("Redundancy")
+                    b.Property<int>("QuestionCount")
                         .HasColumnType("integer")
-                        .HasColumnName("redundancy");
+                        .HasColumnName("question_count");
 
                     b.Property<bool>("RequireEntranceTest")
                         .HasColumnType("boolean")
                         .HasColumnName("require_entrance_test");
-
-                    b.Property<bool>("RequireReview")
-                        .HasColumnType("boolean")
-                        .HasColumnName("require_review");
 
                     b.Property<bool>("RequireVerifiedIdentity")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("require_verified_identity");
+
+                    b.Property<long>("RewardVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reward_vnd");
 
                     b.Property<uint>("RowVersion")
                         .IsConcurrencyToken()
@@ -891,6 +899,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("sensitive_content");
+
+                    b.Property<int>("Slots")
+                        .HasColumnType("integer")
+                        .HasColumnName("slots");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -906,10 +918,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("SubmittedForApprovalAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("submitted_for_approval_at");
-
-                    b.Property<long>("UnitPriceVnd")
-                        .HasColumnType("bigint")
-                        .HasColumnName("unit_price_vnd");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

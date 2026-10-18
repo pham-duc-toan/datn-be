@@ -92,18 +92,26 @@ try:
     requests.put(G + f"/projects/{pid}/label-schema", headers=biz, json={"modality": "text", "tools": [
         {"name": "cam_xuc", "kind": "classification", "classes": ["tich_cuc", "tieu_cuc"]}]}).raise_for_status()
     requests.put(G + f"/projects/{pid}/guideline", headers=biz, json={"markdown": "x", "examples": []}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/pricing", headers=biz, json={"unitPriceVnd": 1000, "redundancy": 2, "budgetVnd": 100000, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/quality-control", headers=biz, json={"goldCheckPercent": 0}).raise_for_status()
+    requests.put(G + f"/projects/{pid}/pricing", headers=biz, json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
+                                                                    "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
     rows = [{"text": "Hang dep, giao nhanh", "name": "a"}, {"text": "Chat luong te", "name": "b"}]
     requests.post(G + f"/projects/{pid}/datasets/manifest", headers=biz, json={"name": "lo", "rows": rows}).raise_for_status()
     cho(lambda: [d for d in requests.get(G + f"/projects/{pid}/datasets", headers=biz).json() if d["status"] == "ready"], 30)
     rd = requests.get(G + f"/projects/{pid}/readiness", headers=biz).json()
-    kiem("readiness: phi 20%, 200d/nhan, ky quy 2 x 2 x 1200 = 4.800",
-         rd["platformFeePercent"] == 20 and rd["platformFeePerLabelVnd"] == 200 and rd["estimatedCostVnd"] == 4800, rd)
+    kiem("readiness: phi 20%, 2.000d / bai dat, ky quy 3 suat x 12.000 = 36.000",
+         rd["platformFeePercent"] == 20 and rd["platformFeePerPassVnd"] == 2000 and rd["estimatedCostVnd"] == 36000, rd)
 
-    print("\n[3] Tu duyet du an (project.auto_approve) + tu duyet nhan khop dong thuan (annotation.auto_approve_agreed)")
+    print("\n[3] Tu duyet du an (project.auto_approve) + nguong dat x / y (project.pass_threshold_min / max)")
+    dat_va_cho("project.pass_threshold_min", 70)
+    r = requests.put(G + f"/projects/{pid}/pricing", headers=biz, json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
+                                                                      "deadline": "2027-12-31T00:00:00Z"})
+    rd = requests.get(G + f"/projects/{pid}/readiness", headers=biz).json()
+    kiem("x nang len 70% → t = 60% bi chan (luu hoac checklist)", r.status_code == 400 or "nguong_dat_ngoai_khoang" in rd["missing"], (r.status_code, rd))
+    kiem("readiness tra gioi han x = 70 moi", rd["limits"]["passThresholdMin"] == 70, rd["limits"])
+    requests.put(G + f"/projects/{pid}/pricing", headers=biz, json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 75,
+                                                                  "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
     dat_va_cho("project.auto_approve", True)
-    dat_va_cho("annotation.auto_approve_agreed", True, ("annotation",))
+    dat_va_cho("ledger.reward_hold", 0, ("ledger",))
     requests.post(G + f"/projects/{pid}/publish", headers=biz).raise_for_status()
     st = cho(lambda: requests.get(G + f"/projects/{pid}", headers=biz).json()["status"] == "running", 25)
     kiem("ky quy xong → du an CHAY ngay, khong qua hang doi admin", st, requests.get(G + f"/projects/{pid}", headers=biz).json()["status"])
@@ -111,30 +119,33 @@ try:
          sql("project", f"select platform_fee_percent from projects where id='{pid}'"))
     for k in lab:
         cho(lambda: requests.post(G + f"/projects/{pid}/join", headers=lab[k]).status_code in (200, 201, 204, 409), 10)
-    # Ca hai chon giong nhau → dong thuan agreed → he thong tu duyet.
+    # Hai bai (< 3) → chi xet cau vang; du an khong co cau vang → ca hai dat, nhan thuong NGAY (reward_hold = 0).
+    truoc = {k: requests.get(G + "/ledger/me/balance", headers=lab[k]).json()["availableVnd"] for k in lab}
     for k in lab:
-        for _ in range(10):
-            r = requests.post(G + f"/tasks/projects/{pid}/next", headers=lab[k])
-            if r.status_code == 403:
-                time.sleep(1); continue
-            if r.status_code == 204:
+        b = None
+        for _ in range(20):
+            r = requests.post(G + f"/tasks/projects/{pid}/attempt", headers=lab[k])
+            if r.status_code in (200, 201):
+                b = r.json()
                 break
-            t = r.json()
-            nhan = "tich_cuc" if "dep" in t["content"]["text"] else "tieu_cuc"
-            requests.post(G + f"/tasks/assignments/{t['assignmentId']}/submit", headers=lab[k],
-                          json={"payload": {"cam_xuc": {"labelIds": [nhan]}}}).raise_for_status()
-
-    def da_duyet_het():
-        ds = requests.get(G + f"/annotations/projects/{pid}?pageSize=50", headers=biz).json()["items"]
-        return ds if len(ds) == 4 and all(a["status"] == "approved" for a in ds) else None
-
-    ds = cho(da_duyet_het, 30)
-    kiem("4 nhan khop dong thuan duoc HE THONG duyet (khong ai bam)", ds is not None,
-         [(a["status"], a["consensusAgrees"]) for a in requests.get(G + f"/annotations/projects/{pid}?pageSize=50", headers=biz).json()["items"]])
-    kiem("nhan tu duyet khong co reviewer, lich su 'auto_approved'",
-         sql("annotation", f"select count(*) from annotations where project_id='{pid}' and reviewer_id is null and status='Approved'") == "4", "")
-    het = cho(lambda: sql("ledger", f"select count(*) from holds where project_id='{pid}'") == "4", 20)
-    kiem("ledger treo thu lao 4 luot (annotation.approved da phat)", het, sql("ledger", f"select count(*) from holds where project_id='{pid}'"))
+            time.sleep(1)
+        for q in b["questions"]:
+            nhan = "tich_cuc" if "dep" in q["content"]["text"] else "tieu_cuc"
+            requests.put(G + f"/tasks/attempts/{b['attemptId']}/answers/{q['sampleId']}", headers=lab[k],
+                         json={"data": {"cam_xuc": {"labelIds": [nhan]}}}).raise_for_status()
+        requests.post(G + f"/tasks/attempts/{b['attemptId']}/submit", headers=lab[k]).raise_for_status()
+    requests.post(G + f"/projects/{pid}/finish", headers=biz).raise_for_status()
+    ok = cho(lambda: all(requests.get(G + "/ledger/me/balance", headers=lab[k]).json()["availableVnd"] == truoc[k] + 10000 for k in lab), 60)
+    kiem("2 bai dat → moi labeler +10.000 kha dung ngay (reward_hold = 0)", ok,
+         {k: requests.get(G + "/ledger/me/balance", headers=lab[k]).json() for k in lab})
+    kiem("ledger 2 khoan thuong bai dat, da giai phong",
+         sql("ledger", f"select count(*) from holds where project_id='{pid}' and kind='ProjectReward' and state='Released'") == "2",
+         sql("ledger", f"select kind, state from holds where project_id='{pid}'"))
+    kiem("phi chot 20% → nen tang thu 2 x 2.000",
+         sql("ledger", f"select coalesce(sum(l.amount),0) from journal_lines l join journal_entries e on e.id=l.entry_id "
+                       f"where e.type='RewardPayout' and e.reference like 'attempt:%' and l.account_code='platform:fee' "
+                       f"and e.id in (select l2.entry_id from journal_lines l2 where l2.account_code='escrow:project:{pid}')") == "4000",
+         "")
 
     print("\n[4] Gioi han dong: ten du an, so file upload, mat khau")
     dat_va_cho("project.name_max_length", 10)

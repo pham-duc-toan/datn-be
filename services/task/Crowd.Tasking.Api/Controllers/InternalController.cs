@@ -15,9 +15,9 @@ namespace Crowd.Tasking.Api.Controllers
     [InternalApi]
     public sealed class InternalController : ControllerBase
     {
-        private readonly LeaseService _service;
+        private readonly LamBaiService _service;
 
-        public InternalController(LeaseService service)
+        public InternalController(LamBaiService service)
         {
             if (service == null)
             {
@@ -27,7 +27,7 @@ namespace Crowd.Tasking.Api.Controllers
             _service = service;
         }
 
-        /// <summary>GET /internal/projects/{id}/close-check — project-svc hoi truoc khi dong du an.</summary>
+        /// <summary>GET /internal/projects/{id}/close-check — project-svc hoi truoc khi HUY du an.</summary>
         [HttpGet("projects/{projectId:guid}/close-check")]
         public async Task<IActionResult> KiemDong(Guid projectId, CancellationToken ct)
         {

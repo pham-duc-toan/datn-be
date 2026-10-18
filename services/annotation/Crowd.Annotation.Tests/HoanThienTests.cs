@@ -59,32 +59,6 @@ namespace Crowd.Annotation.Tests
         }
     }
 
-    public sealed class TranhChapNhanTests
-    {
-        private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 12, 8, 0, 0, TimeSpan.Zero);
-
-        private static LabelAnnotation NhanDaDuyet()
-        {
-            LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
-                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-                LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null), Luc);
-            a.Duyet(Guid.NewGuid(), Luc.AddHours(1));
-            return a;
-        }
-
-        [Fact]
-        public void Thua_tranh_chap_thi_bi_loai_va_khong_khieu_nai_duoc()
-        {
-            LabelAnnotation a = NhanDaDuyet();
-
-            Assert.True(a.LoaiDoTranhChap("Gan sai", Luc.AddHours(2)));
-            Assert.Equal(AnnotationStatus.Rejected, a.Status);
-            Assert.True(a.LaTuChoiCuoiCung());
-            Assert.False(a.ConKhieuNaiDuoc(Luc.AddHours(3), TimeSpan.FromDays(7)));
-            Assert.False(a.LoaiDoTranhChap("lan hai", Luc.AddHours(4)));
-        }
-    }
-
     public sealed class KhungAnhExporterTests
     {
         private static readonly LabelSchema TapNhan = ResultAggregatorTests.TapNhan;

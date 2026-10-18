@@ -5,7 +5,7 @@ namespace Crowd.Admin.Api.Entities
     /// <summary>
     /// Mot muc trong HANG DOI DUYET CHUNG (kien truc muc 5): read model do admin-svc dung tu event cua cac
     /// service chu. Moi service van giu bang trang thai cua loai don no so huu (business_profiles,
-    /// identity_verifications, projects, withdrawals, annotations, disputes, links) va API duyet cua no;
+    /// identity_verifications, projects, withdrawals, attempts, links, referrals) va API duyet cua no;
     /// bang nay chi de admin co MOT man hinh: cai gi dang cho, cho tu bao gio, ai xin, bao nhieu tien.
     /// Khoa duy nhat (Kind, SubjectId): nop lai sau khi bi tu choi = mo lai cung dong.
     /// Ghi bang SQL trong HangDoiDuyet (khong qua EF) — entity nay chi de doc.
@@ -20,10 +20,10 @@ namespace Crowd.Admin.Api.Entities
 
         public Guid Id { get; private set; }
 
-        /// <summary>kyb | identity | project | withdrawal | appeal | dispute | link</summary>
+        /// <summary>kyb | identity | project | withdrawal | appeal | link | referral</summary>
         public string Kind { get; private set; }
 
-        /// <summary>Id ban ghi o service chu (businessId, userId, projectId, withdrawalId, annotationId, disputeId, linkId).</summary>
+        /// <summary>Id ban ghi o service chu (businessId, userId, projectId, withdrawalId, attemptId, linkId, referredId).</summary>
         public Guid SubjectId { get; private set; }
 
         /// <summary>waiting (du an cho ky quy) | pending | approved | rejected | cancelled | resolved</summary>

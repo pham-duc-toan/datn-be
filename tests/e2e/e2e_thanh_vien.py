@@ -265,7 +265,7 @@ try:
     kiem("labeler xem hang doi → 403", requests.get(G + f"/projects/{P4}/join-requests", headers=L["l1"]["h"]).status_code == 403)
     mine = requests.get(G + "/projects/join-requests/mine", headers=L["l1"]["h"]).json()
     kiem("don cua toi co ten du an", any(x["id"] == d1["id"] and ten_p4 in x["projectName"] for x in mine), mine)
-    kiem("chua duoc duyet → next 403", requests.post(G + f"/tasks/projects/{P4}/next", headers=L["l1"]["h"]).status_code == 403)
+    kiem("chua duoc duyet → bat dau bai 403", requests.post(G + f"/tasks/projects/{P4}/attempt", headers=L["l1"]["h"]).status_code == 403)
 
     r = requests.post(G + f"/projects/{P4}/join-requests/{d1['id']}/approve", headers=biz["h"])
     kiem("duyet → approved", r.status_code == 200 and r.json()["status"] == "approved", r.text)

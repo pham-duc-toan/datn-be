@@ -6,7 +6,7 @@ using Crowd.Tasking.Domain.Projects;
 namespace Crowd.Tasking.Domain.Eligibility
 {
     /// <summary>
-    /// "Labeler nay co duoc nhan task cua du an nay khong" — MOT ham thuan, test
+    /// "Labeler nay co duoc lam bai (bat dau / nop) cua du an nay khong" — MOT ham thuan, test
     /// duoc khong can database.
     ///
     /// FAIL-SAFE VE PHIA TU CHOI (VD-D-04): ban sao co the TRE hoac THIEU. Thieu
@@ -39,6 +39,11 @@ namespace Crowd.Tasking.Domain.Eligibility
             if (duAn.Deadline.HasValue && duAn.Deadline.Value <= luc)
             {
                 return "da_qua_deadline";
+            }
+
+            if (duAn.CollectionFinishedAt.HasValue)
+            {
+                return "du_an_da_dong_thu_bai";
             }
 
             if (!duAn.AllowProfessional)

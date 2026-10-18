@@ -1,6 +1,8 @@
 # NC-B-01 — Đặc tả hình thức bất biến tiền bằng TLA+
 
 > Thí nghiệm cho mục **NC-B-01** ([sổ vấn đề](../van-de-can-giai-quyet.md)). Đặc tả: [spec/tla/TienVaDongDuAn.tla](../../spec/tla/TienVaDongDuAn.tla). Chạy: `python spec/tla/chay_tlc.py` (cần Java 11+, tự tải `tla2tools.jar` v1.7.4). CI chạy lại mỗi lần push (job `tla`).
+>
+> **Phạm vi sau đợt dự án làm trung tâm ([kiến trúc 3.18](../kien-truc-backend.md#318-dự-án-làm-trung-tâm-làm-cả-bài-chấm-một-lần-trả-thưởng-theo-bài)):** đặc tả mô hình hoá luồng cũ (nhãn được duyệt → chi tiền). Luồng mới giữ nguyên cơ chế ký quỹ `Closing` mà TLA+ tìm ra, chỉ đổi đơn vị: `project.completed` mang **số bài đạt** và ledger trả đủ số bài đó (từ `project.graded` / `attempt.appeal_resolved`, có thể tới trễ) rồi mới hoàn phần còn lại. Chưa viết lại đặc tả cho luồng mới.
 
 ## 1. Câu hỏi
 

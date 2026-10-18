@@ -7,7 +7,7 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
-using Crowd.Contracts.Annotation;
+using Crowd.Contracts.Tasking;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
 using Crowd.Contracts.Quality;
@@ -108,12 +108,12 @@ namespace Crowd.Identity.Api
             builder.Services.AddExceptionHandler<ApiExceptionHandler>();
             builder.Services.AddCrowdInternalApi(builder.Configuration);
 
-            // Event identity nghe: so lieu cap do (annotation.approved, reputation.changed, dispute.resolved),
+            // Event identity nghe: so lieu cap do (project.graded, attempt.appeal_resolved, reputation.changed),
             // khoa tai khoan khi admin xac nhan gian lan (fraud.case_confirmed).
             IConfiguration cfg = builder.Configuration;
-            builder.Services.AddEventConsumer<IdentityDbContext, AnnotationApproved, AnnotationApprovedProcessor>(cfg, "identity-svc.annotation-approved");
+            builder.Services.AddEventConsumer<IdentityDbContext, ProjectGraded, ProjectGradedProcessor>(cfg, "identity-svc.project-graded");
+            builder.Services.AddEventConsumer<IdentityDbContext, AttemptAppealResolved, AttemptAppealResolvedProcessor>(cfg, "identity-svc.attempt-appeal-resolved");
             builder.Services.AddEventConsumer<IdentityDbContext, ReputationChanged, ReputationChangedProcessor>(cfg, "identity-svc.reputation-changed");
-            builder.Services.AddEventConsumer<IdentityDbContext, DisputeResolved, DisputeResolvedProcessor>(cfg, "identity-svc.dispute-resolved");
             builder.Services.AddEventConsumer<IdentityDbContext, FraudCaseConfirmed, FraudCaseConfirmedProcessor>(cfg, "identity-svc.fraud-case-confirmed");
             builder.Services.AddScoped<IdentitySeeder>();
 

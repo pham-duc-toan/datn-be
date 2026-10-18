@@ -45,10 +45,7 @@ namespace Crowd.BuildingBlocks.Settings
         public const string ProjectAutoApprove = "project.auto_approve";
         public const string ProjectApprovalTimeout = "project.approval_timeout";
         public const string ProjectApprovalScanInterval = "project.approval_scan_interval";
-        public const string ProjectRedundancyMax = "project.redundancy_max";
-        public const string ProjectGoldCheckPercentDefault = "project.gold_check_percent_default";
         public const string ProjectClosedDataRetention = "project.closed_data_retention";
-        public const string ProjectGoldCheckPercentMax = "project.gold_check_percent_max";
         public const string ProjectEntranceQuestionDefault = "project.entrance_question_default";
         public const string ProjectEntrancePassPercentDefault = "project.entrance_pass_percent_default";
         public const string ProjectEntranceQuestionMax = "project.entrance_question_max";
@@ -63,13 +60,22 @@ namespace Crowd.BuildingBlocks.Settings
         public const string ProjectMemberBatchMax = "project.member_batch_max";
         public const string ProjectInviteCodeMaxTtl = "project.invite_code_max_ttl";
         public const string ProjectJoinRequestCooldown = "project.join_request_cooldown";
-        public const string ProjectMinUnitPriceVnd = "project.min_unit_price_vnd";
         public const string ProjectJoinRequestTtl = "project.join_request_ttl";
         public const string ProjectInvitationTtl = "project.invitation_ttl";
         public const string ProjectEmailInviteDailyMax = "project.email_invite_daily_max";
         public const string ProjectHousekeepingInterval = "project.housekeeping_interval";
-        public const string WelfareMaxContinuousMinutes = "welfare.max_continuous_minutes";
-        public const string WelfareBreakMinutes = "welfare.break_minutes";
+
+        // ---- Du an lam trung tam: cham ca bai khi du an ket thuc ----
+        public const string ProjectPassThresholdMin = "project.pass_threshold_min";
+        public const string ProjectPassThresholdMax = "project.pass_threshold_max";
+        public const string ProjectMaxQuestions = "project.max_questions";
+        public const string ProjectMinSlots = "project.min_slots";
+        public const string ProjectMaxSlots = "project.max_slots";
+        public const string ProjectMinRewardVnd = "project.min_reward_vnd";
+        public const string TaskAttemptDuration = "task.attempt_duration";
+        public const string TaskAttemptMaxBytes = "task.attempt_max_bytes";
+        public const string TaskAppealWindow = "task.appeal_window";
+        public const string LedgerRewardHold = "ledger.reward_hold";
 
         // ---- Du lieu va file ----
         public const string DatasetZipMaxBytes = "dataset.zip_max_bytes";
@@ -96,19 +102,11 @@ namespace Crowd.BuildingBlocks.Settings
         public const string MediaFfprobeTimeout = "media.ffprobe_timeout";
 
         // ---- Gan nhan, duyet ----
-        public const string TaskLeaseDuration = "task.lease_duration";
         public const string TaskReaperInterval = "task.reaper_interval";
         public const string TaskReportAutoExclude = "task.report_auto_exclude";
         public const string TaskReaperBatchSize = "task.reaper_batch_size";
-        public const string TaskLeaseRetryCount = "task.lease_retry_count";
-        public const string TaskLeaseRetryDelay = "task.lease_retry_delay";
-        public const string TaskLeaseCandidateWindow = "task.lease_candidate_window";
-        public const string AnnotationAppealWindow = "annotation.appeal_window";
-        public const string AnnotationReasonMaxLength = "annotation.reason_max_length";
-        public const string AnnotationBulkApproveMax = "annotation.bulk_approve_max";
         public const string AnnotationImbalanceThresholdPercent = "annotation.imbalance_threshold_percent";
         public const string AnnotationImbalanceMinLabels = "annotation.imbalance_min_labels";
-        public const string AnnotationAutoApproveAgreed = "annotation.auto_approve_agreed";
         public const string AnnotationHistoryRetention = "annotation.history_retention";
         public const string AnnotationHistoryCleanupInterval = "annotation.history_cleanup_interval";
 
@@ -118,7 +116,6 @@ namespace Crowd.BuildingBlocks.Settings
         public const string QualityFraudMinSeconds = "quality.fraud_min_seconds";
         public const string QualityFraudFastRatio = "quality.fraud_fast_ratio";
         public const string QualityFraudFastWindow = "quality.fraud_fast_window";
-        public const string QualityFraudFastFraction = "quality.fraud_fast_fraction";
         public const string QualityFraudSameLabelStreak = "quality.fraud_same_label_streak";
         public const string QualityFraudSharedAccounts = "quality.fraud_shared_accounts";
         public const string QualityFraudSharedWindow = "quality.fraud_shared_window";
@@ -129,9 +126,6 @@ namespace Crowd.BuildingBlocks.Settings
         public const string QualityReputationGoldWeight = "quality.reputation_gold_weight";
         public const string QualityReputationPrior = "quality.reputation_prior";
         public const string QualityReputationPriorStrength = "quality.reputation_prior_strength";
-        public const string QualityRedundancyPolicy = "quality.redundancy_policy";
-        public const string QualityPosteriorTarget = "quality.posterior_target";
-        public const string QualityVoiValueRatio = "quality.voi_value_ratio";
         public const string LabelingThresholdBbox = "labeling.threshold.bbox";
         public const string LabelingThresholdPolygon = "labeling.threshold.polygon";
         public const string LabelingThresholdSpan = "labeling.threshold.span";
@@ -247,7 +241,6 @@ namespace Crowd.BuildingBlocks.Settings
         private const string NhomThongBao = "Thong bao";
         private const string NhomCongLink = "Cong link";
 
-        private static readonly string[] ChinhSachRedundancy = new string[] { "majority", "posterior", "voi" };
 
         private static readonly string[] CheDoChiCongLink = new string[] { "perClick", "batched" };
         private const string NhomKyThuat = "Ky thuat";
@@ -259,6 +252,11 @@ namespace Crowd.BuildingBlocks.Settings
         /// rut, tranh chap, setting...). Lich su tung nhan da co o annotation_history, tien o so cai.
         /// </summary>
         public const string AuditLoaiTruMacDinh =
+            "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,dataset.ingested,"
+            + "attempt.submitted,reputation.changed,funds.held,hold.expired,gate.budget_changed";
+
+        /// <summary>Mac dinh tu 2026-10-13 toi truoc du an lam trung tam (3.18) — migration admin nang len mac dinh moi neu admin chua sua.</summary>
+        public const string AuditLoaiTruMacDinh1013 =
             "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,dataset.ingested,"
             + "assignment.submitted,annotation.submitted,annotation.approved,annotation.rejected,"
             + "task.redundancy_reached,task.redundancy_changed,gold.answered,consensus.reached,"
@@ -335,6 +333,8 @@ namespace Crowd.BuildingBlocks.Settings
                 "Chu ky worker doi soat lenh nap treo."));
             ds.Add(Int(SettingKeys.PaymentDepositReconcileBatch, NhomKyThuat, 50, 1, 1000, "lenh",
                 "So lenh nap treo hoi nguoc cong moi lan doi soat."));
+            ds.Add(Seconds(SettingKeys.LedgerRewardHold, NhomTien, 0, 0, 90 * Ngay,
+                "Tien thuong du an cua labeler dat treo bao lau truoc khi rut duoc. 0 = kha dung ngay khi du an cham xong."));
             ds.Add(Seconds(SettingKeys.LedgerHoldDuration, NhomTien, 3 * Ngay, 0, 90 * Ngay,
                 "Tien cong vua duyet bi TREO bao lau truoc khi labeler rut duoc (de xu ly khieu nai, gian lan)."));
             ds.Add(Seconds(SettingKeys.LedgerHoldReleaseInterval, NhomKyThuat, 60, 5, 3600,
@@ -373,18 +373,12 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Long(SettingKeys.PaymentManualTransferAutoApproveMaxVnd, NhomDuyet, 0, 0, 1e12, "dong",
                 "Lenh nap chuyen khoan thu cong KHONG vuot so nay duoc tu xac nhan khi doanh nghiep bao da chuyen. "
                 + "0 = luon cho admin. CANH BAO: tu xac nhan la cong tien ma chua ai doi chieu sao ke."));
-            ds.Add(Bool(SettingKeys.AnnotationAutoApproveAgreed, NhomDuyet, false,
-                "Bat: nhan khop ket qua dong thuan duoc tu duyet va tra tien; nhan lech van cho nguoi duyet."));
 
             // ================= DU AN =================
             ds.Add(Seconds(SettingKeys.ProjectApprovalTimeout, NhomDuAn, 72 * 3600, 3600, 30 * Ngay,
                 "Du an cho admin duyet qua lau thi tu huy va hoan ky quy."));
             ds.Add(Seconds(SettingKeys.ProjectApprovalScanInterval, NhomKyThuat, 10 * 60, 10, Ngay,
                 "Chu ky quet du an cho duyet qua han."));
-            ds.Add(Int(SettingKeys.ProjectRedundancyMax, NhomDuAn, 10, 1, 50, "nguoi",
-                "So nguoi gan / tran redundancy toi da doanh nghiep duoc dat cho moi mau."));
-            ds.Add(Long(SettingKeys.ProjectMinUnitPriceVnd, NhomDuAn, 100, 0, 1e9, "dong",
-                "Don gia toi thieu moi nhan (FM-04) — chan doanh nghiep tra cong qua re. Ap khi cau hinh gia VA khi publish (nang muc thi du an nhap gia cu phai sua). 0 = khong gioi han."));
             ds.Add(Seconds(SettingKeys.ProjectJoinRequestTtl, NhomDuAn, 14 * Ngay, Ngay, 180 * Ngay,
                 "Don xin tham gia chu du an khong duyet qua thoi gian nay thi tu het han (labeler gui lai duoc ngay)."));
             ds.Add(Seconds(SettingKeys.ProjectInvitationTtl, NhomDuAn, 14 * Ngay, Ngay, 180 * Ngay,
@@ -393,20 +387,24 @@ namespace Crowd.BuildingBlocks.Settings
                 "So email toi da mot nguoi duoc moi vao du an trong 24 gio (VD-S-16) — chan dung o moi de do danh sach email. Vuot → 429."));
             ds.Add(Seconds(SettingKeys.ProjectHousekeepingInterval, NhomKyThuat, 10 * 60, 10, Ngay,
                 "Chu ky worker don don xin tham gia / loi moi qua han."));
+            ds.Add(Int(SettingKeys.ProjectPassThresholdMin, NhomDuAn, 60, 1, 100, "%",
+                "x — NGUONG DUOI doanh nghiep duoc chon cho ti le cau giong da so (t). Labeler chi duoc thuong khi ti le cau tra loi giong da so >= t va khong sai cau vang nao."));
+            ds.Add(Int(SettingKeys.ProjectPassThresholdMax, NhomDuAn, 95, 1, 100, "%",
+                "y — NGUONG TREN doanh nghiep duoc chon cho t (x <= t <= y)."));
+            ds.Add(Int(SettingKeys.ProjectMaxQuestions, NhomDuAn, 500, 1, 10000, "cau",
+                "So cau (mau du lieu, khong tinh cau vang) toi da cua mot du an — moi labeler lam HET cac cau trong mot bai. Du lieu lon hon thi tach thanh nhieu du an."));
+            ds.Add(Int(SettingKeys.ProjectMinSlots, NhomDuAn, 3, 1, 100, "nguoi",
+                "So suat (so nguoi lam bai) toi thieu cua mot du an. Can >= 3 de 'da so' co nghia."));
+            ds.Add(Int(SettingKeys.ProjectMaxSlots, NhomDuAn, 50, 1, 1000, "nguoi",
+                "So suat toi da cua mot du an."));
+            ds.Add(Long(SettingKeys.ProjectMinRewardVnd, NhomDuAn, 10000, 0, 1e10, "dong",
+                "Tien thuong toi thieu cho MOT nguoi lam dat ca du an (FM-04). 0 = khong gioi han."));
             ds.Add(Seconds(SettingKeys.AnnotationHistoryRetention, NhomGanNhan, 365 * Ngay, 0, 3650 * Ngay,
                 "Han giu nhat ky vong doi nhan (annotation_history): dong cu hon bi xoa, tru dong moi nhat cua moi nhan. 0 = khong bao gio xoa."));
             ds.Add(Seconds(SettingKeys.AnnotationHistoryCleanupInterval, NhomKyThuat, 3600, 10, Ngay,
                 "Chu ky worker don annotation_history."));
-            ds.Add(Int(SettingKeys.WelfareMaxContinuousMinutes, NhomGanNhan, 45, 5, 480, "phut",
-                "Du an noi dung nhay cam (muc 2.9): lam lien tuc toi da bay nhieu phut thi bi ep nghi."));
-            ds.Add(Int(SettingKeys.WelfareBreakMinutes, NhomGanNhan, 10, 1, 240, "phut",
-                "Thoi gian nghi bat buoc sau mot phien lam du an nhay cam; nghi it hon so nay giua hai task thi tinh la lam lien tuc."));
-            ds.Add(Int(SettingKeys.ProjectGoldCheckPercentDefault, NhomDuAn, 10, 0, 100, "%",
-                "Ti le cau vang kiem tra mac dinh cua du an moi tao."));
             ds.Add(Seconds(SettingKeys.ProjectClosedDataRetention, NhomDuAn, 90 * Ngay, 0, 3650 * Ngay,
                 "Du an da dong (hoan thanh / huy) bao lau thi xoa du lieu VAN HANH cua no: task, luot giu, bao loi (task-svc); nhan tho va vong dong thuan (quality-svc). Truoc khi xoa, tien do va bao cao chat luong duoc chup lai nen van xem duoc. Nhan da nop / da duyet, ket qua, so cai, mau du lieu va uy tin labeler KHONG bi xoa. 0 = khong bao gio xoa."));
-            ds.Add(Int(SettingKeys.ProjectGoldCheckPercentMax, NhomDuAn, 50, 0, 100, "%",
-                "Ti le cau vang kiem tra toi da doanh nghiep duoc dat."));
             ds.Add(Int(SettingKeys.ProjectEntranceQuestionDefault, NhomDuAn, 10, 1, 500, "cau",
                 "So cau bai test dau vao mac dinh cua du an moi tao."));
             ds.Add(Int(SettingKeys.ProjectEntrancePassPercentDefault, NhomDuAn, 80, 1, 100, "%",
@@ -466,24 +464,16 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Seconds(SettingKeys.MediaFfprobeTimeout, NhomKyThuat, 60, 1, 3600, "Thoi gian toi da cho mot lan ffprobe do file."));
 
             // ================= GAN NHAN VA DUYET =================
-            ds.Add(Seconds(SettingKeys.TaskLeaseDuration, NhomGanNhan, 15 * 60, 30, Ngay,
-                "Labeler giu mot task bao lau; qua han task ve hang doi cho nguoi khac."));
+            ds.Add(Seconds(SettingKeys.TaskAttemptDuration, NhomGanNhan, 48 * 3600, 600, 30 * Ngay,
+                "Labeler giu mot suat lam bai bao lau ke tu luc bat dau (khong qua han chot du an). Het han chua nop thi mat suat, nguoi khac vao lam."));
+            ds.Add(Long(SettingKeys.TaskAttemptMaxBytes, NhomKyThuat, 8 * 1024 * 1024, 64 * 1024, 64 * 1024 * 1024, "byte",
+                "Kich thuoc toi da toan bo cau tra loi cua mot bai lam (moi cau van gioi han 256 KB)."));
+            ds.Add(Seconds(SettingKeys.TaskAppealWindow, NhomGanNhan, 3 * Ngay, 0, 90 * Ngay,
+                "Sau khi cham, labeler TRUOT duoc khieu nai ket qua ca bai trong bao lau. Ky quy con lai chi hoan doanh nghiep khi het han nay va khong con khieu nai mo."));
             ds.Add(Seconds(SettingKeys.TaskReaperInterval, NhomKyThuat, 30, 1, 3600, "Chu ky quet lease qua han."));
             ds.Add(Int(SettingKeys.TaskReportAutoExclude, NhomDuAn, 3, 1, 100, "nguoi",
                 "Bao nhieu labeler khac nhau bao loi cung mot mau thi tu loai mau do khoi du an (FL-07)."));
             ds.Add(Int(SettingKeys.TaskReaperBatchSize, NhomKyThuat, 200, 1, 10000, "lease", "So lease qua han reaper khoa va tra ve pool moi lo."));
-            ds.Add(Int(SettingKeys.TaskLeaseRetryCount, NhomKyThuat, 5, 0, 100, "lan",
-                "So lan thu lai khi khong khoa duoc task nao trong luc van con ung vien."));
-            ds.Add(Seconds(SettingKeys.TaskLeaseRetryDelay, NhomKyThuat, 0.04, 0, 5, "Cho giua hai lan thu khoa task."));
-            ds.Add(Int(SettingKeys.TaskLeaseCandidateWindow, NhomGanNhan, 32, 1, 1000, "task",
-                "Cap task NGAU NHIEN trong N task con cho cu nhat (1 = dung thu tu, task cu truoc). "
-                + "Labeler bam cung luc it roi vao cung mot task; chi phi lay task tang theo N."));
-            ds.Add(Seconds(SettingKeys.AnnotationAppealWindow, NhomGanNhan, 7 * Ngay, 0, 365 * Ngay,
-                "Labeler duoc khieu nai trong bao lau ke tu khi nhan bi tu choi."));
-            ds.Add(Int(SettingKeys.AnnotationReasonMaxLength, NhomGanNhan, 1000, 10, 1000, "ky tu",
-                "Do dai ly do tu choi / khieu nai (cot DB toi da 1000)."));
-            ds.Add(Int(SettingKeys.AnnotationBulkApproveMax, NhomGanNhan, 500, 1, 100000, "nhan",
-                "So nhan toi da moi lan duyet hang loat."));
             ds.Add(Int(SettingKeys.AnnotationImbalanceThresholdPercent, NhomGanNhan, 80, 50, 99, "%",
                 "Canh bao lech phan bo (FB-24) khi mot lop chiem tren bay nhieu phan tram so nhan cua cong cu."));
             ds.Add(Int(SettingKeys.AnnotationImbalanceMinLabels, NhomGanNhan, 20, 1, 100000, "nhan",
@@ -495,15 +485,13 @@ namespace Crowd.BuildingBlocks.Settings
             // Chong gian lan (FM-07) — quality-svc mo ho so nghi van, admin quyet dinh.
             ds.Add(Bool(SettingKeys.QualityFraudEnabled, NhomChatLuong, true, "Bat phat hien gian lan (tat thi khong mo ho so moi)."));
             ds.Add(Double(SettingKeys.QualityFraudMinSeconds, NhomChatLuong, 2, 0, 600, "giay",
-                "Lam mot task duoi bay nhieu giay luon bi coi la qua nhanh."));
+                "Trung binh moi cau duoi bay nhieu giay luon bi coi la lam qua nhanh."));
             ds.Add(Double(SettingKeys.QualityFraudFastRatio, NhomChatLuong, 0.25, 0, 1, "lan",
-                "Hoac nhanh hon ti le nay nhan voi thoi gian trung vi cua du an."));
-            ds.Add(Int(SettingKeys.QualityFraudFastWindow, NhomChatLuong, 20, 3, 1000, "luot",
-                "So luot nop gan nhat cua labeler trong du an de xet lam qua nhanh."));
-            ds.Add(Double(SettingKeys.QualityFraudFastFraction, NhomChatLuong, 0.5, 0.1, 1, "ti le",
-                "Ti le luot qua nhanh trong cua so tren de mo ho so."));
-            ds.Add(Int(SettingKeys.QualityFraudSameLabelStreak, NhomChatLuong, 30, 3, 10000, "luot",
-                "Chon cung mot lop bay nhieu luot lien tiep (trong khi nguoi khac chon da dang) thi mo ho so."));
+                "Hoac nhanh hon ti le nay nhan voi so giay moi cau trung vi cua cac bai khac trong du an."));
+            ds.Add(Int(SettingKeys.QualityFraudFastWindow, NhomChatLuong, 20, 3, 1000, "cau",
+                "Bai nop co it nhat bay nhieu cau da tra loi moi xet lam qua nhanh (it cau qua thi so giay khong dang tin)."));
+            ds.Add(Int(SettingKeys.QualityFraudSameLabelStreak, NhomChatLuong, 30, 3, 10000, "cau",
+                "Trong mot bai, chon cung mot lop bay nhieu cau lien tiep (trong khi nguoi khac chon da dang) thi mo ho so."));
             ds.Add(Int(SettingKeys.QualityFraudSharedAccounts, NhomChatLuong, 3, 2, 1000, "tai khoan",
                 "Bay nhieu tai khoan khac nhau nop tu cung IP / thiet bi trong khoang thoi gian duoi thi mo ho so."));
             ds.Add(Seconds(SettingKeys.QualityFraudSharedWindow, NhomChatLuong, Ngay, 60, 30 * Ngay,
@@ -522,14 +510,6 @@ namespace Crowd.BuildingBlocks.Settings
                 "Muc tien nghiem cua diem uy tin (nguoi moi bat dau quanh muc nay)."));
             ds.Add(Double(SettingKeys.QualityReputationPriorStrength, NhomChatLuong, 2, 0, 1000, "nhan",
                 "Suc nang tien nghiem: so bang chung can de diem roi xa muc tien nghiem."));
-            ds.Add(Choice(SettingKeys.QualityRedundancyPolicy, NhomChatLuong, "majority", ChinhSachRedundancy,
-                "Khi nao xin them nguoi gan cho mot mau (NC-D-01): majority = tranh chap (khong lua chon nao qua ban) thi xin them; "
-                + "posterior = dung khi xac suat hau nghiem cua dap an dan dau >= quality.posterior_target (co trong so theo do chinh xac labeler); "
-                + "voi = dung toi uu mot buoc: chi mua them nhan khi gia tri thong tin ky vong vuot chi phi (quality.voi_value_ratio)."));
-            ds.Add(Double(SettingKeys.QualityPosteriorTarget, NhomChatLuong, 0.95, 0.5, 0.999, "xac suat",
-                "Chinh sach posterior: du tin cay de dung khi hau nghiem cua dap an dan dau dat muc nay."));
-            ds.Add(Double(SettingKeys.QualityVoiValueRatio, NhomChatLuong, 20, 1, 10000, "lan",
-                "Chinh sach voi: mot nhan CUOI dung gia tri bang bay nhieu lan chi phi mot nhan mua them. Cao = chiu mua them nhieu hon de tang do chinh xac."));
             ds.Add(Double(SettingKeys.LabelingThresholdBbox, NhomChatLuong, 0.5, 0, 1, "IoU",
                 "Nguong cham cau vang mac dinh cho khung (cong cu khong tu dat matchThreshold)."));
             ds.Add(Double(SettingKeys.LabelingThresholdPolygon, NhomChatLuong, 0.5, 0, 1, "IoU", "Nguong cham mac dinh cho da giac."));

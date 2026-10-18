@@ -3,8 +3,8 @@
 import uuid
 from datetime import datetime, timezone
 
-from app.contracts import AssignmentSubmitted
-from app.fraud import chuoi_mot_nhan, dap_an_phan_loai, ip_de_xet, la_qua_nhanh, nguong_qua_nhanh
+from app.contracts import AttemptSubmitted
+from app.fraud import chuoi_dai_nhat, chuoi_mot_nhan, dap_an_phan_loai, ip_de_xet, la_qua_nhanh, nguong_qua_nhanh
 
 TAP_NHAN = {
     "modality": "image",
@@ -48,13 +48,22 @@ def test_dap_an_lay_cong_cu_phan_loai_dau_tien():
     assert dap_an_phan_loai({"tools": [{"name": "vat", "kind": "bbox"}]}, {"vat": []}) is None
 
 
-def test_hop_dong_assignment_submitted_doc_dung_camel_case():
+def test_chuoi_dai_nhat_cung_dap_an_bo_qua_cau_trong():
+    assert chuoi_dai_nhat(["cho", "cho", "meo", "meo", "meo", "cho"]) == ("meo", 3)
+    assert chuoi_dai_nhat([None, None]) == (None, 0)
+    assert chuoi_dai_nhat(["cho", None, "cho"]) == ("cho", 1)
+    assert chuoi_dai_nhat([]) == (None, 0)
+
+
+def test_hop_dong_attempt_submitted_doc_dung_camel_case():
     luc = datetime(2026, 10, 12, 8, 0, tzinfo=timezone.utc)
-    p = AssignmentSubmitted.model_validate({
-        "assignmentId": str(uuid.uuid4()), "taskId": str(uuid.uuid4()), "projectId": str(uuid.uuid4()),
-        "sampleId": str(uuid.uuid4()), "storageKey": None, "sampleContent": {"text": "a"}, "sampleMetadata": {"length": 1},
-        "labelerId": str(uuid.uuid4()),
-        "labelPayload": {"taskType": "text", "schemaVersion": 1, "data": {"loai": {"labelIds": ["cho"]}}},
-        "leasedAt": luc.isoformat(), "submittedAt": luc.isoformat(), "clientIp": "203.113.5.9", "deviceId": None,
+    p = AttemptSubmitted.model_validate({
+        "attemptId": str(uuid.uuid4()), "projectId": str(uuid.uuid4()), "labelerId": str(uuid.uuid4()),
+        "answers": [{"sampleId": str(uuid.uuid4()), "storageKey": None, "sampleContent": {"text": "a"},
+                     "sampleMetadata": {"length": 1},
+                     "labelPayload": {"taskType": "text", "schemaVersion": 1, "data": {"loai": {"labelIds": ["cho"]}}}}],
+        "goldTotal": 0, "goldCorrect": 0,
+        "startedAt": luc.isoformat(), "submittedAt": luc.isoformat(), "clientIp": "203.113.5.9", "deviceId": None,
     })
     assert p.client_ip == "203.113.5.9"
+    assert p.answers[0].label_payload is not None

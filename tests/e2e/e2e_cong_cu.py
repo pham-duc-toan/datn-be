@@ -1,13 +1,15 @@
-# E2E CONG CU GAN NHAN + GOP NHAN TU DONG (kien truc muc 3.15) — tu tao tai khoan va du an moi.
+# E2E CONG CU GAN NHAN + GOP NHAN TU DONG (kien truc muc 3.15) tren luong du an lam trung tam (3.18) —
+# tu tao tai khoan va du an moi.
 #
 # Phu cac cong cu them sau va viec gop nhan nhieu nguoi cho MOI cong cu:
 #   [1] anh: khung + thuoc tinh (OCR), diem moc, duong gap khuc, mat na, so, chep chu, van ban tu do
-#       → kiem dinh dang luc nop, dong thuan (quality-svc), ket qua gop (annotation-svc), xuat COCO / CSV / YOLO
-#   [2] diem moc lech nhau → tranh chap → xin them nguoi → nguoi thu ba pha the hoa
+#       → kiem dinh dang LUC NOP CA BAI, ket qua gop (annotation-svc), xuat COCO / CSV / YOLO
+#   [2] diem moc lech nhau: 3 bai → da so (2 diem gan nhau) → bai lech bi cham khong giong
 #   [3] van ban: doan + QUAN HE giua cac doan
 #   [4] du lieu DANH SACH: xep hang (Borda) + thang diem (trung vi)
 #   [5] video: theo doi doi tuong (chuoi khung)
 #   [6] bai test dau vao + cau vang kiem tra bang diem moc — cham theo do lech so voi duong cheo anh
+#   [7] setting nguong ghep doi luc dang chay
 # Chay: python e2e_cong_cu.py   (stack demo: E2E_PROFILE=demo). Can ffmpeg (sinh anh / video mau).
 import copy, io, os, subprocess, sys, zipfile
 import requests
@@ -37,16 +39,14 @@ def anh_mau(ten, mau, rong, cao):
     return p
 
 
-def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, red=2, tran=3, gold_pct=0, dieu_kien=None):
-    """Tao du an nhap + nap du lieu. files: duong dan file (du lieu dang file); rows: dong manifest
-    (du lieu dang noi dung). Tra (pid, lo du lieu, {ten mau: mau})."""
+def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, suat=3, dieu_kien=None):
+    """Tao du an nhap + nap du lieu + gia CA DU AN. Tra (pid, lo du lieu, {ten mau: mau})."""
     r = requests.post(G + "/projects", headers=chu["h"], json={"name": f"[e2e-cong-cu] {ten} {TAG}", "description": "e2e", "modality": modality, "visibility": "public"})
     assert r.status_code in (200, 201), r.text
     pid = r.json()["id"]
     r = requests.put(G + f"/projects/{pid}/label-schema", headers=chu["h"], json=tap_nhan)
     assert r.status_code == 200, r.text
     requests.put(G + f"/projects/{pid}/guideline", headers=chu["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/quality-control", headers=chu["h"], json={"goldCheckPercent": gold_pct}).raise_for_status()
     if dieu_kien:
         requests.put(G + f"/projects/{pid}/eligibility", headers=chu["h"], json=dieu_kien).raise_for_status()
 
@@ -67,34 +67,43 @@ def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, red=2, tran=3, go
                            if d["id"] == did and d["status"] in ("ready", "failed")), None), 90)
     assert lo is not None, "lo du lieu chua xu ly xong"
     mau = {m["originalName"]: m for m in requests.get(G + f"/projects/{pid}/samples?pageSize=200", headers=chu["h"]).json()["items"]}
-
-    so = max(1, len(mau))
-    requests.put(G + f"/projects/{pid}/pricing", headers=chu["h"], json={
-        "unitPriceVnd": GIA, "redundancy": red, "maxRedundancy": tran, "budgetVnd": so * tran * GIA * 2, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
+    dat_gia(chu, pid, max(10000, GIA * max(1, len(mau))), suat)
     return pid, lo, mau
 
 
 def nop_nhan(u, aid, payload):
-    return requests.post(G + f"/tasks/assignments/{aid}/submit", headers=u["h"], json={"payload": payload})
+    """aid tu nhan_task ("<attemptId>|<sampleId>"): luu cau roi NOP CA BAI."""
+    attempt_id, sid = aid.split("|")
+    luu(u, attempt_id, sid, payload).raise_for_status()
+    return nop_bai(u, attempt_id)
 
 
 def tu_choi(u, aid, payload, ten):
-    """Nop nhan SAI: phai 400 va luot giu con nguyen (nop lai duoc)."""
+    """Nhan SAI: nop bai phai 400 bai_chua_hop_le (kem ma loi nhan) va bai con mo (sua roi nop lai duoc)."""
     r = nop_nhan(u, aid, payload)
-    kiem(ten + " → 400", r.status_code == 400 and "nhan_" in r.text, r.text)
+    kiem(ten + " → 400", r.status_code == 400 and "bai_chua_hop_le" in r.text and "nhan_" in r.text, r.text)
 
 
-def cho_dong_thuan(chu, pid, so_nhan, giay=40):
-    """Cho quality-svc cham xong: du so_nhan nhan va nhan nao cung co consensusAgrees. → {labelerId: khop?}"""
+def cham(chu, pid, so_bai, giay=60):
+    """Dong thu bai (neu chua) va doi cham. → {labelerId: AttemptSummary}."""
+    if requests.get(G + f"/projects/{pid}", headers=chu["h"]).json()["status"] == "running":
+        ket_thuc_som(chu, pid)
+
     def xong():
-        ds_ = ds_nhan(chu, pid)
-        return ds_ if len(ds_) == so_nhan and all(a["consensusAgrees"] is not None for a in ds_) else None
+        ds_ = requests.get(G + f"/tasks/projects/{pid}/attempts", headers=chu["h"]).json()
+        ds_ = [b for b in ds_ if b["state"] == "submitted"]
+        return ds_ if len(ds_) == so_bai and all(b["passed"] is not None for b in ds_) else None
     ds_ = cho(xong, giay)
-    return None if ds_ is None else {a["labelerId"]: a["consensusAgrees"] for a in ds_}
+    return None if ds_ is None else {b["labelerId"]: b for b in ds_}
 
 
-def vong_dong_thuan(pid):
-    return sql("quality", f"select string_agg(status, ',' order by target) from consensus_rounds where project_id = '{pid}'")
+def giong(kq):
+    """{labelerId: bai} → {labelerId: tat ca cau so duoc deu giong?}"""
+    return None if kq is None else {k: b["matchedCount"] == b["comparableCount"] for k, b in kq.items()}
+
+
+def da_so(pid):
+    return sql("quality", f"select string_agg(status, ',' order by sample_id) from sample_majorities where project_id = '{pid}'")
 
 
 def ket_qua(chu, pid):
@@ -125,7 +134,7 @@ try:
         {"name": "so_dong", "kind": "number", "integer": True, "min": 0, "max": 20},
         {"name": "tieu_de", "kind": "transcription", "required": False},
         {"name": "mo_ta", "kind": "freeText", "required": False}]}
-    P1, lo, mau = du_an(biz, "Anh tong hop", "image", TAP_NHAN_ANH, files=[os.path.join(M, "anh.png")], red=2, tran=3)
+    P1, lo, mau = du_an(biz, "Anh tong hop", "image", TAP_NHAN_ANH, files=[os.path.join(M, "anh.png")])
     kiem("nap 1 anh 200x150", lo["sampleCount"] == 1 and mau["anh.png"]["metadata"] == {"width": 200, "height": 150}, (lo, mau))
     ls = requests.get(G + f"/projects/{P1}", headers=biz["h"]).json()["labelSchema"]
     kiem("tap nhan luu dang chuan: thuoc tinh co maxLength / required, so co integer / tolerance",
@@ -160,7 +169,7 @@ try:
         return moi
 
     t1 = nhan_task(l1, P1, 30)
-    kiem("task anh co fileUrl + metadata", t1 and t1["modality"] == "image" and t1["metadata"]["width"] == 200 and t1.get("fileUrl"), t1)
+    kiem("cau hoi anh co fileUrl + metadata", t1 and t1["modality"] == "image" and t1["metadata"]["width"] == 200 and t1.get("fileUrl"), t1)
     aid = t1["assignmentId"]
     tu_choi(l1, aid, sua(A, moc=[{"labelId": "goc", "x": 250, "y": 10}]), "diem moc ngoai anh")
     tu_choi(l1, aid, sua(A, vach=[{"labelId": "le", "points": [[0, 75]]}]), "duong gap khuc mot dinh")
@@ -174,18 +183,16 @@ try:
     tu_choi(l1, aid, sua(A, so_dong={"value": 2.5}), "so khong nguyen")
     tu_choi(l1, aid, sua(A, so_dong={"value": 99}), "so vuot max")
     tu_choi(l1, aid, sua(A, tieu_de={"text": "x" * 6000}), "chep chu vuot maxLength")
-    kiem("nop nhan hop le (du 7 cong cu)", nop_nhan(l1, aid, A).status_code == 200)
+    kiem("sua lai nhan hop le (du 7 cong cu) → nop ca bai", nop_nhan(l1, aid, A).status_code == 200)
     t2 = nhan_task(l2, P1, 30)
     kiem("l2 nop nhan gan giong", nop_nhan(l2, t2["assignmentId"], B).status_code == 200)
 
-    khop = cho_dong_thuan(biz, P1, 2)
-    kiem("quality-svc: hai nhan deu KHOP ket qua gop (moi cong cu)", khop == {l1["id"]: True, l2["id"]: True}, khop)
-    kiem("mot vong dong thuan, trang thai agreed", vong_dong_thuan(P1) == "agreed", vong_dong_thuan(P1))
+    kq_bai = cham(biz, P1, 2)
+    # Hai bai (< 3) → khong so da so, chi xet cau vang; du an khong co cau vang → ca hai dat.
+    kiem("cham: 2 bai dat (it hon 3 bai → chi xet cau vang)", kq_bai is not None and all(b["passed"] for b in kq_bai.values()), kq_bai)
     kiem("quality luu metadata mau theo nhan (kich thuoc anh cho diem moc / duong)",
          sql("quality", f"select count(*) from labels where project_id = '{P1}' and sample_metadata ->> 'width' = '200'") == "2")
-
-    r = requests.post(G + f"/annotations/projects/{P1}/approve-agreed", headers=biz["h"])
-    kiem("duyet hang loat nhan khop dong thuan → 2 nhan", r.status_code == 200 and r.json()["approvedCount"] == 2, r.text)
+    kiem("nhan cua 2 bai dat vao ket qua", cho(lambda: len(ds_nhan(biz, P1, "accepted")) == 2, 30), ds_nhan(biz, P1))
     kq = ket_qua(biz, P1)
     s = kq["samples"][0]
     tl = s["tools"]
@@ -228,27 +235,23 @@ try:
     kiem("YOLO: mot dong cho khung da gop", r.status_code == 200 and len(nhan_yolo.strip().splitlines()) == 1, nhan_yolo)
 
     # =================================================================================
-    print("\n[2] Diem moc lech nhau → tranh chap → xin them nguoi → nguoi thu ba pha the hoa")
-    P2, _, _ = du_an(biz, "Diem moc tranh chap", "image", {"modality": "image", "tools": [{"name": "moc", "kind": "keypoint", "classes": ["tam"]}]},
-                     files=[os.path.join(M, "anh.png")], red=2, tran=3)
+    print("\n[2] Diem moc lech nhau: 3 bai → da so → bai lech bi cham khong giong")
+    P2, _, _ = du_an(biz, "Diem moc da so", "image", {"modality": "image", "tools": [{"name": "moc", "kind": "keypoint", "classes": ["tam"]}]},
+                     files=[os.path.join(M, "anh.png")])
     publish_va_duyet(biz, P2)
     for u in (l1, l2, l3):
         tham_gia(u, P2)
     nop_nhan(l1, nhan_task(l1, P2, 30)["assignmentId"], {"moc": [{"labelId": "tam", "x": 100, "y": 75}]}).raise_for_status()
     nop_nhan(l2, nhan_task(l2, P2, 30)["assignmentId"], {"moc": [{"labelId": "tam", "x": 150, "y": 120}]}).raise_for_status()
-    kiem("hai diem cach 67 px (> 2% duong cheo) → quality xin them nguoi",
-         cho(lambda: vong_dong_thuan(P2) == "moreRequested", 30), vong_dong_thuan(P2))
-    t3 = cho(lambda: (lambda r: r.json() if r.status_code == 200 else None)(requests.post(G + f"/tasks/projects/{P2}/next", headers=l3["h"])), 30, 1)
-    kiem("task duoc mo lai cho nguoi thu ba", t3 is not None, t3)
-    if t3:
-        nop_nhan(l3, t3["assignmentId"], {"moc": [{"labelId": "tam", "x": 101, "y": 76}]}).raise_for_status()
-        khop = cho_dong_thuan(biz, P2, 3)
-        kiem("vong hai: l1 va l3 khop, l2 lech", khop is not None and {ID[k]: v for k, v in khop.items()} == {"l1": True, "l2": False, "l3": True}, khop)
-        kiem("hai vong: moreRequested roi agreed", vong_dong_thuan(P2) == "moreRequested,agreed", vong_dong_thuan(P2))
-        cuoi = json.loads(sql("quality", f"select final from consensus_rounds where project_id = '{P2}' and status = 'agreed'"))
-        kiem("ket qua dong thuan = trung vi cua hai diem khop", gan(cuoi["moc"][0]["x"], 100.5) and gan(cuoi["moc"][0]["y"], 75.5), cuoi)
-        kiem("bang chung uy tin: 2 khop, 1 lech",
-             sql("quality", f"select string_agg(agrees::text, ',' order by agrees) from label_agreements where project_id = '{P2}'") == "false,true,true")
+    nop_nhan(l3, nhan_task(l3, P2, 30)["assignmentId"], {"moc": [{"labelId": "tam", "x": 101, "y": 76}]}).raise_for_status()
+    kq_bai = cham(biz, P2, 3)   # du 3 suat → tu dong thu bai
+    kiem("da so: l1 va l3 giong, l2 (lech 67 px > 2% duong cheo) khac",
+         kq_bai is not None and {ID[k]: v for k, v in giong(kq_bai).items()} == {"l1": True, "l2": False, "l3": True}, kq_bai)
+    kiem("bai lech: 0% < nguong 60% → truot", kq_bai and kq_bai[l2["id"]]["passed"] is False and kq_bai[l2["id"]]["agreementPercent"] == 0, kq_bai)
+    cuoi = json.loads(sql("quality", f"select final from sample_majorities where project_id = '{P2}' and status = 'agreed'") or "null")
+    kiem("ket qua da so = trung vi cua hai diem khop", cuoi and gan(cuoi["moc"][0]["x"], 100.5) and gan(cuoi["moc"][0]["y"], 75.5), cuoi)
+    kiem("bang chung uy tin theo bai: 2 giong, 1 khac",
+         sql("quality", f"select string_agg(matched_count::text, ',' order by matched_count) from attempt_grades where project_id = '{P2}'") == "0,1,1")
 
     # =================================================================================
     print("\n[3] Van ban: doan + QUAN HE giua cac doan")
@@ -256,7 +259,7 @@ try:
     P3, _, _ = du_an(biz, "Quan he", "text", {"modality": "text", "tools": [
         {"name": "ner", "kind": "span", "classes": ["PER", "ORG", "LOC"]},
         {"name": "qh", "kind": "relation", "classes": ["lam_tai", "o_tai"], "spanTool": "ner", "required": False}]},
-        rows=[{"text": CAU, "name": "cau1"}], red=2, tran=3)
+        rows=[{"text": CAU, "name": "cau1"}])
     r = requests.put(G + f"/projects/{P3}/label-schema", headers=biz["h"], json={"modality": "text", "tools": [
         {"name": "ner", "kind": "span", "classes": ["PER"]}, {"name": "qh", "kind": "relation", "classes": ["x"], "spanTool": "khong_co"}]})
     kiem("relation tro toi cong cu span khong ton tai → 400", r.status_code == 400 and "spanTool" in r.text, r.text)
@@ -273,17 +276,13 @@ try:
     tu_choi(l1, t1["assignmentId"], {"ner": DOAN, "qh": [LAM_TAI, LAM_TAI]}, "quan he ghi trung")
     nop_nhan(l1, t1["assignmentId"], {"ner": DOAN, "qh": [LAM_TAI, O_TAI]}).raise_for_status()
     nop_nhan(l2, nhan_task(l2, P3, 30)["assignmentId"], {"ner": DOAN, "qh": [LAM_TAI]}).raise_for_status()
-    kiem("hai nguoi lech nhau mot quan he → chua qua nua khop → xin them nguoi",
-         cho(lambda: vong_dong_thuan(P3) == "moreRequested", 30), vong_dong_thuan(P3))
-    t3 = cho(lambda: (lambda r: r.json() if r.status_code == 200 else None)(requests.post(G + f"/tasks/projects/{P3}/next", headers=l3["h"])), 30, 1)
-    if t3:
-        nop_nhan(l3, t3["assignmentId"], {"ner": list(reversed(DOAN)), "qh": [LAM_TAI]}).raise_for_status()
-    khop = cho_dong_thuan(biz, P3, 3)
-    kiem("ba nguoi: quan he 'lam_tai' qua ban; nguoi ghi thua quan he bi cham lech",
-         khop is not None and {ID[k]: v for k, v in khop.items()} == {"l1": False, "l2": True, "l3": True}, khop)
-    r = requests.post(G + f"/annotations/projects/{P3}/approve-agreed", headers=biz["h"])
+    nop_nhan(l3, nhan_task(l3, P3, 30)["assignmentId"], {"ner": list(reversed(DOAN)), "qh": [LAM_TAI]}).raise_for_status()
+    kq_bai = cham(biz, P3, 3)
+    kiem("ba bai: quan he 'lam_tai' qua ban; nguoi ghi thua quan he bi cham khac da so",
+         kq_bai is not None and {ID[k]: v for k, v in giong(kq_bai).items()} == {"l1": False, "l2": True, "l3": True}, kq_bai)
+    cho(lambda: len(ds_nhan(biz, P3, "accepted")) == 2, 30)
     tl = ket_qua(biz, P3)["samples"][0]["tools"]
-    kiem("ket qua (2 nhan da duyet): 3 doan + 1 quan he, cach gop majority",
+    kiem("ket qua (nhan cua 2 bai dat): 3 doan + 1 quan he, cach gop majority",
          tl["ner"]["method"] == "majority" and len(tl["ner"]["final"]) == 3 and tl["qh"]["method"] == "majority"
          and tl["qh"]["final"] == [LAM_TAI] and tl["qh"]["supports"] == [2], tl)
 
@@ -293,8 +292,7 @@ try:
         {"name": "xep", "kind": "ranking"},
         {"name": "diem", "kind": "number", "integer": True, "min": 1, "max": 5, "tolerance": 1}]},
         rows=[{"prompt": "Cau tra loi nao tot nhat?", "items": ["Tra loi A", "Tra loi B", "Tra loi C", "Tra loi D"], "name": "xh1"},
-              {"items": ["chi mot muc"], "name": "hong1"}, {"items": ["a", 5], "name": "hong2"}, {"text": "khong co items", "name": "hong3"}],
-        red=3, tran=3)
+              {"items": ["chi mot muc"], "name": "hong1"}, {"items": ["a", 5], "name": "hong2"}, {"text": "khong co items", "name": "hong3"}])
     kiem("nap 1 mau danh sach, bo 3 dong sai (it muc / muc khong phai chuoi / thieu items)",
          lo["sampleCount"] == 1 and lo["skippedCount"] == 3 and "items" in (lo.get("errorSummary") or ""), lo)
     kiem("mau danh sach: content co items + prompt, metadata co itemCount",
@@ -305,7 +303,7 @@ try:
     for u in (l1, l2, l3):
         tham_gia(u, P4)
     t1 = nhan_task(l1, P4, 30)
-    kiem("task danh sach: modality list, 4 muc, khong fileUrl",
+    kiem("cau danh sach: modality list, 4 muc, khong fileUrl",
          t1["modality"] == "list" and len(t1["content"]["items"]) == 4 and t1["metadata"]["itemCount"] == 4 and t1.get("fileUrl") is None, t1)
     tu_choi(l1, t1["assignmentId"], {"xep": {"order": [0, 1, 2]}, "diem": {"value": 4}}, "xep thieu muc")
     tu_choi(l1, t1["assignmentId"], {"xep": {"order": [0, 1, 2, 4]}, "diem": {"value": 4}}, "xep muc khong ton tai")
@@ -314,10 +312,10 @@ try:
     nop_nhan(l1, t1["assignmentId"], {"xep": {"order": [0, 1, 2, 3]}, "diem": {"value": 4}}).raise_for_status()
     nop_nhan(l2, nhan_task(l2, P4, 30)["assignmentId"], {"xep": {"order": [1, 0, 2, 3]}, "diem": {"value": 5}}).raise_for_status()
     nop_nhan(l3, nhan_task(l3, P4, 30)["assignmentId"], {"xep": {"order": [0, 1, 3, 2]}, "diem": {"value": 4}}).raise_for_status()
-    khop = cho_dong_thuan(biz, P4, 3)
+    kq_bai = cham(biz, P4, 3)
     kiem("ba thu tu lech nhau mot cap van khop thu tu gop (Kendall 5/6); diem lech 1 trong sai so",
-         khop is not None and set(khop.values()) == {True}, khop)
-    requests.post(G + f"/annotations/projects/{P4}/approve-agreed", headers=biz["h"]).raise_for_status()
+         kq_bai is not None and set(giong(kq_bai).values()) == {True}, kq_bai)
+    cho(lambda: len(ds_nhan(biz, P4, "accepted")) == 3, 30)
     tl = ket_qua(biz, P4)["samples"][0]["tools"]
     kiem("xep hang gop bang diem Borda", tl["xep"]["method"] == "borda" and tl["xep"]["final"] == {"order": [0, 1, 2, 3]}
          and tl["xep"]["scores"] == {"0": 8, "1": 7, "2": 2, "3": 1}, tl["xep"])
@@ -328,7 +326,7 @@ try:
     # =================================================================================
     print("\n[5] Video: theo doi doi tuong (chuoi khung)")
     P5, lo, mau = du_an(biz, "Theo doi", "video", {"modality": "video", "tools": [{"name": "vat", "kind": "track", "classes": ["o_vuong"]}]},
-                        files=[os.path.join(M, "clip.mp4")], red=2, tran=2)
+                        files=[os.path.join(M, "clip.mp4")])
     kiem("nap video 320x240 ~12 giay", lo["sampleCount"] == 1 and mau["clip.mp4"]["metadata"]["width"] == 320, (lo, mau))
     publish_va_duyet(biz, P5)
     for u in (l1, l2):
@@ -346,9 +344,9 @@ try:
     nop_nhan(l1, aid, {"vat": [{"labelId": "o_vuong", "keyframes": [moc(0, 10, 20), moc(6, 200, 40)]}]}).raise_for_status()
     nop_nhan(l2, nhan_task(l2, P5, 30)["assignmentId"],
              {"vat": [{"labelId": "o_vuong", "keyframes": [moc(0.2, 14, 22), moc(3, 107, 31), moc(6, 204, 42)]}]}).raise_for_status()
-    khop = cho_dong_thuan(biz, P5, 2)
-    kiem("hai chuoi khung cung duong di → dong thuan", khop is not None and set(khop.values()) == {True} and vong_dong_thuan(P5) == "agreed", (khop, vong_dong_thuan(P5)))
-    requests.post(G + f"/annotations/projects/{P5}/approve-agreed", headers=biz["h"]).raise_for_status()
+    kq_bai = cham(biz, P5, 2)
+    kiem("hai bai deu dat → nhan vao ket qua", kq_bai is not None and all(b["passed"] for b in kq_bai.values())
+         and cho(lambda: len(ds_nhan(biz, P5, "accepted")) == 2, 30), kq_bai)
     tl = ket_qua(biz, P5)["samples"][0]["tools"]
     kiem("ket qua: mot chuoi khung (chuoi 'o giua' cua cum)",
          tl["vat"]["method"] == "cluster" and len(tl["vat"]["final"]) == 1 and len(tl["vat"]["final"][0]["keyframes"]) == 2, tl["vat"])
@@ -358,7 +356,7 @@ try:
     MAU_SAC = ["red", "green", "blue", "yellow", "cyan", "magenta", "white", "black", "gray", "orange", "purple", "pink", "brown", "navy"]
     files = [anh_mau(f"mau-{m}.png", m, 400, 300) for m in MAU_SAC]
     P6, lo, mau = du_an(biz, "Cau vang diem moc", "image", {"modality": "image", "tools": [{"name": "moc", "kind": "keypoint", "classes": ["tam"]}]},
-                        files=files, red=2, tran=2, gold_pct=50,
+                        files=files,
                         dieu_kien={"minLevel": None, "minReputation": None, "requireEntranceTest": True, "entranceQuestionCount": 1, "entrancePassPercent": 100})
     kiem("nap 14 anh 400x300", lo["sampleCount"] == 14, lo)
     TAM = {"moc": [{"labelId": "tam", "x": 200, "y": 150}]}
@@ -384,27 +382,23 @@ try:
     kiem("lam lai dung → dau", r.status_code == 200 and r.json()["passed"], r.text)
 
     def lam_het_p6(u, tra_loi_vang):
-        """Lam het task; gap cau vang (mau_vang) thi tra loi theo tra_loi_vang. → (so task that, co gap cau vang)."""
-        so, gap = 0, False
-        for _ in range(60):
-            t = nhan_task(u, P6, 30)
-            if t is None:
-                return so, gap
-            la_vang = t["sampleId"] == mau_vang["id"]
-            nop_nhan(u, t["assignmentId"], tra_loi_vang if la_vang else (TAM if u is l1 else GAN)).raise_for_status()
-            gap = gap or la_vang
-            so += 0 if la_vang else 1
-        return so, gap
+        """Lam ca bai; cau vang (mau_vang, nam lan trong de) tra loi theo tra_loi_vang. → (so cau that, co cau vang)."""
+        b = bat_dau(u, P6, 30)
+        for q in b["questions"]:
+            la_vang = q["sampleId"] == mau_vang["id"]
+            luu(u, b["attemptId"], q["sampleId"], tra_loi_vang if la_vang else (TAM if u is l1 else GAN)).raise_for_status()
+        nop_bai(u, b["attemptId"]).raise_for_status()
+        ids = [q["sampleId"] for q in b["questions"]]
+        return len([x for x in ids if x != mau_vang["id"]]), mau_vang["id"] in ids
 
     n1, vang1 = lam_het_p6(l1, GAN)
     n2, vang2 = lam_het_p6(l2, XA)
-    kiem("moi nguoi lam 12 task that va deu gap cau vang trong luong task", (n1, vang1, n2, vang2) == (12, True, 12, True), (n1, vang1, n2, vang2))
-    kiem("task-svc cham cau vang diem moc: l1 (lech 6 px) dung, l2 (lech 30 px) sai",
-         cho(lambda: sql("quality", f"select string_agg(correct::text, ',' order by correct) from gold_answers where project_id = '{P6}'") == "false,true", 20),
-         sql("quality", f"select labeler_id, correct from gold_answers where project_id = '{P6}'"))
-    khop = cho_dong_thuan(biz, P6, 24, 90)
-    kiem("12 task that: hai nguoi cham lech nhau 6 px → dong thuan ca 12", khop is not None and set(khop.values()) == {True}
-         and sql("quality", f"select count(*) from consensus_rounds where project_id = '{P6}' and status = 'agreed'") == "12", khop)
+    kiem("moi bai: 12 cau that + cau vang kiem tra nam lan trong de (cau vang bai test KHONG vao bai)",
+         (n1, vang1, n2, vang2) == (12, True, 12, True), (n1, vang1, n2, vang2))
+    kq_bai = cham(biz, P6, 2)
+    kiem("task-svc cham cau vang diem moc luc nop: l1 (lech 6 px) dung, l2 (lech 30 px) sai",
+         kq_bai is not None and (kq_bai[l1["id"]]["goldCorrect"], kq_bai[l2["id"]]["goldCorrect"]) == (1, 0), kq_bai)
+    kiem("sai cau vang → bai l2 truot, l1 dat", kq_bai and kq_bai[l1["id"]]["passed"] and not kq_bai[l2["id"]]["passed"], kq_bai)
 
     # =================================================================================
     print("\n[7] Setting: nguong ghep va F1 toi thieu doi luc dang chay")
@@ -414,15 +408,16 @@ try:
     # Ha nguong diem moc xuong 0,7 (lech toi 30% duong cheo van la mot diem): hai diem cach 67 px cua [2] gio se khop.
     dat_va_cho("labeling.threshold.keypoint", 0.7, ["quality", "annotation"])
     P7, _, _ = du_an(biz, "Nguong diem moc", "image", {"modality": "image", "tools": [{"name": "moc", "kind": "keypoint", "classes": ["tam"]}]},
-                     files=[os.path.join(M, "anh.png")], red=2, tran=3)
+                     files=[os.path.join(M, "anh.png")])
     publish_va_duyet(biz, P7)
-    for u in (l1, l2):
+    for u in (l1, l2, l3):
         tham_gia(u, P7)
     nop_nhan(l1, nhan_task(l1, P7, 30)["assignmentId"], {"moc": [{"labelId": "tam", "x": 100, "y": 75}]}).raise_for_status()
     nop_nhan(l2, nhan_task(l2, P7, 30)["assignmentId"], {"moc": [{"labelId": "tam", "x": 150, "y": 120}]}).raise_for_status()
-    khop = cho_dong_thuan(biz, P7, 2)
-    kiem("nguong 0,7: hai diem cach 67 px duoc ghep → dong thuan ngay vong dau",
-         khop is not None and set(khop.values()) == {True} and vong_dong_thuan(P7) == "agreed", (khop, vong_dong_thuan(P7)))
+    nop_nhan(l3, nhan_task(l3, P7, 30)["assignmentId"], {"moc": [{"labelId": "tam", "x": 125, "y": 98}]}).raise_for_status()
+    kq_bai = cham(biz, P7, 3)
+    kiem("nguong 0,7: ba diem cach toi 67 px duoc ghep → ca ba bai giong da so",
+         kq_bai is not None and set(giong(kq_bai).values()) == {True} and da_so(P7) == "agreed", (kq_bai, da_so(P7)))
 finally:
     for key, v in GOC.items():
         requests.put(G + f"/admin/settings/{key}", headers=admin, json={"value": v, "reason": "e2e cong cu: tra lai"})

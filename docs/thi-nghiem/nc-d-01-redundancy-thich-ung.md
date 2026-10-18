@@ -1,6 +1,8 @@
 # NC-D-01 — Redundancy thích ứng: dừng tối ưu so với redundancy cố định
 
 > Thí nghiệm cho mục **NC-D-01** ([sổ vấn đề](../van-de-can-giai-quyet.md)). Mã nguồn: [experiments/redundancy](../../experiments/redundancy).
+>
+> **Phạm vi sau đợt dự án làm trung tâm ([kiến trúc 3.18](../kien-truc-backend.md#318-dự-án-làm-trung-tâm-làm-cả-bài-chấm-một-lần-trả-thưởng-theo-bài)):** hệ thống không còn mua thêm nhãn cho từng mẫu — số người làm do doanh nghiệp chọn bằng số suất, đồng thuận chấm một lần cả dự án. Kết quả dưới đây vẫn đúng như một nghiên cứu độc lập (và là cơ sở để gợi ý số suất); hàm `services/quality/app/redundancy.py` giữ nguyên cùng test.
 > Hàm quyết định dùng trong thí nghiệm **chính là** hàm quality-svc đang chạy: [services/quality/app/redundancy.py](../../services/quality/app/redundancy.py). Bật trên hệ thống bằng setting `quality.redundancy_policy`.
 
 ## 1. Câu hỏi

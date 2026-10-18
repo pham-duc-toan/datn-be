@@ -11,12 +11,12 @@ import aio_pika
 import uvicorn
 from fastapi import FastAPI
 
-from app import cleanup, db, ds_batch, fraud, processors, seeding, settings_store, settings_sync
+from app import cleanup, db, ds_batch, processors, seeding, settings_store, settings_sync
 from app.api import router
 from app.config import settings
 from app.contracts import (
-    AnnotationSubmitted, AssignmentSubmitted, GoldAnswered, ProjectCancelled, ProjectCompleted, ProjectPublished,
-    SettingChanged, SettingsSnapshot, TaskRedundancyReached,
+    AttemptSubmitted, ProjectCancelled, ProjectCollectionFinished, ProjectCompleted, ProjectPublished, SettingChanged,
+    SettingsSnapshot,
 )
 from app.errors import LoiApi, xu_ly_loi_api
 from app.messaging.consumer import Consumer
@@ -31,11 +31,9 @@ CONSUMERS = [
     # Moc dong du an — sau project.closed_data_retention thi chup bao cao roi xoa nhan tho (archive.py).
     Consumer("quality-svc.project-completed", ProjectCompleted, processors.project_dong),
     Consumer("quality-svc.project-cancelled", ProjectCancelled, processors.project_dong),
-    Consumer("quality-svc.annotation-submitted", AnnotationSubmitted, processors.annotation_submitted),
-    Consumer("quality-svc.task-redundancy-reached", TaskRedundancyReached, processors.task_redundancy_reached),
-    Consumer("quality-svc.gold-answered", GoldAnswered, processors.gold_answered),
-    # Chong gian lan (FM-07): toc do lam bai, IP / thiet bi.
-    Consumer("quality-svc.assignment-submitted", AssignmentSubmitted, fraud.assignment_submitted),
+    # Du an lam trung tam (docs 3.18): luu bai nop (kem xet gian lan FM-07), dong thu bai → cham ca du an.
+    Consumer("quality-svc.attempt-submitted", AttemptSubmitted, processors.attempt_submitted),
+    Consumer("quality-svc.collection-finished", ProjectCollectionFinished, processors.collection_finished),
 ]
 
 # Setting dong (admin-svc) — bat dau TRUOC cac consumer nghiep vu.

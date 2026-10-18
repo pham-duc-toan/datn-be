@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Crowd.Labeling;
-using Crowd.Tasking.Domain.Assignments;
+using Crowd.Tasking.Domain.Attempts;
 using Crowd.Tasking.Domain.Common;
 using Crowd.Tasking.Domain.Eligibility;
 using Crowd.Tasking.Domain.Labelers;
@@ -11,225 +11,243 @@ using Crowd.Tasking.Domain.Tasks;
 
 namespace Crowd.Tasking.Tests
 {
-    public sealed class LeaseTests
+    /// <summary>Bai lam ca du an (docs 3.18): bat dau → luu nhap → nop ca bai → cham → khieu nai.</summary>
+    public sealed class AttemptTests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
-        private static readonly TimeSpan MuoiLamPhut = TimeSpan.FromMinutes(15);
-        private static readonly LabelPayload Cho = LabelPayload.Tao(
-            OutOfOrderEventTests.TapNhanAnh("cho", "meo"), "{\"label\":{\"labelIds\":[\"cho\"]}}", null);
-
         private static readonly RawJson KhongMetadata = SampleMetadata.Rong.ToRawJson();
 
-        private static LabelingTask Task3Nguoi()
+        private static Attempt BaiMoi()
         {
-            return LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 3, Luc);
+            return Attempt.BatDau(Guid.NewGuid(), Guid.NewGuid(), new List<Guid> { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() }, Luc, Luc.AddHours(48));
+        }
+
+        private static Attempt BaiDaCham(bool dat)
+        {
+            Attempt a = BaiMoi();
+            a.Nop(1, dat ? 1 : 0, null, null, Luc.AddHours(1));
+            a.GhiKetQua(10, dat ? 9 : 5, dat ? 90 : 50, dat, Luc.AddDays(1));
+            return a;
         }
 
         [Fact]
-        public void Task_phai_co_dung_mot_trong_file_hoac_noi_dung()
+        public void Cau_hoi_phai_co_dung_mot_trong_file_hoac_noi_dung()
         {
-            RawJson vanBan = RawJson.Tu("{\"text\":\"xin chao\"}");
-
-            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Text, null, vanBan, KhongMetadata, 1, Luc);
-            Assert.Null(t.StorageKey);
-            Assert.Equal(vanBan, t.Content);
-
             Assert.Throws<ArgumentException>(() =>
-                LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Text, null, null, KhongMetadata, 1, Luc));
+                LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, null, null, KhongMetadata, Luc));
             Assert.Throws<ArgumentException>(() =>
-                LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", vanBan, KhongMetadata, 1, Luc));
+                LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Text, "k.png", RawJson.Tu("{\"text\":\"x\"}"), KhongMetadata, Luc));
         }
 
         [Fact]
-        public void Khong_cap_qua_redundancy_tinh_ca_nguoi_dang_giu()
+        public void De_rong_hoac_het_han_chot_thi_khong_bat_dau_duoc()
         {
-            LabelingTask t = Task3Nguoi();
+            RuleViolationException rong = Assert.Throws<RuleViolationException>(() =>
+                Attempt.BatDau(Guid.NewGuid(), Guid.NewGuid(), new List<Guid>(), Luc, Luc.AddHours(1)));
+            Assert.Equal("du_an_chua_co_cau_hoi", rong.Code);
 
-            Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
-            Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
-            Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
-
-            Assert.False(t.CoTheCapThem());
-            Assert.Throws<RuleViolationException>(() => Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut));
+            Assert.Throws<RuleViolationException>(() =>
+                Attempt.BatDau(Guid.NewGuid(), Guid.NewGuid(), new List<Guid> { Guid.NewGuid() }, Luc, Luc));
         }
 
         [Fact]
-        public void Task_chua_co_redundancy_thi_chua_cap()
+        public void Nop_ca_bai_mot_lan_khong_sua_duoc_nua()
         {
-            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 0, Luc);
-            Assert.False(t.CoTheCapThem());
+            Attempt a = BaiMoi();
+            Assert.True(a.DangLam);
+
+            a.Nop(2, 1, "1.2.3.4", "thiet-bi", Luc.AddHours(2));
+            Assert.Equal(AttemptState.Submitted, a.State);
+            Assert.Equal(2, a.GoldTotal);
+            Assert.Equal(1, a.GoldCorrect);
+
+            RuleViolationException lai = Assert.Throws<RuleViolationException>(() => a.Nop(2, 2, null, null, Luc.AddHours(3)));
+            Assert.Equal("bai_da_nop", lai.Code);
+            Assert.Throws<RuleViolationException>(() => a.KiemConLamDuoc(Luc.AddHours(3)));
         }
 
         [Fact]
-        public void Nguoi_thu_ba_nop_thi_task_hoan_thanh()
+        public void Het_thoi_gian_giu_bai_thi_khong_nop_duoc_VD_T_01()
         {
-            LabelingTask t = Task3Nguoi();
-            Assignment a1 = Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
-            Assignment a2 = Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
-            Assignment a3 = Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
+            Attempt a = BaiMoi();
 
-            Assert.False(a1.Nop(t, Cho, Luc.AddMinutes(1)));
-            Assert.False(a2.Nop(t, Cho, Luc.AddMinutes(2)));
-            Assert.True(a3.Nop(t, Cho, Luc.AddMinutes(3)));
+            RuleViolationException ex = Assert.Throws<RuleViolationException>(() => a.Nop(0, 0, null, null, Luc.AddHours(48)));
+            Assert.Equal("bai_da_het_han", ex.Code);
 
-            Assert.Equal(TaskState.Completed, t.State);
-            Assert.Equal(3, t.SubmittedCount);
-            Assert.Equal(0, t.ActiveLeaseCount);
+            Assert.True(a.HetHan(Luc.AddHours(48)));
+            Assert.Equal(AttemptState.Expired, a.State);
+            Assert.False(a.HetHan(Luc.AddHours(49)));
         }
 
         [Fact]
-        public void Nop_sau_han_bi_tu_choi_VD_T_01()
+        public void Huy_chi_bai_dang_lam_bai_da_nop_giu_nguyen()
         {
-            LabelingTask t = Task3Nguoi();
-            Assignment a = Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
+            Attempt dangLam = BaiMoi();
+            Assert.True(dangLam.Huy(Luc));
+            Assert.Equal(AttemptState.Cancelled, dangLam.State);
 
-            RuleViolationException ex = Assert.Throws<RuleViolationException>(() => a.Nop(t, Cho, Luc + MuoiLamPhut));
-            Assert.Equal("lease_het_han", ex.Code);
+            Attempt daNop = BaiMoi();
+            daNop.Nop(0, 0, null, null, Luc.AddHours(1));
+            Assert.False(daNop.Huy(Luc.AddHours(2)));
+            Assert.Equal(AttemptState.Submitted, daNop.State);
         }
 
         [Fact]
-        public void Reaper_thu_lai_roi_thi_nguoi_cu_khong_nop_duoc_va_cho_duoc_tra_ve_pool()
+        public void Tam_dung_duoc_cong_bu_thoi_gian_nhung_khong_qua_han_chot()
         {
-            LabelingTask t = Task3Nguoi();
-            Assignment a = Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
-            Assert.Equal(1, t.ActiveLeaseCount);
+            Attempt a = BaiMoi();
+            a.CongBuThoiGian(TimeSpan.FromHours(5), Luc.AddDays(10));
+            Assert.Equal(Luc.AddHours(53), a.ExpiresAt);
 
-            a.HetHan(t, Luc + MuoiLamPhut);
-
-            Assert.Equal(AssignmentState.Expired, a.State);
-            Assert.Equal(0, t.ActiveLeaseCount);
-            RuleViolationException ex = Assert.Throws<RuleViolationException>(() => a.Nop(t, Cho, Luc.AddMinutes(1)));
-            Assert.Equal("lease_khong_con", ex.Code);
+            a.CongBuThoiGian(TimeSpan.FromDays(30), Luc.AddDays(3));
+            Assert.Equal(Luc.AddDays(3), a.ExpiresAt);
         }
 
         [Fact]
-        public void Reaper_khong_thu_lease_chua_het_han()
+        public void Cau_vang_dung_khong_vuot_tong_so_cau_vang()
         {
-            LabelingTask t = Task3Nguoi();
-            Assignment a = Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
-
-            Assert.Throws<RuleViolationException>(() => a.HetHan(t, Luc.AddMinutes(14)));
+            Attempt a = BaiMoi();
+            Assert.Throws<ArgumentOutOfRangeException>(() => a.Nop(1, 2, null, null, Luc.AddHours(1)));
         }
 
         [Fact]
-        public void Bo_qua_tra_cho_ngay_va_khong_nop_duoc_nua()
+        public void Chi_cham_bai_da_nop_va_cham_lai_khong_doi_ket_qua()
         {
-            LabelingTask t = Task3Nguoi();
-            Assignment a = Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
+            Attempt dangLam = BaiMoi();
+            Assert.Throws<RuleViolationException>(() => dangLam.GhiKetQua(1, 1, 100, true, Luc));
 
-            a.BoQua(t, Luc.AddMinutes(1));
-
-            Assert.Equal(0, t.ActiveLeaseCount);
-            Assert.True(t.CoTheCapThem());
-            Assert.Throws<RuleViolationException>(() => a.Nop(t, Cho, Luc.AddMinutes(2)));
+            Attempt a = BaiDaCham(true);
+            a.GhiKetQua(10, 0, 0, false, Luc.AddDays(2));
+            Assert.True(a.Passed);
+            Assert.Equal(90, a.AgreementPercent);
+            Assert.True(a.DatCuoiCung);
         }
 
         [Fact]
-        public void Mau_vang_bi_loai_khoi_pool_chi_khi_chua_ai_dung_toi()
+        public void Chi_bai_truot_khieu_nai_duoc_mot_lan_truoc_han()
         {
-            LabelingTask t = Task3Nguoi();
+            Attempt dat = BaiDaCham(true);
+            Assert.Equal("bai_da_dat", Assert.Throws<RuleViolationException>(() => dat.KhieuNai("x", Luc.AddDays(5), Luc.AddDays(2))).Code);
+
+            Attempt truot = BaiDaCham(false);
+            Assert.Equal("het_han_khieu_nai", Assert.Throws<RuleViolationException>(() =>
+                truot.KhieuNai("Da so sai o cau 3", Luc.AddDays(4), Luc.AddDays(5))).Code);
+            Assert.Throws<InvalidValueException>(() => truot.KhieuNai("   ", Luc.AddDays(4), Luc.AddDays(2)));
+
+            truot.KhieuNai("Da so sai o cau 3", Luc.AddDays(4), Luc.AddDays(2));
+            Assert.Equal(AppealState.Open, truot.AppealState);
+            Assert.Equal("da_khieu_nai", Assert.Throws<RuleViolationException>(() =>
+                truot.KhieuNai("lan nua", Luc.AddDays(4), Luc.AddDays(3))).Code);
+        }
+
+        [Fact]
+        public void Admin_chap_nhan_khieu_nai_thi_bai_dat_cuoi_cung()
+        {
+            Attempt a = BaiDaCham(false);
+            Assert.False(a.DatCuoiCung);
+            Assert.Throws<RuleViolationException>(() => a.PhanXu(true, null, Guid.NewGuid(), Luc.AddDays(2)));
+
+            a.KhieuNai("Xem lai giup", Luc.AddDays(4), Luc.AddDays(2));
+            a.PhanXu(true, "Da so sai", Guid.NewGuid(), Luc.AddDays(3));
+
+            Assert.Equal(AppealState.Accepted, a.AppealState);
+            Assert.False(a.Passed);
+            Assert.True(a.DatCuoiCung);
+        }
+
+        [Fact]
+        public void Cau_tra_loi_toi_da_256_KB()
+        {
+            string lon = "{\"x\":\"" + new string('a', AttemptAnswer.KichThuocToiDa) + "\"}";
+            Assert.Throws<InvalidValueException>(() => AttemptAnswer.Tao(Guid.NewGuid(), Guid.NewGuid(), lon, Luc));
+
+            AttemptAnswer ok = AttemptAnswer.Tao(Guid.NewGuid(), Guid.NewGuid(), "{\"label\":{\"labelIds\":[\"cho\"]}}", Luc);
+            ok.Ghi("{\"label\":{\"labelIds\":[\"meo\"]}}", Luc.AddMinutes(1));
+            Assert.Contains("meo", ok.DataJson);
+            Assert.Equal(Luc.AddMinutes(1), ok.UpdatedAt);
+        }
+
+        [Fact]
+        public void Mau_vang_va_mau_bi_loai()
+        {
+            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, Luc);
+
             t.LoaiTruVi(true);
             Assert.Equal(TaskState.Excluded, t.State);
-
             t.LoaiTruVi(false);
             Assert.Equal(TaskState.Open, t.State);
 
-            Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut);
-            t.LoaiTruVi(true);
-            Assert.Equal(TaskState.Open, t.State);
+            Assert.True(t.LoaiBo(Luc));
+            Assert.Equal(TaskState.Cancelled, t.State);
+            Assert.False(t.LoaiBo(Luc));
         }
     }
 
-    public sealed class KiemSoatChatLuongTests
+    /// <summary>Ban sao du an: thu bai → cham → han khieu nai → chot (docs 3.18).</summary>
+    public sealed class ThuBaiSnapshotTests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
-        private static readonly TimeSpan MuoiLamPhut = TimeSpan.FromMinutes(15);
-        private static readonly RawJson KhongMetadata = SampleMetadata.Rong.ToRawJson();
 
-        private static LabelPayload Nhan()
-        {
-            return LabelPayload.Tao(OutOfOrderEventTests.TapNhanAnh("a", "b"), "{\"label\":{\"labelIds\":[\"a\"]}}", null);
-        }
-
-        private static LabelingTask TaskVang()
-        {
-            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 2, Luc);
-            t.LoaiTruVi(true);
-            return t;
-        }
-
-        [Fact]
-        public void Cau_vang_khong_dung_bo_dem_cua_task()
-        {
-            LabelingTask t = TaskVang();
-            Assert.Equal(TaskState.Excluded, t.State);
-
-            Assignment a = Assignment.TaoCauVang(t, Guid.NewGuid(), Luc, MuoiLamPhut);
-            Assignment b = Assignment.TaoCauVang(t, Guid.NewGuid(), Luc, MuoiLamPhut);
-            Assert.True(a.IsGold);
-            Assert.Equal(0, t.ActiveLeaseCount);
-
-            Assert.False(a.Nop(t, Nhan(), Luc.AddMinutes(1)));
-            b.BoQua(t, Luc.AddMinutes(1));
-
-            Assert.Equal(0, t.SubmittedCount);
-            Assert.Equal(0, t.ActiveLeaseCount);
-            Assert.Equal(TaskState.Excluded, t.State);
-        }
-
-        [Fact]
-        public void Task_that_khong_cap_duoc_nhu_cau_vang()
-        {
-            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 2, Luc);
-
-            RuleViolationException ex = Assert.Throws<RuleViolationException>(() =>
-                Assignment.TaoCauVang(t, Guid.NewGuid(), Luc, MuoiLamPhut));
-            Assert.Equal("khong_phai_cau_vang", ex.Code);
-        }
-
-        [Fact]
-        public void Tang_redundancy_mo_lai_task_da_du_va_khong_vuot_tran()
-        {
-            LabelingTask t = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 2, Luc);
-            Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut).Nop(t, Nhan(), Luc);
-            Assignment.Tao(t, Guid.NewGuid(), Luc, MuoiLamPhut).Nop(t, Nhan(), Luc);
-            Assert.Equal(TaskState.Completed, t.State);
-
-            // Xin 5 nhung tran du an la 3.
-            Assert.Equal(2, t.TangRedundancy(5, 3));
-            Assert.Equal(3, t.RedundancyTarget);
-            Assert.Equal(TaskState.Open, t.State);
-            Assert.Null(t.CompletedAt);
-            Assert.True(t.CoTheCapThem());
-
-            // Yeu cau giao lai / cu hon: khong doi.
-            Assert.Null(t.TangRedundancy(3, 3));
-            Assert.Null(t.TangRedundancy(2, 3));
-        }
-
-        [Fact]
-        public void Khong_tang_redundancy_cho_task_da_huy_hoac_cau_vang()
-        {
-            LabelingTask huy = LabelingTask.Tao(Guid.NewGuid(), Guid.NewGuid(), Modalities.Image, "k.png", null, KhongMetadata, 2, Luc);
-            huy.Huy(Luc);
-
-            Assert.Null(huy.TangRedundancy(3, 3));
-            Assert.Null(TaskVang().TangRedundancy(3, 3));
-        }
-
-        [Fact]
-        public void Ban_sao_du_an_giu_tran_va_ti_le_cau_vang()
+        private static ProjectSnapshot DuAnChay()
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), Luc);
-            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 1000, 2, 4, 15, Luc.AddDays(1), true, false, null, null, Luc);
+            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 100000, 5, 80, 20, Luc.AddDays(10), true, false, null, null, false, Luc);
+            return s;
+        }
 
-            Assert.Equal(4, s.MaxRedundancy);
-            Assert.Equal(15, s.GoldCheckPercent);
+        [Fact]
+        public void Ban_sao_giu_thuong_suat_nguong_so_cau()
+        {
+            ProjectSnapshot s = DuAnChay();
 
-            // Tran nho hon redundancy (du lieu hong) → lay redundancy.
-            ProjectSnapshot s2 = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), Luc);
-            s2.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 1000, 3, 1, 0, Luc.AddDays(1), true, false, null, null, Luc);
-            Assert.Equal(3, s2.MaxRedundancy);
+            Assert.Equal(100000, s.RewardVnd);
+            Assert.Equal(5, s.Slots);
+            Assert.Equal(80, s.PassThresholdPercent);
+            Assert.Equal(20, s.QuestionCount);
+            Assert.True(s.ConNhanBai(Luc.AddDays(1)));
+            Assert.False(s.ConNhanBai(Luc.AddDays(10)));
+        }
+
+        [Fact]
+        public void Dong_thu_bai_mot_lan_roi_khong_nhan_bai_nua()
+        {
+            ProjectSnapshot s = DuAnChay();
+
+            Assert.True(s.DongThuBai("du_suat", Luc.AddDays(1)));
+            Assert.False(s.DongThuBai("het_han", Luc.AddDays(2)));
+            Assert.Equal("du_suat", s.FinishReason);
+            Assert.False(s.ConNhanBai(Luc.AddDays(1)));
+        }
+
+        [Fact]
+        public void Cham_mo_han_khieu_nai_va_chot_mot_lan()
+        {
+            ProjectSnapshot s = DuAnChay();
+            s.DongThuBai("du_suat", Luc.AddDays(1));
+
+            // Chua cham thi chua chot duoc.
+            Assert.False(s.Chot(3, Luc.AddDays(2)));
+
+            Assert.True(s.GhiDaCham(Luc.AddDays(1), TimeSpan.FromDays(3)));
+            Assert.False(s.GhiDaCham(Luc.AddDays(2), TimeSpan.FromDays(3)));
+            Assert.Equal(Luc.AddDays(4), s.AppealDeadline);
+
+            Assert.True(s.Chot(3, Luc.AddDays(4)));
+            Assert.False(s.Chot(4, Luc.AddDays(5)));
+            Assert.Equal(3, s.PassedCount);
+        }
+
+        [Fact]
+        public void Tiep_tuc_tra_ve_thoi_gian_da_tam_dung()
+        {
+            ProjectSnapshot s = DuAnChay();
+            s.TamDung(Luc.AddHours(1));
+
+            Assert.Equal(TimeSpan.FromHours(3), s.TiepTuc(Luc.AddHours(4)));
+            Assert.Null(s.PausedAt);
+
+            // Event cu → bo qua.
+            Assert.Null(s.TiepTuc(Luc));
         }
     }
 
@@ -242,7 +260,7 @@ namespace Crowd.Tasking.Tests
         private static ProjectSnapshot DuAnChay(int? minLevel, int? minReputation)
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(DuAnId, Luc);
-            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 1000, 3, 3, 0, Luc.AddDays(10), true, false, minLevel, minReputation, Luc);
+            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 100000, 3, 80, 10, Luc.AddDays(10), true, false, minLevel, minReputation, false, Luc);
             return s;
         }
 
@@ -292,17 +310,21 @@ namespace Crowd.Tasking.Tests
         }
 
         [Fact]
-        public void Du_an_tam_dung_hoac_qua_deadline_thi_khong_cap()
+        public void Du_an_tam_dung_qua_deadline_hoac_da_dong_thu_bai_thi_khong_cho_lam()
         {
             ProjectSnapshot s = DuAnChay(null, null);
             Assert.Equal("da_qua_deadline", EligibilityPolicy.LyDoTuChoi(s, Labeler(CachedMemberState.Active), null, Luc.AddDays(11)));
 
-            s.TamDung(Luc.AddMinutes(1));
-            Assert.Equal("du_an_khong_chay", EligibilityPolicy.LyDoTuChoi(s, Labeler(CachedMemberState.Active), null, Luc));
+            s.DongThuBai("du_suat", Luc);
+            Assert.Equal("du_an_da_dong_thu_bai", EligibilityPolicy.LyDoTuChoi(s, Labeler(CachedMemberState.Active), null, Luc));
+
+            ProjectSnapshot d = DuAnChay(null, null);
+            d.TamDung(Luc.AddMinutes(1));
+            Assert.Equal("du_an_khong_chay", EligibilityPolicy.LyDoTuChoi(d, Labeler(CachedMemberState.Active), null, Luc));
         }
 
         [Fact]
-        public void Chu_du_an_khong_nhan_task_cua_chinh_minh()
+        public void Chu_du_an_khong_lam_bai_cua_chinh_minh()
         {
             MemberCache chu = MemberCache.Tao(DuAnId, UserId, CachedMemberRole.Owner, CachedMemberState.Active, Luc);
             Assert.Equal("khong_phai_labeler", EligibilityPolicy.LyDoTuChoi(DuAnChay(null, null), chu, null, Luc));
@@ -321,11 +343,11 @@ namespace Crowd.Tasking.Tests
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
 
             s.TamDung(T2);
-            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("a", "b"), 1000, 3, 3, 0, T2.AddDays(1), true, false, null, null, T1);
+            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("a", "b"), 100000, 3, 80, 10, T2.AddDays(1), true, false, null, null, false, T1);
 
             Assert.Equal(SnapshotStatus.Paused, s.Status);
             Assert.True(s.IsConfigured);
-            Assert.Equal(3, s.Redundancy);
+            Assert.Equal(3, s.Slots);
         }
 
         [Fact]
@@ -334,7 +356,7 @@ namespace Crowd.Tasking.Tests
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
             s.Dong(T1);
 
-            Assert.False(s.TiepTuc(T2));
+            Assert.Null(s.TiepTuc(T2));
             Assert.Equal(SnapshotStatus.Closed, s.Status);
         }
 
@@ -365,7 +387,7 @@ namespace Crowd.Tasking.Tests
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
             Assert.Null(s.LabelSchema);
 
-            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("cho", "meo"), 1000, 3, 3, 0, T2, true, false, null, null, T1);
+            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("cho", "meo"), 100000, 3, 80, 10, T2, true, false, null, null, false, T1);
 
             Assert.Equal(Modalities.Image, s.Modality);
             Assert.NotNull(s.LabelSchema);

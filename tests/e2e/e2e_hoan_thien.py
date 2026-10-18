@@ -1,6 +1,7 @@
 # E2E HOAN THIEN: tai khoan (xac thuc email, quen / doi mat khau, ho so, anh, ky nang), cap do / xep hang,
-# thu hoi phien tuc thi + gioi han tan suat (gateway), luu nhap + bao loi task, thu nhap / chi phi / tien do,
-# phan bo nhan + xuat, tranh chap, chong gian lan, audit / thong ke / thong bao toan he thong.
+# thu hoi phien tuc thi + gioi han tan suat (gateway), tu luu + bao loi cau trong bai, thu nhap / chi phi / tien do,
+# phan bo nhan + xuat, chong gian lan (theo bai nop), audit / thong ke / thong bao toan he thong.
+# Kien truc 3.18: thuong theo CA DU AN, khong con duyet tung nhan / tranh chap nhan da duyet.
 # Tu tao tai khoan + du an moi; email kiem THAT qua Mailpit.
 # Chay: python e2e_hoan_thien.py   (stack demo: E2E_PROFILE=demo)
 import os, sys, time, uuid
@@ -11,7 +12,7 @@ from tro_giup import *  # noqa: E402,F401,F403
 from moi_truong import MAILPIT  # noqa: E402
 from tai_khoan_e2e import TIEU_DE_DAT_LAI, TIEU_DE_XAC_THUC, thu_moi_nhat, token_trong_email, xac_thuc_email  # noqa: E402
 
-GIA = 20000
+THUONG = 40000
 ANH_PNG = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
                         "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082")
 
@@ -37,24 +38,6 @@ def nap(u, so):
     d = requests.post(G + "/payments/deposits", headers=dict(u["h"], **{"Idempotency-Key": k}), json={"amountVnd": so}).json()
     requests.post(G + f"/payments/sandbox/checkout/{d['intentId']}/pay?amount={so}")
     assert cho(lambda: vi(u)["businessAvailableVnd"] >= so, 30), vi(u)
-
-
-def duyet(chu, aid, viec="approve", body=None):
-    """Duyet / tu choi nhan; 409 xung_dot_dong_thoi (quality-svc vua cap nhat nhan) → thu lai."""
-    for _ in range(6):
-        r = requests.post(G + f"/annotations/{aid}/{viec}", headers=chu["h"], json=body)
-        if r.status_code != 409 or code(r) != "xung_dot_dong_thoi":
-            break
-        time.sleep(0.5)
-    assert r.status_code == 200, r.text
-
-
-def duyet_het(chu, pid, so):
-    nhan = cho(lambda: (lambda x: x if len(x) >= so else None)([a for a in ds_nhan(chu, pid) if a["status"] == "pendingReview"]), 30)
-    assert nhan, ds_nhan(chu, pid)
-    for a in nhan:
-        duyet(chu, a["id"])
-    return nhan
 
 
 def rut(u, so):
@@ -101,7 +84,7 @@ try:
 
     biz2 = dang_ky(["business"], "biz2", xac_thuc=False)
     nap(biz2, 500000)
-    P0, _ = tao_du_an(biz2, "XT", {"x1": "Mau x"}, 1, 1, GIA)
+    P0, _ = tao_du_an(biz2, "XT", {"x1": "Mau x"}, thuong=THUONG, suat=3)
     r = requests.post(G + f"/projects/{P0}/publish", headers=biz2["h"])
     kiem("doanh nghiep da KYB nhung chua xac thuc email → publish 409 chua_xac_thuc_email",
          r.status_code == 409 and code(r) == "chua_xac_thuc_email", r.text)
@@ -181,54 +164,65 @@ try:
     kiem("ids sai → 400", requests.get(G + "/users/public", headers=biz["h"], params={"ids": "abc"}).status_code == 400)
 
     # =================================================================================
-    print("\n[4] Cap do, xep hang (FL-12) → task-svc loc minLevel; thong bao cap moi")
+    print("\n[4] Cap do, xep hang (FL-12) theo cau cua BAI DAT → project-svc loc minLevel; thong bao cap moi")
     dat_va_cho("identity.level_rules", "2=1/0;3=2/0", ("identity",))
     l1 = dang_ky(["labeler"], "cap1")
     l2 = dang_ky(["labeler"], "cap2")
-    P1, _ = tao_du_an(biz, "CAP", {"c1": "Cap 1", "c2": "Cap 2"}, 2, 2, GIA)
+    l3 = dang_ky(["labeler"], "cap3")
+    P1, _ = tao_du_an(biz, "CAP", {"c1": "Cap 1", "c2": "Cap 2"}, thuong=THUONG, suat=3)
     publish_va_duyet(biz, P1)
-    for u in (l1, l2):
+    for u in (l1, l2, l3):
         tham_gia(u, P1)
         lam_het(u, P1, lambda _: "a")
-    duyet_het(biz, P1, 4)
+    # Bai thu ba lap du suat → dong thu bai → cham: ca ba giong nhau 100% → dat.
+    kiem("ba bai giong nhau → dat", cho_cham(l1, P1) and bai_cua_toi(l1, P1)["passed"] is True, bai_cua_toi(l1, P1))
     lv = cho(lambda: (lambda j: j if j["level"] >= 3 else None)(requests.get(G + "/me/level", headers=l1["h"]).json()), 40)
-    kiem("2 nhan duoc duyet + co uy tin → cap 3", lv is not None, requests.get(G + "/me/level", headers=l1["h"]).json())
-    kiem("cap cao nhat theo luat → nextLevel null, approvedCount 2", lv and lv["nextLevel"] is None and lv["approvedCount"] == 2, lv)
+    kiem("bai dat 2 cau + co uy tin → cap 3", lv is not None, requests.get(G + "/me/level", headers=l1["h"]).json())
+    kiem("cap cao nhat theo luat → nextLevel null, approvedCount 2 (so cau cua bai dat)",
+         lv and lv["nextLevel"] is None and lv["approvedCount"] == 2, lv)
     kiem("thong bao 'Cap do moi: 3'", cho(lambda: "Cấp độ mới: 3" in tb(l1), 20), tb(l1))
     bxh = requests.get(G + "/users/leaderboard", headers=l2["h"], params={"period": "week", "limit": 100}).json()
-    kiem("bang xep hang tuan co labeler (2 nhan)", any(x["userId"] == l1["id"] and x["approvedCount"] == 2 for x in bxh), bxh[:3])
+    # Stack demo co hang tram labeler e2e trong tuan: top 100 co the da day nguoi >= 2 cau.
+    kiem("bang xep hang tuan co labeler (2 cau) hoac top da day nguoi nhieu hon",
+         any(x["userId"] == l1["id"] and x["approvedCount"] == 2 for x in bxh)
+         or (len(bxh) == 100 and min(x["approvedCount"] for x in bxh) >= 2), bxh[:3])
+    kiem("bang xep hang sap giam dan theo so cau", [x["approvedCount"] for x in bxh] == sorted([x["approvedCount"] for x in bxh], reverse=True))
     kiem("period sai → 400", requests.get(G + "/users/leaderboard", headers=l2["h"], params={"period": "nam"}).status_code == 400)
     moi_vao = dang_ky(["labeler"], "capthap")
-    PL, _ = tao_du_an(biz, "MINLV", {"m1": "Min 1"}, 1, 1, GIA, dieu_kien={"minLevel": 3, "minReputation": None,
+    PL, _ = tao_du_an(biz, "MINLV", {"m1": "Min 1"}, thuong=THUONG, suat=3, dieu_kien={"minLevel": 3, "minReputation": None,
               "requireEntranceTest": False, "entranceQuestionCount": 10, "entrancePassPercent": 80})
     publish_va_duyet(biz, PL)
-    # project-svc kiem cap do NGAY LUC VAO du an (cung luat task-svc ap khi cap task).
+    # project-svc kiem cap do NGAY LUC VAO du an (cung luat task-svc ap khi mo bai).
     r = requests.post(G + f"/projects/{PL}/join", headers=moi_vao["h"])
     kiem("labeler cap 1 join du an minLevel 3 → 409 chua_du_cap_do", r.status_code == 409 and code(r) == "chua_du_cap_do", r.text)
     tham_gia(l1, PL)
-    kiem("labeler cap 3 nhan duoc task (level.changed toi task-svc)",
-         cho(lambda: requests.post(G + f"/tasks/projects/{PL}/next", headers=l1["h"]).status_code == 200, 20))
+    kiem("labeler cap 3 mo duoc bai (level.changed toi task-svc)", isinstance(bat_dau(l1, PL, 20), dict))
 
     # =================================================================================
-    print("\n[5] Luu nhap, bao loi task (FL-05, FL-07); tien do + uoc tinh (FB-20)")
+    print("\n[5] Tu luu cau tra loi, bao loi cau (FL-05, FL-07); tien do (FB-20)")
     dat_va_cho("task.report_auto_exclude", 2, ("task",))
-    PN, _ = tao_du_an(biz, "NHAP", {"n1": "Nhap 1", "n2": "Nhap 2", "n3": "Nhap 3"}, 1, 1, GIA)
+    PN, ids_n = tao_du_an(biz, "NHAP", {"n1": "Nhap 1", "n2": "Nhap 2", "n3": "Nhap 3"}, thuong=THUONG, suat=3)
     publish_va_duyet(biz, PN)
     tham_gia(l2, PN)
-    t = nhan_task(l2, PN, 20)
-    r = requests.put(G + f"/tasks/assignments/{t['assignmentId']}/draft", headers=l2["h"], json={"payload": "chuoi"})
-    kiem("nhap khong phai object → 400", r.status_code == 400 and code(r) == "nhap_khong_hop_le", r.text)
-    r = requests.put(G + f"/tasks/assignments/{t['assignmentId']}/draft", headers=l2["h"], json={"payload": {"nhan": {"labelIds": ["b"]}}})
-    kiem("luu nhap → 200", r.status_code == 200 and r.json()["draftSavedAt"], r.text)
-    lai = nhan_task(l2, PN)
-    kiem("nhan lai → cung task, kem ban nhap", lai["assignmentId"] == t["assignmentId"] and lai["draft"] == {"nhan": {"labelIds": ["b"]}}, lai)
-    r = requests.post(G + f"/tasks/assignments/{t['assignmentId']}/report", headers=l2["h"], json={"reason": "other"})
+    b = bat_dau(l2, PN, 20)
+    aid = b["attemptId"]
+    q0, q1 = b["questions"][0]["sampleId"], b["questions"][1]["sampleId"]
+    r = requests.put(G + f"/tasks/attempts/{aid}/answers/{q0}", headers=l2["h"], json={"data": "chuoi"})
+    kiem("cau tra loi khong phai object → 400", r.status_code == 400, r.text)
+    r = luu(l2, aid, q0, {"nhan": {"labelIds": ["b"]}})
+    kiem("luu cau → 200", r.status_code == 200, r.text)
+    lai = bat_dau(l2, PN)
+    kiem("mo lai → cung bai, giu cau da luu", lai["attemptId"] == aid and next(
+        q for q in lai["questions"] if q["sampleId"] == q0)["answer"] == {"nhan": {"labelIds": ["b"]}}, lai)
+    r = requests.post(G + f"/tasks/attempts/{aid}/reports", headers=l2["h"], json={"reason": "broken"})
+    kiem("bao loi khong kem sampleId → 400 thieu_mau", r.status_code == 400 and code(r) == "thieu_mau", r.text)
+    r = requests.post(G + f"/tasks/attempts/{aid}/reports", headers=l2["h"], json={"sampleId": q1, "reason": "other"})
     kiem("bao loi 'other' khong ghi chu → 400", r.status_code == 400 and code(r) == "thieu_ghi_chu", r.text)
-    r = requests.post(G + f"/tasks/assignments/{t['assignmentId']}/report", headers=l2["h"], json={"reason": "broken", "note": "khong doc duoc"})
-    kiem("bao loi → 200 (tra task)", r.status_code == 200 and r.json()["reportsOnTask"] == 1, r.text)
-    sau = nhan_task(l2, PN)
-    kiem("nguoi bao khong nhan lai task da bao", sau is not None and sau["taskId"] != t["taskId"], sau)
-    nop(l2, sau["assignmentId"], "a").raise_for_status()
+    r = requests.post(G + f"/tasks/attempts/{aid}/reports", headers=l2["h"], json={"sampleId": q1, "reason": "broken", "note": "khong doc duoc"})
+    kiem("bao loi cau → 200 (bai van mo)", r.status_code == 200 and r.json()["reportsOnTask"] == 1, r.text)
+    r = requests.post(G + f"/tasks/attempts/{aid}/reports", headers=l2["h"], json={"sampleId": q1, "reason": "broken", "note": "lan hai"})
+    kiem("bao lai cung cau → 409 da_bao_loi", r.status_code == 409 and code(r) == "da_bao_loi", r.text)
+    kiem("nop bai (cau bao loi bo trong) → 200", nop_bai(l2, aid).status_code == 200)
     rp = requests.get(G + f"/tasks/projects/{PN}/reports", headers=biz["h"]).json()
     kiem("chu du an thay bao loi dang mo", len(rp) == 1 and rp[0]["reason"] == "broken" and rp[0]["note"] == "khong doc duoc", rp)
     kiem("labeler xem bao loi cua du an → 404", requests.get(G + f"/tasks/projects/{PN}/reports", headers=l2["h"]).status_code == 404)
@@ -237,107 +231,58 @@ try:
     r = requests.post(G + f"/tasks/reports/{rp[0]['id']}/resolve", headers=biz["h"], json={"action": "dismiss"})
     kiem("bo qua bao loi → dismissed", r.status_code == 200 and r.json()["state"] == "dismissed", r.text)
 
-    P1M, _ = tao_du_an(biz, "BAOLOI", {"b1": "Bao loi 1"}, 1, 1, GIA)
+    P1M, ids_m = tao_du_an(biz, "BAOLOI", {"b1": "Bao loi 1", "b2": "Bao loi 2"}, thuong=THUONG, suat=3)
     publish_va_duyet(biz, P1M)
     for u in (l1, l2):
         tham_gia(u, P1M)
-        x = nhan_task(u, P1M, 20)
-        requests.post(G + f"/tasks/assignments/{x['assignmentId']}/report", headers=u["h"], json={"reason": "inappropriate"}).raise_for_status()
-    td = requests.get(G + f"/tasks/projects/{P1M}/progress", headers=biz["h"]).json()
-    kiem("2 nguoi bao cung mau → tu loai (task huy)", td["cancelledTasks"] == 1 and td["openTasks"] == 0, td)
-    kiem("moi bao loi cua mau → excluded",
+        x = bat_dau(u, P1M, 20)
+        requests.post(G + f"/tasks/attempts/{x['attemptId']}/reports", headers=u["h"],
+                      json={"sampleId": ids_m["b1"], "reason": "inappropriate"}).raise_for_status()
+    kiem("2 nguoi bao cung cau → tu loai, moi bao loi cua cau → excluded",
          all(x["state"] == "excluded" for x in requests.get(G + f"/tasks/projects/{P1M}/reports?status=all", headers=biz["h"]).json()))
     td = requests.get(G + f"/tasks/projects/{P1}/progress", headers=biz["h"]).json()
-    kiem("tien do: so luot nop 24 gio + uoc tinh xong", td["submissionsLast24h"] >= 4 and td["estimatedCompletionAt"], td)
+    kiem("tien do P1: 3/3 suat da nop, du suat → da cham", td["slots"] == 3 and td["submitted"] == 3
+         and td["finishReason"] == "du_suat" and td["phase"] in ("graded", "settled") and td["appealDeadline"], td)
+    ds_bai = requests.get(G + f"/tasks/projects/{P1}/attempts", headers=biz["h"]).json()
+    kiem("bai cua du an: 3 bai dat", sum(1 for x in ds(ds_bai) if x.get("passed") is True) == 3, ds_bai)
 
     # =================================================================================
     print("\n[6] Thu nhap (FL-11), chi phi du an (FB-20), phan bo nhan + xuat (FB-24, FB-25)")
-    tn = requests.get(G + "/ledger/me/earnings", headers=l1["h"]).json()
-    kiem("thu nhap theo ngay = 2 nhan x don gia", tn["totalVnd"] == 2 * GIA and tn["byKindVnd"]["annotation"] == 2 * GIA and len(tn["items"]) == 1, tn)
+    tn = cho(lambda: (lambda j: j if j["totalVnd"] == THUONG else None)(requests.get(G + "/ledger/me/earnings", headers=l1["h"]).json()), 30)
+    kiem("thu nhap theo ngay = thuong mot bai dat", tn and tn["byKindVnd"].get("projectReward") == THUONG and len(tn["items"]) == 1, tn)
     tn = requests.get(G + "/ledger/me/earnings?groupBy=project", headers=l1["h"]).json()
-    kiem("thu nhap theo du an", any(x["key"] == P1 and x["amountVnd"] == 2 * GIA for x in tn["items"]), tn)
+    kiem("thu nhap theo du an", any(x["key"] == P1 and x["amountVnd"] == THUONG for x in tn["items"]), tn)
     kiem("groupBy la → 400", requests.get(G + "/ledger/me/earnings?groupBy=thang", headers=l1["h"]).status_code == 400)
     kiem("khoang > 366 ngay → 400", requests.get(G + "/ledger/me/earnings?from=2024-01-01&to=2026-01-01", headers=l1["h"]).status_code == 400)
     cp = requests.get(G + f"/ledger/projects/{P1}/cost", headers=biz["h"]).json()
-    kiem("chi phi du an: da ky quy, da chi 4 nhan, con treo", cp["reservedVnd"] > 0 and cp["paidAnnotations"] == 4
-         and cp["spentAnnotationsVnd"] >= 4 * GIA and cp["heldVnd"] == 4 * GIA, cp)
+    kiem("chi phi du an: 3 suat x thuong, da tra 3 bai dat", cp["slots"] == 3 and cp["rewardPerAttemptVnd"] == THUONG
+         and cp["paidAttempts"] == 3 and cp["heldVnd"] == 0
+         and cp["spentRewardsVnd"] == 3 * (THUONG + cp["platformFeePerAttemptVnd"]) and cp["reservedVnd"] == cp["spentRewardsVnd"], cp)
     kiem("doanh nghiep khac xem chi phi → 404", requests.get(G + f"/ledger/projects/{P1}/cost", headers=biz2["h"]).status_code == 404)
     dat_va_cho("annotation.imbalance_min_labels", 2, ("annotation",))
-    pb = requests.get(G + f"/annotations/projects/{P1}/distribution", headers=biz["h"]).json()
+    pb = cho(lambda: (lambda j: j if j["imbalanceWarnings"] else None)(
+        requests.get(G + f"/annotations/projects/{P1}/distribution", headers=biz["h"]).json()), 30) or {}
     kiem("canh bao lech: 'a' ap dao, 'b' chua co nhan",
-         any(w["code"] == "lop_ap_dao" and w["label"] == "a" for w in pb["imbalanceWarnings"])
-         and any(w["code"] == "lop_chua_co_nhan" and w["label"] == "b" for w in pb["imbalanceWarnings"]), pb)
+         any(w["code"] == "lop_ap_dao" and w["label"] == "a" for w in pb.get("imbalanceWarnings", []))
+         and any(w["code"] == "lop_chua_co_nhan" and w["label"] == "b" for w in pb.get("imbalanceWarnings", [])), pb)
     r = requests.get(G + f"/annotations/projects/{P1}/export?format=yolo", headers=biz["h"])
     kiem("xuat yolo du an van ban → 400 khung_chi_cho_anh", r.status_code == 400 and code(r) == "khung_chi_cho_anh", r.text)
     kiem("dinh dang la → 400", requests.get(G + f"/annotations/projects/{P1}/export?format=xml", headers=biz["h"]).status_code == 400)
 
     # =================================================================================
-    print("\n[7] Tranh chap nhan da duyet (FM-06)")
-    lt = dang_ky(["labeler"], "tranhchap")
-    PD, _ = tao_du_an(biz, "TC", {"t1": "TC 1", "t2": "TC 2", "t3": "TC 3"}, 1, 1, GIA)
-    publish_va_duyet(biz, PD)
-    tham_gia(lt, PD)
-    lam_het(lt, PD, lambda _: "a")
-    nhan = duyet_het(biz, PD, 3)
-    cho(lambda: vi(lt)["pendingVnd"] == 3 * GIA, 30)
-    a1, a2 = nhan[0]["id"], nhan[1]["id"]
-    r = requests.post(G + "/ledger/disputes", headers=biz["h"], json={"annotationId": a1, "reason": ""})
-    kiem("tranh chap khong ly do → 400", r.status_code == 400 and code(r) == "thieu_ly_do", r.text)
-    kiem("doanh nghiep khac → 404", requests.post(G + "/ledger/disputes", headers=biz2["h"], json={"annotationId": a1, "reason": "x"}).status_code == 404)
-    kiem("labeler mo tranh chap → 403", requests.post(G + "/ledger/disputes", headers=lt["h"], json={"annotationId": a1, "reason": "x"}).status_code == 403)
-    r = requests.post(G + "/ledger/disputes", headers=biz["h"], json={"annotationId": a1, "reason": "Gan sai lop"})
-    kiem("mo tranh chap → 201 open", r.status_code == 201 and r.json()["state"] == "open", r.text)
-    d1 = r.json()["id"]
-    r = requests.post(G + "/ledger/disputes", headers=biz["h"], json={"annotationId": a1, "reason": "lan hai"})
-    kiem("tranh chap lan hai → 409 da_tranh_chap", r.status_code == 409 and code(r) == "da_tranh_chap", r.text)
-    kiem("labeler nhan thong bao + email (bat buoc)",
-         cho(lambda: "Nhãn đã duyệt bị tranh chấp" in tb(lt) and "Nhãn đã duyệt bị tranh chấp" in thu_cua(lt["email"]), 45), tb(lt))
-    kiem("cost: dang tranh chap 1 nhan", requests.get(G + f"/ledger/projects/{PD}/cost", headers=biz["h"]).json()["disputedVnd"] == GIA)
-    kiem("doanh nghiep thay tranh chap cua minh", any(x["id"] == d1 for x in requests.get(G + "/ledger/disputes/mine", headers=biz["h"]).json()["items"]))
-    kiem("hang doi admin co tranh chap", any(x["id"] == d1 for x in requests.get(G + "/ledger/admin/disputes", headers=admin).json()["items"]))
-    r = requests.post(G + f"/ledger/admin/disputes/{d1}/resolve", headers=admin, json={"outcome": "refundBusiness", "note": ""})
-    kiem("phan xu khong ghi chu → 400", r.status_code == 400 and code(r) == "thieu_ghi_chu", r.text)
-    kiem("ket cuc la → 400", requests.post(G + f"/ledger/admin/disputes/{d1}/resolve", headers=admin,
-                                           json={"outcome": "chia_doi", "note": "x"}).status_code == 400)
-    truoc = requests.get(G + f"/ledger/projects/{PD}/cost", headers=biz["h"]).json()["balanceVnd"]
-    r = requests.post(G + f"/ledger/admin/disputes/{d1}/resolve", headers=admin, json={"outcome": "refundBusiness", "note": "Dung la sai"})
-    kiem("xu doanh nghiep thang → refundedBusiness", r.status_code == 200 and r.json()["state"] == "refundedBusiness", r.text)
-    kiem("tien treo labeler giam 1 nhan", cho(lambda: vi(lt)["pendingVnd"] == 2 * GIA, 20), vi(lt))
-    cp = requests.get(G + f"/ledger/projects/{PD}/cost", headers=biz["h"]).json()
-    kiem("thu lao + phi ve lai ky quy du an", cp["disputeRefundsVnd"] > GIA and cp["balanceVnd"] == truoc + cp["disputeRefundsVnd"], cp)
-    kiem("nhan bi loai, khong khieu nai duoc",
-         cho(lambda: (lambda a: a["status"] == "rejected" and a["canAppeal"] is False)(
-             next(x for x in ds_nhan(biz, PD) if x["id"] == a1)), 20))
-    kiem("identity tru so nhan duoc duyet",
-         cho(lambda: requests.get(G + "/me/level", headers=lt["h"]).json()["approvedCount"] == 2, 20))
-    kiem("hai ben nhan 'Ket qua tranh chap'", cho(lambda: "Kết quả tranh chấp" in tb(lt) and "Kết quả tranh chấp" in tb(biz), 20))
-    kiem("phan xu lan hai → 409", requests.post(G + f"/ledger/admin/disputes/{d1}/resolve", headers=admin,
-                                                json={"outcome": "payLabeler", "note": "x"}).status_code == 409)
-    d2 = requests.post(G + "/ledger/disputes", headers=biz["h"], json={"annotationId": a2, "reason": "Nghi sai"}).json()["id"]
-    r = requests.post(G + f"/ledger/admin/disputes/{d2}/resolve", headers=admin, json={"outcome": "payLabeler", "note": "Nhan dung"})
-    kiem("xu labeler thang → paidLabeler, tien van treo", r.status_code == 200 and r.json()["state"] == "paidLabeler"
-         and requests.get(G + f"/ledger/projects/{PD}/cost", headers=biz["h"]).json()["heldVnd"] == 2 * GIA, r.text)
-    dat_va_cho("ledger.hold_duration", 0, ("ledger",))
-    PR, _ = tao_du_an(biz, "TCH", {"h1": "Het treo"}, 1, 1, GIA)
-    publish_va_duyet(biz, PR)
-    tham_gia(lt, PR)
-    lam_het(lt, PR, lambda _: "a")
-    a3 = duyet_het(biz, PR, 1)[0]["id"]
-    cho(lambda: requests.get(G + f"/ledger/projects/{PR}/cost", headers=biz["h"]).json()["heldVnd"] == 0
-        and requests.get(G + f"/ledger/projects/{PR}/cost", headers=biz["h"]).json()["paidAnnotations"] == 1, 30)
-    r = requests.post(G + "/ledger/disputes", headers=biz["h"], json={"annotationId": a3, "reason": "Muon"})
-    kiem("tien da het treo → 409 khong_con_treo", r.status_code == 409 and code(r) == "khong_con_treo", r.text)
-    kiem("doi soat so cai lanh sau tranh chap", requests.get(G + "/ledger/admin/reconciliation", headers=admin).json()["healthy"])
+    print("\n[7] Khong con tranh chap tung nhan (3.18): thay bang khieu nai ca bai")
+    kiem("API tranh chap cu da go → 404", requests.post(G + "/ledger/disputes", headers=biz["h"], json={"annotationId": str(uuid.uuid4()), "reason": "x"}).status_code == 404)
+    kiem("doi soat so cai lanh", requests.get(G + "/ledger/admin/reconciliation", headers=admin).json()["healthy"])
 
     # =================================================================================
-    print("\n[8] Chong gian lan (FM-07) → admin xac nhan → identity khoa")
-    for k, v in (("quality.fraud_fast_window", 3), ("quality.fraud_fast_fraction", 0.5), ("quality.fraud_min_seconds", 30),
+    print("\n[8] Chong gian lan (FM-07) theo bai nop → admin xac nhan → identity khoa")
+    for k, v in (("quality.fraud_fast_window", 3), ("quality.fraud_min_seconds", 30),
                  ("quality.fraud_same_label_streak", 3), ("quality.fraud_shared_accounts", 2),
                  ("quality.fraud_ignore_private_ips", False), ("quality.fraud_reopen_cooldown", 0)):
         dat_va_cho(k, v, ("quality",))
     lf = dang_ky(["labeler"], "gianlan")
     lx = dang_ky(["labeler"], "dadang")
-    PF, _ = tao_du_an(biz, "GL", {f"g{i}": f"Gian lan {i}" for i in range(1, 5)}, 2, 2, GIA)
+    PF, _ = tao_du_an(biz, "GL", {f"g{i}": f"Gian lan {i}" for i in range(1, 5)}, thuong=THUONG, suat=3)
     publish_va_duyet(biz, PF)
     for u in (lf, lx):
         tham_gia(u, PF)
@@ -347,34 +292,34 @@ try:
     def xen_ke(_):
         dem["i"] += 1
         return "a" if dem["i"] % 2 else "b"
-    for _ in range(4):
-        x = nhan_task(lx, PF, 20)
-        requests.post(G + f"/tasks/assignments/{x['assignmentId']}/submit", headers=dict(lx["h"], **{"X-Device-Id": thiet_bi}),
-                      json={"payload": {"nhan": {"labelIds": [xen_ke(None)]}}}).raise_for_status()
-    for _ in range(3):
-        x = nhan_task(lf, PF, 20)
-        requests.post(G + f"/tasks/assignments/{x['assignmentId']}/submit", headers=dict(lf["h"], **{"X-Device-Id": thiet_bi}),
-                      json={"payload": {"nhan": {"labelIds": ["a"]}}}).raise_for_status()
+
+    def nop_tu_thiet_bi(u, tra_loi):
+        bai, _ = lam_bai(u, PF, tra_loi, nop=False)
+        requests.post(G + f"/tasks/attempts/{bai['attemptId']}/submit", headers=dict(u["h"], **{"X-Device-Id": thiet_bi})).raise_for_status()
+    nop_tu_thiet_bi(lx, xen_ke)
+    cho(lambda: sql("quality", f"select count(*) from labels where project_id = '{PF}' and labeler_id = '{lx['id']}'") == "4", 30)
+    nop_tu_thiet_bi(lf, lambda _: "a")
 
     def ho_so(loai, uid):
         j = requests.get(G + "/quality/admin/fraud-cases", headers=admin, params={"status": "open", "type": loai, "pageSize": 100}).json()
         return next((c for c in j["items"] if uid in c["userIds"]), None)
     hs_nhanh = cho(lambda: ho_so("qua_nhanh", lf["id"]), 30)
-    kiem("3 luot qua nhanh → ho so qua_nhanh", hs_nhanh is not None and hs_nhanh["evidence"]["fastCount"] >= 2, hs_nhanh)
-    kiem("chon 'a' 3 lan lien tiep (nguoi khac chon a, b) → ho so mot_nhan_lien_tuc",
+    kiem("4 cau trong vai giay (< 30 giay/cau) → ho so qua_nhanh",
+         hs_nhanh is not None and hs_nhanh["evidence"]["answeredCount"] == 4 and hs_nhanh["evidence"]["secondsPerQuestion"] < 30, hs_nhanh)
+    kiem("chon 'a' 4 cau lien tiep (nguoi khac chon a, b) → ho so mot_nhan_lien_tuc",
          cho(lambda: ho_so("mot_nhan_lien_tuc", lf["id"]), 30) is not None)
     kiem("2 tai khoan chung IP → ho so chung_ip", cho(lambda: ho_so("chung_ip", lf["id"]), 30) is not None)
     hs_tb = cho(lambda: ho_so("chung_thiet_bi", lf["id"]), 30)
     kiem("2 tai khoan chung X-Device-Id → ho so chung_thiet_bi", hs_tb is not None and lx["id"] in hs_tb["userIds"], hs_tb)
     kiem("labeler xem ho so → 403", requests.get(G + "/quality/admin/fraud-cases", headers=lf["h"]).status_code == 403)
     ct = requests.get(G + f"/quality/admin/fraud-cases/{hs_nhanh['id']}", headers=admin).json()
-    kiem("chi tiet co lich su nguoi dung", any(x["userId"] == lf["id"] and x["submissions"] >= 3 for x in ct["users"]), ct)
+    kiem("chi tiet co lich su nguoi dung", any(x["userId"] == lf["id"] and x["submissions"] >= 1 for x in ct["users"]), ct)
     r = requests.post(G + f"/quality/admin/fraud-cases/{hs_nhanh['id']}/resolve", headers=admin, json={"action": "confirm"})
     kiem("xac nhan khong ghi chu → 400", r.status_code == 400 and code(r) == "thieu_ghi_chu", r.text)
     r = requests.post(G + f"/quality/admin/fraud-cases/{hs_tb['id']}/resolve", headers=admin, json={"action": "dismiss", "note": "Cung gia dinh"})
     kiem("bo qua ho so chung thiet bi", r.status_code == 200 and r.json()["status"] == "dismissed", r.text)
     r = requests.post(G + f"/quality/admin/fraud-cases/{hs_nhanh['id']}/resolve", headers=admin,
-                      json={"action": "confirm", "note": "Nop 3 cau trong 1 giay", "blockAccounts": True})
+                      json={"action": "confirm", "note": "Nop 4 cau trong vai giay", "blockAccounts": True})
     kiem("xac nhan + khoa tai khoan", r.status_code == 200 and r.json()["status"] == "confirmed" and r.json()["blocked"], r.text)
     kiem("identity khoa labeler (dang nhap 403)", cho(lambda: login_raw(lf["email"]).status_code == 403, 30))
     kiem("access token cua labeler bi gateway chan", cho(lambda: code(requests.get(G + "/me", headers=lf["h"])) == "phien_da_bi_thu_hoi", 10))
@@ -382,8 +327,11 @@ try:
                                              json={"action": "dismiss", "note": "x"}).status_code == 409)
     requests.post(G + f"/users/admin/{lf['id']}/unblock", headers=admin).raise_for_status()
     lf2 = dang_nhap(lf["email"], PW)
-    kiem("mo khoa → nhan task lai duoc (truoc day task-svc khong nghe user.unblocked)",
-         cho(lambda: requests.post(G + f"/tasks/projects/{PF}/next", headers=lf2["h"]).status_code in (200, 204), 20))
+    PU, _ = tao_du_an(biz, "MOKHOA", {"u1": "Mo khoa"}, thuong=THUONG, suat=3)
+    publish_va_duyet(biz, PU)
+    tham_gia(lf2, PU)
+    kiem("mo khoa → mo bai lai duoc (task-svc nghe user.unblocked)",
+         cho(lambda: isinstance(bat_dau(lf2, PU, 1), dict), 20))
     r = rut(lf2, 50000)
     kiem("mo khoa → ledger het chan rut tien (con loi khac)", cho(lambda: code(rut(lf2, 50000)) != "tai_khoan_bi_khoa", 20), r.text)
 
@@ -398,12 +346,13 @@ try:
     adm_id = requests.get(G + "/me", headers=admin).json()["userId"]
     j = requests.get(G + "/admin/audit", headers=admin, params={"correlationId": corr}).json()["items"]
     kiem("audit ghi nguoi lam = admin", any(x["eventType"] == "user.blocked" and x["actorId"] == adm_id and x["actorRole"] == "admin" for x in j), j)
-    j = requests.get(G + "/admin/audit", headers=admin, params={"eventType": "dispute.", "pageSize": 100}).json()
-    kiem("loc tien to 'dispute.'", {"dispute.opened", "dispute.resolved"} <= {x["eventType"] for x in j["items"]}, j["total"])
-    kiem("labeler xem audit → 403", requests.get(G + "/admin/audit", headers=lt["h"]).status_code == 403)
+    j = requests.get(G + "/admin/audit", headers=admin, params={"eventType": "project.", "pageSize": 100}).json()
+    kiem("loc tien to 'project.' (published / graded / completed)",
+         {"project.published", "project.graded"} <= {x["eventType"] for x in j["items"]}, j["total"])
+    kiem("labeler xem audit → 403", requests.get(G + "/admin/audit", headers=l1["h"]).status_code == 403)
     tk = requests.get(G + "/admin/stats/overview", headers=admin).json()
-    kiem("thong ke: co dang ky, nhan duyet, tranh chap, 30 ngay",
-         tk["newUsers"] > 0 and tk["annotationsApproved"] > 0 and tk["disputesOpened"] >= 2 and len(tk["daily"]) == 30, tk)
+    kiem("thong ke: dang ky, du an da cham, tien tra labeler, 30 ngay",
+         tk["newUsers"] > 0 and tk["projectsGraded"] > 0 and tk["labelerPayoutsVnd"] >= 3 * THUONG and len(tk["daily"]) == 30, tk)
     kiem("from > to → 400", requests.get(G + "/admin/stats/overview?from=2026-10-10&to=2026-10-01", headers=admin).status_code == 400)
     r = requests.post(G + "/admin/announcements", headers=admin, json={"title": "x", "body": "y", "audience": "nguoi_ngoai_hanh_tinh"})
     kiem("doi tuong la → 400", r.status_code == 400 and code(r) == "doi_tuong_khong_hop_le", r.text)
@@ -411,7 +360,8 @@ try:
     r = requests.post(G + "/admin/announcements", headers=admin,
                       json={"title": tieu_de, "body": "He thong bao tri 22h.", "audience": "labeler", "sendEmail": True})
     kiem("gui thong bao cho labeler → 201", r.status_code == 201, r.text)
-    kiem("labeler nhan thong bao + email", cho(lambda: tieu_de in tb(lt) and tieu_de in thu_cua(lt["email"]), 45), tb(lt))
+    # Gui cho MOI labeler (hang tram tren stack demo): kiem tren tai khoan tao gan nhat (gui truoc).
+    kiem("labeler nhan thong bao + email", cho(lambda: tieu_de in tb(lx) and tieu_de in thu_cua(lx["email"]), 60), tb(lx))
     kiem("doanh nghiep (khong phai labeler) khong nhan", tieu_de not in tb(biz2))
     kiem("danh sach thong bao da gui", any(a["title"] == tieu_de for a in requests.get(G + "/admin/announcements", headers=admin).json()))
 

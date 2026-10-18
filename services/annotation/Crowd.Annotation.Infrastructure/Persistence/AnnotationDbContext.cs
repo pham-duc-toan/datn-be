@@ -43,8 +43,6 @@ namespace Crowd.Annotation.Infrastructure.Persistence
 
         public DbSet<ProjectTerms> ProjectTerms => Set<ProjectTerms>();
 
-        public DbSet<TaskConsensus> Consensus => Set<TaskConsensus>();
-
         public DbSet<MemberCache> Members => Set<MemberCache>();
 
         public DbSet<KetQuaMauDem> KetQuaMauDems => Set<KetQuaMauDem>();
@@ -80,7 +78,7 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.ToTable("annotations");
                 b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
                 b.HasKey(x => x.Id);
-                b.Property(x => x.AssignmentId).HasColumnName("assignment_id").IsRequired();
+                b.Property(x => x.AttemptId).HasColumnName("attempt_id").IsRequired();
                 b.Property(x => x.TaskId).HasColumnName("task_id").IsRequired();
                 b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
                 b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
@@ -95,18 +93,9 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                 b.Property(x => x.Source).HasColumnName("source").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.SubmittedAt).HasColumnName("submitted_at").IsRequired();
-                b.Property(x => x.ReviewerId).HasColumnName("reviewer_id");
-                b.Property(x => x.ReviewedAt).HasColumnName("reviewed_at");
-                b.Property(x => x.RejectReason).HasColumnName("reject_reason").HasMaxLength(LabelAnnotation.CotDbLyDo);
-                b.Property(x => x.AppealMessage).HasColumnName("appeal_message").HasMaxLength(LabelAnnotation.CotDbLyDo);
-                b.Property(x => x.AppealedAt).HasColumnName("appealed_at");
-                b.Property(x => x.AppealResolvedAt).HasColumnName("appeal_resolved_at");
-                b.Property(x => x.DisputedAt).HasColumnName("disputed_at");
-                b.Property(x => x.ConsensusAgrees).HasColumnName("consensus_agrees");
-                b.Property(x => x.ConsensusAt).HasColumnName("consensus_at");
+                b.Property(x => x.DecidedAt).HasColumnName("decided_at");
 
-                // Duyet va tu choi cung luc (hai reviewer): chi MOT UPDATE khop xmin,
-                // ben kia nhan 409 (VD-D-11). Khong the vua Approved vua Rejected.
+                // Cham va khieu nai cung luc: chi MOT UPDATE khop xmin, ben kia giao lai (VD-D-11).
                 b.Property<uint>("RowVersion").IsRowVersion();
 
                 // Nhat ky vong doi: bang con, EF tu nap cung annotation.
@@ -118,18 +107,16 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                     h.HasKey("id");
                     h.Property(x => x.Action).HasColumnName("action").HasMaxLength(30).IsRequired();
                     h.Property(x => x.ActorId).HasColumnName("actor_id");
-                    h.Property(x => x.Note).HasColumnName("note").HasMaxLength(LabelAnnotation.CotDbLyDo);
+                    h.Property(x => x.Note).HasColumnName("note").HasMaxLength(1000);
                     h.Property(x => x.At).HasColumnName("at").IsRequired();
                 });
 
-                // Moi luot lease thanh DUNG MOT nhan: assignment.submitted giao lai
-                // (at-least-once) khong sinh nhan thu hai — lop chan thu hai sau
-                // processed_events.
-                b.HasIndex(x => x.AssignmentId).IsUnique().HasDatabaseName("ux_annotations_assignment");
+                // Moi (bai lam, mau) thanh DUNG MOT nhan: attempt.submitted giao lai (at-least-once) khong sinh
+                // nhan thu hai — lop chan thu hai sau processed_events.
+                b.HasIndex(x => new { x.AttemptId, x.SampleId }).IsUnique().HasDatabaseName("ux_annotations_attempt_sample");
                 b.HasIndex(x => new { x.ProjectId, x.Status }).HasDatabaseName("ix_annotations_project_status");
                 b.HasIndex(x => new { x.ProjectId, x.SampleId }).HasDatabaseName("ix_annotations_project_sample");
                 b.HasIndex(x => new { x.LabelerId, x.SubmittedAt }).HasDatabaseName("ix_annotations_labeler");
-                b.HasIndex(x => x.Status).HasFilter("status = 'Appealed'").HasDatabaseName("ix_annotations_appeals");
 
                 // GIN tren payload (docs muc 3.2: "JSONB + GIN"): truy van ben trong
                 // JSON co index, vd "nhan nao chon lop do":
@@ -141,32 +128,15 @@ namespace Crowd.Annotation.Infrastructure.Persistence
                     .HasDatabaseName("ix_annotations_payload");
             });
 
-            modelBuilder.Entity<TaskConsensus>(b =>
-            {
-                b.ToTable("task_consensus");
-                b.Property(x => x.TaskId).HasColumnName("task_id").ValueGeneratedNever();
-                b.HasKey(x => x.TaskId);
-                b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
-                b.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
-                b.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
-                b.Property(x => x.Final).HasColumnName("final").HasColumnType("jsonb").HasConversion(RawJsonCotNull);
-                b.Property(x => x.DecidedAt).HasColumnName("decided_at").IsRequired();
-                b.HasIndex(x => new { x.ProjectId, x.SampleId }).HasDatabaseName("ix_task_consensus_project_sample");
-            });
-
             modelBuilder.Entity<ProjectTerms>(b =>
             {
                 b.ToTable("project_terms");
                 b.Property(x => x.ProjectId).HasColumnName("project_id").ValueGeneratedNever();
                 b.HasKey(x => x.ProjectId);
                 b.Property(x => x.OwnerId).HasColumnName("owner_id").IsRequired();
-                b.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
-                b.Property(x => x.PlatformFeeVnd).HasColumnName("platform_fee_vnd").IsRequired();
                 b.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
                 b.Property(x => x.ClosedAt).HasColumnName("closed_at");
                 b.Property(x => x.IsFinal).HasColumnName("is_final").IsRequired();
-                // KHONG HasDefaultValue(true): EF se bo gia tri false khoi INSERT → DB dien true. Migration dien true cho du an cu.
-                b.Property(x => x.RequireReview).HasColumnName("require_review").IsRequired();
                 b.Ignore(x => x.DaDong);
 
                 // Tap nhan dang chuan, chep nguyen tu project.published.

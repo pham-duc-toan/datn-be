@@ -5,12 +5,13 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
-using Crowd.Contracts.Annotation;
 using Crowd.Contracts.Gate;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Link;
 using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
+using Crowd.Contracts.Quality;
+using Crowd.Contracts.Tasking;
 using Crowd.Ledger.Api.Consumers;
 using Crowd.Ledger.Api.Exceptions;
 using Crowd.Ledger.Api.Seeding;
@@ -42,7 +43,9 @@ builder.Services.AddCrowdSettings<LedgerDbContext>(cfg, "ledger-svc");
 builder.Services.AddOutbox<LedgerDbContext>(cfg);
 builder.Services.AddEventConsumer<LedgerDbContext, ProjectPublishRequested, ProjectPublishRequestedProcessor>(cfg, "ledger-svc.project-publish-requested");
 builder.Services.AddEventConsumer<LedgerDbContext, ProjectPublished, ProjectPublishedProcessor>(cfg, "ledger-svc.project-published");
-builder.Services.AddEventConsumer<LedgerDbContext, AnnotationApproved, AnnotationApprovedProcessor>(cfg, "ledger-svc.annotation-approved");
+// Du an lam trung tam (docs 3.18): tra thuong theo BAI DAT, sau khi du an cham xong / khieu nai chap nhan.
+builder.Services.AddEventConsumer<LedgerDbContext, ProjectGraded, ProjectGradedProcessor>(cfg, "ledger-svc.project-graded");
+builder.Services.AddEventConsumer<LedgerDbContext, AttemptAppealResolved, AttemptAppealResolvedProcessor>(cfg, "ledger-svc.attempt-appeal-resolved");
 builder.Services.AddEventConsumer<LedgerDbContext, ProjectCancelled, ProjectCancelledProcessor>(cfg, "ledger-svc.project-cancelled");
 builder.Services.AddEventConsumer<LedgerDbContext, ProjectCompleted, ProjectCompletedProcessor>(cfg, "ledger-svc.project-completed");
 builder.Services.AddEventConsumer<LedgerDbContext, DepositConfirmed, DepositConfirmedProcessor>(cfg, "ledger-svc.deposit-confirmed");
@@ -63,7 +66,6 @@ builder.Services.AddScoped<LedgerEventPublisher>();
 builder.Services.AddScoped<MoneyFlowService>();
 builder.Services.AddScoped<WalletService>();
 builder.Services.AddScoped<WithdrawalApprovalService>();
-builder.Services.AddScoped<DisputeService>();
 builder.Services.AddScoped<ThongKeService>();
 
 // Hoa don GTGT (FB-05): hoi identity ho so KYB luc xuat (API noi bo), worker tu xuat dau thang.

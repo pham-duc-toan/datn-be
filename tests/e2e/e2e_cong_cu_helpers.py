@@ -27,16 +27,18 @@ def anh_mau(ten, mau, rong, cao):
     return p
 
 
-def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, red=2, tran=3, gold_pct=0, dieu_kien=None):
+def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, red=2, tran=3, gold_pct=0, dieu_kien=None, suat=None, nguong=60):
     """Tao du an nhap + nap du lieu. files: duong dan file (du lieu dang file); rows: dong manifest
-    (du lieu dang noi dung). Tra (pid, lo du lieu, {ten mau: mau})."""
+    (du lieu dang noi dung). Tra (pid, lo du lieu, {ten mau: mau}).
+
+    Gia CA DU AN (3.18): thuong = GIA x so mau (toi thieu 10.000), so suat = max(3, tran) tru khi truyen `suat`.
+    red / gold_pct giu de goi tuong thich, khong con nghia."""
     r = requests.post(G + "/projects", headers=chu["h"], json={"name": f"[e2e-cong-cu] {ten} {TAG}", "description": "e2e", "modality": modality, "visibility": "public"})
     assert r.status_code in (200, 201), r.text
     pid = r.json()["id"]
     r = requests.put(G + f"/projects/{pid}/label-schema", headers=chu["h"], json=tap_nhan)
     assert r.status_code == 200, r.text
     requests.put(G + f"/projects/{pid}/guideline", headers=chu["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/quality-control", headers=chu["h"], json={"goldCheckPercent": gold_pct}).raise_for_status()
     if dieu_kien:
         requests.put(G + f"/projects/{pid}/eligibility", headers=chu["h"], json=dieu_kien).raise_for_status()
 
@@ -60,5 +62,6 @@ def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, red=2, tran=3, go
 
     so = max(1, len(mau))
     requests.put(G + f"/projects/{pid}/pricing", headers=chu["h"], json={
-        "unitPriceVnd": GIA, "redundancy": red, "maxRedundancy": tran, "budgetVnd": so * tran * GIA * 2, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
+        "rewardVnd": max(10000, GIA * so), "slots": suat if suat is not None else max(3, tran), "passThresholdPercent": nguong,
+        "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
     return pid, lo, mau

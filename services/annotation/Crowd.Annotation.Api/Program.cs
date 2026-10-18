@@ -12,7 +12,6 @@ using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Gate;
-using Crowd.Contracts.Ledger;
 using Crowd.Contracts.Project;
 using Crowd.Contracts.Quality;
 using Crowd.Contracts.Tasking;
@@ -38,19 +37,18 @@ ConfigurationManager cfg = builder.Configuration;
 // Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
 builder.Services.AddCrowdSettings<AnnotationDbContext>(cfg, "annotation-svc");
 builder.Services.AddOutbox<AnnotationDbContext>(cfg);
-builder.Services.AddEventConsumer<AnnotationDbContext, AssignmentSubmitted, AssignmentSubmittedProcessor>(cfg, "annotation-svc.assignment-submitted");
+// Du an lam trung tam (docs 3.18): bai nop ca bai → nhan cho cham; quality-svc cham xong → chot nhan.
+builder.Services.AddEventConsumer<AnnotationDbContext, AttemptSubmitted, AttemptSubmittedProcessor>(cfg, "annotation-svc.attempt-submitted");
+builder.Services.AddEventConsumer<AnnotationDbContext, ProjectGraded, ProjectGradedProcessor>(cfg, "annotation-svc.project-graded");
+builder.Services.AddEventConsumer<AnnotationDbContext, AttemptAppealResolved, AttemptAppealResolvedProcessor>(cfg, "annotation-svc.attempt-appeal-resolved");
 builder.Services.AddEventConsumer<AnnotationDbContext, ProjectPublished, ProjectPublishedProcessor>(cfg, "annotation-svc.project-published");
-builder.Services.AddEventConsumer<AnnotationDbContext, ProjectResumed, ProjectResumedProcessor>(cfg, "annotation-svc.project-resumed");
 builder.Services.AddEventConsumer<AnnotationDbContext, ProjectCompleted, ProjectCompletedProcessor>(cfg, "annotation-svc.project-completed");
 builder.Services.AddEventConsumer<AnnotationDbContext, ProjectCancelled, ProjectCancelledProcessor>(cfg, "annotation-svc.project-cancelled");
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberAdded, MemberAddedProcessor>(cfg, "annotation-svc.member-added");
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberBlocked, MemberBlockedProcessor>(cfg, "annotation-svc.member-blocked");
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberUnblocked, MemberUnblockedProcessor>(cfg, "annotation-svc.member-unblocked");
 builder.Services.AddEventConsumer<AnnotationDbContext, MemberRemoved, MemberRemovedProcessor>(cfg, "annotation-svc.member-removed");
-builder.Services.AddEventConsumer<AnnotationDbContext, ConsensusReached, ConsensusReachedProcessor>(cfg, "annotation-svc.consensus-reached");
 builder.Services.AddEventConsumer<AnnotationDbContext, GateSolved, GateSolvedProcessor>(cfg, "annotation-svc.gate-solved");
-// Tranh chap (FM-06): doanh nghiep thang thi nhan da duyet bi loai.
-builder.Services.AddEventConsumer<AnnotationDbContext, DisputeResolved, DisputeResolvedProcessor>(cfg, "annotation-svc.dispute-resolved");
 
 // ---- Kho anh (chi sinh link xem) ----
 builder.Services.Configure<ObjectStorageOptions>(cfg.GetSection(ObjectStorageOptions.SectionName));
@@ -59,9 +57,7 @@ builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
 builder.Services.AddMediaLinks(cfg);
 
 // ---- Nghiep vu ----
-builder.Services.AddScoped<AnnotationEventPublisher>();
 builder.Services.AddScoped<AnnotationService>();
-builder.Services.AddScoped<DongSoService>();
 
 // Han giu nhat ky vong doi nhan (muc 3.14).
 builder.Services.AddHostedService<Crowd.Annotation.Api.Workers.HistoryRetentionWorker>();

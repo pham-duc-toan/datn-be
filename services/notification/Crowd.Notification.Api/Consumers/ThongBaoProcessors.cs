@@ -3,11 +3,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Consumers;
-using Crowd.Contracts.Annotation;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
 using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
+using Crowd.Contracts.Quality;
+using Crowd.Contracts.Tasking;
 using Crowd.Notification.Api.Entities;
 using Crowd.Notification.Api.Persistence;
 using Crowd.Notification.Api.Services;
@@ -274,44 +275,56 @@ namespace Crowd.Notification.Api.Consumers
         }
     }
 
-    // ===================================================================== labeler: nhan, tien
+    // ===================================================================== labeler: ket qua bai, tien
 
-    public sealed class AnnotationApprovedProcessor : ThongBaoProcessor<AnnotationApproved>
+    /// <summary>
+    /// project.graded: MOI labeler mot thong bao dat / chua dat, chu du an mot thong bao tong ket. Tien thuong
+    /// bao rieng qua hold.expired (ledger.reward_hold = 0 → giai phong ngay).
+    /// </summary>
+    public sealed class ProjectGradedProcessor : ThongBaoProcessor<ProjectGraded>
     {
-        public AnnotationApprovedProcessor(ThongBaoWriter writer, NotificationDbContext db)
+        public ProjectGradedProcessor(ThongBaoWriter writer, NotificationDbContext db)
             : base(writer, db)
         {
         }
 
-        protected override Task XuLyPayloadAsync(AnnotationApproved p, CancellationToken ct)
+        protected override async Task XuLyPayloadAsync(ProjectGraded p, CancellationToken ct)
         {
-            // Nhan cong link: khach vang lai, khong co tai khoan de bao.
-            if (!p.LabelerId.HasValue || p.Source != AnnotationSource.Professional)
+            foreach (GradedAttempt a in p.Attempts)
             {
-                return Task.CompletedTask;
+                NoiDung n = a.Passed
+                    ? NoiDungThongBao.BaiDat(a.AttemptId, a.AgreementPercent, p.PassThresholdPercent, p.MajorityUsed)
+                    : NoiDungThongBao.BaiTruot(a.AttemptId, a.AgreementPercent, p.PassThresholdPercent, a.GoldCorrect, a.GoldTotal, p.MajorityUsed);
+                await Writer.GhiAsync(a.LabelerId, LoaiThongBao.KetQuaBai, n, ct);
             }
 
-            Guid projectId = p.ProjectId;
-            return Writer.GhiGopAsync(p.LabelerId.Value, LoaiThongBao.NhanDuyet, p.AmountVnd,
-                (tong, soLan) => NoiDungThongBao.NhanDuocDuyet(projectId, tong, soLan), ct);
+            Guid? chu = await ChuDuAnAsync(p.ProjectId, ct);
+            if (chu.HasValue)
+            {
+                int dat = 0;
+                foreach (GradedAttempt a in p.Attempts)
+                {
+                    if (a.Passed)
+                    {
+                        dat++;
+                    }
+                }
+
+                await Writer.GhiAsync(chu.Value, LoaiThongBao.DuAn, NoiDungThongBao.DuAnDaCham(p.ProjectId, dat, p.Attempts.Count), ct);
+            }
         }
     }
 
-    public sealed class AnnotationRejectedProcessor : ThongBaoProcessor<AnnotationRejected>
+    public sealed class AttemptAppealResolvedProcessor : ThongBaoProcessor<AttemptAppealResolved>
     {
-        public AnnotationRejectedProcessor(ThongBaoWriter writer, NotificationDbContext db)
+        public AttemptAppealResolvedProcessor(ThongBaoWriter writer, NotificationDbContext db)
             : base(writer, db)
         {
         }
 
-        protected override Task XuLyPayloadAsync(AnnotationRejected p, CancellationToken ct)
+        protected override Task XuLyPayloadAsync(AttemptAppealResolved p, CancellationToken ct)
         {
-            if (!p.LabelerId.HasValue)
-            {
-                return Task.CompletedTask;
-            }
-
-            return Writer.GhiAsync(p.LabelerId.Value, LoaiThongBao.NhanTuChoi, NoiDungThongBao.NhanBiTuChoi(p.ProjectId, p.Reason, p.IsFinal), ct);
+            return Writer.GhiAsync(p.LabelerId, LoaiThongBao.KetQuaBai, NoiDungThongBao.KetQuaKhieuNai(p.AttemptId, p.Accepted, p.Note), ct);
         }
     }
 

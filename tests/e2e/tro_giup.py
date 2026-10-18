@@ -1,16 +1,14 @@
-"""Helper dung chung cua e2e_tong_the va ep_race_quality (dang ky, tao du an, dat setting...)."""
-# E2E TONG THE — tu tao tai khoan + du an moi moi lan chay (khong phu thuoc du lieu seed).
-# Phu: xac thuc, nap tien, vong doi du an + saga ky quy, bai test dau vao, nhan/nop/bo qua task,
-# dong thuan + redundancy thich ung (majority / posterior / voi), duyet + khieu nai, vong tien
-# (treo → giai phong → rut, tu duyet / admin duyet / tu choi), cua so ngau nhien khi lay task,
-# quan ly du an, phan quyen (RBAC + BOLA), setting, va kiem tra tong (doi soat, DLQ, outbox).
+"""Helper dung chung cua cac bo E2E (dang ky, tao du an, lam bai, dat setting...).
+
+Du an lam trung tam (kien truc 3.18): moi labeler lam MOT bai gom moi cau cua du an, nop ca bai; du an dong
+thu bai (du suat / het han / ket thuc som) thi quality-svc cham mot lan, ledger tra thuong bai dat.
+"""
 import json, os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_ANNOTATION, URL_GATE, URL_LINK, URL_TASK, rabbit_container, sql_container  # noqa: E402,F401
 sys.path.insert(0, os.path.join(GOC_REPO, "services", "quality"))
-from app import redundancy as rd  # noqa: E402  — CHINH ham quality-svc dung, de tinh dap an mong doi
 from tai_khoan_e2e import mo_rong_gioi_han, xac_thuc_email  # noqa: E402
 
 
@@ -120,18 +118,21 @@ def vi(u):
     return requests.get(G + "/ledger/me/balance", headers=u["h"]).json()
 
 
-def tao_du_an(chu, ten, mau, red, tran, gia, gold_pct=0, dieu_kien=None, vang=None, ngan_sach=None, classes=("a", "b")):
-    """mau: {ten_mau: text}. vang: [(ten_mau, nhan_dung, purpose)]. Tra (pid, {ten_mau: sample_id})."""
+def tao_du_an(chu, ten, mau, red=None, tran=None, gia=None, gold_pct=0, dieu_kien=None, vang=None, ngan_sach=None, classes=("a", "b"),
+              thuong=None, suat=None, nguong=60):
+    """mau: {ten_mau: text}. vang: [(ten_mau, nhan_dung, purpose)]. Tra (pid, {ten_mau: sample_id}).
+
+    Gia CA DU AN (3.18): thuong mac dinh = gia x so mau (toi thieu 10.000), so suat mac dinh = max(3, tran,
+    red) — giu tham so cu (red, tran, gia, ngan_sach, gold_pct) de cac bo cu goi duoc; ngan_sach / gold_pct
+    khong con nghia (ky quy = suat x (thuong + phi), cau vang qualityCheck chen vao moi bai)."""
     r = requests.post(G + "/projects", headers=chu["h"], json={"name": f"[e2e-tong] {ten} {TAG}", "description": "e2e", "modality": "text", "visibility": "public"})
     assert r.status_code in (200, 201), r.text
     pid = r.json()["id"]
     requests.put(G + f"/projects/{pid}/label-schema", headers=chu["h"], json={"modality": "text", "tools": [
         {"name": "nhan", "kind": "classification", "classes": list(classes)}]}).raise_for_status()
     requests.put(G + f"/projects/{pid}/guideline", headers=chu["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
-    ns = ngan_sach if ngan_sach is not None else len(mau) * tran * gia * 2
-    requests.put(G + f"/projects/{pid}/pricing", headers=chu["h"], json={"unitPriceVnd": gia, "redundancy": red, "maxRedundancy": tran,
-                                                                         "budgetVnd": ns, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/quality-control", headers=chu["h"], json={"goldCheckPercent": gold_pct}).raise_for_status()
+    dat_gia(chu, pid, thuong if thuong is not None else max(10000, (gia or 1000) * len(mau)),
+            suat if suat is not None else max(3, tran or 0, red or 0), nguong)
     if dieu_kien:
         requests.put(G + f"/projects/{pid}/eligibility", headers=chu["h"], json=dieu_kien).raise_for_status()
     requests.post(G + f"/projects/{pid}/datasets/manifest", headers=chu["h"],
@@ -145,11 +146,20 @@ def tao_du_an(chu, ten, mau, red, tran, gia, gold_pct=0, dieu_kien=None, vang=No
     return pid, ids
 
 
+def dat_gia(chu, pid, thuong, suat, nguong=60, deadline="2027-12-31T00:00:00Z"):
+    r = requests.put(G + f"/projects/{pid}/pricing", headers=chu["h"],
+                     json={"rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": deadline})
+    assert r.status_code == 200, r.text
+    return r
+
+
 def publish_va_duyet(chu, pid):
     requests.post(G + f"/projects/{pid}/publish", headers=chu["h"]).raise_for_status()
     ok = cho(lambda: requests.get(G + f"/projects/{pid}", headers=chu["h"]).json()["status"] == "pendingApproval", 30)
     assert ok, requests.get(G + f"/projects/{pid}", headers=chu["h"]).text
     requests.post(G + f"/projects/{pid}/approve", headers=admin).raise_for_status()
+    # task-svc mo thu bai khi nhan project.published.
+    cho(lambda: requests.get(G + f"/tasks/projects/{pid}/slots", headers=chu["h"]).status_code == 200, 30)
 
 
 def tham_gia(u, pid):
@@ -157,41 +167,120 @@ def tham_gia(u, pid):
     return r
 
 
-def nhan_task(u, pid, giay=15):
-    """200 → dict; 204 → None. 403 ngay sau join / duyet: thu lai trong `giay`."""
+def bat_dau(u, pid, giay=15):
+    """POST attempt → dict bai lam (tao moi hoac bai dang lam). 403 ngay sau join / duyet: thu lai trong `giay`.
+    Loi nghiep vu khac (het suat, da nop...) → tra Response de noi goi kiem."""
     het = time.time() + giay
     while True:
-        r = requests.post(G + f"/tasks/projects/{pid}/next", headers=u["h"])
-        if r.status_code == 200:
+        r = requests.post(G + f"/tasks/projects/{pid}/attempt", headers=u["h"])
+        if r.status_code in (200, 201):
             return r.json()
-        if r.status_code == 204:
-            return None
-        if time.time() > het:
-            raise AssertionError(f"next {r.status_code} {r.text}")
+        if r.status_code != 403 or time.time() > het:
+            return r
         time.sleep(0.5)
 
 
-def nop(u, aid, lop):
-    return requests.post(G + f"/tasks/assignments/{aid}/submit", headers=u["h"], json={"payload": {"nhan": {"labelIds": [lop]}}})
+def luu(u, aid, sid, data):
+    """data = dict nhan theo ten cong cu, hoac None (bo trong)."""
+    return requests.put(G + f"/tasks/attempts/{aid}/answers/{sid}", headers=u["h"], json={"data": data})
+
+
+def nop_bai(u, aid):
+    return requests.post(G + f"/tasks/attempts/{aid}/submit", headers=u["h"])
+
+
+def lam_bai(u, pid, tra_loi, nop=True):
+    """Lam CA BAI: tra_loi(text) → lop | None (bo trong) | dict (nhan day du). Tra (bai, response nop | None)."""
+    b = bat_dau(u, pid)
+    assert isinstance(b, dict), f"bat dau bai {b.status_code} {b.text}"
+    for q in b["questions"]:
+        x = tra_loi((q.get("content") or {}).get("text"))
+        if x is None:
+            continue
+        luu(u, b["attemptId"], q["sampleId"], x if isinstance(x, dict) else {"nhan": {"labelIds": [x]}}).raise_for_status()
+    return b, (nop_bai(u, b["attemptId"]) if nop else None)
 
 
 def lam_het(u, pid, tra_loi, toi_da=200):
-    """Lam het task cua du an; tra_loi(text) → lop. Tra so task da nop."""
-    so = 0
-    for _ in range(toi_da):
-        t = nhan_task(u, pid)
-        if t is None:
-            return so
-        nop(u, t["assignmentId"], tra_loi(t["content"]["text"])).raise_for_status()
-        so += 1
-    return so
+    """Tuong thich bo cu: lam va nop ca bai. Tra so cau DA TRA LOI (ke ca cau vang)."""
+    b, r = lam_bai(u, pid, tra_loi)
+    r.raise_for_status()
+    return r.json()["answeredCount"]
+
+
+def bai_cua_toi(u, pid):
+    for b in requests.get(G + "/tasks/me/attempts", headers=u["h"]).json():
+        if b["projectId"] == pid:
+            return b
+    return None
+
+
+def cho_cham(u, pid, giay=60):
+    """Doi bai cua u o du an duoc cham (passed khac null). Tra AttemptSummary."""
+    return cho(lambda: (bai_cua_toi(u, pid) or {}).get("passed") is not None and bai_cua_toi(u, pid), giay)
+
+
+def ket_thuc_som(chu, pid):
+    """Doanh nghiep ket thuc som → dong thu bai, cham. Doi du an sang grading."""
+    r = requests.post(G + f"/projects/{pid}/finish", headers=chu["h"])
+    assert r.status_code in (200, 202), r.text
+    assert cho(lambda: requests.get(G + f"/projects/{pid}", headers=chu["h"]).json()["status"] in ("grading", "completed"), 30)
+
+
+# ---- Lop tuong thich cho cac bo viet theo kieu "tung task" (truoc 3.18) ----
+# nhan_task tra CAU CHUA LAM ke tiep trong bai cua labeler (bat dau bai neu chua co); nop luu cau do.
+# Het cau → nhan_task tu NOP CA BAI va tra None (nhu "het task"). "assignmentId" = "<attemptId>|<sampleId>".
+_BAI = {}
+
+
+def nhan_task(u, pid, giay=15):
+    k = (u["email"], pid)
+    st = _BAI.get(k)
+    if st is None or st.get("nop"):
+        b = bat_dau(u, pid, giay)
+        if not isinstance(b, dict):
+            if b.status_code == 409 or "da_nop_bai" in b.text or "het_suat" in b.text or "dong_thu_bai" in b.text:
+                return None
+            raise AssertionError(f"bat dau bai {b.status_code} {b.text}")
+        st = {"bai": b, "xong": {q["sampleId"] for q in b["questions"] if q.get("answer")}, "nop": False}
+        _BAI[k] = st
+    b = st["bai"]
+    for q in b["questions"]:
+        if q["sampleId"] not in st["xong"]:
+            return dict(q, assignmentId=f"{b['attemptId']}|{q['sampleId']}", attemptId=b["attemptId"], projectId=pid,
+                        labelSchema=b["labelSchema"], rewardVnd=b["rewardVnd"], expiresAt=b["expiresAt"],
+                        sensitiveContent=b.get("sensitiveContent", False))
+    nop_bai(u, b["attemptId"]).raise_for_status()
+    st["nop"] = True
+    return None
+
+
+def nop(u, aid, lop):
+    """aid tu nhan_task; lop = ten lop (cong cu "nhan") hoac dict nhan day du."""
+    attempt_id, sid = aid.split("|")
+    r = luu(u, attempt_id, sid, lop if isinstance(lop, dict) else {"nhan": {"labelIds": [lop]}})
+    for (email, _p), st in _BAI.items():
+        if email == u["email"] and st["bai"]["attemptId"] == attempt_id:
+            st["xong"].add(sid)
+    return r
+
+
+def nop_ca_bai(u, pid):
+    """Nop bai dang lam do nhan_task / nop tao (khi khong lam het cau)."""
+    st = _BAI.get((u["email"], pid))
+    if st and not st["nop"]:
+        r = nop_bai(u, st["bai"]["attemptId"])
+        st["nop"] = r.status_code == 200
+        return r
+    return None
 
 
 def ds(j):
     return j if isinstance(j, list) else j.get("items", [])
 
 
-def ds_nhan(chu, pid):
-    return requests.get(G + f"/annotations/projects/{pid}?pageSize=100", headers=chu["h"]).json()["items"]
+def ds_nhan(chu, pid, status=None):
+    q = f"?pageSize=200{'&status=' + status if status else ''}"
+    return requests.get(G + f"/annotations/projects/{pid}{q}", headers=chu["h"]).json()["items"]
 
 

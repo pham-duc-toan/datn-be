@@ -14,11 +14,17 @@ namespace Crowd.Project.Domain.Common
 
         public required int DoDaiMoTaToiDa { get; init; }
 
-        public required int RedundancyToiDa { get; init; }
+        /// <summary>x, y — khoang doanh nghiep duoc chon nguong dat t (project.pass_threshold_min / _max).</summary>
+        public required int NguongDatToiThieu { get; init; }
 
-        public required int GoldCheckPercentMacDinh { get; init; }
+        public required int NguongDatToiDa { get; init; }
 
-        public required int GoldCheckPercentToiDa { get; init; }
+        /// <summary>So cau that toi da cua mot du an (project.max_questions).</summary>
+        public required int SoCauToiDa { get; init; }
+
+        public required int SoSuatToiThieu { get; init; }
+
+        public required int SoSuatToiDa { get; init; }
 
         public required int SoCauTestMacDinh { get; init; }
 
@@ -32,8 +38,8 @@ namespace Crowd.Project.Domain.Common
 
         public required int DoDaiGiaiThichToiDa { get; init; }
 
-        /// <summary>Don gia toi thieu moi nhan (FM-04, setting project.min_unit_price_vnd). 0 = khong gioi han.</summary>
-        public long DonGiaToiThieu { get; init; }
+        /// <summary>Thuong toi thieu cho mot nguoi dat (FM-04, project.min_reward_vnd). 0 = khong gioi han.</summary>
+        public long ThuongToiThieu { get; init; }
     }
 
     /// <summary>Quy dinh khi nap du lieu.</summary>

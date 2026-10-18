@@ -33,14 +33,19 @@ namespace Crowd.Seeding
         /// <summary>Da ky quy, cho admin duyet.</summary>
         PendingApproval,
 
-        /// <summary>Dang chay, labeler nhan task duoc.</summary>
+        /// <summary>Dang chay, labeler vao lam bai duoc.</summary>
         Running,
+
+        /// <summary>
+        /// Da cham xong va qua han khieu nai (Hoan thanh): moi bai trong Attempts deu da nop va co Result;
+        /// ledger da tra thuong nguoi dat va hoan phan ky quy con lai.
+        /// </summary>
+        Completed,
     }
 
     public enum SeedMemberRole
     {
         Labeler,
-        Reviewer,
     }
 
     public sealed class SeedMember
@@ -105,56 +110,69 @@ namespace Crowd.Seeding
         public required bool ForEntranceTest { get; init; }
     }
 
-    /// <summary>Ket qua duyet cua mot luot nop.</summary>
-    public enum SeedReview
+    /// <summary>Mot cau tra loi trong bai lam (cau that hoac cau vang).</summary>
+    public sealed class SeedAnswer
     {
-        PendingReview,
-        Approved,
-        Rejected,
+        public required Guid SampleId { get; init; }
 
-        /// <summary>Bi tu choi roi labeler khieu nai — cho admin phan xu.</summary>
-        Appealed,
+        /// <summary>Phan du lieu nhan theo cac cong cu, vd {"label":{"labelIds":["do"]}}.</summary>
+        public required string PayloadJson { get; init; }
+
+        /// <summary>Id nhan o annotation-svc (chi cau that cua bai DA NOP).</summary>
+        public required Guid AnnotationId { get; init; }
+    }
+
+    public enum SeedAttemptState
+    {
+        /// <summary>Dang lam: cau tra loi la ban nhap (task-svc), chua co nhan o annotation-svc.</summary>
+        InProgress,
+
+        Submitted,
+    }
+
+    /// <summary>Ket qua cham mot bai (du an Completed) — cung cong thuc quality-svc.</summary>
+    public sealed class SeedResult
+    {
+        public required int ComparableCount { get; init; }
+
+        public required int MatchedCount { get; init; }
+
+        public required int AgreementPercent { get; init; }
+
+        public required bool Passed { get; init; }
     }
 
     /// <summary>
-    /// Mot luot labeler nop nhan. Mot dong nay sinh ra du lieu o BA service:
-    /// assignment (task-svc), annotation (annotation-svc), va neu duoc duyet thi
-    /// but toan chi tra (ledger-svc) — ca ba dung chung cac ID ben duoi.
+    /// Mot BAI LAM (docs 3.18): labeler lam het cac cau cua du an roi nop ca bai. Mot dong nay sinh du lieu
+    /// o nhieu service: bai lam (task-svc), nhan (annotation-svc), ban sao cham (quality-svc), tien thuong
+    /// (ledger) — tat ca dung chung cac ID ben duoi.
     /// </summary>
-    public sealed class SeedSubmission
+    public sealed class SeedAttempt
     {
-        public required Guid AssignmentId { get; init; }
-
-        public required Guid TaskId { get; init; }
-
-        public required Guid AnnotationId { get; init; }
+        public required Guid AttemptId { get; init; }
 
         public required Guid ProjectId { get; init; }
 
-        public required Guid SampleId { get; init; }
-
-        public string? StorageKey { get; init; }
+        public required string LabelerKey { get; init; }
 
         public required Guid LabelerId { get; init; }
 
-        /// <summary>Nhan da nop — phan du lieu theo cac cong cu cua tap nhan.</summary>
-        public required string PayloadJson { get; init; }
+        public required SeedAttemptState State { get; init; }
 
-        public required SeedReview Review { get; init; }
+        public required TimeSpan StartedAgo { get; init; }
 
-        /// <summary>Nguoi duyet (chu du an hoac reviewer). null khi con cho duyet.</summary>
-        public Guid? ReviewerId { get; init; }
+        /// <summary>Nop cach "bay gio" bao lau. null khi dang lam.</summary>
+        public TimeSpan? SubmittedAgo { get; init; }
 
-        public string? RejectReason { get; init; }
+        /// <summary>Cau tra loi (bai dang lam: chi cac cau da nhap nhap).</summary>
+        public required IReadOnlyList<SeedAnswer> Answers { get; init; }
 
-        public string? AppealMessage { get; init; }
+        public required int GoldTotal { get; init; }
 
-        /// <summary>Nop cach "bay gio" bao lau.</summary>
-        public required TimeSpan SubmittedAgo { get; init; }
+        public required int GoldCorrect { get; init; }
 
-        public TimeSpan? ReviewedAgo { get; init; }
-
-        public TimeSpan? AppealedAgo { get; init; }
+        /// <summary>Chi du an Completed.</summary>
+        public SeedResult? Result { get; init; }
     }
 
     public sealed class SeedProject
@@ -183,21 +201,13 @@ namespace Crowd.Seeding
 
         public required bool IsPrivate { get; init; }
 
-        public required long UnitPriceVnd { get; init; }
+        /// <summary>Thuong cho MOT nguoi lam dat ca du an.</summary>
+        public required long RewardVnd { get; init; }
 
-        public required int Redundancy { get; init; }
+        public required int Slots { get; init; }
 
-        /// <summary>Tran redundancy thich ung. null = bang Redundancy (khong thich ung).</summary>
-        public int? MaxRedundancy { get; init; }
-
-        /// <summary>Tran co hieu luc — cung cong thuc LabelingProject.TranRedundancy.</summary>
-        public int TranRedundancy
-        {
-            get { return MaxRedundancy.HasValue && MaxRedundancy.Value > Redundancy ? MaxRedundancy.Value : Redundancy; }
-        }
-
-        /// <summary>Ngan sach = so tien ky quy khi publish.</summary>
-        public required long BudgetVnd { get; init; }
+        /// <summary>t — % cau giong da so toi thieu de dat.</summary>
+        public required int PassThresholdPercent { get; init; }
 
         /// <summary>Deadline = 0h UTC cua ngay (hom nay + so ngay nay). Tinh theo NGAY de moi service ra cung mot gia tri.</summary>
         public required int DeadlineInDays { get; init; }
@@ -216,24 +226,60 @@ namespace Crowd.Seeding
         /// <summary>Luc admin duyet. null = chua chay.</summary>
         public TimeSpan? PublishedAgo { get; init; }
 
+        /// <summary>Du an Completed: luc dong thu bai + cham, va luc het han khieu nai (hoan thanh).</summary>
+        public TimeSpan? GradedAgo { get; init; }
+
+        public TimeSpan? CompletedAgo { get; init; }
+
         public required IReadOnlyList<SeedSample> Samples { get; init; }
 
         public required IReadOnlyList<SeedMember> Members { get; init; }
 
         public required IReadOnlyList<SeedGold> Gold { get; init; }
 
-        public required IReadOnlyList<SeedSubmission> Submissions { get; init; }
+        public required IReadOnlyList<SeedAttempt> Attempts { get; init; }
 
-        /// <summary>Phi nen tang cho MOT nhan — cung cong thuc LabelingProject.PhiMoiNhanVnd.</summary>
-        public long PlatformFeePerLabelVnd
+        /// <summary>Phi nen tang tren MOI nguoi dat — cung cong thuc LabelingProject.TinhPhiVnd.</summary>
+        public long PlatformFeePerPassVnd
         {
-            get { return UnitPriceVnd * KichBanSeed.PhanTramPhi / 100; }
+            get { return RewardVnd * KichBanSeed.PhanTramPhi / 100; }
         }
 
-        /// <summary>Da qua buoc ky quy chua (Cho duyet hoac Dang chay).</summary>
+        /// <summary>Ky quy = so suat x (thuong + phi) — cung cong thuc LabelingProject.ChiPhiUocTinhVnd (seed khong bat cong link).</summary>
+        public long EscrowVnd
+        {
+            get { return Slots * (RewardVnd + PlatformFeePerPassVnd); }
+        }
+
+        /// <summary>So cau that = so mau khong phai cau vang.</summary>
+        public int QuestionCount
+        {
+            get { return Samples.Count - Gold.Count; }
+        }
+
+        /// <summary>Da qua buoc ky quy chua (Cho duyet, Dang chay, Hoan thanh).</summary>
         public bool DaKyQuy
         {
-            get { return Stage == SeedStage.PendingApproval || Stage == SeedStage.Running; }
+            get { return Stage == SeedStage.PendingApproval || Stage == SeedStage.Running || Stage == SeedStage.Completed; }
+        }
+
+        /// <summary>Da tung chay (co ban sao o task / annotation / quality).</summary>
+        public bool DaChay
+        {
+            get { return Stage == SeedStage.Running || Stage == SeedStage.Completed; }
+        }
+
+        public bool LaCauVang(Guid sampleId)
+        {
+            foreach (SeedGold g in Gold)
+            {
+                if (g.SampleId == sampleId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public LabelSchema TapNhan()

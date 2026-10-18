@@ -119,7 +119,9 @@ namespace Crowd.Project.Api.Services
                     Name = p.Name,
                     Modality = p.Modality,
                     Visibility = p.Visibility,
-                    UnitPriceVnd = p.UnitPriceVnd,
+                    RewardVnd = p.RewardVnd,
+                    QuestionCount = p.QuestionCount,
+                    ToolKinds = ProjectService.LoaiCongCu(p),
                     Deadline = p.Deadline,
                     RequireEntranceTest = p.RequireEntranceTest,
                     SensitiveContent = p.SensitiveContent,
@@ -133,7 +135,7 @@ namespace Crowd.Project.Api.Services
 
             return kq
                 .OrderByDescending(x => x.Score)
-                .ThenByDescending(x => x.UnitPriceVnd)
+                .ThenByDescending(x => x.RewardVnd)
                 .Take(n)
                 .ToList();
         }

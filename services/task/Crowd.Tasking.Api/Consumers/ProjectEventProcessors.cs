@@ -5,9 +5,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Consumers;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.Contracts.Project;
+using Crowd.Contracts.Quality;
 using Crowd.Labeling;
 using Crowd.Tasking.Api.Services;
+using Crowd.Tasking.Domain.Attempts;
 using Crowd.Tasking.Domain.Projects;
 using Crowd.Tasking.Domain.Tasks;
 using Crowd.Tasking.Infrastructure.Persistence;
@@ -56,7 +59,7 @@ namespace Crowd.Tasking.Api.Consumers
     }
 
     /// <summary>
-    /// dataset.ingested: moi mau thanh mot task. Mau trung (lo giao lai) bo qua
+    /// dataset.ingested: moi mau thanh mot CAU HOI cua de. Mau trung (lo giao lai) bo qua
     /// nho UNIQUE (project_id, sample_id) va kiem truoc; mau vang thi Excluded.
     /// </summary>
     public sealed class DatasetIngestedProcessor : IEventProcessor<DatasetIngested>
@@ -95,7 +98,6 @@ namespace Crowd.Tasking.Api.Consumers
                 .Select(g => g.SampleId)
                 .ToListAsync(ct));
 
-            int redundancy = duAn.IsConfigured ? duAn.Redundancy : 0;
             DateTimeOffset bayGio = _clock.GetUtcNow();
 
             foreach (IngestedSample s in p.Samples)
@@ -105,7 +107,7 @@ namespace Crowd.Tasking.Api.Consumers
                     continue;
                 }
 
-                LabelingTask t = LabelingTask.Tao(p.ProjectId, s.SampleId, s.Modality, s.StorageKey, s.Content, s.Metadata, redundancy, bayGio);
+                LabelingTask t = LabelingTask.Tao(p.ProjectId, s.SampleId, s.Modality, s.StorageKey, s.Content, s.Metadata, bayGio);
                 t.LoaiTruVi(vang.Contains(s.SampleId));
                 _db.Tasks.Add(t);
             }
@@ -113,8 +115,7 @@ namespace Crowd.Tasking.Api.Consumers
     }
 
     /// <summary>
-    /// project.published: nap cau hinh vao ban sao, gan redundancy cho task tao
-    /// tu truoc luc publish (dataset nap khi du an con Nhap).
+    /// project.published v2: nap cau hinh (thuong, so suat, nguong t, han chot) vao ban sao — du an mo nhan bai.
     /// </summary>
     public sealed class ProjectPublishedProcessor : IEventProcessor<ProjectPublished>
     {
@@ -141,10 +142,10 @@ namespace Crowd.Tasking.Api.Consumers
             duAn.ApDungPublished(
                 p.OwnerId,
                 LabelSchema.Doc(p.LabelSchema),
-                p.UnitPriceVnd,
-                p.Redundancy,
-                p.MaxRedundancy,
-                p.GoldCheckPercent,
+                p.RewardVnd,
+                p.Slots,
+                p.PassThresholdPercent,
+                p.QuestionCount,
                 p.Deadline,
                 p.AllowProfessional,
                 p.IsPrivate,
@@ -153,12 +154,6 @@ namespace Crowd.Tasking.Api.Consumers
                 p.SensitiveContent == true,
                 envelope.OccurredAt);
 
-            // Hang loat, mot cau UPDATE: nap 10.000 task vao bo nho chi de gan mot
-            // con so la lang phi. Chi dung task chua co redundancy.
-            int r = p.Redundancy;
-            await _db.Tasks
-                .Where(t => t.ProjectId == p.ProjectId && t.RedundancyTarget == 0)
-                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RedundancyTarget, r), ct);
         }
     }
 
@@ -187,8 +182,8 @@ namespace Crowd.Tasking.Api.Consumers
         {
             ProjectSnapshot duAn = await Snapshots.LayHoacTaoAsync(_db, envelope.Payload.ProjectId, ct);
 
-            // Lease dang giu KHONG bi thu hoi: labeler dang lam do thi cho nop not.
-            // Chi ngung CAP task moi.
+            // Bai dang lam KHONG bi huy: luu nhap van duoc, chi chua nop / bat dau moi duoc. Chay tiep thi
+            // thoi gian tam dung duoc cong bu cho moi bai dang lam.
             if (!duAn.TamDung(envelope.OccurredAt))
             {
                 _logger.LogInformation("project.paused {EventId} cu hon trang thai hien tai — bo qua", envelope.EventId);
@@ -219,11 +214,27 @@ namespace Crowd.Tasking.Api.Consumers
 
         public async Task XuLyAsync(EventEnvelope<ProjectResumed> envelope, CancellationToken ct)
         {
-            ProjectSnapshot duAn = await Snapshots.LayHoacTaoAsync(_db, envelope.Payload.ProjectId, ct);
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
 
-            if (!duAn.TiepTuc(envelope.OccurredAt))
+            ProjectSnapshot duAn = await Snapshots.LayHoacTaoAsync(_db, envelope.Payload.ProjectId, ct);
+            TimeSpan? daDung = duAn.TiepTuc(envelope.OccurredAt);
+            if (daDung == null)
             {
                 _logger.LogInformation("project.resumed {EventId} cu hon trang thai hien tai — bo qua", envelope.EventId);
+                return;
+            }
+
+            // Cong bu thoi gian tam dung cho bai dang lam (khong qua han chot).
+            if (daDung.Value > TimeSpan.Zero && duAn.Deadline.HasValue)
+            {
+                List<Attempt> dangLam = await TaskQueries.KhoaBaiDangLamAsync(_db, duAn.ProjectId, null, ct);
+                foreach (Attempt a in dangLam)
+                {
+                    a.CongBuThoiGian(daDung.Value, duAn.Deadline.Value);
+                }
             }
         }
     }
@@ -231,13 +242,17 @@ namespace Crowd.Tasking.Api.Consumers
     /// <summary>Dong du an (huy hoac hoan thanh) — dung chung cho hai event.</summary>
     internal static class ProjectCloser
     {
-        public static async Task DongAsync(TaskDbContext db, LeaseRevoker revoker, Guid projectId, DateTimeOffset occurredAt, DateTimeOffset bayGio, CancellationToken ct)
+        public static async Task DongAsync(TaskDbContext db, Guid projectId, DateTimeOffset occurredAt, DateTimeOffset bayGio, CancellationToken ct)
         {
             ProjectSnapshot duAn = await Snapshots.LayHoacTaoAsync(db, projectId, ct);
             duAn.Dong(occurredAt);
 
-            // Thu hoi lease truoc (khoa assignment → task), roi dong task con mo.
-            await revoker.ThuHoiAsync(projectId, null, bayGio, ct);
+            // Bai dang lam do (du an bi huy truoc khi dong thu bai) → huy; bai da nop giu nguyen.
+            List<Attempt> dangLam = await TaskQueries.KhoaBaiDangLamAsync(db, projectId, null, ct);
+            foreach (Attempt a in dangLam)
+            {
+                a.Huy(bayGio);
+            }
 
             DateTimeOffset? luc = bayGio;
             await db.Tasks
@@ -249,19 +264,13 @@ namespace Crowd.Tasking.Api.Consumers
     public sealed class ProjectCancelledProcessor : IEventProcessor<ProjectCancelled>
     {
         private readonly TaskDbContext _db;
-        private readonly LeaseRevoker _revoker;
         private readonly TimeProvider _clock;
 
-        public ProjectCancelledProcessor(TaskDbContext db, LeaseRevoker revoker, TimeProvider clock)
+        public ProjectCancelledProcessor(TaskDbContext db, TimeProvider clock)
         {
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
-            }
-
-            if (revoker == null)
-            {
-                throw new ArgumentNullException(nameof(revoker));
             }
 
             if (clock == null)
@@ -270,32 +279,30 @@ namespace Crowd.Tasking.Api.Consumers
             }
 
             _db = db;
-            _revoker = revoker;
             _clock = clock;
         }
 
         public Task XuLyAsync(EventEnvelope<ProjectCancelled> envelope, CancellationToken ct)
         {
-            return ProjectCloser.DongAsync(_db, _revoker, envelope.Payload.ProjectId, envelope.OccurredAt, _clock.GetUtcNow(), ct);
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            return ProjectCloser.DongAsync(_db, envelope.Payload.ProjectId, envelope.OccurredAt, _clock.GetUtcNow(), ct);
         }
     }
 
     public sealed class ProjectCompletedProcessor : IEventProcessor<ProjectCompleted>
     {
         private readonly TaskDbContext _db;
-        private readonly LeaseRevoker _revoker;
         private readonly TimeProvider _clock;
 
-        public ProjectCompletedProcessor(TaskDbContext db, LeaseRevoker revoker, TimeProvider clock)
+        public ProjectCompletedProcessor(TaskDbContext db, TimeProvider clock)
         {
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
-            }
-
-            if (revoker == null)
-            {
-                throw new ArgumentNullException(nameof(revoker));
             }
 
             if (clock == null)
@@ -304,13 +311,114 @@ namespace Crowd.Tasking.Api.Consumers
             }
 
             _db = db;
-            _revoker = revoker;
             _clock = clock;
         }
 
         public Task XuLyAsync(EventEnvelope<ProjectCompleted> envelope, CancellationToken ct)
         {
-            return ProjectCloser.DongAsync(_db, _revoker, envelope.Payload.ProjectId, envelope.OccurredAt, _clock.GetUtcNow(), ct);
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            return ProjectCloser.DongAsync(_db, envelope.Payload.ProjectId, envelope.OccurredAt, _clock.GetUtcNow(), ct);
+        }
+    }
+
+    /// <summary>
+    /// project.finish_requested ("Ket thuc som" cua doanh nghiep): dong thu bai ngay — bai dang lam do bi het
+    /// han, cham voi cac bai da nop.
+    /// </summary>
+    public sealed class ProjectFinishRequestedProcessor : IEventProcessor<ProjectFinishRequested>
+    {
+        private readonly TaskDbContext _db;
+        private readonly ThuBaiService _thuBai;
+        private readonly TimeProvider _clock;
+
+        public ProjectFinishRequestedProcessor(TaskDbContext db, ThuBaiService thuBai, TimeProvider clock)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            if (thuBai == null)
+            {
+                throw new ArgumentNullException(nameof(thuBai));
+            }
+
+            if (clock == null)
+            {
+                throw new ArgumentNullException(nameof(clock));
+            }
+
+            _db = db;
+            _thuBai = thuBai;
+            _clock = clock;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<ProjectFinishRequested> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            await Snapshots.LayHoacTaoAsync(_db, envelope.Payload.ProjectId, ct);
+            ProjectSnapshot? duAn = await TaskQueries.KhoaDuAnAsync(_db, envelope.Payload.ProjectId, ct);
+            if (duAn == null || !duAn.IsConfigured)
+            {
+                // project.published chua toi → nem loi de broker giao lai sau.
+                throw new InvalidOperationException("Chua co cau hinh du an " + envelope.Payload.ProjectId + " de dong thu bai.");
+            }
+
+            await _thuBai.DongThuBaiAsync(duAn, "ket_thuc_som", _clock.GetUtcNow(), Caller.HeThong(envelope.CorrelationId, envelope.EventId), ct);
+        }
+    }
+
+    /// <summary>project.graded (quality-svc): ghi ket qua tung bai, mo han khieu nai; han 0 thi chot luon.</summary>
+    public sealed class ProjectGradedProcessor : IEventProcessor<ProjectGraded>
+    {
+        private readonly TaskDbContext _db;
+        private readonly ThuBaiService _thuBai;
+        private readonly TimeProvider _clock;
+
+        public ProjectGradedProcessor(TaskDbContext db, ThuBaiService thuBai, TimeProvider clock)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            if (thuBai == null)
+            {
+                throw new ArgumentNullException(nameof(thuBai));
+            }
+
+            if (clock == null)
+            {
+                throw new ArgumentNullException(nameof(clock));
+            }
+
+            _db = db;
+            _thuBai = thuBai;
+            _clock = clock;
+        }
+
+        public async Task XuLyAsync(EventEnvelope<ProjectGraded> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            ProjectSnapshot? duAn = await TaskQueries.KhoaDuAnAsync(_db, envelope.Payload.ProjectId, ct);
+            if (duAn == null)
+            {
+                throw new InvalidOperationException("project.graded cho du an chua co ban sao " + envelope.Payload.ProjectId + ".");
+            }
+
+            await _thuBai.GhiKetQuaChamAsync(duAn, envelope.Payload, _clock.GetUtcNow(), Caller.HeThong(envelope.CorrelationId, envelope.EventId), ct);
         }
     }
 
@@ -362,10 +470,7 @@ namespace Crowd.Tasking.Api.Consumers
             }
 
             List<Guid> anhHuong = vangCu.Union(vangMoi).ToList();
-            List<LabelingTask> tasks = await TaskQueries.KhoaTaskAsync(
-                _db,
-                await _db.Tasks.Where(t => t.ProjectId == p.ProjectId && anhHuong.Contains(t.SampleId)).Select(t => t.Id).ToListAsync(ct),
-                ct);
+            List<LabelingTask> tasks = await _db.Tasks.Where(t => t.ProjectId == p.ProjectId && anhHuong.Contains(t.SampleId)).ToListAsync(ct);
 
             foreach (LabelingTask t in tasks)
             {

@@ -130,7 +130,7 @@ namespace Crowd.Admin.Api.Services
                 SELECT day AS ""Ngay"", event_type AS ""Loai"", count::int AS ""So"", amount_vnd AS ""Tien""
                 FROM stats_daily
                 WHERE day >= {tu} AND day <= {den}
-                  AND event_type IN ('user.registered', 'annotation.submitted', 'annotation.approved', 'deposit.confirmed')").ToListAsync(ct);
+                  AND event_type IN ('user.registered', 'attempt.submitted', 'project.graded', 'deposit.confirmed')").ToListAsync(ct);
 
             List<StatsDay> ngay = new List<StatsDay>();
             for (DateOnly d = tu; d <= den; d = d.AddDays(1))
@@ -140,8 +140,8 @@ namespace Crowd.Admin.Api.Services
                 {
                     Date = hom,
                     NewUsers = DemNgay(theoNgay, hom, "user.registered"),
-                    AnnotationsSubmitted = DemNgay(theoNgay, hom, "annotation.submitted"),
-                    AnnotationsApproved = DemNgay(theoNgay, hom, "annotation.approved"),
+                    AttemptsSubmitted = DemNgay(theoNgay, hom, "attempt.submitted"),
+                    ProjectsGraded = DemNgay(theoNgay, hom, "project.graded"),
                     DepositsVnd = theoNgay.Where(x => x.Ngay == hom && x.Loai == "deposit.confirmed").Sum(x => x.Tien),
                 });
             }
@@ -163,14 +163,14 @@ namespace Crowd.Admin.Api.Services
                 NewUsers = So(loai, "user.registered"),
                 BusinessesVerified = So(loai, "business.verified"),
                 ProjectsPublished = So(loai, "project.published"),
-                AnnotationsSubmitted = So(loai, "annotation.submitted"),
-                AnnotationsApproved = So(loai, "annotation.approved"),
-                AnnotationsRejected = So(loai, "annotation.rejected"),
+                AttemptsSubmitted = So(loai, "attempt.submitted"),
+                ProjectsGraded = So(loai, "project.graded"),
+                ProjectsCompleted = So(loai, "project.completed"),
                 DepositsVnd = Tien(loai, "deposit.confirmed"),
-                LabelerPayoutsVnd = Tien(loai, "annotation.approved"),
-                PlatformFeeVnd = Phi(loai, "annotation.approved"),
+                // funds.held: thuong bai dat + doanh thu chia se link + hoa hong gioi thieu.
+                LabelerPayoutsVnd = Tien(loai, "funds.held"),
                 WithdrawalsVnd = Tien(loai, "payout.requested"),
-                DisputesOpened = So(loai, "dispute.opened"),
+                AppealsOpened = So(loai, "attempt.appeal_opened"),
                 AccountsBlocked = So(loai, "user.blocked"),
                 FraudCasesConfirmed = So(loai, "fraud.case_confirmed"),
                 Daily = ngay,
@@ -187,12 +187,6 @@ namespace Crowd.Admin.Api.Services
         {
             DongTheoLoai? d;
             return loai.TryGetValue(ten, out d) ? d.Tien : 0;
-        }
-
-        private static long Phi(Dictionary<string, DongTheoLoai> loai, string ten)
-        {
-            DongTheoLoai? d;
-            return loai.TryGetValue(ten, out d) ? d.Phi : 0;
         }
 
         private static int DemNgay(List<DongTheoNgay> ds, DateOnly ngay, string loai)

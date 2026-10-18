@@ -11,17 +11,17 @@ namespace Crowd.Ledger.Domain.Holds
         /// <summary>Giu lai vi vi pham (link bi vo hieu hoa) — tien sang platform:withheld, khong tra.</summary>
         Withheld,
 
-        /// <summary>Doanh nghiep dang tranh chap (FM-06): dong bang, worker khong giai phong.</summary>
+        /// <summary>Du lieu cu: tranh chap nhan da duyet (da bo cung duyet tung nhan, docs 3.18).</summary>
         Disputed,
 
-        /// <summary>Admin xu doanh nghiep thang tranh chap: tien tra lai doanh nghiep.</summary>
+        /// <summary>Du lieu cu: tranh chap xu doanh nghiep thang.</summary>
         Refunded,
     }
 
     /// <summary>Khoan treo sinh ra tu dau.</summary>
     public enum HoldKind
     {
-        /// <summary>Nhan duoc duyet (labeler). AnnotationId = nhan.</summary>
+        /// <summary>Du lieu cu: nhan duoc duyet (truoc du an lam trung tam). AnnotationId = nhan.</summary>
         Annotation,
 
         /// <summary>Luot vuot link hop le (sharer). AnnotationId = ClickId, LinkId = link.</summary>
@@ -29,6 +29,9 @@ namespace Crowd.Ledger.Domain.Holds
 
         /// <summary>Hoa hong gioi thieu (FS-08). AnnotationId = ClickId goc, LinkId = link goc.</summary>
         Referral,
+
+        /// <summary>Thuong cho MOT bai dat cua du an (docs 3.18). AnnotationId = id bai lam.</summary>
+        ProjectReward,
     }
 
     /// <summary>
@@ -44,8 +47,8 @@ namespace Crowd.Ledger.Domain.Holds
         public Guid Id { get; private set; }
 
         /// <summary>
-        /// UNIQUE (cung Kind): moi su viec sinh DUNG MOT khoan treo (VD-M-02). Voi Annotation la
-        /// id nhan; voi GateClick / Referral la ClickId cua luot vuot link.
+        /// UNIQUE (cung Kind): moi su viec sinh DUNG MOT khoan treo (VD-M-02). Voi ProjectReward la id bai
+        /// lam; voi GateClick / Referral la ClickId cua luot vuot link; du lieu cu (Annotation) la id nhan.
         /// </summary>
         public Guid AnnotationId { get; private set; }
 
@@ -58,7 +61,7 @@ namespace Crowd.Ledger.Domain.Holds
 
         public Guid ProjectId { get; private set; }
 
-        /// <summary>De dem so luot da chi cho moi task — chan chi vuot redundancy (VD-M-03).</summary>
+        /// <summary>Du lieu cu (chi theo task). Khoan moi: Guid.Empty.</summary>
         public Guid TaskId { get; private set; }
 
         public long AmountVnd { get; private set; }
@@ -71,19 +74,31 @@ namespace Crowd.Ledger.Domain.Holds
 
         public DateTimeOffset? ReleasedAt { get; private set; }
 
-        public static FundsHold Tao(Guid annotationId, Guid projectId, Guid taskId, Guid labelerId, long amount, DateTimeOffset luc, TimeSpan thoiGianTreo)
+        /// <summary>Thuong mot bai dat — treo ledger.reward_hold (0 = noi goi giai phong ngay).</summary>
+        public static FundsHold TaoChoBaiDat(Guid attemptId, Guid projectId, Guid labelerId, long amount, DateTimeOffset luc, TimeSpan thoiGianTreo)
         {
+            FundsHold h = TaoCoBan(attemptId, projectId, labelerId, amount, luc, thoiGianTreo);
+            h.Kind = HoldKind.ProjectReward;
+            return h;
+        }
+
+        private static FundsHold TaoCoBan(Guid nguon, Guid projectId, Guid userId, long amount, DateTimeOffset luc, TimeSpan thoiGianTreo)
+        {
+            if (thoiGianTreo < TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(thoiGianTreo), "Thoi gian treo khong duoc am.");
+            }
+
             FundsHold h = new FundsHold();
             h.Id = Guid.CreateVersion7();
-            h.AnnotationId = annotationId;
-            h.LabelerId = labelerId;
+            h.AnnotationId = nguon;
+            h.LabelerId = userId;
             h.ProjectId = projectId;
-            h.TaskId = taskId;
+            h.TaskId = Guid.Empty;
             h.AmountVnd = amount;
             h.HeldAt = luc;
             h.ReleaseAt = luc + thoiGianTreo;
             h.State = HoldState.Held;
-            h.Kind = HoldKind.Annotation;
             return h;
         }
 
@@ -91,12 +106,12 @@ namespace Crowd.Ledger.Domain.Holds
         public static FundsHold TaoChoCongLink(
             HoldKind kind, Guid clickId, Guid projectId, Guid linkId, Guid userId, long amount, DateTimeOffset luc, TimeSpan thoiGianTreo)
         {
-            if (kind == HoldKind.Annotation)
+            if (kind != HoldKind.GateClick && kind != HoldKind.Referral)
             {
-                throw new ArgumentOutOfRangeException(nameof(kind), "Dung FundsHold.Tao cho nhan.");
+                throw new ArgumentOutOfRangeException(nameof(kind), "Cong link chi co GateClick / Referral.");
             }
 
-            FundsHold h = Tao(clickId, projectId, Guid.Empty, userId, amount, luc, thoiGianTreo);
+            FundsHold h = TaoCoBan(clickId, projectId, userId, amount, luc, thoiGianTreo);
             h.Kind = kind;
             h.LinkId = linkId;
             return h;
@@ -111,40 +126,6 @@ namespace Crowd.Ledger.Domain.Holds
             }
 
             State = HoldState.Withheld;
-            ReleasedAt = luc;
-        }
-
-        /// <summary>Mo tranh chap: chi khi tien CON TREO (da giai phong thi labeler co the rut roi).</summary>
-        public void DongBang()
-        {
-            if (State != HoldState.Held)
-            {
-                throw new RuleViolationException("khong_con_treo", "Tien cua nhan nay da het thoi gian treo — khong tranh chap duoc nua.");
-            }
-
-            State = HoldState.Disputed;
-        }
-
-        /// <summary>Admin xu labeler thang: tro lai treo (qua han thi worker giai phong ngay vong sau).</summary>
-        public void MoBang()
-        {
-            if (State != HoldState.Disputed)
-            {
-                throw new RuleViolationException("khong_dang_tranh_chap", "Khoan treo khong dang bi dong bang.");
-            }
-
-            State = HoldState.Held;
-        }
-
-        /// <summary>Admin xu doanh nghiep thang: tien khong bao gio toi labeler.</summary>
-        public void HoanChoDoanhNghiep(DateTimeOffset luc)
-        {
-            if (State != HoldState.Disputed)
-            {
-                throw new RuleViolationException("khong_dang_tranh_chap", "Khoan treo khong dang bi dong bang.");
-            }
-
-            State = HoldState.Refunded;
             ReleasedAt = luc;
         }
 

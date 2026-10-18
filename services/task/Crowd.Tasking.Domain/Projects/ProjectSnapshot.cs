@@ -71,15 +71,38 @@ namespace Crowd.Tasking.Domain.Projects
             }
         }
 
-        public long UnitPriceVnd { get; private set; }
+        /// <summary>Thuong cho MOT nguoi lam dat ca du an (docs 3.18).</summary>
+        public long RewardVnd { get; private set; }
 
-        public int Redundancy { get; private set; }
+        /// <summary>So suat: toi da bay nhieu bai (dang lam + da nop).</summary>
+        public int Slots { get; private set; }
 
-        /// <summary>Tran redundancy thich ung — quality-svc xin them nguoi khong vuot so nay.</summary>
-        public int MaxRedundancy { get; private set; }
+        /// <summary>t — % cau giong da so toi thieu de dat.</summary>
+        public int PassThresholdPercent { get; private set; }
 
-        /// <summary>Phan tram so lan cap task la cau vang kiem tra (0 = khong tron).</summary>
-        public int GoldCheckPercent { get; private set; }
+        public int QuestionCount { get; private set; }
+
+        // ---- Thu bai → cham → khieu nai → chot (docs 3.18) ----
+
+        /// <summary>Luc dong thu bai (du suat / het han / ket thuc som). null = con nhan bai.</summary>
+        public DateTimeOffset? CollectionFinishedAt { get; private set; }
+
+        /// <summary>du_suat | het_han | ket_thuc_som</summary>
+        public string? FinishReason { get; private set; }
+
+        /// <summary>Luc quality-svc cham xong (project.graded).</summary>
+        public DateTimeOffset? GradedAt { get; private set; }
+
+        /// <summary>Han khieu nai = luc cham + task.appeal_window.</summary>
+        public DateTimeOffset? AppealDeadline { get; private set; }
+
+        /// <summary>Luc chot so nguoi dat (phat project.settled).</summary>
+        public DateTimeOffset? SettledAt { get; private set; }
+
+        public int? PassedCount { get; private set; }
+
+        /// <summary>Luc tam dung gan nhat (de cong bu thoi gian giu bai khi chay tiep). null = khong tam dung.</summary>
+        public DateTimeOffset? PausedAt { get; private set; }
 
         public DateTimeOffset? Deadline { get; private set; }
 
@@ -122,28 +145,10 @@ namespace Crowd.Tasking.Domain.Projects
         public void ApDungPublished(
             Guid ownerId,
             LabelSchema labelSchema,
-            long unitPriceVnd,
-            int redundancy,
-            int maxRedundancy,
-            int goldCheckPercent,
-            DateTimeOffset deadline,
-            bool allowProfessional,
-            bool isPrivate,
-            int? minLevel,
-            int? minReputation,
-            DateTimeOffset occurredAt)
-        {
-            ApDungPublished(ownerId, labelSchema, unitPriceVnd, redundancy, maxRedundancy, goldCheckPercent, deadline,
-                allowProfessional, isPrivate, minLevel, minReputation, false, occurredAt);
-        }
-
-        public void ApDungPublished(
-            Guid ownerId,
-            LabelSchema labelSchema,
-            long unitPriceVnd,
-            int redundancy,
-            int maxRedundancy,
-            int goldCheckPercent,
+            long rewardVnd,
+            int slots,
+            int passThresholdPercent,
+            int questionCount,
             DateTimeOffset deadline,
             bool allowProfessional,
             bool isPrivate,
@@ -161,10 +166,10 @@ namespace Crowd.Tasking.Domain.Projects
             Modality = labelSchema.Modality;
             _labelSchemaJson = labelSchema.ToRawJson().Json;
             _labelSchema = labelSchema;
-            UnitPriceVnd = unitPriceVnd;
-            Redundancy = redundancy;
-            MaxRedundancy = maxRedundancy > redundancy ? maxRedundancy : redundancy;
-            GoldCheckPercent = goldCheckPercent;
+            RewardVnd = rewardVnd;
+            Slots = slots;
+            PassThresholdPercent = passThresholdPercent;
+            QuestionCount = questionCount;
             Deadline = deadline;
             AllowProfessional = allowProfessional;
             IsPrivate = isPrivate;
@@ -179,12 +184,80 @@ namespace Crowd.Tasking.Domain.Projects
         /// <summary>Tra ve false neu event cu hon trang thai hien tai (bi bo qua).</summary>
         public bool TamDung(DateTimeOffset occurredAt)
         {
-            return DoiTrangThaiNeuMoiHon(SnapshotStatus.Paused, occurredAt);
+            bool doi = DoiTrangThaiNeuMoiHon(SnapshotStatus.Paused, occurredAt);
+            if (doi)
+            {
+                PausedAt = occurredAt;
+            }
+
+            return doi;
         }
 
-        public bool TiepTuc(DateTimeOffset occurredAt)
+        /// <summary>
+        /// Chay tiep. Tra ve thoi gian DA tam dung (de cong bu cho bai dang lam), null khi event cu
+        /// (bo qua) hoac khong biet luc tam dung.
+        /// </summary>
+        public TimeSpan? TiepTuc(DateTimeOffset occurredAt)
         {
-            return DoiTrangThaiNeuMoiHon(SnapshotStatus.Running, occurredAt);
+            DateTimeOffset? luc = PausedAt;
+            if (!DoiTrangThaiNeuMoiHon(SnapshotStatus.Running, occurredAt))
+            {
+                return null;
+            }
+
+            PausedAt = null;
+            if (!luc.HasValue || occurredAt <= luc.Value)
+            {
+                return TimeSpan.Zero;
+            }
+
+            return occurredAt - luc.Value;
+        }
+
+        /// <summary>Con nhan bai (bat dau / nop) khong: dang chay, chua dong thu bai, chua qua han chot.</summary>
+        public bool ConNhanBai(DateTimeOffset luc)
+        {
+            return Status == SnapshotStatus.Running && !CollectionFinishedAt.HasValue
+                   && (!Deadline.HasValue || luc < Deadline.Value);
+        }
+
+        /// <summary>Dong thu bai (mot lan). Tra ve false neu da dong roi.</summary>
+        public bool DongThuBai(string lyDo, DateTimeOffset luc)
+        {
+            if (CollectionFinishedAt.HasValue)
+            {
+                return false;
+            }
+
+            CollectionFinishedAt = luc;
+            FinishReason = lyDo;
+            return true;
+        }
+
+        /// <summary>project.graded: mo han khieu nai. Giao lai → giu moc cu.</summary>
+        public bool GhiDaCham(DateTimeOffset luc, TimeSpan hanKhieuNai)
+        {
+            if (GradedAt.HasValue)
+            {
+                return false;
+            }
+
+            GradedAt = luc;
+            AppealDeadline = luc + hanKhieuNai;
+            return true;
+        }
+
+        /// <summary>Chot so nguoi dat (het han khieu nai, khong con khieu nai mo). Mot lan.</summary>
+        public bool Chot(int soNguoiDat, DateTimeOffset luc)
+        {
+            if (SettledAt.HasValue || !GradedAt.HasValue)
+            {
+                return false;
+            }
+
+            SettledAt = luc;
+            PassedCount = soNguoiDat;
+            return true;
         }
 
         public bool Dong(DateTimeOffset occurredAt)

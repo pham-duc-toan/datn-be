@@ -15,7 +15,7 @@ dau = datetime.now(VN).replace(day=1)
 THANG_TRUOC = (dau - timedelta(days=1)).strftime("%Y-%m")
 
 try:
-    print("\n[1] Tao phi nen tang: nap tien, du an 3 mau x 20.000d (phi 30%), labeler lam, doanh nghiep duyet")
+    print("\n[1] Tao phi nen tang: nap tien, du an 3 cau, thuong 60.000d / suat (phi 30%), labeler lam bai, ket thuc som → cham → tra thuong")
     biz = dang_ky(["business"], "hoadon")
     lab = dang_ky(["labeler"], "hoadon-lab")
     intent = requests.post(G + "/payments/deposits", headers={**biz["h"], "Idempotency-Key": uuid.uuid4().hex},
@@ -26,20 +26,18 @@ try:
     ten_du_an = requests.get(G + f"/projects/{pid}", headers=biz["h"]).json()["name"]
     publish_va_duyet(biz, pid)
     tham_gia(lab, pid)
-    kiem("labeler lam 3 task", lam_het(lab, pid, lambda t: "a") == 3)
-    nhan = cho(lambda: ds_nhan(biz, pid) if len(ds_nhan(biz, pid)) == 3 else None, 30)
-    for a in nhan:
-        requests.post(G + f"/annotations/{a['id']}/approve", headers=biz["h"]).raise_for_status()
-    cho(lambda: requests.get(G + f"/ledger/projects/{pid}/cost", headers=biz["h"]).status_code == 200, 5)
-    time.sleep(3)
+    kiem("labeler lam ca bai 3 cau", lam_het(lab, pid, lambda t: "a") == 3)
+    ket_thuc_som(biz, pid)
+    kiem("bai dat → ledger tra thuong", cho(lambda: requests.get(G + f"/ledger/projects/{pid}/cost", headers=biz["h"]).json().get("paidAttempts") == 1, 60))
+    time.sleep(2)
 
     print("\n[2] Tam tinh thang nay (chua xuat)")
     r = requests.get(G + f"/ledger/invoices/preview?period={THANG_NAY}", headers=biz["h"])
     j = r.json()
-    kiem("tam tinh: phi 3 x 6.000 = 18.000 (da gom VAT)", r.status_code == 200 and j["totalVnd"] == 18000, j)
+    kiem("tam tinh: phi 30% x 60.000 = 18.000 (da gom VAT)", r.status_code == 200 and j["totalVnd"] == 18000, j)
     kiem("tach VAT 10%: 16.364 + 1.636", j["totalNetVnd"] == 16364 and j["totalVatVnd"] == 1636, j)
     kiem("bang ke chi ho labeler 60.000", j["passThroughVnd"] == 60000, j)
-    kiem("so luot tinh phi = 3, dong ghi ten du an", j["items"][0]["quantity"] == 3 and ten_du_an in j["items"][0]["description"], j)
+    kiem("so luot tinh phi = 1 bai dat, dong ghi ten du an", j["items"][0]["quantity"] == 1 and ten_du_an in j["items"][0]["description"], j)
     kiem("chua xuat", j["issued"] is False)
 
     print("\n[3] Xuat hoa don")
@@ -72,9 +70,9 @@ try:
     publish_va_duyet(biz2, pid2)
     tham_gia(lab, pid2)
     lam_het(lab, pid2, lambda t: "b")
-    for a in cho(lambda: ds_nhan(biz2, pid2) or None, 30):
-        requests.post(G + f"/annotations/{a['id']}/approve", headers=biz2["h"]).raise_for_status()
-    time.sleep(3)
+    ket_thuc_som(biz2, pid2)
+    cho(lambda: requests.get(G + f"/ledger/projects/{pid2}/cost", headers=biz2["h"]).json().get("paidAttempts") == 1, 60)
+    time.sleep(2)
     h2 = requests.post(G + "/ledger/invoices", headers=biz2["h"], json={"period": THANG_NAY}).json()
     kiem("hoa don doanh nghiep khac: so ke tiep (tang dan)", int(h2["number"]) > int(h["number"]) and h2["totalVnd"] == 3000, h2)
 

@@ -113,13 +113,14 @@ namespace Crowd.Admin.Tests
         {
             string[] loaiTru = Crowd.BuildingBlocks.Settings.SettingCatalog.AuditLoaiTruMacDinh.Split(',');
 
-            Assert.Contains("annotation.submitted", loaiTru);
-            Assert.Contains("assignment.submitted", loaiTru);
-            Assert.Contains("consensus.reached", loaiTru);
+            // Bai nop mang ca de (lon, tan suat cao) — chi dem.
+            Assert.Contains("attempt.submitted", loaiTru);
+            Assert.Contains("funds.held", loaiTru);
+            Assert.DoesNotContain("project.graded", loaiTru);
+            Assert.DoesNotContain("attempt.appeal_resolved", loaiTru);
             Assert.DoesNotContain("user.blocked", loaiTru);
             Assert.DoesNotContain("setting.changed", loaiTru);
             Assert.DoesNotContain("deposit.confirmed", loaiTru);
-            Assert.DoesNotContain("dispute.resolved", loaiTru);
             Assert.True(Crowd.BuildingBlocks.Settings.SettingCatalog.AuditLoaiTruMacDinh.Length <= 1000);
         }
 

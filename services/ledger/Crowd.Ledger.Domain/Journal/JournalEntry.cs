@@ -16,7 +16,7 @@ namespace Crowd.Ledger.Domain.Journal
         /// <summary>Publish: doanh nghiep → ky quy du an.</summary>
         EscrowReserve,
 
-        /// <summary>Nhan duoc duyet: ky quy → labeler (treo) + phi nen tang.</summary>
+        /// <summary>Du lieu cu: nhan duoc duyet — ky quy → labeler (treo) + phi nen tang.</summary>
         AnnotationPayout,
 
         /// <summary>Het treo: labeler treo → labeler kha dung.</summary>
@@ -46,8 +46,11 @@ namespace Crowd.Ledger.Domain.Journal
         /// <summary>Link vi pham: doanh thu dang treo → platform:withheld.</summary>
         RevenueWithheld,
 
-        /// <summary>Doanh nghiep thang tranh chap: labeler treo + phi nen tang → tra lai doanh nghiep.</summary>
+        /// <summary>Du lieu cu: doanh nghiep thang tranh chap nhan da duyet.</summary>
         DisputeRefund,
+
+        /// <summary>Bai dat cua du an (docs 3.18): ky quy → labeler (thuong) + phi nen tang.</summary>
+        RewardPayout,
     }
 
     /// <summary>Mot dong cua but toan: tai khoan va so tien CO DAU (am = ra, duong = vao).</summary>

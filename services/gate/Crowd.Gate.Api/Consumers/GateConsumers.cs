@@ -61,8 +61,15 @@ namespace Crowd.Gate.Api.Consumers
                 return;
             }
 
+            // Cong link co DON GIA RIENG moi luot (docs 3.18 — tien labeler da tinh theo ca du an). Bat cong ma
+            // thieu don gia la lech hop dong → NEM LOI → DLQ, khong tu doan gia.
+            if (!p.GateUnitPriceVnd.HasValue || !p.GatePlatformFeeVnd.HasValue)
+            {
+                throw new InvalidOperationException("Du an " + p.ProjectId + " bat cong link nhung thieu don gia cong.");
+            }
+
             _db.Projects.Add(DuAnCong.Tao(
-                p.ProjectId, p.OwnerId, p.Modality, p.LabelSchema.Json, p.UnitPriceVnd, p.PlatformFeeVnd, envelope.OccurredAt));
+                p.ProjectId, p.OwnerId, p.Modality, p.LabelSchema.Json, p.GateUnitPriceVnd.Value, p.GatePlatformFeeVnd.Value, envelope.OccurredAt));
             _catalog.YeuCauNapLai();
         }
     }

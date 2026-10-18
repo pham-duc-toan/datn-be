@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Contracts.Admin;
 using Crowd.Contracts.Identity;
-using Crowd.Contracts.Ledger;
 using Crowd.Contracts.Project;
 using Crowd.Notification.Api.Persistence;
 using Crowd.Notification.Api.Services;
@@ -41,38 +40,6 @@ namespace Crowd.Notification.Api.Consumers
         protected override Task XuLyPayloadAsync(PasswordResetRequested p, CancellationToken ct)
         {
             return Writer.GhiEmailGiaoDichAsync(p.UserId, p.Email, p.DisplayName, NoiDungThongBao.ThuDatLaiMatKhau(p.DisplayName, p.ResetUrl, p.ExpiresAt), ct);
-        }
-    }
-
-    /// <summary>dispute.opened → bao labeler (khoan treo bi giu). Doanh nghiep tu mo nen khong bao lai.</summary>
-    public sealed class DisputeOpenedProcessor : ThongBaoProcessor<DisputeOpened>
-    {
-        public DisputeOpenedProcessor(ThongBaoWriter writer, NotificationDbContext db)
-            : base(writer, db)
-        {
-        }
-
-        protected override Task XuLyPayloadAsync(DisputeOpened p, CancellationToken ct)
-        {
-            return Writer.GhiAsync(p.LabelerId, LoaiThongBao.TranhChap, NoiDungThongBao.TranhChapMo(p.ProjectId, p.AmountVnd, p.Reason), ct);
-        }
-    }
-
-    /// <summary>dispute.resolved → bao CA HAI ben ket cuc (email bat buoc: lien quan tien).</summary>
-    public sealed class DisputeResolvedProcessor : ThongBaoProcessor<DisputeResolved>
-    {
-        public DisputeResolvedProcessor(ThongBaoWriter writer, NotificationDbContext db)
-            : base(writer, db)
-        {
-        }
-
-        protected override async Task XuLyPayloadAsync(DisputeResolved p, CancellationToken ct)
-        {
-            bool doanhNghiepThang = p.Outcome == DisputeOutcome.RefundBusiness;
-            await Writer.GhiAsync(p.LabelerId, LoaiThongBao.TranhChap,
-                NoiDungThongBao.TranhChapKetQua(p.ProjectId, p.AmountVnd, true, doanhNghiepThang, p.Note), ct);
-            await Writer.GhiAsync(p.BusinessId, LoaiThongBao.TranhChap,
-                NoiDungThongBao.TranhChapKetQua(p.ProjectId, p.AmountVnd, false, doanhNghiepThang, p.Note), ct);
         }
     }
 

@@ -27,7 +27,10 @@ namespace Crowd.Contracts.Project
         /// <summary>Tai khoan doanh nghiep bi tru tien.</summary>
         public required Guid OwnerId { get; init; }
 
-        /// <summary>So tien can giu, so nguyen dong = ngan sach doanh nghiep dat.</summary>
+        /// <summary>
+        /// So tien can giu, so nguyen dong = so suat x (thuong + phi moi nguoi dat) + ngan sach cong
+        /// link (neu bat). Du an lam trung tam: tien di theo CA DU AN, khong theo tung nhan.
+        /// </summary>
         public required long EscrowAmountVnd { get; init; }
 
         /// <summary>
@@ -38,11 +41,13 @@ namespace Crowd.Contracts.Project
     }
 
     /// <summary>
-    /// Du an bat dau chay. task-svc sinh task tu cac mau da nhan qua
-    /// dataset.ingested; notification bao cho labeler phu hop.
+    /// Du an bat dau chay. Mang du cau hinh ma service khac can de lam viec MA KHONG PHAI goi
+    /// HTTP nguoc lai project-svc (luat 1, muc 4 docs).
     ///
-    /// Mang du cau hinh ma service khac can de lam viec MA KHONG PHAI goi HTTP
-    /// nguoc lai project-svc (luat 1, muc 4 docs).
+    /// v2 — DU AN LAM TRUNG TAM (docs 3.18): moi labeler lam HET cac cau cua du an trong MOT bai,
+    /// nop ca bai; du an ket thuc (du suat / het han / ket thuc som) thi cham: ti le cau giong da so
+    /// &gt;= PassThresholdPercent VA dung het cau vang → duoc RewardVnd. Khong con don gia moi nhan,
+    /// redundancy, duyet tung nhan.
     /// </summary>
     public sealed record ProjectPublished : IEventPayload
     {
@@ -53,49 +58,42 @@ namespace Crowd.Contracts.Project
 
         public static int Version
         {
-            get { return 1; }
+            get { return 2; }
         }
 
         public required Guid ProjectId { get; init; }
 
         public required Guid OwnerId { get; init; }
 
-        /// <summary>Loai du lieu: image | text | audio | video | pair (Crowd.Labeling.Modalities).</summary>
+        /// <summary>Loai du lieu: image | text | audio | video | pair | list (Crowd.Labeling.Modalities).</summary>
         public required string Modality { get; init; }
 
         /// <summary>
         /// TAP NHAN o dang chuan (Crowd.Labeling.LabelSchema): loai du lieu + danh
-        /// sach cong cu. task-svc va annotation-svc chep nguyen khoi nay — kiem nhan,
+        /// sach cong cu. task-svc, annotation-svc, quality-svc chep nguyen khoi nay — kiem nhan,
         /// cham cau vang, gop ket qua deu theo no, khong phai hoi lai project-svc.
         /// </summary>
         public required RawJson LabelSchema { get; init; }
 
-        /// <summary>Thu lao moi nhan, so nguyen dong.</summary>
-        public required long UnitPriceVnd { get; init; }
+        /// <summary>Tien thuong cho MOT labeler lam dat ca du an, so nguyen dong.</summary>
+        public required long RewardVnd { get; init; }
 
         /// <summary>
-        /// Phi nen tang moi nhan da CHOT luc publish, so nguyen dong (VD-M-15).
-        /// annotation-svc mang con so nay vao annotation.approved de ledger chia:
-        /// escrow −(don gia + phi) → labeler +don gia, platform +phi.
+        /// Phi nen tang tren MOI nguoi dat, da CHOT luc publish (VD-M-15). Ledger chia khi tra thuong:
+        /// ky quy −(thuong + phi) → labeler +thuong, platform +phi.
         /// </summary>
         public required long PlatformFeeVnd { get; init; }
 
-        /// <summary>So nguoi gan cung mot mau.</summary>
-        public required int Redundancy { get; init; }
+        /// <summary>So suat: toi da bay nhieu labeler lam bai (moi nguoi lam het cac cau).</summary>
+        public required int Slots { get; init; }
 
-        /// <summary>
-        /// TRAN redundancy thich ung (>= Redundancy): mau tranh chap duoc quality-svc
-        /// xin them nguoi gan toi toi da so nay. Ky quy tinh theo tran nen tien luon
-        /// du; ledger chan chi qua tran moi task (VD-M-03).
-        /// </summary>
-        public required int MaxRedundancy { get; init; }
+        /// <summary>t — ti le % cau giong da so toi thieu de dat (admin dat khoang [x, y]).</summary>
+        public required int PassThresholdPercent { get; init; }
 
-        /// <summary>
-        /// Phan tram so lan cap task la CAU VANG KIEM TRA (qualityCheck) tron vao,
-        /// 0-50. Labeler khong phan biet duoc; cau vang khong tra tien.
-        /// </summary>
-        public required int GoldCheckPercent { get; init; }
+        /// <summary>So cau that cua de (khong tinh cau vang) luc publish.</summary>
+        public required int QuestionCount { get; init; }
 
+        /// <summary>Han chot: toi han thi task-svc dong thu bai (bai dang lam do dang khong duoc tinh).</summary>
         public required DateTimeOffset Deadline { get; init; }
 
         public required bool AllowProfessional { get; init; }
@@ -103,6 +101,17 @@ namespace Crowd.Contracts.Project
         public required bool AllowLinkGateway { get; init; }
 
         public required bool AllowCollaborative { get; init; }
+
+        /// <summary>
+        /// Cong vuot link (kenh phu, tinh tien theo LUOT khach gan, KHONG theo ca bai): gia moi nhan
+        /// khach gan va phi nen tang moi nhan. null khi khong bat cong link.
+        /// </summary>
+        public long? GateUnitPriceVnd { get; init; }
+
+        public long? GatePlatformFeeVnd { get; init; }
+
+        /// <summary>Ngan sach rieng cua cong link (nam trong ky quy). null / 0 khi khong bat.</summary>
+        public long? GateBudgetVnd { get; init; }
 
         /// <summary>true = chi thanh vien duoc moi moi thay du an (FP-05).</summary>
         public required bool IsPrivate { get; init; }
@@ -118,16 +127,10 @@ namespace Crowd.Contracts.Project
         public required int SampleCount { get; init; }
 
         /// <summary>
-        /// Noi dung nhay cam (muc 2.9): task-svc ep nghi giua phien, bao frontend lam mo mac dinh. KHONG bat
-        /// buoc — ban tin cu khong co = khong nhay cam.
+        /// Noi dung nhay cam (muc 2.9): frontend lam mo mac dinh. KHONG bat buoc — ban tin khong co =
+        /// khong nhay cam.
         /// </summary>
         public bool? SensitiveContent { get; init; }
-
-        /// <summary>
-        /// Co can duyet tung nhan khong. false = annotation-svc tu duyet nhan khop dong thuan. KHONG bat
-        /// buoc — ban tin cu khong co = can duyet (hanh vi cu).
-        /// </summary>
-        public bool? RequireReview { get; init; }
     }
 
     public sealed record ProjectPaused : IEventPayload
@@ -161,7 +164,27 @@ namespace Crowd.Contracts.Project
     }
 
     /// <summary>
-    /// Du an bi huy. task-svc dung cap task; ledger hoan phan ky quy chua dung.
+    /// Doanh nghiep bam "Ket thuc som": task-svc dong thu bai NGAY (bai dang lam do dang bi huy,
+    /// khong tinh) roi phat project.collection_finished nhu khi du suat / het han.
+    /// </summary>
+    public sealed record ProjectFinishRequested : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "project.finish_requested"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid ProjectId { get; init; }
+    }
+
+    /// <summary>
+    /// Du an bi huy — CHI khi chua co bai nao duoc nop (con bai nop thi phai "ket thuc som" de cham,
+    /// khong ai lam khong cong). task-svc huy bai dang lam; ledger hoan toan bo ky quy.
     /// </summary>
     public sealed record ProjectCancelled : IEventPayload
     {
@@ -172,7 +195,7 @@ namespace Crowd.Contracts.Project
 
         public static int Version
         {
-            get { return 1; }
+            get { return 2; }
         }
 
         public required Guid ProjectId { get; init; }
@@ -186,17 +209,14 @@ namespace Crowd.Contracts.Project
         public required bool WasEscrowed { get; init; }
 
         public string? Reason { get; init; }
-
-        /// <summary>
-        /// So nhan (labeler chuyen nghiep) DA DUYET luc dong so (annotation-svc tra ve khi dong).
-        /// Ledger chi hoan ky quy khi da chi DU so nhan nay: event annotation.approved va event nay
-        /// di hai queue khac nhau, approved co the toi SAU (NC-B-01, TLA+ tim ra). 0 = khong co nhan
-        /// nao; null = event cu truoc thay doi nay (hoan ngay nhu truoc).
-        /// </summary>
-        public int? ApprovedAnnotationCount { get; init; }
     }
 
-    /// <summary>Du an ket thuc binh thuong. Ledger giai phong phan escrow con du.</summary>
+    /// <summary>
+    /// Du an ket thuc: da cham, het han khieu nai, khong con khieu nai mo (task-svc phat
+    /// project.settled). Ledger hoan phan ky quy con lai SAU KHI da tra du PassedAttemptCount nguoi:
+    /// project.graded / attempt.appeal_resolved va event nay di cac queue khac nhau, tien thuong co
+    /// the toi SAU (bai hoc NC-B-01, TLA+).
+    /// </summary>
     public sealed record ProjectCompleted : IEventPayload
     {
         public static string EventType
@@ -206,19 +226,14 @@ namespace Crowd.Contracts.Project
 
         public static int Version
         {
-            get { return 1; }
+            get { return 2; }
         }
 
         public required Guid ProjectId { get; init; }
 
         public required Guid OwnerId { get; init; }
 
-        /// <summary>
-        /// So nhan (labeler chuyen nghiep) DA DUYET luc dong so (annotation-svc tra ve khi dong).
-        /// Ledger chi hoan ky quy khi da chi DU so nhan nay: event annotation.approved va event nay
-        /// di hai queue khac nhau, approved co the toi SAU (NC-B-01, TLA+ tim ra). 0 = khong co nhan
-        /// nao; null = event cu truoc thay doi nay (hoan ngay nhu truoc).
-        /// </summary>
-        public int? ApprovedAnnotationCount { get; init; }
+        /// <summary>So bai DAT cuoi cung (sau khieu nai) — so nguoi ledger phai tra thuong truoc khi hoan.</summary>
+        public required int PassedAttemptCount { get; init; }
     }
 }

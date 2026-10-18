@@ -5,73 +5,277 @@ using Crowd.Labeling;
 
 namespace Crowd.Tasking.Api.Dtos
 {
-    /// <summary>Mot task dang giu — du de frontend dung man hinh gan nhan.</summary>
-    public sealed class LeaseResponse
+    // =====================================================================
+    // BAI LAM (docs 3.18) — labeler lam HET cac cau cua du an, nop CA BAI.
+    // =====================================================================
+
+    /// <summary>Mot cau hoi trong bai — du de frontend dung workspace gan nhan.</summary>
+    public sealed class AttemptQuestion
     {
-        public required Guid AssignmentId { get; init; }
-
-        public required Guid ProjectId { get; init; }
-
-        public required Guid TaskId { get; init; }
+        /// <summary>So thu tu trong bai, tu 1 (thu tu rieng cua bai nay).</summary>
+        public required int Index { get; init; }
 
         public required Guid SampleId { get; init; }
 
-        /// <summary>Loai du lieu: image | text | audio | video | pair — frontend mo workspace tuong ung.</summary>
+        /// <summary>image | text | audio | video | pair | list — frontend mo workspace tuong ung.</summary>
         public required string Modality { get; init; }
 
-        /// <summary>Link xem / nghe file co han vai phut (S-07). null voi text / pair.</summary>
+        /// <summary>Link xem file qua media-svc (watermark chim = ma labeler), song ngan. null voi text / pair / list.</summary>
         public string? FileUrl { get; init; }
 
-        /// <summary>Noi dung text / pair: {"text"} hoac {"prompt"?,"a","b"}. null voi du lieu file.</summary>
         public RawJson? Content { get; init; }
 
-        /// <summary>
-        /// Metadata mau: width/height (anh, video), durationSec, segmentStart/segmentEnd
-        /// (doan cat tu file dai — player chi phat doan nay; thoi gian trong nhan
-        /// tinh tu DAU DOAN).
-        /// </summary>
         public required RawJson Metadata { get; init; }
 
-        /// <summary>
-        /// Tap nhan cua du an: danh sach cong cu (ten, loai, lop...). "payload" nop
-        /// len la object co khoa = ten cong cu, vd {"label":{"labelIds":["do"]}}.
-        /// </summary>
+        /// <summary>Cau tra loi da luu (nhap) — null = chua lam.</summary>
+        public RawJson? Answer { get; init; }
+
+        public DateTimeOffset? AnsweredAt { get; init; }
+    }
+
+    /// <summary>Bai lam day du (bat dau / mo lai) — cau vang tron lan, frontend KHONG phan biet duoc.</summary>
+    public sealed class AttemptResponse
+    {
+        public required Guid AttemptId { get; init; }
+
+        public required Guid ProjectId { get; init; }
+
+        /// <summary>inProgress | submitted | expired | cancelled</summary>
+        public required string State { get; init; }
+
+        public required DateTimeOffset StartedAt { get; init; }
+
+        public required DateTimeOffset ExpiresAt { get; init; }
+
+        public DateTimeOffset? SubmittedAt { get; init; }
+
         public required RawJson LabelSchema { get; init; }
 
         public required int SchemaVersion { get; init; }
 
-        public required DateTimeOffset ExpiresAt { get; init; }
+        /// <summary>Thuong neu bai DAT (khi du an ket thuc).</summary>
+        public required long RewardVnd { get; init; }
 
-        /// <summary>Thu lao neu nhan duoc duyet, so nguyen dong.</summary>
-        public required long UnitPriceVnd { get; init; }
+        public required int PassThresholdPercent { get; init; }
 
-        /// <summary>Ban nhap da luu cua luot nay (FL-05) — cung hinh dang payload khi nop; null = chua luu.</summary>
-        public RawJson? Draft { get; init; }
-
-        /// <summary>Du an noi dung nhay cam (muc 2.9): frontend LAM MO mac dinh, labeler bam de xem ro.</summary>
         public bool SensitiveContent { get; init; }
 
-        public DateTimeOffset? DraftSavedAt { get; init; }
+        public required int QuestionCount { get; init; }
+
+        public required int AnsweredCount { get; init; }
+
+        public required IReadOnlyList<AttemptQuestion> Questions { get; init; }
     }
 
-    /// <summary>PUT /tasks/assignments/{id}/draft</summary>
-    public sealed class DraftRequest
+    /// <summary>PUT /tasks/attempts/{id}/answers/{sampleId} — {"data": {...}} (nhap, chua kiem luat) hoac {"data": null} (xoa).</summary>
+    public sealed class SaveAnswerRequest
     {
-        /// <summary>Nhan dang lam do (JSON object) — chua kiem luat, kiem day du khi nop.</summary>
-        public JsonElement? Payload { get; init; }
+        public JsonElement? Data { get; init; }
     }
 
-    public sealed class DraftResponse
+    public sealed class SaveAnswerResponse
     {
-        public required Guid AssignmentId { get; init; }
+        public required Guid AttemptId { get; init; }
 
-        public required DateTimeOffset DraftSavedAt { get; init; }
+        public required Guid SampleId { get; init; }
+
+        public required bool Answered { get; init; }
+
+        public required int AnsweredCount { get; init; }
+
+        public DateTimeOffset? SavedAt { get; init; }
     }
 
-    /// <summary>POST /tasks/assignments/{id}/report</summary>
+    /// <summary>Mot cau sai dinh dang khi nop (frontend nhay toi cau do).</summary>
+    public sealed class InvalidAnswer
+    {
+        public required int Index { get; init; }
+
+        public required Guid SampleId { get; init; }
+
+        public required string Code { get; init; }
+
+        public required string Message { get; init; }
+    }
+
+    public sealed class SubmitAttemptResponse
+    {
+        public required Guid AttemptId { get; init; }
+
+        public required DateTimeOffset SubmittedAt { get; init; }
+
+        public required int QuestionCount { get; init; }
+
+        public required int AnsweredCount { get; init; }
+
+        /// <summary>Bai nop nay lam du an du suat → dong thu bai, cham ngay.</summary>
+        public required bool CollectionFinished { get; init; }
+    }
+
+    /// <summary>Tom tat mot bai (danh sach "bai cua toi", bai cua du an, khieu nai).</summary>
+    public sealed class AttemptSummary
+    {
+        public required Guid AttemptId { get; init; }
+
+        public required Guid ProjectId { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        public required string State { get; init; }
+
+        public required DateTimeOffset StartedAt { get; init; }
+
+        public required DateTimeOffset ExpiresAt { get; init; }
+
+        public DateTimeOffset? SubmittedAt { get; init; }
+
+        public DateTimeOffset? EndedAt { get; init; }
+
+        public required int QuestionCount { get; init; }
+
+        public required int AnsweredCount { get; init; }
+
+        public required long RewardVnd { get; init; }
+
+        public required int PassThresholdPercent { get; init; }
+
+        // ---- Sau khi cham ----
+
+        public int? ComparableCount { get; init; }
+
+        public int? MatchedCount { get; init; }
+
+        public int? AgreementPercent { get; init; }
+
+        /// <summary>Chi hien sau khi cham (truoc do labeler khong biet cau nao la vang).</summary>
+        public int? GoldTotal { get; init; }
+
+        public int? GoldCorrect { get; init; }
+
+        public bool? Passed { get; init; }
+
+        /// <summary>Ket qua cuoi (sau khieu nai).</summary>
+        public bool? FinalPassed { get; init; }
+
+        public DateTimeOffset? GradedAt { get; init; }
+
+        // ---- Khieu nai ----
+
+        /// <summary>none | open | accepted | rejected</summary>
+        public required string AppealState { get; init; }
+
+        public string? AppealMessage { get; init; }
+
+        public DateTimeOffset? AppealedAt { get; init; }
+
+        public string? AppealNote { get; init; }
+
+        public DateTimeOffset? AppealResolvedAt { get; init; }
+
+        public DateTimeOffset? AppealDeadline { get; init; }
+
+        public required bool CanAppeal { get; init; }
+    }
+
+    public sealed class AppealRequest
+    {
+        public string? Message { get; init; }
+    }
+
+    public sealed class ResolveAppealRequest
+    {
+        public bool Accept { get; init; }
+
+        public string? Note { get; init; }
+    }
+
+    /// <summary>Tinh trang suat va thu bai cua du an — ai xem du an duoc deu thay (cho du an "con x suat").</summary>
+    public sealed class SlotsResponse
+    {
+        public required Guid ProjectId { get; init; }
+
+        public required int Slots { get; init; }
+
+        public required int InProgress { get; init; }
+
+        public required int Submitted { get; init; }
+
+        /// <summary>Slots − InProgress − Submitted.</summary>
+        public required int Available { get; init; }
+
+        public required int QuestionCount { get; init; }
+
+        public required long RewardVnd { get; init; }
+
+        public required int PassThresholdPercent { get; init; }
+
+        public DateTimeOffset? Deadline { get; init; }
+
+        /// <summary>open | finished | graded | settled</summary>
+        public required string Phase { get; init; }
+
+        public DateTimeOffset? CollectionFinishedAt { get; init; }
+
+        public DateTimeOffset? GradedAt { get; init; }
+
+        public DateTimeOffset? AppealDeadline { get; init; }
+
+        /// <summary>Bai cua chinh nguoi goi (null = chua lam / khong phai labeler).</summary>
+        public AttemptSummary? Mine { get; init; }
+    }
+
+    /// <summary>Tien do du an cho chu du an (FB-20).</summary>
+    public sealed class ProgressResponse
+    {
+        public required Guid ProjectId { get; init; }
+
+        public required int Slots { get; init; }
+
+        public required int QuestionCount { get; init; }
+
+        public required int InProgress { get; init; }
+
+        public required int Submitted { get; init; }
+
+        public required int Expired { get; init; }
+
+        public required int Cancelled { get; init; }
+
+        /// <summary>open | finished | graded | settled</summary>
+        public required string Phase { get; init; }
+
+        public string? FinishReason { get; init; }
+
+        public DateTimeOffset? Deadline { get; init; }
+
+        public DateTimeOffset? CollectionFinishedAt { get; init; }
+
+        public DateTimeOffset? GradedAt { get; init; }
+
+        public DateTimeOffset? AppealDeadline { get; init; }
+
+        public DateTimeOffset? SettledAt { get; init; }
+
+        public int? PassedCount { get; init; }
+
+        public required int OpenAppeals { get; init; }
+
+        /// <summary>Uoc tinh luc du suat theo toc do nop 24 gio gan nhat (null = chua co du lieu).</summary>
+        public DateTimeOffset? EstimatedCompletionAt { get; init; }
+
+        /// <summary>Ban chup tien do cuoi cua du an da dong va da don du lieu van hanh.</summary>
+        public DateTimeOffset? FrozenAt { get; init; }
+    }
+
+    // =====================================================================
+    // BAO LOI CAU HOI (FL-07)
+    // =====================================================================
+
+    /// <summary>POST /tasks/attempts/{id}/reports {"sampleId","reason","note"}.</summary>
     public sealed class ReportTaskRequest
     {
-        /// <summary>broken | inappropriate | unclear | other</summary>
+        public Guid? SampleId { get; init; }
+
         public string? Reason { get; init; }
 
         public string? Note { get; init; }
@@ -91,111 +295,52 @@ namespace Crowd.Tasking.Api.Dtos
 
         public string? Note { get; init; }
 
-        /// <summary>open | dismissed | excluded</summary>
         public required string State { get; init; }
 
         public required DateTimeOffset CreatedAt { get; init; }
 
         public DateTimeOffset? ResolvedAt { get; init; }
 
-        /// <summary>So labeler khac nhau da bao loi cung task (de chu du an thay muc do).</summary>
+        /// <summary>So labeler KHAC NHAU da bao mau nay.</summary>
         public required int ReportsOnTask { get; init; }
     }
 
-    /// <summary>POST /tasks/reports/{id}/resolve</summary>
     public sealed class ResolveReportRequest
     {
-        /// <summary>dismiss (mau khong sao) | exclude (loai mau khoi du an)</summary>
+        /// <summary>dismiss | exclude</summary>
         public string? Action { get; init; }
     }
 
-    public sealed class SubmitRequest
-    {
-        /// <summary>
-        /// Phan DU LIEU cua nhan, khoa = ten cong cu trong tap nhan, vd
-        /// {"label":{"labelIds":["do"]}} hoac {"vat":[{"labelId":"xe","x":1,"y":2,"w":30,"h":20}]}.
-        /// Loai du lieu khong can gui — lay theo du an.
-        /// </summary>
-        public JsonElement? Payload { get; init; }
-    }
+    // =====================================================================
+    // DON DU LIEU / NOI BO
+    // =====================================================================
 
-    public sealed class SubmitResponse
-    {
-        public required Guid AssignmentId { get; init; }
-
-        /// <summary>true = luot nop nay lam task du so nguoi gan.</summary>
-        public required bool TaskCompleted { get; init; }
-    }
-
-    public sealed class ProgressResponse
-    {
-        public required Guid ProjectId { get; init; }
-
-        public required int TotalTasks { get; init; }
-
-        public required int OpenTasks { get; init; }
-
-        public required int CompletedTasks { get; init; }
-
-        /// <summary>Mau la cau hoi vang — khong tinh vao viec phai lam.</summary>
-        public required int ExcludedTasks { get; init; }
-
-        public required int ActiveLeases { get; init; }
-
-        public required int Submissions { get; init; }
-
-        /// <summary>Tong so luot can = so task (tru vang) x redundancy; task da huy chi tinh so da nop.</summary>
-        public required int RequiredSubmissions { get; init; }
-
-        /// <summary>Task bi huy (du an huy, hoac mau bi loai vi bao loi FL-07).</summary>
-        public required int CancelledTasks { get; init; }
-
-        /// <summary>So luot nop trong 24 gio qua — toc do hien tai.</summary>
-        public required int SubmissionsLast24h { get; init; }
-
-        /// <summary>Uoc tinh xong (theo toc do 24 gio qua); null khi chua co luot nop nao trong 24 gio.</summary>
-        public DateTimeOffset? EstimatedCompletionAt { get; init; }
-
-        /// <summary>
-        /// Co gia tri = so lieu la BAN CHUP luc don du lieu van hanh cua du an da dong (task / luot giu da xoa),
-        /// khong con thay doi. null = so lieu dem truc tiep.
-        /// </summary>
-        public DateTimeOffset? FrozenAt { get; init; }
-    }
-
-    /// <summary>POST /tasks/admin/projects/{id}/purge — ket qua don du lieu van hanh cua du an da dong.</summary>
     public sealed class PurgeResponse
     {
         public required Guid ProjectId { get; init; }
 
         public required DateTimeOffset PurgedAt { get; init; }
 
-        /// <summary>false = du an da duoc don tu truoc, lan goi nay khong xoa gi.</summary>
         public required bool PurgedNow { get; init; }
 
         public required int DeletedTasks { get; init; }
 
-        public required int DeletedAssignments { get; init; }
+        public required int DeletedAnswers { get; init; }
 
         public required int DeletedReports { get; init; }
 
         public required int DeletedGoldSamples { get; init; }
     }
 
-    /// <summary>
-    /// GET /internal/projects/{id}/close-check — project-svc hoi truoc khi dong du an.
-    /// </summary>
+    /// <summary>GET /internal/projects/{id}/close-check — project-svc hoi truoc khi HUY du an.</summary>
     public sealed class CloseCheckResponse
     {
         public required Guid ProjectId { get; init; }
 
-        /// <summary>task-svc da nhan project.paused (khong cap task moi nua).</summary>
         public required bool Paused { get; init; }
 
-        /// <summary>Luot dang giu con han — labeler con nop duoc.</summary>
-        public required int ActiveLeases { get; init; }
+        public required int InProgressCount { get; init; }
 
-        /// <summary>Luot da nop cua task THAT (khong tinh cau vang) — phai bang so nhan ben annotation-svc.</summary>
         public required int SubmittedCount { get; init; }
     }
 }

@@ -2,60 +2,33 @@
 # Cập nhật: UPDATE_CONTRACT_SNAPSHOT=1 dotnet test shared/test/contracts-tests
 # Mọi thay đổi trong file này là BREAKING CHANGE — xem VD-D-12.
 
-annotation.approved v1  (AnnotationApproved)
-    AmountVnd                Int64                required
-    AnnotationId             Guid                 required
-    LabelerId                Guid?                nullable
-    PlatformFeeVnd           Int64                required
-    ProjectId                Guid                 required
-    Source                   AnnotationSource     required
-    TaskId                   Guid                 required
-
-annotation.rejected v1  (AnnotationRejected)
-    AnnotationId             Guid                 required
-    IsFinal                  Boolean              required
-    LabelerId                Guid?                nullable
-    ProjectId                Guid                 required
-    Reason                   String               required
-    TaskId                   Guid                 required
-
-annotation.submitted v1  (AnnotationSubmitted)
-    AnnotationId             Guid                 required
-    LabelPayload             LabelPayload         required
-    LabelerId                Guid?                nullable
-    ProjectId                Guid                 required
-    SampleId                 Guid                 required
-    SampleMetadata           RawJson              required
-    Source                   AnnotationSource     required
-    TaskId                   Guid                 required
-
-appeal.opened v1  (AppealOpened)
-    AnnotationId             Guid                 required
+attempt.appeal_opened v1  (AttemptAppealOpened)
+    AgreementPercent         Int32                required
+    AttemptId                Guid                 required
     LabelerId                Guid                 required
     Message                  String               required
+    PassThresholdPercent     Int32                required
     ProjectId                Guid                 required
 
-appeal.resolved v1  (AppealResolved)
+attempt.appeal_resolved v1  (AttemptAppealResolved)
     Accepted                 Boolean              required
-    AnnotationId             Guid                 required
+    AnsweredCount            Int32                required
+    AttemptId                Guid                 required
     LabelerId                Guid                 required
     Note                     String?              nullable
     ProjectId                Guid                 required
 
-assignment.submitted v1  (AssignmentSubmitted)
-    AssignmentId             Guid                 required
+attempt.submitted v1  (AttemptSubmitted)
+    Answers                  IReadOnlyList<AttemptAnswer> required
+    AttemptId                Guid                 required
     ClientIp                 String?              nullable
     DeviceId                 String?              nullable
-    LabelPayload             LabelPayload         required
+    GoldCorrect              Int32                required
+    GoldTotal                Int32                required
     LabelerId                Guid                 required
-    LeasedAt                 DateTimeOffset       required
     ProjectId                Guid                 required
-    SampleContent            RawJson?             nullable
-    SampleId                 Guid                 required
-    SampleMetadata           RawJson              required
-    StorageKey               String?              nullable
+    StartedAt                DateTimeOffset       required
     SubmittedAt              DateTimeOffset       required
-    TaskId                   Guid                 required
 
 badge.awarded v1  (BadgeAwarded)
     Badge                    String               required
@@ -84,14 +57,6 @@ click.validated v1  (ClickValidated)
     SharerId                 Guid                 required
     ValidatedAt              DateTimeOffset       required
 
-consensus.reached v1  (ConsensusReached)
-    Final                    RawJson?             nullable
-    ProjectId                Guid                 required
-    SampleId                 Guid                 required
-    Status                   ConsensusStatus      required
-    TaskId                   Guid                 required
-    Votes                    IReadOnlyList<ConsensusVote> required
-
 dataset.ingested v1  (DatasetIngested)
     BatchCount               Int32                required
     BatchIndex               Int32                required
@@ -105,25 +70,6 @@ deposit.confirmed v1  (DepositConfirmed)
     IntentId                 Guid                 required
     Provider                 String               required
     ProviderTxnId            String               required
-
-dispute.opened v1  (DisputeOpened)
-    AmountVnd                Int64                required
-    AnnotationId             Guid                 required
-    BusinessId               Guid                 required
-    DisputeId                Guid                 required
-    LabelerId                Guid                 required
-    ProjectId                Guid                 required
-    Reason                   String               required
-
-dispute.resolved v1  (DisputeResolved)
-    AmountVnd                Int64                required
-    AnnotationId             Guid                 required
-    BusinessId               Guid                 required
-    DisputeId                Guid                 required
-    LabelerId                Guid                 required
-    Note                     String               required
-    Outcome                  DisputeOutcome       required
-    ProjectId                Guid                 required
 
 escrow.rejected v1  (EscrowRejected)
     ProjectId                Guid                 required
@@ -162,14 +108,6 @@ gate.solved v1  (GateSolved)
     ProjectId                Guid                 required
     SessionId                Guid                 required
     SolvedAt                 DateTimeOffset       required
-
-gold.answered v1  (GoldAnswered)
-    AnsweredAt               DateTimeOffset       required
-    AssignmentId             Guid                 required
-    Correct                  Boolean              required
-    LabelerId                Guid                 required
-    ProjectId                Guid                 required
-    SampleId                 Guid                 required
 
 gold_set.updated v1  (GoldSetUpdated)
     Items                    IReadOnlyList<GoldSetItem> required
@@ -265,16 +203,32 @@ payout.requested v1  (PayoutRequested)
     NetAmountVnd             Int64                required
     WithdrawalId             Guid                 required
 
-project.cancelled v1  (ProjectCancelled)
-    ApprovedAnnotationCount  Int32?               nullable
+project.cancelled v2  (ProjectCancelled)
     OwnerId                  Guid                 required
     ProjectId                Guid                 required
     Reason                   String?              nullable
     WasEscrowed              Boolean              required
 
-project.completed v1  (ProjectCompleted)
-    ApprovedAnnotationCount  Int32?               nullable
+project.collection_finished v1  (ProjectCollectionFinished)
+    Attempts                 IReadOnlyList<SubmittedAttemptRef> required
+    ExcludedSampleIds        IReadOnlyList<Guid>  required
+    FinishedAt               DateTimeOffset       required
+    ProjectId                Guid                 required
+    Reason                   String               required
+
+project.completed v2  (ProjectCompleted)
     OwnerId                  Guid                 required
+    PassedAttemptCount       Int32                required
+    ProjectId                Guid                 required
+
+project.finish_requested v1  (ProjectFinishRequested)
+    ProjectId                Guid                 required
+
+project.graded v1  (ProjectGraded)
+    Attempts                 IReadOnlyList<GradedAttempt> required
+    GradedAt                 DateTimeOffset       required
+    MajorityUsed             Boolean              required
+    PassThresholdPercent     Int32                required
     ProjectId                Guid                 required
 
 project.invitation_created v1  (ProjectInvitationCreated)
@@ -295,37 +249,36 @@ project.publish_requested v1  (ProjectPublishRequested)
     ProjectId                Guid                 required
     ProjectName              String?              nullable
 
-project.published v1  (ProjectPublished)
+project.published v2  (ProjectPublished)
     AllowCollaborative       Boolean              required
     AllowLinkGateway         Boolean              required
     AllowProfessional        Boolean              required
     Deadline                 DateTimeOffset       required
-    GoldCheckPercent         Int32                required
+    GateBudgetVnd            Int64?               nullable
+    GatePlatformFeeVnd       Int64?               nullable
+    GateUnitPriceVnd         Int64?               nullable
     IsPrivate                Boolean              required
     LabelSchema              RawJson              required
-    MaxRedundancy            Int32                required
     MinLevel                 Int32?               nullable
     MinReputation            Int32?               nullable
     Modality                 String               required
     OwnerId                  Guid                 required
+    PassThresholdPercent     Int32                required
     PlatformFeeVnd           Int64                required
     ProjectId                Guid                 required
-    Redundancy               Int32                required
+    QuestionCount            Int32                required
     RequireEntranceTest      Boolean              required
-    RequireReview            Boolean?             nullable
+    RewardVnd                Int64                required
     SampleCount              Int32                required
     SensitiveContent         Boolean?             nullable
-    UnitPriceVnd             Int64                required
+    Slots                    Int32                required
 
 project.resumed v1  (ProjectResumed)
     ProjectId                Guid                 required
 
-redundancy.increase_requested v1  (RedundancyIncreaseRequested)
-    NewRedundancy            Int32                required
+project.settled v1  (ProjectSettled)
+    PassedAttemptCount       Int32                required
     ProjectId                Guid                 required
-    Reason                   String               required
-    SampleId                 Guid                 required
-    TaskId                   Guid                 required
 
 referral.flagged v1  (ReferralFlagged)
     Reasons                  String               required
@@ -375,19 +328,6 @@ system.announcement v1  (SystemAnnouncement)
     Body                     String               required
     SendEmail                Boolean              required
     Title                    String               required
-
-task.redundancy_changed v1  (TaskRedundancyChanged)
-    NewRedundancy            Int32                required
-    OldRedundancy            Int32                required
-    ProjectId                Guid                 required
-    SampleId                 Guid                 required
-    TaskId                   Guid                 required
-
-task.redundancy_reached v1  (TaskRedundancyReached)
-    ProjectId                Guid                 required
-    Redundancy               Int32                required
-    SampleId                 Guid                 required
-    TaskId                   Guid                 required
 
 user.blocked v1  (UserBlocked)
     Reason                   String?              nullable

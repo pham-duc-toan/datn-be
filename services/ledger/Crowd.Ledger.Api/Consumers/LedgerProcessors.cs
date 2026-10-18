@@ -4,12 +4,13 @@ using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Consumers;
-using Crowd.Contracts.Annotation;
 using Crowd.Contracts.Gate;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Link;
 using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
+using Crowd.Contracts.Quality;
+using Crowd.Contracts.Tasking;
 using Crowd.Ledger.Api.Services;
 using Crowd.Ledger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -76,15 +77,16 @@ namespace Crowd.Ledger.Api.Consumers
                 throw new ArgumentNullException(nameof(envelope));
             }
 
-            return _flow.GhiNhanRedundancyAsync(envelope.Payload, Nguon.Tu(envelope), ct);
+            return _flow.GhiDieuKhoanAsync(envelope.Payload, Nguon.Tu(envelope), ct);
         }
     }
 
-    public sealed class AnnotationApprovedProcessor : IEventProcessor<AnnotationApproved>
+    /// <summary>project.graded (quality-svc): tra thuong cho moi bai dat.</summary>
+    public sealed class ProjectGradedProcessor : IEventProcessor<ProjectGraded>
     {
         private readonly MoneyFlowService _flow;
 
-        public AnnotationApprovedProcessor(MoneyFlowService flow)
+        public ProjectGradedProcessor(MoneyFlowService flow)
         {
             if (flow == null)
             {
@@ -94,14 +96,40 @@ namespace Crowd.Ledger.Api.Consumers
             _flow = flow;
         }
 
-        public Task XuLyAsync(EventEnvelope<AnnotationApproved> envelope, CancellationToken ct)
+        public Task XuLyAsync(EventEnvelope<ProjectGraded> envelope, CancellationToken ct)
         {
             if (envelope == null)
             {
                 throw new ArgumentNullException(nameof(envelope));
             }
 
-            return _flow.ChiTraNhanAsync(envelope.Payload, Nguon.Tu(envelope), ct);
+            return _flow.ChiThuongDuAnAsync(envelope.Payload, Nguon.Tu(envelope), ct);
+        }
+    }
+
+    /// <summary>attempt.appeal_resolved (task-svc): khieu nai ca bai duoc chap nhan → tra thuong.</summary>
+    public sealed class AttemptAppealResolvedProcessor : IEventProcessor<AttemptAppealResolved>
+    {
+        private readonly MoneyFlowService _flow;
+
+        public AttemptAppealResolvedProcessor(MoneyFlowService flow)
+        {
+            if (flow == null)
+            {
+                throw new ArgumentNullException(nameof(flow));
+            }
+
+            _flow = flow;
+        }
+
+        public Task XuLyAsync(EventEnvelope<AttemptAppealResolved> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            return _flow.ChiThuongKhieuNaiAsync(envelope.Payload, Nguon.Tu(envelope), ct);
         }
     }
 
@@ -126,8 +154,8 @@ namespace Crowd.Ledger.Api.Consumers
                 throw new ArgumentNullException(nameof(envelope));
             }
 
-            int? soNhan = envelope.Payload.ApprovedAnnotationCount;
-            return _flow.TraKyQuyAsync(envelope.Payload.ProjectId, true, soNhan.HasValue ? soNhan.Value : 0, Nguon.Tu(envelope), ct);
+            // Chi huy duoc khi chua co bai nop nao (project-svc kiem) → khong con bai nao cho tra.
+            return _flow.TraKyQuyAsync(envelope.Payload.ProjectId, true, 0, Nguon.Tu(envelope), ct);
         }
     }
 
@@ -152,8 +180,7 @@ namespace Crowd.Ledger.Api.Consumers
                 throw new ArgumentNullException(nameof(envelope));
             }
 
-            int? soNhan = envelope.Payload.ApprovedAnnotationCount;
-            return _flow.TraKyQuyAsync(envelope.Payload.ProjectId, false, soNhan.HasValue ? soNhan.Value : 0, Nguon.Tu(envelope), ct);
+            return _flow.TraKyQuyAsync(envelope.Payload.ProjectId, false, envelope.Payload.PassedAttemptCount, Nguon.Tu(envelope), ct);
         }
     }
 

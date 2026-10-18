@@ -20,28 +20,48 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
-        public void Don_gia_duoi_toi_thieu_bi_tu_choi()
+        public void Thuong_duoi_toi_thieu_bi_tu_choi_va_admin_nang_muc_thi_chan_publish()
         {
             QuyDinhDuAn q = new QuyDinhDuAn
             {
                 DoDaiTenToiDa = 200,
                 DoDaiMoTaToiDa = 5000,
-                RedundancyToiDa = 10,
-                GoldCheckPercentMacDinh = 10,
-                GoldCheckPercentToiDa = 50,
+                NguongDatToiThieu = 60,
+                NguongDatToiDa = 95,
+                SoCauToiDa = 500,
+                SoSuatToiThieu = 3,
+                SoSuatToiDa = 50,
                 SoCauTestMacDinh = 5,
                 NguongDauMacDinh = 80,
                 SoCauTestToiDa = 50,
                 DoDaiHuongDanToiDa = 20000,
                 SoViDuToiDa = 20,
                 DoDaiGiaiThichToiDa = 500,
-                DonGiaToiThieu = 500,
+                ThuongToiThieu = 50000,
             };
             LabelingProject p = DuAn();
-            Assert.Equal("don_gia_duoi_toi_thieu", Assert.Throws<InvalidValueException>(
-                () => p.DatCauHinhGia(499, 1, 10000, Luc.AddDays(5), Luc, q)).Code);
-            p.DatCauHinhGia(500, 1, 10000, Luc.AddDays(5), Luc, q);
-            Assert.Contains("don_gia_duoi_toi_thieu", p.NhungGiConThieu(0, 0, 30, false, 1000, Luc));
+            Assert.Equal("thuong_duoi_toi_thieu", Assert.Throws<InvalidValueException>(
+                () => p.DatCauHinhGia(49999, 3, 80, Luc.AddDays(5), Luc, q)).Code);
+            p.DatCauHinhGia(50000, 3, 80, Luc.AddDays(5), Luc, q);
+
+            QuyDinhDuAn nangMuc = new QuyDinhDuAn
+            {
+                DoDaiTenToiDa = 200,
+                DoDaiMoTaToiDa = 5000,
+                NguongDatToiThieu = 60,
+                NguongDatToiDa = 95,
+                SoCauToiDa = 500,
+                SoSuatToiThieu = 3,
+                SoSuatToiDa = 50,
+                SoCauTestMacDinh = 5,
+                NguongDauMacDinh = 80,
+                SoCauTestToiDa = 50,
+                DoDaiHuongDanToiDa = 20000,
+                SoViDuToiDa = 20,
+                DoDaiGiaiThichToiDa = 500,
+                ThuongToiThieu = 100000,
+            };
+            Assert.Contains("thuong_duoi_toi_thieu", p.NhungGiConThieu(0, 0, false, nangMuc, null, Luc));
         }
 
         [Fact]
@@ -200,15 +220,15 @@ namespace Crowd.Project.Tests
                 + "{\"name\":\"vung\",\"kind\":\"mask\",\"classes\":[\"x\"]}]}"), Luc);
 
             // Chua bat cong link: khong kiem.
-            p.DatKenhPhanPhoi(true, false, false, Luc);
+            p.DatKenhPhanPhoi(true, false, false, null, null, Luc);
             Assert.Empty(p.CongCuKhongHopCongLink(choPhep));
-            Assert.DoesNotContain("cong_cu_khong_hop_cong_link", p.NhungGiConThieu(0, 0, 30, false, 0, choPhep, Luc));
+            Assert.DoesNotContain("cong_cu_khong_hop_cong_link", p.NhungGiConThieu(0, 0, false, QuyDinhMau.DuAn, choPhep, Luc));
 
-            p.DatKenhPhanPhoi(true, true, false, Luc);
+            p.DatKenhPhanPhoi(true, true, false, 200, 10000, Luc);
             Assert.Equal("vung", Assert.Single(p.CongCuKhongHopCongLink(choPhep)));
-            Assert.Contains("cong_cu_khong_hop_cong_link", p.NhungGiConThieu(0, 0, 30, false, 0, choPhep, Luc));
-            // Goi cu (khong truyen danh sach) giu nguyen hanh vi.
-            Assert.DoesNotContain("cong_cu_khong_hop_cong_link", p.NhungGiConThieu(0, 0, 30, false, 0, Luc));
+            Assert.Contains("cong_cu_khong_hop_cong_link", p.NhungGiConThieu(0, 0, false, QuyDinhMau.DuAn, choPhep, Luc));
+            // Khong truyen danh sach → khong kiem.
+            Assert.DoesNotContain("cong_cu_khong_hop_cong_link", p.NhungGiConThieu(0, 0, false, QuyDinhMau.DuAn, null, Luc));
         }
 }
 }

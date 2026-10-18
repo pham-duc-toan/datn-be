@@ -5,7 +5,6 @@ using System.Text.Json;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Ledger.Domain.Accounts;
-using Crowd.Ledger.Domain.Disputes;
 using Crowd.Ledger.Domain.Escrows;
 using Crowd.Ledger.Domain.Holds;
 using Crowd.Ledger.Domain.Invoices;
@@ -44,7 +43,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
 
         public DbSet<BlockedUser> BlockedUsers => Set<BlockedUser>();
 
-        public DbSet<Dispute> Disputes => Set<Dispute>();
 
         public DbSet<Invoice> Invoices => Set<Invoice>();
 
@@ -155,17 +153,18 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.HasKey(x => x.ProjectId);
                 b.Property(x => x.OwnerId).HasColumnName("owner_id").IsRequired();
                 b.Property(x => x.ReservedVnd).HasColumnName("reserved_vnd").IsRequired();
-                b.Property(x => x.Redundancy).HasColumnName("redundancy").IsRequired();
+                b.Property(x => x.Slots).HasColumnName("slots").IsRequired();
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.ReservedAt).HasColumnName("reserved_at").IsRequired();
                 b.Property(x => x.Name).HasColumnName("name").HasMaxLength(200);
                 b.Property(x => x.ClosedAt).HasColumnName("closed_at");
-                b.Property(x => x.ExpectedPaidAnnotations).HasColumnName("expected_paid_annotations");
+                b.Property(x => x.ExpectedPaidAttempts).HasColumnName("expected_paid_attempts");
                 b.Property(x => x.ClosingIsCancel).HasColumnName("closing_is_cancel").IsRequired();
-                b.Property(x => x.SampleCount).HasColumnName("sample_count").IsRequired();
-                b.Property(x => x.UnitPriceVnd).HasColumnName("unit_price_vnd").IsRequired();
+                b.Property(x => x.RewardVnd).HasColumnName("reward_vnd").IsRequired();
                 b.Property(x => x.PlatformFeeVnd).HasColumnName("platform_fee_vnd").IsRequired();
                 b.Property(x => x.AllowLinkGateway).HasColumnName("allow_link_gateway").IsRequired();
+                b.Property(x => x.GateBudgetVnd).HasColumnName("gate_budget_vnd").IsRequired();
+                b.Ignore(x => x.DaCoDieuKhoan);
                 b.Property(x => x.GateSpentVnd).HasColumnName("gate_spent_vnd").IsRequired();
                 b.Property(x => x.GateBudgetSequence).HasColumnName("gate_budget_sequence").IsRequired();
                 b.HasIndex(x => x.OwnerId).HasDatabaseName("ix_project_escrows_owner");
@@ -206,30 +205,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.HasKey(x => x.UserId);
                 b.Property(x => x.Blocked).HasColumnName("blocked").IsRequired();
                 b.Property(x => x.ChangedAt).HasColumnName("changed_at").IsRequired();
-            });
-
-            modelBuilder.Entity<Dispute>(b =>
-            {
-                b.ToTable("disputes");
-                b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
-                b.HasKey(x => x.Id);
-                b.Property(x => x.HoldId).HasColumnName("hold_id").IsRequired();
-                b.Property(x => x.AnnotationId).HasColumnName("annotation_id").IsRequired();
-                b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
-                b.Property(x => x.LabelerId).HasColumnName("labeler_id").IsRequired();
-                b.Property(x => x.BusinessId).HasColumnName("business_id").IsRequired();
-                b.Property(x => x.AmountVnd).HasColumnName("amount_vnd").IsRequired();
-                b.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(Dispute.DoDaiLyDoToiDa).IsRequired();
-                b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
-                b.Property(x => x.OpenedAt).HasColumnName("opened_at").IsRequired();
-                b.Property(x => x.ResolvedAt).HasColumnName("resolved_at");
-                b.Property(x => x.ResolvedBy).HasColumnName("resolved_by");
-                b.Property(x => x.ResolutionNote).HasColumnName("resolution_note").HasMaxLength(Dispute.DoDaiLyDoToiDa);
-
-                // Moi nhan toi da mot tranh chap; hang doi admin theo trang thai; doanh nghiep xem cua minh.
-                b.HasIndex(x => x.AnnotationId).IsUnique().HasDatabaseName("ux_disputes_annotation");
-                b.HasIndex(x => new { x.State, x.OpenedAt }).HasDatabaseName("ix_disputes_hang_doi");
-                b.HasIndex(x => x.BusinessId).HasDatabaseName("ix_disputes_business");
             });
 
             // Hoa don GTGT (FB-05): dong hang + bang ke chi ho luu jsonb (chup luc xuat, khong sua).

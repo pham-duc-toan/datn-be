@@ -15,38 +15,18 @@ namespace Crowd.Project.Api.Helpers
     {
         public bool Paused { get; init; }
 
-        public int ActiveLeases { get; init; }
+        /// <summary>So bai dang lam do (bi huy neu huy du an).</summary>
+        public int InProgressCount { get; init; }
 
+        /// <summary>So bai DA NOP — con bai nop thi khong huy duoc (phai ket thuc som de cham).</summary>
         public int SubmittedCount { get; init; }
-    }
-
-    /// <summary>Tra loi cua annotation-svc: POST /internal/projects/{id}/close.</summary>
-    public sealed class AnnotationCloseResult
-    {
-        public bool Closed { get; init; }
-
-        public IReadOnlyList<string> Reasons { get; init; } = new List<string>();
-
-        public int AnnotationCount { get; init; }
-
-        public int SubmittedCount { get; init; }
-
-        public int PendingReview { get; init; }
-
-        public int ApprovedCount { get; init; }
-
-        public int OpenAppeals { get; init; }
-
-        public int RejectedInAppealWindow { get; init; }
-
-        public DateTimeOffset? AppealWindowEndsAt { get; init; }
     }
 
     /// <summary>
-    /// Goi task-svc va annotation-svc khi DONG du an (hiem, khong o duong nong). Hoi CHU du
-    /// lieu ngay tai cho vi ngay sau do ledger tra ky quy — luat muc 4 docs: quyet dinh tien
-    /// bac khong doc ban sao. Moi loi (tat, het gio, ma loi) → DichVuKhongSanSangException
-    /// (503): khong kiem duoc thi KHONG dong.
+    /// Hoi task-svc khi HUY du an da chay (hiem, khong o duong nong). Hoi CHU du lieu ngay tai cho
+    /// vi ngay sau do ledger tra TOAN BO ky quy — luat muc 4 docs: quyet dinh tien bac khong doc ban
+    /// sao. Moi loi (tat, het gio, ma loi) → DichVuKhongSanSangException (503): khong kiem duoc thi
+    /// KHONG huy.
     /// </summary>
     public sealed class DongSoClient
     {
@@ -74,14 +54,6 @@ namespace Crowd.Project.Api.Helpers
             HttpRequestMessage req = new HttpRequestMessage(
                 HttpMethod.Get, Noi(_options.TaskUrl, "internal/projects/" + projectId + "/close-check"));
             return await GuiAsync<TaskCloseCheck>(req, "task-svc", ct);
-        }
-
-        public async Task<AnnotationCloseResult> DongSoAnnotationAsync(Guid projectId, int soLuotNop, CancellationToken ct)
-        {
-            HttpRequestMessage req = new HttpRequestMessage(
-                HttpMethod.Post, Noi(_options.AnnotationUrl, "internal/projects/" + projectId + "/close"));
-            req.Content = JsonContent.Create(new { submittedCount = soLuotNop });
-            return await GuiAsync<AnnotationCloseResult>(req, "annotation-svc", ct);
         }
 
         private async Task<T> GuiAsync<T>(HttpRequestMessage req, string ten, CancellationToken ct)

@@ -6,32 +6,24 @@ namespace Crowd.Tasking.Domain.Tasks
 {
     public enum TaskState
     {
-        /// <summary>Con cho nhan them nguoi gan.</summary>
+        /// <summary>Cau hoi that cua de — moi bai lam deu co.</summary>
         Open,
 
-        /// <summary>Du so nguoi gan (redundancy). Khong cap them.</summary>
+        /// <summary>Giu cho du lieu cu (truoc du an lam trung tam). Khong con dung.</summary>
         Completed,
 
-        /// <summary>Du an bi huy/ket thuc khi task chua xong.</summary>
+        /// <summary>Du an bi huy / ket thuc, hoac mau bi loai (bao loi) — khong vao bai moi, khong cham.</summary>
         Cancelled,
 
-        /// <summary>Mau la cau hoi vang — co dap an roi, khong tra tien gan nhan.</summary>
+        /// <summary>Mau la cau hoi vang — co dap an roi: vao bai nhu cau thuong nhung chi de cham.</summary>
         Excluded,
     }
 
     /// <summary>
-    /// Mot task = mot mau can RedundancyTarget nguoi gan doc lap.
-    ///
-    /// Hai bo dem:
-    ///   ActiveLeaseCount — so nguoi DANG giu task (chua nop, chua het han).
-    ///   SubmittedCount   — so nguoi DA nop.
-    /// Cap them duoc khi Active + Submitted &lt; Target: khong bao gio phat qua
-    /// so luot da ky quy (VD-M-03 phia task-svc).
+    /// Mot CAU HOI cua de (docs 3.18) = mot mau du lieu. Moi bai lam deu lam het cac cau Open (cung cau
+    /// vang kiem tra). Khong con lease, redundancy hay bo dem nguoi gan theo tung cau.
     ///
     /// Ten la LabelingTask chu khong phai Task: "Task" trung System.Threading.Tasks.Task.
-    ///
-    /// Moi thay doi bo dem xay ra khi DANG GIU KHOA DONG (SELECT ... FOR UPDATE)
-    /// — service lo viec khoa, entity lo luat.
     /// </summary>
     public sealed class LabelingTask
     {
@@ -47,30 +39,22 @@ namespace Crowd.Tasking.Domain.Tasks
 
         public Guid SampleId { get; private set; }
 
-        /// <summary>Loai du lieu cua mau (image / text / audio / video / pair).</summary>
+        /// <summary>Loai du lieu cua mau (image / text / audio / video / pair / list).</summary>
         public string Modality { get; private set; }
 
-        /// <summary>Khoa file trong MinIO — de sinh link xem khi cap task. null voi text / pair.</summary>
+        /// <summary>Khoa file trong MinIO — de sinh link xem. null voi text / pair / list.</summary>
         public string? StorageKey { get; private set; }
 
-        /// <summary>Noi dung text / pair. null voi du lieu file.</summary>
+        /// <summary>Noi dung text / pair / list. null voi du lieu file.</summary>
         public RawJson? Content { get; private set; }
 
         /// <summary>
-        /// Metadata mau (rong x cao, thoi luong, doan [start, end] cua file goc...).
-        /// Gui cho labeler cung task, va dung de kiem nhan nop len (khung trong anh,
-        /// doan thoi gian trong doan audio).
+        /// Metadata mau (rong x cao, thoi luong, doan [start, end] cua file goc...). Gui cho labeler kem
+        /// cau hoi, va dung de kiem nhan nop len (khung trong anh, doan thoi gian trong doan audio).
         /// </summary>
         public RawJson Metadata { get; private set; }
 
         public TaskState State { get; private set; }
-
-        /// <summary>0 = chua biet (du an chua publish).</summary>
-        public int RedundancyTarget { get; private set; }
-
-        public int ActiveLeaseCount { get; private set; }
-
-        public int SubmittedCount { get; private set; }
 
         public DateTimeOffset CreatedAt { get; private set; }
 
@@ -83,7 +67,6 @@ namespace Crowd.Tasking.Domain.Tasks
             string? storageKey,
             RawJson? content,
             RawJson metadata,
-            int redundancyTarget,
             DateTimeOffset luc)
         {
             if ((storageKey == null) == (content == null))
@@ -105,58 +88,8 @@ namespace Crowd.Tasking.Domain.Tasks
             t.Content = content;
             t.Metadata = metadata;
             t.State = TaskState.Open;
-            t.RedundancyTarget = redundancyTarget;
             t.CreatedAt = luc;
             return t;
-        }
-
-        public bool CoTheCapThem()
-        {
-            return State == TaskState.Open
-                   && RedundancyTarget > 0
-                   && ActiveLeaseCount + SubmittedCount < RedundancyTarget;
-        }
-
-        public void GhiNhanLease()
-        {
-            if (!CoTheCapThem())
-            {
-                throw new RuleViolationException("task_da_du_nguoi", "Task da du nguoi gan.");
-            }
-
-            ActiveLeaseCount = ActiveLeaseCount + 1;
-        }
-
-        /// <summary>
-        /// Mot luot lease ket thuc KHONG nop (bo qua, het han, bi thu hoi): tra
-        /// cho ve pool de nguoi khac nhan.
-        /// </summary>
-        public void TraLease()
-        {
-            if (ActiveLeaseCount > 0)
-            {
-                ActiveLeaseCount = ActiveLeaseCount - 1;
-            }
-        }
-
-        /// <summary>Mot luot lease ket thuc BANG NOP. Tra ve true neu vua du redundancy.</summary>
-        public bool GhiNhanNop(DateTimeOffset luc)
-        {
-            if (ActiveLeaseCount > 0)
-            {
-                ActiveLeaseCount = ActiveLeaseCount - 1;
-            }
-
-            SubmittedCount = SubmittedCount + 1;
-
-            if (State == TaskState.Open && SubmittedCount >= RedundancyTarget)
-            {
-                State = TaskState.Completed;
-                CompletedAt = luc;
-                return true;
-            }
-
-            return false;
         }
 
         public void Huy(DateTimeOffset luc)
@@ -168,43 +101,10 @@ namespace Crowd.Tasking.Domain.Tasks
             }
         }
 
-        /// <summary>
-        /// Nang redundancy theo yeu cau cua quality-svc (mau tranh chap, docs 3.7).
-        /// Task da du nguoi thi MO LAI de cap them. Tra ve so cu, hoac null neu
-        /// khong doi (yeu cau cu, khong lon hon, hoac task da dong / la cau vang).
-        /// </summary>
-        public int? TangRedundancy(int moi, int tran)
+        /// <summary>Loai mau hong khoi de (FL-07: nhieu labeler bao loi, hoac chu du an xac nhan).</summary>
+        public bool LoaiBo(DateTimeOffset luc)
         {
-            if (State == TaskState.Cancelled || State == TaskState.Excluded)
-            {
-                return null;
-            }
-
-            int dich = moi < tran ? moi : tran;
-            if (dich <= RedundancyTarget)
-            {
-                return null;
-            }
-
-            int cu = RedundancyTarget;
-            RedundancyTarget = dich;
-
-            if (State == TaskState.Completed)
-            {
-                State = TaskState.Open;
-                CompletedAt = null;
-            }
-
-            return cu;
-        }
-
-        /// <summary>
-        /// Loai mau hong khoi pool (FL-07: nhieu labeler bao loi, hoac chu du an xac nhan) — CHI khi
-        /// task con mo va khong ai dang giu. Dang co nguoi lam thi tra false, de lan sau.
-        /// </summary>
-        public bool HuyNeuKhongAiGiu(DateTimeOffset luc)
-        {
-            if (State != TaskState.Open || ActiveLeaseCount > 0)
+            if (State != TaskState.Open)
             {
                 return false;
             }
@@ -214,10 +114,10 @@ namespace Crowd.Tasking.Domain.Tasks
             return true;
         }
 
-        /// <summary>Mau thanh cau hoi vang: bo khoi pool neu chua ai dung toi.</summary>
+        /// <summary>Mau thanh / het la cau hoi vang (chi khi du an con nhap — project-svc khoa sua vang sau publish).</summary>
         public void LoaiTruVi(bool laCauVang)
         {
-            if (laCauVang && State == TaskState.Open && ActiveLeaseCount == 0 && SubmittedCount == 0)
+            if (laCauVang && State == TaskState.Open)
             {
                 State = TaskState.Excluded;
             }

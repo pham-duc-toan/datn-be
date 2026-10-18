@@ -132,6 +132,17 @@
     "description": "So lenh nap treo hoi nguoc cong moi lan doi soat."
   },
   {
+    "key": "ledger.reward_hold",
+    "group": "Phi va tien",
+    "type": "durationSeconds",
+    "default": 0,
+    "min": 0,
+    "max": 7776000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Tien thuong du an cua labeler dat treo bao lau truoc khi rut duoc. 0 = kha dung ngay khi du an cham xong."
+  },
+  {
     "key": "ledger.hold_duration",
     "group": "Phi va tien",
     "type": "durationSeconds",
@@ -367,17 +378,6 @@
     "description": "Lenh nap chuyen khoan thu cong KHONG vuot so nay duoc tu xac nhan khi doanh nghiep bao da chuyen. 0 = luon cho admin. CANH BAO: tu xac nhan la cong tien ma chua ai doi chieu sao ke."
   },
   {
-    "key": "annotation.auto_approve_agreed",
-    "group": "Tu dong duyet",
-    "type": "bool",
-    "default": false,
-    "min": null,
-    "max": null,
-    "unit": "",
-    "effect": "newOperations",
-    "description": "Bat: nhan khop ket qua dong thuan duoc tu duyet va tra tien; nhan lech van cho nguoi duyet."
-  },
-  {
     "key": "project.approval_timeout",
     "group": "Du an",
     "type": "durationSeconds",
@@ -398,28 +398,6 @@
     "unit": "giay",
     "effect": "newOperations",
     "description": "Chu ky quet du an cho duyet qua han."
-  },
-  {
-    "key": "project.redundancy_max",
-    "group": "Du an",
-    "type": "int",
-    "default": 10,
-    "min": 1,
-    "max": 50,
-    "unit": "nguoi",
-    "effect": "newOperations",
-    "description": "So nguoi gan / tran redundancy toi da doanh nghiep duoc dat cho moi mau."
-  },
-  {
-    "key": "project.min_unit_price_vnd",
-    "group": "Du an",
-    "type": "long",
-    "default": 100,
-    "min": 0,
-    "max": 1000000000,
-    "unit": "dong",
-    "effect": "newOperations",
-    "description": "Don gia toi thieu moi nhan (FM-04) — chan doanh nghiep tra cong qua re. Ap khi cau hinh gia VA khi publish (nang muc thi du an nhap gia cu phai sua). 0 = khong gioi han."
   },
   {
     "key": "project.join_request_ttl",
@@ -466,6 +444,72 @@
     "description": "Chu ky worker don don xin tham gia / loi moi qua han."
   },
   {
+    "key": "project.pass_threshold_min",
+    "group": "Du an",
+    "type": "int",
+    "default": 60,
+    "min": 1,
+    "max": 100,
+    "unit": "%",
+    "effect": "newOperations",
+    "description": "x — NGUONG DUOI doanh nghiep duoc chon cho ti le cau giong da so (t). Labeler chi duoc thuong khi ti le cau tra loi giong da so >= t va khong sai cau vang nao."
+  },
+  {
+    "key": "project.pass_threshold_max",
+    "group": "Du an",
+    "type": "int",
+    "default": 95,
+    "min": 1,
+    "max": 100,
+    "unit": "%",
+    "effect": "newOperations",
+    "description": "y — NGUONG TREN doanh nghiep duoc chon cho t (x <= t <= y)."
+  },
+  {
+    "key": "project.max_questions",
+    "group": "Du an",
+    "type": "int",
+    "default": 500,
+    "min": 1,
+    "max": 10000,
+    "unit": "cau",
+    "effect": "newOperations",
+    "description": "So cau (mau du lieu, khong tinh cau vang) toi da cua mot du an — moi labeler lam HET cac cau trong mot bai. Du lieu lon hon thi tach thanh nhieu du an."
+  },
+  {
+    "key": "project.min_slots",
+    "group": "Du an",
+    "type": "int",
+    "default": 3,
+    "min": 1,
+    "max": 100,
+    "unit": "nguoi",
+    "effect": "newOperations",
+    "description": "So suat (so nguoi lam bai) toi thieu cua mot du an. Can >= 3 de 'da so' co nghia."
+  },
+  {
+    "key": "project.max_slots",
+    "group": "Du an",
+    "type": "int",
+    "default": 50,
+    "min": 1,
+    "max": 1000,
+    "unit": "nguoi",
+    "effect": "newOperations",
+    "description": "So suat toi da cua mot du an."
+  },
+  {
+    "key": "project.min_reward_vnd",
+    "group": "Du an",
+    "type": "long",
+    "default": 10000,
+    "min": 0,
+    "max": 10000000000,
+    "unit": "dong",
+    "effect": "newOperations",
+    "description": "Tien thuong toi thieu cho MOT nguoi lam dat ca du an (FM-04). 0 = khong gioi han."
+  },
+  {
     "key": "annotation.history_retention",
     "group": "Gan nhan va duyet nhan",
     "type": "durationSeconds",
@@ -488,39 +532,6 @@
     "description": "Chu ky worker don annotation_history."
   },
   {
-    "key": "welfare.max_continuous_minutes",
-    "group": "Gan nhan va duyet nhan",
-    "type": "int",
-    "default": 45,
-    "min": 5,
-    "max": 480,
-    "unit": "phut",
-    "effect": "newOperations",
-    "description": "Du an noi dung nhay cam (muc 2.9): lam lien tuc toi da bay nhieu phut thi bi ep nghi."
-  },
-  {
-    "key": "welfare.break_minutes",
-    "group": "Gan nhan va duyet nhan",
-    "type": "int",
-    "default": 10,
-    "min": 1,
-    "max": 240,
-    "unit": "phut",
-    "effect": "newOperations",
-    "description": "Thoi gian nghi bat buoc sau mot phien lam du an nhay cam; nghi it hon so nay giua hai task thi tinh la lam lien tuc."
-  },
-  {
-    "key": "project.gold_check_percent_default",
-    "group": "Du an",
-    "type": "int",
-    "default": 10,
-    "min": 0,
-    "max": 100,
-    "unit": "%",
-    "effect": "newOperations",
-    "description": "Ti le cau vang kiem tra mac dinh cua du an moi tao."
-  },
-  {
     "key": "project.closed_data_retention",
     "group": "Du an",
     "type": "durationSeconds",
@@ -530,17 +541,6 @@
     "unit": "giay",
     "effect": "newOperations",
     "description": "Du an da dong (hoan thanh / huy) bao lau thi xoa du lieu VAN HANH cua no: task, luot giu, bao loi (task-svc); nhan tho va vong dong thuan (quality-svc). Truoc khi xoa, tien do va bao cao chat luong duoc chup lai nen van xem duoc. Nhan da nop / da duyet, ket qua, so cai, mau du lieu va uy tin labeler KHONG bi xoa. 0 = khong bao gio xoa."
-  },
-  {
-    "key": "project.gold_check_percent_max",
-    "group": "Du an",
-    "type": "int",
-    "default": 50,
-    "min": 0,
-    "max": 100,
-    "unit": "%",
-    "effect": "newOperations",
-    "description": "Ti le cau vang kiem tra toi da doanh nghiep duoc dat."
   },
   {
     "key": "project.entrance_question_default",
@@ -939,15 +939,37 @@
     "description": "Thoi gian toi da cho mot lan ffprobe do file."
   },
   {
-    "key": "task.lease_duration",
+    "key": "task.attempt_duration",
     "group": "Gan nhan va duyet nhan",
     "type": "durationSeconds",
-    "default": 900,
-    "min": 30,
-    "max": 86400,
+    "default": 172800,
+    "min": 600,
+    "max": 2592000,
     "unit": "giay",
     "effect": "newOperations",
-    "description": "Labeler giu mot task bao lau; qua han task ve hang doi cho nguoi khac."
+    "description": "Labeler giu mot suat lam bai bao lau ke tu luc bat dau (khong qua han chot du an). Het han chua nop thi mat suat, nguoi khac vao lam."
+  },
+  {
+    "key": "task.attempt_max_bytes",
+    "group": "Ky thuat",
+    "type": "long",
+    "default": 8388608,
+    "min": 65536,
+    "max": 67108864,
+    "unit": "byte",
+    "effect": "newOperations",
+    "description": "Kich thuoc toi da toan bo cau tra loi cua mot bai lam (moi cau van gioi han 256 KB)."
+  },
+  {
+    "key": "task.appeal_window",
+    "group": "Gan nhan va duyet nhan",
+    "type": "durationSeconds",
+    "default": 259200,
+    "min": 0,
+    "max": 7776000,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Sau khi cham, labeler TRUOT duoc khieu nai ket qua ca bai trong bao lau. Ky quy con lai chi hoan doanh nghiep khi het han nay va khong con khieu nai mo."
   },
   {
     "key": "task.reaper_interval",
@@ -981,72 +1003,6 @@
     "unit": "lease",
     "effect": "newOperations",
     "description": "So lease qua han reaper khoa va tra ve pool moi lo."
-  },
-  {
-    "key": "task.lease_retry_count",
-    "group": "Ky thuat",
-    "type": "int",
-    "default": 5,
-    "min": 0,
-    "max": 100,
-    "unit": "lan",
-    "effect": "newOperations",
-    "description": "So lan thu lai khi khong khoa duoc task nao trong luc van con ung vien."
-  },
-  {
-    "key": "task.lease_retry_delay",
-    "group": "Ky thuat",
-    "type": "durationSeconds",
-    "default": 0.04,
-    "min": 0,
-    "max": 5,
-    "unit": "giay",
-    "effect": "newOperations",
-    "description": "Cho giua hai lan thu khoa task."
-  },
-  {
-    "key": "task.lease_candidate_window",
-    "group": "Gan nhan va duyet nhan",
-    "type": "int",
-    "default": 32,
-    "min": 1,
-    "max": 1000,
-    "unit": "task",
-    "effect": "newOperations",
-    "description": "Cap task NGAU NHIEN trong N task con cho cu nhat (1 = dung thu tu, task cu truoc). Labeler bam cung luc it roi vao cung mot task; chi phi lay task tang theo N."
-  },
-  {
-    "key": "annotation.appeal_window",
-    "group": "Gan nhan va duyet nhan",
-    "type": "durationSeconds",
-    "default": 604800,
-    "min": 0,
-    "max": 31536000,
-    "unit": "giay",
-    "effect": "newOperations",
-    "description": "Labeler duoc khieu nai trong bao lau ke tu khi nhan bi tu choi."
-  },
-  {
-    "key": "annotation.reason_max_length",
-    "group": "Gan nhan va duyet nhan",
-    "type": "int",
-    "default": 1000,
-    "min": 10,
-    "max": 1000,
-    "unit": "ky tu",
-    "effect": "newOperations",
-    "description": "Do dai ly do tu choi / khieu nai (cot DB toi da 1000)."
-  },
-  {
-    "key": "annotation.bulk_approve_max",
-    "group": "Gan nhan va duyet nhan",
-    "type": "int",
-    "default": 500,
-    "min": 1,
-    "max": 100000,
-    "unit": "nhan",
-    "effect": "newOperations",
-    "description": "So nhan toi da moi lan duyet hang loat."
   },
   {
     "key": "annotation.imbalance_threshold_percent",
@@ -1101,7 +1057,7 @@
     "max": 600,
     "unit": "giay",
     "effect": "newOperations",
-    "description": "Lam mot task duoi bay nhieu giay luon bi coi la qua nhanh."
+    "description": "Trung binh moi cau duoi bay nhieu giay luon bi coi la lam qua nhanh."
   },
   {
     "key": "quality.fraud_fast_ratio",
@@ -1112,7 +1068,7 @@
     "max": 1,
     "unit": "lan",
     "effect": "newOperations",
-    "description": "Hoac nhanh hon ti le nay nhan voi thoi gian trung vi cua du an."
+    "description": "Hoac nhanh hon ti le nay nhan voi so giay moi cau trung vi cua cac bai khac trong du an."
   },
   {
     "key": "quality.fraud_fast_window",
@@ -1121,20 +1077,9 @@
     "default": 20,
     "min": 3,
     "max": 1000,
-    "unit": "luot",
+    "unit": "cau",
     "effect": "newOperations",
-    "description": "So luot nop gan nhat cua labeler trong du an de xet lam qua nhanh."
-  },
-  {
-    "key": "quality.fraud_fast_fraction",
-    "group": "Chat luong",
-    "type": "double",
-    "default": 0.5,
-    "min": 0.1,
-    "max": 1,
-    "unit": "ti le",
-    "effect": "newOperations",
-    "description": "Ti le luot qua nhanh trong cua so tren de mo ho so."
+    "description": "Bai nop co it nhat bay nhieu cau da tra loi moi xet lam qua nhanh (it cau qua thi so giay khong dang tin)."
   },
   {
     "key": "quality.fraud_same_label_streak",
@@ -1143,9 +1088,9 @@
     "default": 30,
     "min": 3,
     "max": 10000,
-    "unit": "luot",
+    "unit": "cau",
     "effect": "newOperations",
-    "description": "Chon cung mot lop bay nhieu luot lien tiep (trong khi nguoi khac chon da dang) thi mo ho so."
+    "description": "Trong mot bai, chon cung mot lop bay nhieu cau lien tiep (trong khi nguoi khac chon da dang) thi mo ho so."
   },
   {
     "key": "quality.fraud_shared_accounts",
@@ -1245,44 +1190,6 @@
     "unit": "nhan",
     "effect": "newOperations",
     "description": "Suc nang tien nghiem: so bang chung can de diem roi xa muc tien nghiem."
-  },
-  {
-    "key": "quality.redundancy_policy",
-    "group": "Chat luong",
-    "type": "text",
-    "default": "majority",
-    "min": null,
-    "max": 50,
-    "unit": "",
-    "effect": "newOperations",
-    "description": "Khi nao xin them nguoi gan cho mot mau (NC-D-01): majority = tranh chap (khong lua chon nao qua ban) thi xin them; posterior = dung khi xac suat hau nghiem cua dap an dan dau >= quality.posterior_target (co trong so theo do chinh xac labeler); voi = dung toi uu mot buoc: chi mua them nhan khi gia tri thong tin ky vong vuot chi phi (quality.voi_value_ratio).",
-    "choices": [
-      "majority",
-      "posterior",
-      "voi"
-    ]
-  },
-  {
-    "key": "quality.posterior_target",
-    "group": "Chat luong",
-    "type": "double",
-    "default": 0.95,
-    "min": 0.5,
-    "max": 0.999,
-    "unit": "xac suat",
-    "effect": "newOperations",
-    "description": "Chinh sach posterior: du tin cay de dung khi hau nghiem cua dap an dan dau dat muc nay."
-  },
-  {
-    "key": "quality.voi_value_ratio",
-    "group": "Chat luong",
-    "type": "double",
-    "default": 20,
-    "min": 1,
-    "max": 10000,
-    "unit": "lan",
-    "effect": "newOperations",
-    "description": "Chinh sach voi: mot nhan CUOI dung gia tri bang bay nhieu lan chi phi mot nhan mua them. Cao = chiu mua them nhieu hon de tang do chinh xac."
   },
   {
     "key": "labeling.threshold.bbox",
@@ -1585,7 +1492,7 @@
     "key": "admin.audit_excluded_types",
     "group": "Ky thuat",
     "type": "text",
-    "default": "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,dataset.ingested,assignment.submitted,annotation.submitted,annotation.approved,annotation.rejected,task.redundancy_reached,task.redundancy_changed,gold.answered,consensus.reached,redundancy.increase_requested,reputation.changed,funds.held,hold.expired,gate.budget_changed",
+    "default": "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,dataset.ingested,attempt.submitted,reputation.changed,funds.held,hold.expired,gate.budget_changed",
     "min": null,
     "max": 1000,
     "unit": "ky tu",

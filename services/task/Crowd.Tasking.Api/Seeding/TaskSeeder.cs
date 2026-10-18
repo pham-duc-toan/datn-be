@@ -8,7 +8,8 @@ using Crowd.Contracts.Project;
 using Crowd.Labeling;
 using Crowd.Seeding;
 using Crowd.Tasking.Api.Consumers;
-using Crowd.Tasking.Domain.Assignments;
+using Crowd.Tasking.Domain.Attempts;
+using Crowd.Tasking.Domain.Projects;
 using Crowd.Tasking.Domain.Tasks;
 using Crowd.Tasking.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -93,19 +94,19 @@ namespace Crowd.Tasking.Api.Seeding
             {
                 await TaoTaskAsync(canTao, bayGio, ct);
                 await PhatLaiEventAsync(canTao, bayGio, ct);
-                int soLuot = await TaoLuotNopAsync(canTao, bayGio, ct);
+                int soBai = await TaoBaiLamAsync(canTao, bayGio, ct);
 
                 await tx.CommitAsync(ct);
 
                 _logger.LogInformation(
-                    "Seed task: {SoDuAn} du an, {SoTask} task, {SoLuot} luot da nop",
+                    "Seed task: {SoDuAn} du an, {SoCau} cau hoi, {SoBai} bai lam",
                     canTao.Count,
                     canTao.Sum(p => p.Samples.Count),
-                    soLuot);
+                    soBai);
             }
         }
 
-        /// <summary>Buoc 1: ban sao "chua publish" + task redundancy 0 — dung nhu DatasetIngestedProcessor.</summary>
+        /// <summary>Buoc 1: ban sao "chua publish" + cau hoi — dung nhu DatasetIngestedProcessor.</summary>
         private async Task TaoTaskAsync(List<SeedProject> duAn, DateTimeOffset bayGio, CancellationToken ct)
         {
             foreach (SeedProject sp in duAn)
@@ -123,7 +124,6 @@ namespace Crowd.Tasking.Api.Seeding
                         s.StorageKey,
                         s.ContentJson == null ? null : RawJson.Tu(s.ContentJson),
                         s.Metadata.ToRawJson(),
-                        0,
                         lucTao);
                     SeedIds.GanId(t, KichBanSeed.TaskIdCua(s.Id));
                     _db.Tasks.Add(t);
@@ -154,7 +154,7 @@ namespace Crowd.Tasking.Api.Seeding
                     await cauVang.XuLyAsync(SeedEvents.Boc(vang, lucTao), ct);
                 }
 
-                if (sp.Stage == SeedStage.Running)
+                if (sp.DaChay)
                 {
                     DateTimeOffset lucDuyet = sp.LucDuyet(bayGio);
                     await daPublish.XuLyAsync(SeedEvents.Boc(SeedEvents.DaPublish(sp, bayGio), lucDuyet), ct);
@@ -170,38 +170,92 @@ namespace Crowd.Tasking.Api.Seeding
                 await _db.SaveChangesAsync(ct);
             }
 
-            // project.published gan redundancy bang ExecuteUpdate (thang xuong DB) —
-            // ban trong bo nho van la 0. Xoa bo nho de buoc sau doc lai tu DB.
+            // Processor co ExecuteUpdate (thang xuong DB) — xoa bo nho de buoc sau doc lai tu DB.
             _db.ChangeTracker.Clear();
         }
 
-        /// <summary>Buoc 3: moi luot nop = lease (Assignment.Tao) roi Nop, cu nhat truoc.</summary>
-        private async Task<int> TaoLuotNopAsync(List<SeedProject> duAn, DateTimeOffset bayGio, CancellationToken ct)
+        /// <summary>
+        /// Buoc 3: bai lam — dung CHINH domain (Attempt.BatDau / Nop / GhiKetQua) nhu API that. Du an Completed
+        /// thi dong thu bai, cham, chot, dong theo dung moc thoi gian cua kich ban.
+        /// </summary>
+        private async Task<int> TaoBaiLamAsync(List<SeedProject> duAn, DateTimeOffset bayGio, CancellationToken ct)
         {
-            List<SeedSubmission> tatCa = duAn
-                .SelectMany(p => p.Submissions)
-                .OrderByDescending(s => s.SubmittedAgo)
-                .ToList();
-
-            foreach (SeedSubmission s in tatCa)
+            int n = 0;
+            foreach (SeedProject sp in duAn)
             {
-                LabelingTask task = await _db.Tasks.FirstAsync(t => t.Id == s.TaskId, ct);
+                if (sp.Attempts.Count == 0)
+                {
+                    continue;
+                }
 
-                DateTimeOffset lucNop = bayGio - s.SubmittedAgo;
-                DateTimeOffset lucNhan = lucNop - TimeSpan.FromMinutes(4);
+                ProjectSnapshot snap = await _db.ProjectSnapshots.FirstAsync(p => p.ProjectId == sp.Id, ct);
 
-                Assignment luot = Assignment.Tao(task, s.LabelerId, lucNhan, _settings.ThoiGian(SettingKeys.TaskLeaseDuration));
-                SeedIds.GanId(luot, s.AssignmentId);
-                // Kiem nhu API that: tap nhan cua du an + metadata mau.
-                luot.Nop(task, SeedEvents.NhanCua(KichBanSeed.Projects.First(p => p.Id == s.ProjectId), s), lucNop);
+                // De = moi mau that (Open) + cau vang kiem tra, theo thu tu mau cua kich ban (seed tat dinh).
+                List<Guid> de = new List<Guid>();
+                foreach (SeedSample m in sp.Samples)
+                {
+                    bool vangTest = false;
+                    foreach (SeedGold g in sp.Gold)
+                    {
+                        if (g.SampleId == m.Id && g.ForEntranceTest)
+                        {
+                            vangTest = true;
+                        }
+                    }
 
-                _db.Assignments.Add(luot);
+                    if (!vangTest)
+                    {
+                        de.Add(m.Id);
+                    }
+                }
+
+                foreach (SeedAttempt b in sp.Attempts.OrderByDescending(x => x.StartedAgo))
+                {
+                    DateTimeOffset batDau = bayGio - b.StartedAgo;
+                    DateTimeOffset hetHan = batDau + _settings.ThoiGian(SettingKeys.TaskAttemptDuration);
+                    if (snap.Deadline.HasValue && snap.Deadline.Value < hetHan)
+                    {
+                        hetHan = snap.Deadline.Value;
+                    }
+
+                    Attempt a = Attempt.BatDau(sp.Id, b.LabelerId, de, batDau, hetHan);
+                    SeedIds.GanId(a, b.AttemptId);
+
+                    foreach (SeedAnswer tl in b.Answers)
+                    {
+                        // Kiem nhu khi nop that (tap nhan + metadata mau); luu dang JSON tho nhu ban nhap.
+                        SeedEvents.NhanCua(sp, tl);
+                        _db.AttemptAnswers.Add(AttemptAnswer.Tao(a.Id, tl.SampleId, tl.PayloadJson, batDau + TimeSpan.FromMinutes(5)));
+                    }
+
+                    if (b.State == SeedAttemptState.Submitted)
+                    {
+                        a.Nop(b.GoldTotal, b.GoldCorrect, null, null, bayGio - b.SubmittedAgo!.Value);
+                    }
+
+                    if (b.Result != null)
+                    {
+                        a.GhiKetQua(b.Result.ComparableCount, b.Result.MatchedCount, b.Result.AgreementPercent, b.Result.Passed, bayGio - sp.GradedAgo!.Value);
+                    }
+
+                    _db.Attempts.Add(a);
+                    n++;
+                }
+
+                if (sp.Stage == SeedStage.Completed)
+                {
+                    DateTimeOffset lucCham = bayGio - sp.GradedAgo!.Value;
+                    DateTimeOffset lucXong = bayGio - sp.CompletedAgo!.Value;
+                    snap.DongThuBai("du_suat", lucCham);
+                    snap.GhiDaCham(lucCham, lucXong - lucCham);
+                    snap.Chot(SeedEvents.SoNguoiDat(sp), lucXong);
+                    snap.Dong(lucXong);
+                }
             }
 
             SeedOutbox.BoEventChuaGui(_db);
             await _db.SaveChangesAsync(ct);
-
-            return tatCa.Count;
+            return n;
         }
     }
 }

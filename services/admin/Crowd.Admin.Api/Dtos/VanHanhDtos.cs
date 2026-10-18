@@ -22,7 +22,7 @@ namespace Crowd.Admin.Api.Dtos
     {
         public required Guid Id { get; init; }
 
-        /// <summary>kyb | identity | project | withdrawal | appeal | dispute | link</summary>
+        /// <summary>kyb | identity | project | withdrawal | appeal | link | referral</summary>
         public required string Kind { get; init; }
 
         /// <summary>Id o service chu — dung goi API duyet cua service do (xem tich-hop-frontend).</summary>

@@ -4,11 +4,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Annotation.Api.Consumers;
-using Crowd.Annotation.Api.Helpers;
+using Crowd.Annotation.Api.Services;
 using Crowd.Annotation.Domain.Annotations;
 using Crowd.Annotation.Infrastructure.Persistence;
-using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Project;
+using Crowd.Contracts.Quality;
+using Crowd.Contracts.Tasking;
 using Crowd.Labeling;
 using Crowd.Seeding;
 using Microsoft.EntityFrameworkCore;
@@ -19,12 +20,12 @@ namespace Crowd.Annotation.Api.Seeding
 {
     /// <summary>
     /// Seed annotation-svc: dieu khoan du an + ban sao thanh vien (phat lai
-    /// project.published / member.added vao CHINH processor), roi cac nhan cua
-    /// kich ban o dung trang thai: cho duyet, da duyet, bi tu choi, dang khieu nai.
+    /// project.published / member.added vao CHINH processor), roi nhan cua moi
+    /// BAI DA NOP (docs 3.18): cho cham (du an dang chay) hoac da chot theo ket
+    /// qua cham (du an Completed: bai dat → Accepted, bai truot → Excluded).
     ///
-    /// Nhan tao bang LabelAnnotation.TaoTuLuotNop roi goi Duyet / TuChoi /
-    /// KhieuNai — dung luat domain (vd khong tu duyet nhan cua minh, khieu nai
-    /// trong han 7 ngay). AnnotationId tat dinh vi ledger-svc tham chieu toi no.
+    /// Nhan tao bang LabelAnnotation.TaoTuBaiNop + ChotTheoKetQua — dung luat
+    /// domain. AnnotationId tat dinh de cac lan seed khop nhau.
     /// </summary>
     public sealed class AnnotationSeeder
     {
@@ -32,17 +33,8 @@ namespace Crowd.Annotation.Api.Seeding
         private readonly TimeProvider _clock;
         private readonly ILogger<AnnotationSeeder> _logger;
 
-        private readonly ISettings _settings;
-
-        public AnnotationSeeder(AnnotationDbContext db, TimeProvider clock, ILogger<AnnotationSeeder> logger, ISettings settings)
+        public AnnotationSeeder(AnnotationDbContext db, TimeProvider clock, ILogger<AnnotationSeeder> logger)
         {
-            if (settings == null)
-            {
-                throw new ArgumentNullException(nameof(settings));
-            }
-
-            _settings = settings;
-
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -83,7 +75,7 @@ namespace Crowd.Annotation.Api.Seeding
             using (IDbContextTransaction tx = await _db.Database.BeginTransactionAsync(ct))
             {
                 await PhatLaiEventAsync(canTao, bayGio, ct);
-                int soNhan = TaoNhan(canTao, bayGio);
+                int soNhan = await TaoNhanAsync(canTao, bayGio, ct);
 
                 SeedOutbox.BoEventChuaGui(_db);
                 await _db.SaveChangesAsync(ct);
@@ -105,7 +97,7 @@ namespace Crowd.Annotation.Api.Seeding
 
                 await thanhVien.XuLyAsync(SeedEvents.Boc(dsThanhVien[0], lucTao), ct);
 
-                if (sp.Stage == SeedStage.Running)
+                if (sp.DaChay)
                 {
                     DateTimeOffset lucDuyet = sp.LucDuyet(bayGio);
                     await daPublish.XuLyAsync(SeedEvents.Boc(SeedEvents.DaPublish(sp, bayGio), lucDuyet), ct);
@@ -120,81 +112,72 @@ namespace Crowd.Annotation.Api.Seeding
             }
         }
 
-        private int TaoNhan(List<SeedProject> duAn, DateTimeOffset bayGio)
+        private async Task<int> TaoNhanAsync(List<SeedProject> duAn, DateTimeOffset bayGio, CancellationToken ct)
         {
             int dem = 0;
 
             foreach (SeedProject sp in duAn)
             {
-                foreach (SeedSubmission s in sp.Submissions)
+                foreach (SeedAttempt b in sp.Attempts)
                 {
-                    TaoMotNhan(sp, s, bayGio);
-                    dem++;
+                    if (b.State != SeedAttemptState.Submitted)
+                    {
+                        continue;
+                    }
+
+                    dem += await TaoNhanCuaBaiAsync(sp, b, bayGio, ct);
+                }
+
+                await _db.SaveChangesAsync(ct);
+
+                if (sp.Stage == SeedStage.Completed)
+                {
+                    await ChotDuAnAsync(sp, bayGio, ct);
                 }
             }
 
             return dem;
         }
 
-        private void TaoMotNhan(SeedProject sp, SeedSubmission s, DateTimeOffset bayGio)
+        /// <summary>Giong AttemptSubmittedProcessor nhung gan AnnotationId tat dinh.</summary>
+        private async Task<int> TaoNhanCuaBaiAsync(SeedProject sp, SeedAttempt b, DateTimeOffset bayGio, CancellationToken ct)
         {
-            SeedSample mau = sp.Mau(s.SampleId);
+            AttemptSubmitted bai = SeedEvents.BaiNop(sp, b, bayGio);
+            Dictionary<Guid, Guid> idNhan = b.Answers.ToDictionary(a => a.SampleId, a => a.AnnotationId);
+            int n = 0;
 
-            // Thong tin mau luu mot lan (Find: xem ca dong vua them trong lan seed nay lan dong da co trong DB).
-            if (_db.Samples.Find(s.SampleId) == null)
+            foreach (AttemptAnswer tl in bai.Answers)
             {
-                _db.Samples.Add(AnnotationSample.Tao(
-                    s.SampleId, s.ProjectId, s.StorageKey,
-                    mau.ContentJson == null ? null : RawJson.Tu(mau.ContentJson), mau.Metadata.ToRawJson()));
-            }
-
-            LabelAnnotation a = LabelAnnotation.TaoTuLuotNop(
-                s.AssignmentId,
-                s.TaskId,
-                s.ProjectId,
-                s.SampleId,
-                s.LabelerId,
-                SeedEvents.NhanCua(sp, s),
-                bayGio - s.SubmittedAgo);
-            SeedIds.GanId(a, s.AnnotationId);
-
-            ApKetQuaDuyet(a, s, bayGio);
-
-            _db.Annotations.Add(a);
-        }
-
-        private void ApKetQuaDuyet(LabelAnnotation a, SeedSubmission s, DateTimeOffset bayGio)
-        {
-            if (s.Review == SeedReview.PendingReview)
-            {
-                return;
-            }
-
-            if (!s.ReviewerId.HasValue || !s.ReviewedAgo.HasValue)
-            {
-                throw new InvalidOperationException("Luot nop " + s.AnnotationId + " thieu nguoi duyet / luc duyet.");
-            }
-
-            Guid nguoiDuyet = s.ReviewerId.Value;
-            DateTimeOffset lucDuyet = bayGio - s.ReviewedAgo.Value;
-
-            if (s.Review == SeedReview.Approved)
-            {
-                a.Duyet(nguoiDuyet, lucDuyet);
-                return;
-            }
-
-            a.TuChoi(nguoiDuyet, s.RejectReason ?? "Sai nhan.", lucDuyet, QuyDinhTuSetting.DuyetNhan(_settings));
-
-            if (s.Review == SeedReview.Appealed)
-            {
-                if (!s.AppealedAgo.HasValue || s.AppealMessage == null)
+                await MauDaGanStore.DamBaoAsync(_db, tl.SampleId, sp.Id, tl.StorageKey, tl.SampleContent, tl.SampleMetadata, ct);
+                if (tl.LabelPayload == null)
                 {
-                    throw new InvalidOperationException("Luot nop " + s.AnnotationId + " thieu noi dung / luc khieu nai.");
+                    continue;
                 }
 
-                a.KhieuNai(s.LabelerId, s.AppealMessage, bayGio - s.AppealedAgo.Value, QuyDinhTuSetting.DuyetNhan(_settings));
+                LabelAnnotation a = LabelAnnotation.TaoTuBaiNop(b.AttemptId, sp.Id, tl.SampleId, b.LabelerId, tl.LabelPayload, bai.SubmittedAt);
+                SeedIds.GanId(a, idNhan[tl.SampleId]);
+                _db.Annotations.Add(a);
+                n++;
             }
+
+            return n;
+        }
+
+        /// <summary>Du an Completed: phat lai project.graded + project.completed vao CHINH processor.</summary>
+        private async Task ChotDuAnAsync(SeedProject sp, DateTimeOffset bayGio, CancellationToken ct)
+        {
+            if (!sp.CompletedAgo.HasValue)
+            {
+                throw new InvalidOperationException("Du an seed " + sp.Key + " Completed nhung thieu CompletedAgo.");
+            }
+
+            ProjectGraded cham = SeedEvents.DaCham(sp, bayGio);
+            ProjectGradedProcessor daCham = new ProjectGradedProcessor(_db, Microsoft.Extensions.Logging.Abstractions.NullLogger<ProjectGradedProcessor>.Instance);
+            await daCham.XuLyAsync(SeedEvents.Boc(cham, cham.GradedAt), ct);
+
+            ProjectCompletedProcessor xong = new ProjectCompletedProcessor(_db);
+            await xong.XuLyAsync(SeedEvents.Boc(SeedEvents.HoanThanh(sp), bayGio - sp.CompletedAgo.Value), ct);
+            await _db.SaveChangesAsync(ct);
         }
     }
 }

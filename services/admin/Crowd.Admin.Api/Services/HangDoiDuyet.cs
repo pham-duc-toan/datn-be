@@ -64,14 +64,13 @@ namespace Crowd.Admin.Api.Services
     ///   project    project.publish_requested (cho ky quy) → escrow.reserved (cho duyet)
     ///              → project.published / project.cancelled (admin tu choi = rejected) / escrow.rejected
     ///   withdrawal withdrawal.review_requested → payout.requested / withdrawal.rejected
-    ///   appeal     appeal.opened → appeal.resolved
-    ///   dispute    dispute.opened → dispute.resolved
+    ///   appeal     attempt.appeal_opened → attempt.appeal_resolved (khieu nai CA BAI, docs 3.18)
     ///   link       link.review_requested → link.disabled (admin = bao cao dung) / link.review_dismissed
     ///   referral   referral.flagged → referral.registered (chap nhan) / referral.rejected
     /// </summary>
     public sealed class HangDoiDuyet
     {
-        public static readonly string[] LoaiDon = new string[] { "kyb", "identity", "project", "withdrawal", "appeal", "dispute", "link", "referral" };
+        public static readonly string[] LoaiDon = new string[] { "kyb", "identity", "project", "withdrawal", "appeal", "link", "referral" };
 
         /// <summary>Moi loai event lam thay doi hang doi — DungLaiAsync chi doc lai cac loai nay.</summary>
         public static readonly string[] LoaiEvent = new string[]
@@ -80,8 +79,7 @@ namespace Crowd.Admin.Api.Services
             "user.identity_verification_submitted", "user.identity_verified", "user.identity_rejected",
             "project.publish_requested", "escrow.reserved", "escrow.rejected", "project.published", "project.cancelled",
             "withdrawal.review_requested", "payout.requested", "withdrawal.rejected",
-            "appeal.opened", "appeal.resolved",
-            "dispute.opened", "dispute.resolved",
+            "attempt.appeal_opened", "attempt.appeal_resolved",
             "link.review_requested", "link.disabled", "link.review_dismissed",
             "referral.flagged", "referral.registered", "referral.rejected",
         };
@@ -147,15 +145,11 @@ namespace Crowd.Admin.Api.Services
                 case "withdrawal.rejected":
                     return Dong("withdrawal", Id(p, "withdrawalId"), "rejected", Chuoi(p, "reason"), true);
 
-                case "appeal.opened":
-                    return Mo("appeal", Id(p, "annotationId"), Chuoi(p, "message"), Id(p, "labelerId"), null, null);
-                case "appeal.resolved":
-                    return Dong("appeal", Id(p, "annotationId"), p.GetProperty("accepted").GetBoolean() ? "approved" : "rejected", Chuoi(p, "note"), true);
-
-                case "dispute.opened":
-                    return Mo("dispute", Id(p, "disputeId"), Chuoi(p, "reason"), Id(p, "businessId"), So(p, "amountVnd"), null);
-                case "dispute.resolved":
-                    return Dong("dispute", Id(p, "disputeId"), "resolved", Chuoi(p, "outcome") + ": " + Chuoi(p, "note"), true);
+                case "attempt.appeal_opened":
+                    return Mo("appeal", Id(p, "attemptId"), Chuoi(p, "message"), Id(p, "labelerId"), null,
+                        "giong da so " + So(p, "agreementPercent") + "% / nguong " + So(p, "passThresholdPercent") + "%");
+                case "attempt.appeal_resolved":
+                    return Dong("appeal", Id(p, "attemptId"), p.GetProperty("accepted").GetBoolean() ? "approved" : "rejected", Chuoi(p, "note"), true);
 
                 case "link.review_requested":
                     return Mo("link", Id(p, "linkId"), Chuoi(p, "code"), Id(p, "ownerId"), null, So(p, "reportCount") + " bao cao");

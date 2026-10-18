@@ -22,16 +22,18 @@ namespace Crowd.Project.Api.Helpers
             {
                 DoDaiTenToiDa = Math.Min(s.SoNguyen(SettingKeys.ProjectNameMaxLength), CotDb.TenDuAn),
                 DoDaiMoTaToiDa = Math.Min(s.SoNguyen(SettingKeys.ProjectDescriptionMaxLength), CotDb.MoTaDuAn),
-                RedundancyToiDa = s.SoNguyen(SettingKeys.ProjectRedundancyMax),
-                GoldCheckPercentMacDinh = s.SoNguyen(SettingKeys.ProjectGoldCheckPercentDefault),
-                GoldCheckPercentToiDa = s.SoNguyen(SettingKeys.ProjectGoldCheckPercentMax),
+                NguongDatToiThieu = s.SoNguyen(SettingKeys.ProjectPassThresholdMin),
+                NguongDatToiDa = s.SoNguyen(SettingKeys.ProjectPassThresholdMax),
+                SoCauToiDa = s.SoNguyen(SettingKeys.ProjectMaxQuestions),
+                SoSuatToiThieu = s.SoNguyen(SettingKeys.ProjectMinSlots),
+                SoSuatToiDa = s.SoNguyen(SettingKeys.ProjectMaxSlots),
                 SoCauTestMacDinh = s.SoNguyen(SettingKeys.ProjectEntranceQuestionDefault),
                 NguongDauMacDinh = s.SoNguyen(SettingKeys.ProjectEntrancePassPercentDefault),
                 SoCauTestToiDa = s.SoNguyen(SettingKeys.ProjectEntranceQuestionMax),
                 DoDaiHuongDanToiDa = s.SoNguyen(SettingKeys.GuidelineMarkdownMaxLength),
                 SoViDuToiDa = s.SoNguyen(SettingKeys.GuidelineExamplesMax),
                 DoDaiGiaiThichToiDa = s.SoNguyen(SettingKeys.GuidelineExplanationMaxLength),
-                DonGiaToiThieu = s.SoLon(SettingKeys.ProjectMinUnitPriceVnd),
+                ThuongToiThieu = s.SoLon(SettingKeys.ProjectMinRewardVnd),
             };
         }
 

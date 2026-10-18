@@ -15,30 +15,43 @@ public sealed class LabelPayloadRoundTripTests
         "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"do\",\"xanh\"]}]}");
 
     [Fact]
-    public void Assignment_submitted_di_qua_bus_khong_doi()
+    public void Attempt_submitted_di_qua_bus_khong_doi()
     {
-        AssignmentSubmitted goc = new AssignmentSubmitted
+        AttemptAnswer cau = new AttemptAnswer
         {
-            AssignmentId = Guid.NewGuid(),
-            TaskId = Guid.NewGuid(),
-            ProjectId = Guid.NewGuid(),
             SampleId = Guid.NewGuid(),
             StorageKey = "p/s.png",
             SampleMetadata = new SampleMetadata { Width = 64, Height = 48 }.ToRawJson(),
-            LabelerId = Guid.NewGuid(),
             LabelPayload = LabelPayload.Tao(TapNhan, "{\"label\":{\"labelIds\":[\"do\"]}}", null),
-            LeasedAt = DateTimeOffset.UtcNow,
+        };
+        AttemptAnswer boTrong = new AttemptAnswer
+        {
+            SampleId = Guid.NewGuid(),
+            SampleMetadata = new SampleMetadata { Width = 10, Height = 10 }.ToRawJson(),
+        };
+        AttemptSubmitted goc = new AttemptSubmitted
+        {
+            AttemptId = Guid.NewGuid(),
+            ProjectId = Guid.NewGuid(),
+            LabelerId = Guid.NewGuid(),
+            Answers = new[] { cau, boTrong },
+            GoldTotal = 2,
+            GoldCorrect = 2,
+            StartedAt = DateTimeOffset.UtcNow.AddMinutes(-20),
             SubmittedAt = DateTimeOffset.UtcNow,
         };
 
-        EventEnvelope<AssignmentSubmitted> e = EventEnvelope.Create("task-svc", Guid.NewGuid(), goc);
+        EventEnvelope<AttemptSubmitted> e = EventEnvelope.Create("task-svc", Guid.NewGuid(), goc);
         string json = JsonSerializer.Serialize(e, CrowdJson.Options);
 
         // "data" va metadata la JSON long nhau that, khong phai chuoi chua JSON.
         Assert.Contains("\"labelPayload\":{\"taskType\":\"image\",\"schemaVersion\":1,\"data\":{\"label\":{\"labelIds\":[\"do\"]}}}", json);
         Assert.Contains("\"sampleMetadata\":{\"height\":48,\"width\":64}", json);
 
-        EventEnvelope<AssignmentSubmitted> doc = EventEnvelope.Deserialize<AssignmentSubmitted>(json);
-        Assert.Equal(goc, doc.Payload);
+        EventEnvelope<AttemptSubmitted> doc = EventEnvelope.Deserialize<AttemptSubmitted>(json);
+        // Record chua danh sach so sanh danh sach theo tham chieu → so tung cau.
+        Assert.Equal(goc.AttemptId, doc.Payload.AttemptId);
+        Assert.Equal(goc.Answers, doc.Payload.Answers);
+        Assert.Null(doc.Payload.Answers[1].LabelPayload);
     }
 }
