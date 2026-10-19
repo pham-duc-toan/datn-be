@@ -40,6 +40,7 @@ Mục lục:
 | Thời gian | ISO 8601 có múi giờ, server trả UTC: `"2026-10-06T08:59:13.364+00:00"` |
 | Tiền | **Số nguyên đồng (VND)**, tên trường kết thúc bằng `Vnd`. Không có số lẻ |
 | Phân trang | Query `page` (từ 1) và `pageSize` (1–100, mặc định 20). Response: `{ "items": [...], "page", "pageSize", "total" }` |
+| Thứ tự | Mọi danh sách mặc định **mới nhất trước** (theo thời điểm tạo / nộp / mở đơn — kể cả hàng đợi duyệt của admin). Ngoại lệ có chủ đích: danh mục sắp theo tên / khoá (setting, mẫu bài toán, chiến dịch, tên miền chặn), bảng xếp hạng (theo điểm), dòng thời gian **bên trong** một đối tượng (lịch sử nhãn, sự kiện của một đơn duyệt) đọc từ trên xuống theo thời gian, chuỗi `daily[]` của thống kê admin (để vẽ biểu đồ). Frontend giữ `page` và bộ lọc trên URL (`?page=2&status=open`) qua `lib/use-url-state.ts` |
 | Xác thực | Header `Authorization: Bearer <accessToken>` cho mọi API trừ `/auth/*` |
 | Idempotency | Hai API tiền bắt buộc header `Idempotency-Key` (mục 4.1, 5.7) |
 | File mẫu (ảnh / âm thanh / video) | `fileUrl` là link qua gateway dạng `{gateway}/media/v/{token}`, **gắn thẳng** vào `<img>` / `<audio>` / `<video>` (không cần header, token chính là quyền xem). Sống 5 phút; hết hạn → 410 `link_het_han`, gọi lại API đã trả link để lấy link mới. Chi tiết mục 16 |
@@ -2860,3 +2861,19 @@ Tiền: bài đạt được trả `rewardVnd` vào **số dư khả dụng ngay
 - Tổng quan `GET /admin/stats/overview`: `attemptsSubmitted`, `projectsGraded`, `projectsCompleted`, `labelerPayoutsVnd` (từ `funds.held`: thưởng + doanh thu link + hoa hồng), `appealsOpened`; `daily[]` có `attemptsSubmitted`, `projectsGraded`.
 - Setting mới: `project.pass_threshold_min` / `max` (x, y), `project.max_questions`, `project.min_slots` / `max_slots`, `project.min_reward_vnd`, `task.attempt_duration`, `task.attempt_max_bytes`, `task.appeal_window`, `ledger.reward_hold`.
 - Thông báo mới: loại `ket_qua_bai` (bài đạt / chưa đạt / kết quả khiếu nại; link `/attempts/{attemptId}`), chủ dự án nhận "dự án đã chấm xong". Loại `nhan_duyet`, `nhan_tu_choi`, `tranh_chap` đã bỏ.
+
+
+## 19. Câu trả lời mở chấm theo nghĩa (kiến trúc mục 3.19)
+
+Công cụ `freeText` (payload `{"text": "..."}`) giờ được **chấm**: lúc dự án kết thúc, hệ thống so ý nghĩa từng câu với câu "ở giữa" của mọi người. Câu lạc đề, gõ bừa hoặc bỏ trống thì không giống đa số. Bước phân tích chạy trên ml-svc nên **chấm và trả công chậm hơn** các dạng khác; frontend phải báo trước.
+
+- `GET /projects/{id}/readiness` → `warnings` có `cham_cau_tra_loi_mo_lau` khi tập nhãn có freeText (không chặn publish).
+- `GET /quality/projects/{id}/summary` → `freeTextAnalysis`: `null` (không có câu mở) | `{ "state": "pending" | "done", "method": null | "semantic" | "lexical" }`. `pending` = đã đóng thu bài, đang chờ phân tích; `lexical` = ml-svc không phân tích kịp, đã chấm bằng so chữ (nên hiện ghi chú cho chủ dự án).
+- Giai đoạn `finished` (`/tasks/projects/{id}/progress`, `/slots`) của dự án có freeText: hiển thị **"Đang phân tích câu trả lời mở"** thay vì "đang chấm".
+- Chỗ cần báo (frontend tham khảo `components/project/free-text-notice.tsx`):
+  - trình sửa tập nhãn, khi chọn công cụ freeText (doanh nghiệp);
+  - thẻ chợ dự án (`toolKinds` có `freeText`);
+  - trang chi tiết dự án của labeler;
+  - hộp xác nhận nộp bài;
+  - trang kết quả bài khi chưa chấm (`labelSchema.tools[].kind`).
+- Setting admin: `quality.freetext_similarity` (0,6), `quality.freetext_lexical_similarity` (0,38), `quality.freetext_analysis_timeout` (3600 s), `quality.freetext_analysis_interval` (5 s).

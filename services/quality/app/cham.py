@@ -8,6 +8,7 @@ Sau khi task-svc dong thu bai (project.collection_finished), moi bai da nop duoc
      nguoi tra loi tro len. Cau khong co da so (hoa phieu, chi toan freeText) KHONG tinh cho ai.
   2. Moi bai: so cau so duoc = cau co da so ma bai co trong de; so cau giong = cau ma nhan cua bai khop
      ket qua gop o MOI cong cu da co ket qua ma nguoi do lam. Cau bo trong = so duoc nhung khong giong.
+     Cau tra loi mo (freeText) so THEO NGHIA khi co ThamSoCham.mo (3.19 — app/cau_mo.py).
      Ti le = floor(100 x giong / so duoc); khong co cau nao so duoc → 100.
   3. Dat = ti le >= nguong t cua du an VA dung het cau vang.
 
@@ -69,12 +70,22 @@ def dung_het_vang(gold_correct: int, gold_total: int) -> bool:
     return gold_correct >= gold_total
 
 
+@dataclass(frozen=True)
+class ThamSoMoDuAn:
+    """Cham freeText ca du an: phuong phap, nguong, vector (attempt_id, sample_id, ten cong cu) → vector."""
+
+    phuong_phap: str
+    nguong: float
+    vector: dict[tuple[str, str, str], list[float]] = field(default_factory=dict)
+
+
 def cham_du_an(label_schema: dict[str, Any], bai: list[Bai], nhan: dict[tuple[str, str], dict[str, Any]],
                metadata_mau: dict[str, dict[str, Any] | None], loai_tru: set[str], nguong: int,
-               tham_so: consensus.ThamSoGop | None = None) -> KetQuaDuAn:
+               tham_so: consensus.ThamSoGop | None = None, mo: ThamSoMoDuAn | None = None) -> KetQuaDuAn:
     """
     nhan: (attempt_id, sample_id) → du lieu nhan (chi cau DA tra loi).
     metadata_mau: sample_id → metadata (kich thuoc anh...) cho cong cu so do lech theo duong cheo.
+    mo: None = khong cham freeText (cau chi co freeText khong tinh cho ai).
     """
     tra_loi: dict[str, int] = {b.attempt_id: sum(1 for c in b.cau_hoi if (b.attempt_id, c) in nhan) for b in bai}
 
@@ -90,6 +101,10 @@ def cham_du_an(label_schema: dict[str, Any], bai: list[Bai], nhan: dict[tuple[st
     ket_qua_cau: list[KetQuaCau] = []
 
     tat_ca_cau = sorted({c for b in bai for c in b.cau_hoi} - loai_tru)
+    vector_theo_cau: dict[str, dict[tuple[str, str], list[float]]] = {}
+    if mo is not None:
+        for (a, sm, ten), v in mo.vector.items():
+            vector_theo_cau.setdefault(sm, {})[(a, ten)] = v
     for mau in tat_ca_cau:
         co_cau = [b for b in bai if mau in b.cau_hoi]
         da_lam = [consensus.Nhan(b.attempt_id, b.labeler_id, nhan[(b.attempt_id, mau)])
@@ -100,7 +115,8 @@ def cham_du_an(label_schema: dict[str, Any], bai: list[Bai], nhan: dict[tuple[st
         ts = consensus.ThamSoGop(
             mau=metadata_mau.get(mau),
             nguong=tham_so.nguong if tham_so is not None else {},
-            f1_toi_thieu=tham_so.f1_toi_thieu if tham_so is not None else gop.F1_TOI_THIEU_MAC_DINH)
+            f1_toi_thieu=tham_so.f1_toi_thieu if tham_so is not None else gop.F1_TOI_THIEU_MAC_DINH,
+            mo=None if mo is None else consensus.ThamSoMo(mo.phuong_phap, mo.nguong, vector_theo_cau.get(mau, {})))
         # Tran = so nguoi da lam: cham mot lan, khong xin them nguoi (khong con redundancy thich ung).
         kq = consensus.danh_gia(label_schema, da_lam, len(da_lam), len(da_lam), consensus.ChinhSach(), ts)
         co_da_so = len(da_lam) >= SO_NGUOI_TOI_THIEU_MOT_CAU and any(v is not None for v in kq.agrees.values())

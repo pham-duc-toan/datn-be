@@ -78,7 +78,7 @@ namespace Crowd.Ledger.Api.Services
 
             int tong = await q.CountAsync(ct);
             List<Withdrawal> ds = await q
-                .OrderBy(w => w.CreatedAt)
+                .OrderByDescending(w => w.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(ct);

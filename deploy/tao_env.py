@@ -14,7 +14,7 @@ import secrets
 import sys
 
 GOC = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB = ["identity", "project", "task", "annotation", "ledger", "payment", "link", "gate", "quality", "admin", "notification"]
+DB = ["identity", "project", "task", "annotation", "ledger", "payment", "link", "gate", "quality", "admin", "notification", "ml"]
 
 # Khoa dev — trung appsettings.Development.json (MediaLinks:GrantKey) va services/media/app/config.py.
 KHOA_DEV = {

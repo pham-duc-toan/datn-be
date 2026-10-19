@@ -732,10 +732,25 @@ namespace Crowd.Project.Domain.Projects
         /// <summary>Canh bao KHONG chan publish: khong co cau vang kiem tra thi luat "khong sai cau vang" vo nghia.</summary>
         public static IReadOnlyList<string> CanhBao(int soCauVangKiemTra)
         {
+            return CanhBao(soCauVangKiemTra, null);
+        }
+
+        /// <summary>
+        /// Nhu tren, them: tap nhan co cau tra loi mo (freeText) → "cham_cau_tra_loi_mo_lau" — khi du an ket thuc,
+        /// quality-svc cho ml-svc phan tich nghia tung cau roi moi cham (kien truc 3.19), ket qua va tien cong
+        /// cua labeler co muon hon cac dang khac.
+        /// </summary>
+        public static IReadOnlyList<string> CanhBao(int soCauVangKiemTra, LabelSchema? tapNhan)
+        {
             List<string> ds = new List<string>();
             if (soCauVangKiemTra <= 0)
             {
                 ds.Add("khong_co_cau_vang_kiem_tra");
+            }
+
+            if (tapNhan != null && tapNhan.Tools.Any(t => t.Kind == ToolKinds.FreeText))
+            {
+                ds.Add("cham_cau_tra_loi_mo_lau");
             }
 
             return ds;

@@ -110,7 +110,7 @@ namespace Crowd.Project.Api.Services
             await _access.LayDeQuanLyAsync(projectId, caller, ct);
             List<ProjectConsent> ds = await _db.ProjectConsents.AsNoTracking()
                 .Where(x => x.ProjectId == projectId)
-                .OrderBy(x => x.UpdatedAt)
+                .OrderByDescending(x => x.UpdatedAt)
                 .ToListAsync(ct);
 
             return ds.Select(c => new ConsentRecordResponse

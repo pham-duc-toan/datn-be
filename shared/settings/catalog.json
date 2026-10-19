@@ -1324,6 +1324,50 @@
     "description": "Gop nhan cong cu dang danh sach (khung, da giac, doan...): mot nguoi tinh la KHOP ket qua gop khi F1 giua cac doi tuong cua ho va cac doi tuong da gop dat muc nay. Khong qua mot nua so nguoi khop thi mau la tranh chap."
   },
   {
+    "key": "quality.freetext_similarity",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.6,
+    "min": 0.3,
+    "max": 0.99,
+    "unit": "cosine",
+    "effect": "newOperations",
+    "description": "Cau tra loi mo (freeText) cham THEO NGHIA (ml-svc nhung cau): mot nguoi giong da so khi do giong cosine giua cau cua ho va cau 'o giua' cum (medoid) dat muc nay. Cau cung nghia khac chu thuong 0,63 - 0,9; cau lac de gan 0."
+  },
+  {
+    "key": "quality.freetext_lexical_similarity",
+    "group": "Chat luong",
+    "type": "double",
+    "default": 0.38,
+    "min": 0.1,
+    "max": 0.99,
+    "unit": "cosine",
+    "effect": "newOperations",
+    "description": "Nguong khi PHAI cham cau tra loi mo bang so CHU (n-gram ky tu) vi ml-svc khong phan tich kip. So chu yeu hon so nghia: cau cung nghia khac chu chi 0,4 - 0,5."
+  },
+  {
+    "key": "quality.freetext_analysis_timeout",
+    "group": "Chat luong",
+    "type": "durationSeconds",
+    "default": 3600,
+    "min": 10,
+    "max": 604800,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Sau khi du an dong thu bai, cho ml-svc phan tich het cau tra loi mo toi da bao lau; qua han thi cham bang so chu de khong giu tien cua labeler."
+  },
+  {
+    "key": "quality.freetext_analysis_interval",
+    "group": "Ky thuat",
+    "type": "durationSeconds",
+    "default": 5,
+    "min": 1,
+    "max": 3600,
+    "unit": "giay",
+    "effect": "newOperations",
+    "description": "Chu ky quality-svc gui cau tra loi mo moi sang ml-svc va thu cham lai du an dang cho phan tich."
+  },
+  {
     "key": "identity.access_token_lifetime",
     "group": "Tai khoan",
     "type": "durationSeconds",

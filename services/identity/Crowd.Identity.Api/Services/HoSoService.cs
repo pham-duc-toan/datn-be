@@ -209,7 +209,7 @@ namespace Crowd.Identity.Api.Services
         public static List<BadgeDto> TaoHuyHieu(IEnumerable<HuyHieuDaDat> ds)
         {
             List<BadgeDto> kq = new List<BadgeDto>();
-            foreach (HuyHieuDaDat h in ds.OrderBy(x => x.AwardedAt))
+            foreach (HuyHieuDaDat h in ds.OrderByDescending(x => x.AwardedAt))
             {
                 HuyHieu? dinhNghia = CapDo.Tim(h.Badge);
                 kq.Add(new BadgeDto { Code = h.Badge, Name = dinhNghia == null ? h.Badge : dinhNghia.Ten, AwardedAt = h.AwardedAt });

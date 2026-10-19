@@ -282,7 +282,7 @@ namespace Crowd.Payment.Api.Services
 
             int tong = await q.CountAsync(ct);
             List<PaymentIntent> ds = await q
-                .OrderBy(i => i.CreatedAt)
+                .OrderByDescending(i => i.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(ct);

@@ -9,7 +9,8 @@ Crowd.Labeling ben C#):
                    nguoi ghi y het; transcription — ban "o giua"; number — trung vi; ranking — Borda.
                    Voi cac cong cu nay mot nguoi KHOP khi ket qua cua ho du gan ket qua gop (F1 / CER /
                    sai so / Kendall), va cong cu TRANH CHAP khi khong qua mot nua so nguoi khop.
-  freeText       — cau tra loi mo: khong gop, khong tinh vao dong thuan.
+  freeText       — cau tra loi mo: CHI gop khi noi goi dua ThamSoGop.mo (cham ca du an, 3.19 — app/cau_mo.py:
+                   cau "o giua" theo do giong nghia / chu); khong co thi khong gop, khong tinh vao dong thuan.
 
 Ket qua:
   agreed        — moi cong cu gop duoc deu co ket qua duoc qua nua so nguoi ung ho;
@@ -28,7 +29,7 @@ Chinh sach dung (setting quality.redundancy_policy, NC-D-01 — xem redundancy.p
 from dataclasses import dataclass, field
 from typing import Any
 
-from app import gop, redundancy
+from app import cau_mo, gop, redundancy
 
 
 @dataclass(frozen=True)
@@ -59,12 +60,22 @@ class ChinhSach:
 
 
 @dataclass(frozen=True)
+class ThamSoMo:
+    """Cham cau tra loi mo (freeText) cua MOT cau hoi."""
+
+    phuong_phap: str                             # cau_mo.THEO_NGHIA | cau_mo.THEO_CHU
+    nguong: float
+    vector: dict[tuple[str, str], list[float]] = field(default_factory=dict)   # (annotation_id, ten cong cu) → vector
+
+
+@dataclass(frozen=True)
 class ThamSoGop:
     """Tham so gop cho cong cu khong roi rac (doc tu setting + metadata cua mau)."""
 
     mau: dict[str, Any] | None = None           # metadata mau: width / height cho diem moc, duong gap khuc
     nguong: dict[str, float] = field(default_factory=dict)   # loai cong cu → setting labeling.threshold.*
     f1_toi_thieu: float = gop.F1_TOI_THIEU_MAC_DINH          # setting quality.consensus_min_f1
+    mo: ThamSoMo | None = None                              # None = khong cham freeText
 
 
 def _lop(ket_qua: Any) -> frozenset[str]:
@@ -137,7 +148,8 @@ def danh_gia(label_schema: dict[str, Any], nhan: list[Nhan], target: int, max_re
     if cs.tran != max_redundancy:
         cs = ChinhSach(cs.ten, cs.nguong, cs.ti_le_gia_tri, cs.do_chinh_xac, cs.mac_dinh, max_redundancy)
     ts = tham_so if tham_so is not None else ThamSoGop()
-    cong_cu = [t for t in label_schema.get("tools", []) if gop.gop_duoc(t)]
+    cong_cu = [t for t in label_schema.get("tools", [])
+               if gop.gop_duoc(t) or (t.get("kind") == "freeText" and ts.mo is not None)]
 
     if not cong_cu:
         return KetQua(status="notApplicable", final=None, agrees={n.annotation_id: None for n in nhan})
@@ -163,7 +175,12 @@ def danh_gia(label_schema: dict[str, Any], nhan: list[Nhan], target: int, max_re
                 khop_theo_cong_cu[ten] = {n.annotation_id: _khop(t["kind"], n.data[ten], ket_qua) for n in co_lam}
             continue
 
-        kq = gop.gop_cong_cu(t, [n.data[ten] for n in co_lam], ts.mau, ts.nguong.get(t["kind"]), ts.f1_toi_thieu)
+        if t["kind"] == "freeText":
+            mo = ts.mo
+            vec = None if mo.phuong_phap != cau_mo.THEO_NGHIA else [mo.vector.get((n.annotation_id, ten)) for n in co_lam]
+            kq = cau_mo.gop_mo([cau_mo.van_ban(n.data[ten]) for n in co_lam], vec, mo.nguong)
+        else:
+            kq = gop.gop_cong_cu(t, [n.data[ten] for n in co_lam], ts.mau, ts.nguong.get(t["kind"]), ts.f1_toi_thieu)
         final[ten] = kq["final"]
         if kq["disputed"]:
             tranh_chap = True

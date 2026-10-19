@@ -282,7 +282,7 @@ namespace Crowd.Project.Api.Services
             List<EntranceAttempt> ds = await _db.EntranceAttempts
                 .AsNoTracking()
                 .Where(a => a.ProjectId == projectId && a.UserId == userId)
-                .OrderBy(a => a.StartedAt)
+                .OrderByDescending(a => a.StartedAt)
                 .ToListAsync(ct);
 
             List<EntranceAttemptResponse> ketQua = new List<EntranceAttemptResponse>();

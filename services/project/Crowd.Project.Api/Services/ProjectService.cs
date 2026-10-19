@@ -483,7 +483,7 @@ namespace Crowd.Project.Api.Services
             {
                 Ready = thieu.Count == 0,
                 Missing = thieu,
-                Warnings = LabelingProject.CanhBao(soVangKiemTra),
+                Warnings = LabelingProject.CanhBao(soVangKiemTra, duAn.LabelSchema),
                 SampleCount = soMau,
                 QuestionCount = soCauThat,
                 QualityGoldCount = soVangKiemTra,
@@ -576,13 +576,13 @@ namespace Crowd.Project.Api.Services
             return TaoResponse(duAn, caller);
         }
 
-        /// <summary>Danh sach cho admin duyet, cu nhat truoc (ai cho lau duoc xem truoc).</summary>
+        /// <summary>Danh sach cho admin duyet, moi nhat truoc (mac dinh moi danh sach).</summary>
         public async Task<IReadOnlyList<ProjectResponse>> DanhSachChoDuyetAsync(Caller caller, CancellationToken ct)
         {
             List<LabelingProject> ds = await _db.Projects
                 .AsNoTracking()
                 .Where(p => p.Status == ProjectStatus.PendingApproval)
-                .OrderBy(p => p.SubmittedForApprovalAt)
+                .OrderByDescending(p => p.SubmittedForApprovalAt)
                 .Take(200)
                 .ToListAsync(ct);
 

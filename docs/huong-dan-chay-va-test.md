@@ -115,6 +115,7 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | Bộ | Phủ |
 |---|---|
 | `e2e_du_an_trung_tam.py` | **Luồng chính kiến trúc 3.18** (chạy đầu tiên): giá cả dự án, ngưỡng t trong [x, y], làm bài như bài kiểm tra, kết thúc sớm, chấm một lần (đa số + câu vàng), thưởng bài đạt, khiếu nại cả bài, chốt → hoàn suất thừa, < 3 bài chỉ xét câu vàng, huỷ dự án chưa có bài |
+| `e2e_cau_tra_loi_mo.py` | Câu trả lời mở chấm theo nghĩa (3.19): cảnh báo readiness, nhúng câu ngay khi bài tới, cùng ý khác chữ → đạt, lạc đề / bỏ trống → trượt, ml_db chỉ giữ vector; **dừng container ml** → chờ phân tích → quá hạn chấm bằng so chữ (phần này chỉ chạy với `E2E_PROFILE=demo`) |
 | `e2e_tong_the.py` | Xác thực, nạp tiền, vòng đời dự án + ký quỹ theo suất (saga, thiếu tiền, từ chối → hoàn), test đầu vào, làm bài (lưu / sửa / bỏ trống / bỏ bài / hết suất / BOLA), kiểm định dạng lúc nộp (`bai_chua_hop_le` kèm từng câu), chấm cả dự án + khiếu nại bị bác + hoàn suất thừa, rút tiền, setting x ≤ y, tạm dừng / chặn thành viên / kết thúc sớm / huỷ, span văn bản + so sánh cặp |
 | `e2e_settings.py` | Đổi setting lúc chạy (phí, tự duyệt, giới hạn, nạp chuyển khoản, quality nhận setting) |
 | `e2e_p2.py` | Cổng link: rút gọn, vượt link, Turnstile, chống trùng IP, hoa hồng, kiểm duyệt (`chay_hoi_quy` chạy hai lần: chi `perClick` và `batched`) |
@@ -1375,6 +1376,14 @@ Kiểm tra thêm:
 - Ít hơn 3 bài nộp: chỉ xét câu vàng (`/quality/projects/{id}/summary` → `majorityUsed: false`).
 
 Trên giao diện (frontend `D:\learn\fe-datn`, cổng 5173): **Chợ dự án** → thẻ hiện thưởng, số câu, dạng gán nhãn, số suất → **Bắt đầu làm bài** → bảng câu hỏi bên trái (xanh = đã trả lời, chấm cam = đánh dấu xem lại, đỏ = chưa hợp lệ), *Tới câu chưa làm*, *Nộp bài* → trang **Bài làm** (`/bai-lam/{id}`) hiện kết quả và ô khiếu nại. Doanh nghiệp: tab **Tổng quan** (bài đã nộp / suất, giai đoạn, bài đạt, nút *Kết thúc sớm*), **Chất lượng** (từng bài), **Kết quả**. Admin: **Khiếu nại bài làm** so từng câu của bài với kết quả gộp.
+
+### 6.24 Câu trả lời mở chấm theo nghĩa (kiến trúc mục 3.19)
+
+Stack demo có thêm `ml` (ml-svc, cổng 8202 chỉ trong mạng nội bộ) và `db-ml` (pgvector). Build lần đầu tải mô hình (~0,22 GB) vào image. Máy dev chạy ngoài Docker: `docker compose -f docker-compose.infra.yml --profile p4 up -d db-ml`, rồi `cd services/ml && python -m venv .venv && .venv/Scripts/pip install -r requirements.txt && .venv/Scripts/python -m app.main`; quality-svc cần `QUALITY_ML_URL=http://localhost:8202` và `QUALITY_INTERNAL_API_KEY` trùng `ML_INTERNAL_API_KEY` (dev: `demo_internal_key`). Không cấu hình thì câu trả lời mở chấm bằng so chữ.
+
+Thử bằng tay: tạo dự án văn bản có công cụ `{"name":"mo_ta","kind":"freeText"}`, 3 suất. Checklist hiện cảnh báo `cham_cau_tra_loi_mo_lau`. Ba labeler mô tả cùng một mẫu: hai người viết cùng ý khác chữ ("Con mèo đang ngủ trên ghế sofa" / "Một con mèo nằm ngủ trên ghế"), người thứ ba viết lạc đề. Kết quả: hai người đầu đạt, người thứ ba trượt; `/quality/projects/{id}/summary` → `freeTextAnalysis = {state: done, method: semantic}`.
+
+Dự phòng: `docker stop datn-demo-ml`, admin đặt `quality.freetext_analysis_timeout` = 20 giây, chạy lại kịch bản trên. Dự án dừng ở `pending` (giao diện: "Đang phân tích câu trả lời mở"), quá hạn thì chấm bằng so chữ (`method: lexical`). Bật lại bằng `docker start datn-demo-ml`.
 
 ## 7. Kiểm tra tổng sau khi test
 

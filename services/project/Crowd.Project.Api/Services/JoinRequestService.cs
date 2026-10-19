@@ -275,7 +275,7 @@ namespace Crowd.Project.Api.Services
 
             List<JoinRequest> ds = await _db.JoinRequests.AsNoTracking()
                 .Where(d => d.ProjectId == projectId && d.Status == loc)
-                .OrderBy(d => d.CreatedAt)
+                .OrderByDescending(d => d.CreatedAt)
                 .Take(500)
                 .ToListAsync(ct);
 

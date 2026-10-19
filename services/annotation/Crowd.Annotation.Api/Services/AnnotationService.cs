@@ -128,7 +128,7 @@ namespace Crowd.Annotation.Api.Services
                 q = q.Where(a => a.AttemptId == bai);
             }
 
-            return await TaoTrangAsync(q.OrderBy(a => a.SubmittedAt), page, pageSize, GocXemDuAn(caller), ct);
+            return await TaoTrangAsync(q.OrderByDescending(a => a.SubmittedAt).ThenByDescending(a => a.Id), page, pageSize, GocXemDuAn(caller), ct);
         }
 
         public async Task<IReadOnlyList<HistoryEntryResponse>> LichSuAsync(Guid annotationId, Caller caller, CancellationToken ct)

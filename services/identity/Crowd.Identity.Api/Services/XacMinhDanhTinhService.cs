@@ -199,7 +199,7 @@ namespace Crowd.Identity.Api.Services
 
             IQueryable<XacMinhDanhTinh> q = _db.XacMinhDanhTinhs.AsNoTracking().Where(x => x.Status == loc);
             int tong = await q.CountAsync(ct);
-            List<XacMinhDanhTinh> ds = await q.OrderBy(x => x.SubmittedAt).Skip((trang - 1) * co).Take(co).ToListAsync(ct);
+            List<XacMinhDanhTinh> ds = await q.OrderByDescending(x => x.SubmittedAt).Skip((trang - 1) * co).Take(co).ToListAsync(ct);
 
             List<Guid> ids = ds.Select(x => x.UserId).ToList();
             Dictionary<Guid, User> users = await _db.Users.AsNoTracking().Where(u => ids.Contains(u.Id)).ToDictionaryAsync(u => u.Id, ct);

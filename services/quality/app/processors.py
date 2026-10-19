@@ -4,17 +4,20 @@ Du an lam trung tam (docs 3.18): attempt.submitted (labeler nop ca bai) va proje
 (task-svc dong thu bai) di hai queue khac nhau, cai nao den truoc cung duoc. Ca hai deu goi thu_cham():
 chi cham khi DA dong thu bai VA da co du moi bai trong danh sach; moi du an chi cham MOT lan
 (project_collections.graded_at).
+
+Du an co cau tra loi mo (3.19): thu_cham con cho ml-svc nhung du cau (freetext_state = pending); worker
+phan_tich_mo nhung cau ngay khi bai toi va goi lai thu_cham.
 """
 
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import cham, consensus, fraud, project_client, reputation, settings_store
+from app import cau_mo, cham, consensus, fraud, ml_client, project_client, reputation, settings_store
 from app.contracts import (
     AttemptSubmitted,
     GradedAttempt,
@@ -147,7 +150,7 @@ async def thu_cham(s: AsyncSession, project_id: uuid.UUID, env: Envelope) -> Non
     await s.execute(text("SELECT pg_advisory_xact_lock(:nhom, hashtext(:p))"), {"nhom": NHOM_KHOA_DU_AN, "p": str(project_id)})
 
     dot = (await s.execute(
-        text("SELECT attempt_ids, excluded_sample_ids, graded_at FROM project_collections WHERE project_id = :p"),
+        text("SELECT attempt_ids, excluded_sample_ids, graded_at, finished_at FROM project_collections WHERE project_id = :p"),
         {"p": project_id})).first()
     if dot is None or dot.graded_at is not None:
         return  # chua dong thu bai, hoac da cham
@@ -178,13 +181,19 @@ async def thu_cham(s: AsyncSession, project_id: uuid.UUID, env: Envelope) -> Non
         if md and str(d.sample_id) not in metadata:
             metadata[str(d.sample_id)] = md
 
+    # Cau tra loi mo (3.19): cham theo nghia khi ml-svc da nhung du; chua du thi cho (worker phan_tich_mo
+    # cham lai), qua han / khong cau hinh ml-svc thi so chu.
+    mo = await _tham_so_mo(s, project_id, schema, nhan, dot.finished_at, env)
+    if mo is False:
+        return
+
     tham_so = consensus.ThamSoGop(
         nguong=settings_store.nguong_gop(), f1_toi_thieu=settings_store.so_thuc(settings_store.CONSENSUS_MIN_F1))
     kq = cham.cham_du_an(
         schema,
         [cham.Bai(str(b.attempt_id), str(b.labeler_id), tuple(str(x) for x in b.sample_ids), b.gold_total, b.gold_correct)
          for b in bai],
-        nhan, metadata, {str(x) for x in dot.excluded_sample_ids}, du_an.pass_threshold_percent, tham_so)
+        nhan, metadata, {str(x) for x in dot.excluded_sample_ids}, du_an.pass_threshold_percent, tham_so, mo or None)
 
     luc = datetime.now(timezone.utc)
     for c in kq.cau:
@@ -207,8 +216,10 @@ async def thu_cham(s: AsyncSession, project_id: uuid.UUID, env: Envelope) -> Non
              "pt": b.phan_tram, "gt": b.gold_total, "gd": b.gold_correct, "ok": b.dat, "n": b.da_tra_loi, "at": luc},
         )
     await s.execute(
-        text("UPDATE project_collections SET graded_at = :at, majority_used = :mj WHERE project_id = :p"),
-        {"p": project_id, "at": luc, "mj": kq.dung_da_so},
+        text("UPDATE project_collections SET graded_at = :at, majority_used = :mj, "
+             "freetext_state = CASE WHEN CAST(:pp AS varchar) IS NULL THEN NULL ELSE 'done' END, freetext_method = CAST(:pp AS varchar) "
+             "WHERE project_id = :p"),
+        {"p": project_id, "at": luc, "mj": kq.dung_da_so, "pp": None if not mo else mo.phuong_phap},
     )
 
     await outbox.ghi(s, ProjectGraded(
@@ -225,6 +236,42 @@ async def thu_cham(s: AsyncSession, project_id: uuid.UUID, env: Envelope) -> Non
         await cap_nhat_uy_tin(s, labeler, env)
 
     log.info("Cham du an %s: %s bai, %s dat (da so: %s)", project_id, len(kq.bai), sum(1 for b in kq.bai if b.dat), kq.dung_da_so)
+
+
+def cong_cu_mo(schema: dict) -> list[str]:
+    return [t["name"] for t in schema.get("tools", []) if t.get("kind") == "freeText"]
+
+
+async def _tham_so_mo(s: AsyncSession, project_id: uuid.UUID, schema: dict, nhan: dict, finished_at, env):
+    """None = du an khong co cau tra loi mo; False = CHUA cham duoc (cho ml-svc); ThamSoMoDuAn = cham."""
+    ten = cong_cu_mo(schema)
+    if not ten:
+        return None
+
+    can = {(a, sm, t) for (a, sm), d in nhan.items() for t in ten if cau_mo.van_ban(d.get(t))}
+    co: dict[tuple[str, str, str], list[float]] = {}
+    if can:
+        for d in (await s.execute(
+                text("SELECT attempt_id, sample_id, tool, vector FROM freetext_vectors "
+                     "WHERE project_id = :p AND vector IS NOT NULL"), {"p": project_id})).all():
+            co[(str(d.attempt_id), str(d.sample_id), d.tool)] = list(d.vector)
+    thieu = len(can - co.keys())
+
+    if thieu == 0:
+        return cham.ThamSoMoDuAn(cau_mo.THEO_NGHIA, settings_store.so_thuc(settings_store.FREETEXT_SIMILARITY), co)
+
+    han = finished_at + timedelta(seconds=settings_store.giay(settings_store.FREETEXT_ANALYSIS_TIMEOUT))
+    if ml_client.co_cau_hinh() and datetime.now(timezone.utc) < han:
+        await s.execute(
+            text("UPDATE project_collections SET freetext_state = 'pending', "
+                 "freetext_correlation_id = COALESCE(freetext_correlation_id, :c) WHERE project_id = :p"),
+            {"p": project_id, "c": env.correlation_id})
+        log.info("Du an %s: con %s / %s cau tra loi mo chua phan tich — cho ml-svc (han %s)", project_id, thieu, len(can), han)
+        return False
+
+    log.warning("Du an %s: %s / %s cau tra loi mo chua co vector (ml-svc %s) — cham bang so chu", project_id, thieu, len(can),
+                "qua han" if ml_client.co_cau_hinh() else "khong cau hinh")
+    return cham.ThamSoMoDuAn(cau_mo.THEO_CHU, settings_store.so_thuc(settings_store.FREETEXT_LEXICAL_SIMILARITY))
 
 
 # =====================================================================

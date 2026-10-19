@@ -106,7 +106,7 @@ namespace Crowd.Ledger.Api.Services
             List<EarningsItem> items = dong
                 .GroupBy(d => d.Khoa)
                 .Select(g => new EarningsItem { Key = g.Key, AmountVnd = g.Sum(x => x.Tong), Count = g.Sum(x => x.SoKhoan) })
-                .OrderBy(i => nhom == "day" ? i.Key : string.Empty)
+                .OrderByDescending(i => nhom == "day" ? i.Key : string.Empty)
                 .ThenByDescending(i => i.AmountVnd)
                 .ToList();
 

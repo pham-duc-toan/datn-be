@@ -197,7 +197,7 @@ namespace Crowd.Link.Api.Services
         {
             System.Collections.Generic.List<Referral> ds = await _db.Referrals.AsNoTracking()
                 .Where(r => r.Status == TrangThaiGioiThieu.Flagged)
-                .OrderBy(r => r.CreatedAt).Take(200).ToListAsync(ct);
+                .OrderByDescending(r => r.CreatedAt).Take(200).ToListAsync(ct);
             return ds.Select(r => new FlaggedReferralResponse
             {
                 ReferrerId = r.ReferrerId,

@@ -138,6 +138,10 @@ namespace Crowd.BuildingBlocks.Settings
         public const string LabelingThresholdRelation = "labeling.threshold.relation";
         public const string LabelingThresholdRanking = "labeling.threshold.ranking";
         public const string QualityConsensusMinF1 = "quality.consensus_min_f1";
+        public const string QualityFreeTextSimilarity = "quality.freetext_similarity";
+        public const string QualityFreeTextLexicalSimilarity = "quality.freetext_lexical_similarity";
+        public const string QualityFreeTextAnalysisTimeout = "quality.freetext_analysis_timeout";
+        public const string QualityFreeTextAnalysisInterval = "quality.freetext_analysis_interval";
 
         // ---- Tai khoan ----
         public const string IdentityAccessTokenLifetime = "identity.access_token_lifetime";
@@ -531,6 +535,17 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Double(SettingKeys.QualityConsensusMinF1, NhomChatLuong, 0.8, 0, 1, "F1",
                 "Gop nhan cong cu dang danh sach (khung, da giac, doan...): mot nguoi tinh la KHOP ket qua gop khi F1 giua cac doi tuong cua ho "
                 + "va cac doi tuong da gop dat muc nay. Khong qua mot nua so nguoi khop thi mau la tranh chap."));
+            ds.Add(Double(SettingKeys.QualityFreeTextSimilarity, NhomChatLuong, 0.6, 0.3, 0.99, "cosine",
+                "Cau tra loi mo (freeText) cham THEO NGHIA (ml-svc nhung cau): mot nguoi giong da so khi do giong cosine giua cau cua ho "
+                + "va cau 'o giua' cum (medoid) dat muc nay. Cau cung nghia khac chu thuong 0,63 - 0,9; cau lac de gan 0."));
+            ds.Add(Double(SettingKeys.QualityFreeTextLexicalSimilarity, NhomChatLuong, 0.38, 0.1, 0.99, "cosine",
+                "Nguong khi PHAI cham cau tra loi mo bang so CHU (n-gram ky tu) vi ml-svc khong phan tich kip. So chu yeu hon so nghia: "
+                + "cau cung nghia khac chu chi 0,4 - 0,5."));
+            ds.Add(Seconds(SettingKeys.QualityFreeTextAnalysisTimeout, NhomChatLuong, 3600, 10, 7 * Ngay,
+                "Sau khi du an dong thu bai, cho ml-svc phan tich het cau tra loi mo toi da bao lau; qua han thi cham bang so chu "
+                + "de khong giu tien cua labeler."));
+            ds.Add(Seconds(SettingKeys.QualityFreeTextAnalysisInterval, NhomKyThuat, 5, 1, 3600,
+                "Chu ky quality-svc gui cau tra loi mo moi sang ml-svc va thu cham lai du an dang cho phan tich."));
 
             // ================= TAI KHOAN =================
             ds.Add(Seconds(SettingKeys.IdentityAccessTokenLifetime, NhomTaiKhoan, 15 * 60, 60, Ngay, "Access token song bao lau."));

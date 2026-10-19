@@ -222,6 +222,19 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
+        public void Tap_nhan_co_cau_tra_loi_mo_thi_canh_bao_cham_lau()
+        {
+            LabelSchema coMo = LabelSchema.Doc(
+                "{\"modality\":\"image\",\"tools\":[{\"name\":\"loai\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"]},"
+                + "{\"name\":\"mo_ta\",\"kind\":\"freeText\"}]}");
+            LabelSchema khongMo = LabelSchema.Doc(
+                "{\"modality\":\"image\",\"tools\":[{\"name\":\"loai\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"]}]}");
+
+            Assert.Contains("cham_cau_tra_loi_mo_lau", LabelingProject.CanhBao(1, coMo));
+            Assert.Empty(LabelingProject.CanhBao(1, khongMo));
+        }
+
+        [Fact]
         public void Duong_di_hanh_phuc_cua_saga_Nhap_toi_Dang_chay()
         {
             LabelingProject p = DuAnSanSang();

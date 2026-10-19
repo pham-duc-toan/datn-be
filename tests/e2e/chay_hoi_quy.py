@@ -44,6 +44,8 @@ HAN_MUC_CU = mo_rong_gioi_han(admin())
 ok = True
 # Du an lam trung tam (kien truc 3.18): luong chinh lam bai → cham → thuong → khieu nai → chot.
 ok &= chay("du_an_trung_tam", "e2e_du_an_trung_tam.py")
+# Cau tra loi mo cham theo nghia (3.19): ml-svc nhung cau; dung ml-svc → so chu sau han.
+ok &= chay("cau_tra_loi_mo", "e2e_cau_tra_loi_mo.py")
 ok &= chay("tong_the", "e2e_tong_the.py")
 ok &= chay("settings", "e2e_settings.py")
 ok &= chay("p2_cong_link_perClick", "e2e_p2.py")

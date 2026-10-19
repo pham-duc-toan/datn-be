@@ -205,7 +205,7 @@ namespace Crowd.Project.Api.Services
             List<Dataset> ds = await _db.Datasets
                 .AsNoTracking()
                 .Where(d => d.ProjectId == projectId)
-                .OrderBy(d => d.CreatedAt)
+                .OrderByDescending(d => d.CreatedAt)
                 .ToListAsync(ct);
 
             List<DatasetResponse> ketQua = new List<DatasetResponse>();
@@ -326,7 +326,7 @@ namespace Crowd.Project.Api.Services
             int tong = await q.CountAsync(ct);
 
             List<Sample> trang = await q
-                .OrderBy(s => s.Id)
+                .OrderByDescending(s => s.Id)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(ct);

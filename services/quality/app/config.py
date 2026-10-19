@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     project_url: str | None = None
     internal_api_key: str | None = None
 
+    # ml-svc noi bo: nhung cau tra loi mo de cham theo nghia (3.19). Trong = cham cau tra loi mo bang so chu.
+    ml_url: str | None = None
+
 
 # S-08: gia tri DEV cong khai trong repo — chi duoc dung o moi truong Development.
 _KHOA_DEV = ("pgZwtqPVxGvu3oA5esvFaUio+ltJ2sSfgOWqYQNHwyU=", "TUmrnIsOHHdHl7BEEngcDqPfPQW6v956RTfgOEOlILo=", "demo_internal_key")

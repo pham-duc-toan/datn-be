@@ -602,7 +602,7 @@ namespace Crowd.Tasking.Api.Services
 
             List<Attempt> ds = await _db.Attempts.AsNoTracking()
                 .Where(a => a.AppealState == loc)
-                .OrderBy(a => a.AppealedAt)
+                .OrderByDescending(a => a.AppealedAt)
                 .Take(200)
                 .ToListAsync(ct);
             return await TomTatNhieuAsync(ds, ct);
@@ -677,7 +677,7 @@ namespace Crowd.Tasking.Api.Services
             await KiemChuDuAnAsync(projectId, caller, ct);
             List<Attempt> ds = await _db.Attempts.AsNoTracking()
                 .Where(a => a.ProjectId == projectId && a.State != AttemptState.Cancelled)
-                .OrderBy(a => a.StartedAt)
+                .OrderByDescending(a => a.StartedAt)
                 .Take(1000)
                 .ToListAsync(ct);
             return await TomTatNhieuAsync(ds, ct);

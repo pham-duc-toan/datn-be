@@ -11,7 +11,7 @@ import aio_pika
 import uvicorn
 from fastapi import FastAPI
 
-from app import cleanup, db, ds_batch, processors, seeding, settings_store, settings_sync
+from app import cleanup, db, ds_batch, phan_tich_mo, processors, seeding, settings_store, settings_sync
 from app.api import router
 from app.config import settings
 from app.contracts import (
@@ -80,6 +80,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(ds_batch.vong_lap(dung), name="dawid-skene"),
         asyncio.create_task(settings_sync.vong_lap_nap_lai(dung), name="settings-reload"),
         asyncio.create_task(cleanup.vong_lap(dung), name="don-du-lieu-qua-han"),
+        # Cau tra loi mo (3.19): nhung cau qua ml-svc, cham lai du an dang cho phan tich.
+        asyncio.create_task(phan_tich_mo.vong_lap(dung), name="phan-tich-cau-mo"),
     ]
     log.info("quality-svc san sang tren cong %s", cfg.port)
     try:

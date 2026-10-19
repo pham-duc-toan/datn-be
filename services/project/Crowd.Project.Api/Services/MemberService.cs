@@ -97,7 +97,7 @@ namespace Crowd.Project.Api.Services
             List<ProjectMember> ds = await _db.ProjectMembers
                 .AsNoTracking()
                 .Where(m => m.ProjectId == projectId)
-                .OrderBy(m => m.JoinedAt)
+                .OrderByDescending(m => m.JoinedAt)
                 .ToListAsync(ct);
 
             List<MemberResponse> ketQua = new List<MemberResponse>();

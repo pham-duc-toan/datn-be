@@ -24,7 +24,7 @@ async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, An
         "SELECT COUNT(*) AS n, COALESCE(SUM(gold_total), 0) AS gt, COALESCE(SUM(gold_correct), 0) AS gd "
         "FROM attempts WHERE project_id = :p"), {"p": project_id})).one()
     dot = (await s.execute(text(
-        "SELECT reason, finished_at, graded_at, majority_used FROM project_collections WHERE project_id = :p"),
+        "SELECT reason, finished_at, graded_at, majority_used, freetext_state, freetext_method FROM project_collections WHERE project_id = :p"),
         {"p": project_id})).first()
     cham = (await s.execute(text(
         "SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE passed) AS dat FROM attempt_grades WHERE project_id = :p"),
@@ -47,6 +47,9 @@ async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, An
         "collectionFinishedAt": None if dot is None else dot.finished_at.isoformat(),
         "gradedAt": None if dot is None or dot.graded_at is None else dot.graded_at.isoformat(),
         "majorityUsed": None if dot is None else dot.majority_used,
+        # Cau tra loi mo (3.19): pending = cho ml-svc phan tich; method semantic (so nghia) | lexical (so chu).
+        "freeTextAnalysis": None if dot is None or dot.freetext_state is None else {
+            "state": dot.freetext_state, "method": dot.freetext_method},
         "samplesEvaluated": sum(dem.values()),
         "agreed": dem.get("agreed", 0),
         "disputed": dem.get("disputed", 0),

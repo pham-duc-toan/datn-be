@@ -79,7 +79,7 @@ namespace Crowd.Project.Api.Services
             List<GoldItem> ds = await _db.GoldItems
                 .AsNoTracking()
                 .Where(g => g.ProjectId == projectId)
-                .OrderBy(g => g.CreatedAt)
+                .OrderByDescending(g => g.CreatedAt)
                 .ToListAsync(ct);
 
             List<GoldItemResponse> ketQua = new List<GoldItemResponse>();

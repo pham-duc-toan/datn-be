@@ -143,7 +143,7 @@ namespace Crowd.Tasking.Api.Services
                 q = q.Where(r => r.State == trangThai);
             }
 
-            List<TaskReport> ds = await q.OrderBy(r => r.CreatedAt).Take(500).ToListAsync(ct);
+            List<TaskReport> ds = await q.OrderByDescending(r => r.CreatedAt).Take(500).ToListAsync(ct);
             List<Guid> taskIds = ds.Select(r => r.TaskId).Distinct().ToList();
             Dictionary<Guid, int> soNguoi = await _db.TaskReports.AsNoTracking()
                 .Where(r => taskIds.Contains(r.TaskId))

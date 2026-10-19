@@ -53,6 +53,10 @@ OUTBOX_CLEANUP_INTERVAL = "outbox.cleanup_interval"
 CONSUMERS_PROCESSED_RETENTION = "consumers.processed_retention"
 PROJECT_CLOSED_DATA_RETENTION = "project.closed_data_retention"
 CONSENSUS_MIN_F1 = "quality.consensus_min_f1"
+FREETEXT_SIMILARITY = "quality.freetext_similarity"
+FREETEXT_LEXICAL_SIMILARITY = "quality.freetext_lexical_similarity"
+FREETEXT_ANALYSIS_TIMEOUT = "quality.freetext_analysis_timeout"
+FREETEXT_ANALYSIS_INTERVAL = "quality.freetext_analysis_interval"
 
 # Loai cong cu → setting nguong mac dinh (trung NguongKhopTuSetting ben C#).
 LABELING_THRESHOLD = {

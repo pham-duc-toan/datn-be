@@ -84,7 +84,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `notification-svc` | 8110 | notification_db | C# | notifications, email_preferences; bản sao contacts, project_owners, withdrawal_owners (**đã có**, mục 3.11) | Fan-out chậm không được chặn ai |
 | `admin-svc` | 8111 | admin_db | C# | **settings, setting_history** (đã có); review_queues, disputes, audit_log, requests_readmodel (P6) | Chủ của setting hệ thống (mục 3.10). Quyền cao nhất — giới hạn blast radius |
 | `quality-svc` | 8201 | quality_db | Python | consensus_rounds, label_agreements, gold_answers, ds_skills, project_metrics, reputations | Ngôn ngữ khác + tính batch nặng |
-| `ml-svc` | 8202 | ml_db (pgvector) | Python | models, predictions, uncertainty_scores | GPU, scale độc lập, sập vẫn chạy được hệ thống |
+| `ml-svc` | 8202 | ml_db (pgvector) | Python | embedding_cache (**đã có**, mục 3.19: nhúng câu trả lời mở); models, predictions, uncertainty_scores (sau) | Nặng CPU / GPU, scale độc lập, sập vẫn chạy được hệ thống |
 | `fraud-svc` | 8203 | fraud_db | Python | signals, fingerprints, farm_clusters | Batch + ML |
 | `collab-svc` | 8301 | collab_db + redis-collab | Node | rooms, yjs_snapshots, op_log, contributions | **Stateful WebSocket**, sticky session, CRDT |
 
@@ -948,6 +948,29 @@ Câu vàng được **task-svc chấm ngay lúc nộp** (`KhopDapAn` của Crowd
 - [NC-B-06](thi-nghiem/nc-b-06-hieu-nang.md#2-phân-phối-task) đo phân phối task theo lease — đường nóng đó không còn; đường nóng mới là **lưu nháp câu trả lời** (một `UPDATE` theo khoá chính `(attempt_id, sample_id)`), nhẹ hơn nhiều.
 - [NC-B-01](thi-nghiem/nc-b-01-tla.md) mô hình hoá luồng cũ; tính chất được chứng minh ("labeler đủ điều kiện được trả không bị mất tiền khi đóng dự án") vẫn giữ nhờ quyết định 18-9.
 - Kiểm thử: `tests/e2e/e2e_du_an_trung_tam.py` phủ luồng chính (51 kiểm tra: ngưỡng ngoài khoảng, ký quỹ theo suất, lưu nháp / quay lại / bỏ trống / câu sai định dạng, hết suất, kết thúc sớm, chấm đa số + câu vàng, trả thưởng, loại nhãn bài trượt, khiếu nại được chấp nhận, chốt và hoàn suất thừa, < 3 bài, huỷ). Luật chấm có unit test thuần ở `services/quality/tests/test_cham.py`.
+
+### 3.19. Câu trả lời mở: chấm theo nghĩa qua ml-svc
+
+Chấm cả dự án (mục 3.18) so từng câu với **đa số**. Mỗi loại công cụ đo độ giống theo cách riêng: khung / đa giác / mặt nạ ghép theo IoU rồi F1, chép chữ dùng CER, số dùng trung vị… Riêng **câu trả lời mở (`freeText`)** trước đây không có cách so: "Con mèo đang ngủ trên ghế sofa" và "Một chú mèo nằm ngủ trên ghế" là một ý nhưng khác hẳn chữ. Câu chỉ có freeText vì thế không tính cho ai, và **dự án chỉ toàn freeText thì bài nào cũng đạt** (kể cả bài bỏ trống). Khi tiền đã bắt buộc trả theo kết quả chấm và không còn duyệt tay, đó là lỗ hổng tiền.
+
+**Quyết định:** so **nghĩa** bằng vector nhúng câu do `ml-svc` tính.
+
+| # | Câu hỏi | Quyết định | Lý do |
+|---|---|---|---|
+| 19-1 | Đáp án đa số của câu mở | Câu **ở giữa** (medoid): câu có tổng cosine với các câu khác lớn nhất (hoà thì câu nộp trước) | Không "trung bình" được chữ; medoid luôn là một câu thật của labeler, giải thích được khi khiếu nại |
+| 19-2 | Thế nào là giống | cosine(câu, medoid) ≥ `quality.freetext_similarity` (mặc định **0,6**) | Đo trên mô hình đang dùng: câu cùng nghĩa khác chữ 0,62–0,91, câu lạc đề / gõ bừa ≈ 0 – 0,3 |
+| 19-3 | Câu có đa số khi nào | Quá nửa số người làm công cụ đó giống medoid; không thì tranh chấp, không tính cho ai (như mọi loại khác) | Giữ đúng luật chấm 3.18; câu bỏ trống tính vào mẫu số và không bao giờ giống |
+| 19-4 | Mô hình | `paraphrase-multilingual-MiniLM-L12-v2` (384 chiều, ~0,22 GB, có tiếng Việt) chạy ONNX trên **CPU** qua fastembed, tải sẵn vào image | VD-A-05: không cần GPU / torch; nhúng 8 câu ≈ 0,05 s; nạp mô hình ~20 s lúc khởi động |
+| 19-5 | Khi nào nhúng | Worker `phan_tich_mo` của quality-svc nhúng **ngay khi bài nộp tới** (chu kỳ `quality.freetext_analysis_interval`, mặc định 5 s), không đợi đóng thu bài | Lúc dự án kết thúc gần như đã có đủ vector; chấm chỉ chờ phần đuôi |
+| 19-6 | Chấm khi chưa đủ vector | `thu_cham` không chấm, đặt `project_collections.freetext_state = pending`; worker gọi lại `thu_cham` (cùng khoá theo dự án 7004) khi đủ | Không giữ transaction / khoá trong lúc gọi mạng; chấm vẫn đúng **một lần** |
+| 19-7 | ml-svc sập (VD-A-04) | Quá `quality.freetext_analysis_timeout` (mặc định 1 giờ) kể từ lúc đóng thu bài → chấm bằng **so chữ** (cosine n-gram 3 ký tự, ngưỡng `quality.freetext_lexical_similarity` = 0,38); không cấu hình `QUALITY_ML_URL` thì so chữ luôn | Không được giữ tiền của labeler vô thời hạn vì một service phụ. So chữ yếu hơn (câu cùng nghĩa khác chữ chỉ 0,4–0,5) nên chỉ là dự phòng; `/quality/projects/{id}/summary` → `freeTextAnalysis.method` ghi rõ `semantic` / `lexical` |
+| 19-8 | Dữ liệu ở ml-svc | `ml_db.embedding_cache`: khoá SHA-256(mô hình + câu đã chuẩn hoá) → vector (pgvector). **Không lưu chữ** | Câu trả lời chỉ nằm ở quality-svc và bị dọn theo hạn lưu trữ dự án (`freetext_vectors` nằm trong danh sách xoá của archive). Cùng một câu chỉ nhúng một lần |
+| 19-9 | Ranh giới | ml-svc chỉ có API nội bộ `POST /internal/embeddings` (X-Internal-Key, sai khoá → 404), không qua gateway, không nhận / phát event | ML không bao giờ quyết định kết quả: quality-svc chấm, ml-svc chỉ tính vector |
+| 19-10 | Báo trước cho người dùng | project-svc thêm cảnh báo readiness `cham_cau_tra_loi_mo_lau`; frontend báo ở trình sửa tập nhãn, thẻ chợ dự án, trang dự án, hộp nộp bài, trang kết quả bài; giai đoạn "đã đóng thu bài" của dự án có câu mở hiện là **"Đang phân tích câu trả lời mở"** | Labeler và doanh nghiệp biết trước kết quả / tiền công có muộn hơn các dạng khác |
+
+Giới hạn hiện tại: **câu vàng** vẫn chấm ngay lúc nộp ở task-svc (Crowd.Labeling) nên phần freeText của câu vàng không được chấm. Dự án mô tả / dịch thuần chỉ dựa vào đa số theo nghĩa; ít hơn 3 bài thì không có đa số (luật 3.18), bài nào cũng đạt nếu không sai câu vàng.
+
+Kiểm thử: `services/quality/tests/test_cau_mo.py` (medoid, tranh chấp, câu trống, so chữ dự phòng, tích hợp `cham_du_an`), `services/ml/tests/test_api.py` (khoá nội bộ, bộ đệm, kiểm đầu vào, một test nạp mô hình thật bật bằng `ML_TEST_MO_HINH_THAT=1`), `tests/e2e/e2e_cau_tra_loi_mo.py` (chấm theo nghĩa thật; dừng container ml → pending → quá hạn → so chữ).
 
 ## 4. Dữ liệu chéo — ba luật cứng
 

@@ -180,6 +180,15 @@ services:
     volumes: [pgdata-quality:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U quality_user -d quality_db"], interval: 5s, timeout: 3s, retries: 30 }
 
+  db-ml:
+    # pgvector: bo dem vector nhung cau cua ml-svc (kien truc 3.19).
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    container_name: datn-demo-db-ml
+    environment: { POSTGRES_USER: ml_user, POSTGRES_PASSWORD: "${DB_ML_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: ml_db }
+    volumes: [pgdata-ml:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U ml_user -d ml_db"], interval: 5s, timeout: 3s, retries: 30 }
+
   db-admin:
     <<: *postgres
     container_name: datn-demo-db-admin
@@ -383,6 +392,20 @@ services:
       QUALITY_JWKS_URL: http://identity:8101/.well-known/jwks.json
       QUALITY_PROJECT_URL: http://project:8102
       QUALITY_INTERNAL_API_KEY: ${INTERNAL_API_KEY:?chay python deploy/tao_env.py}
+      # Cham cau tra loi mo theo nghia (3.19). ml-svc sap → quality-svc cho roi ha xuong so chu.
+      QUALITY_ML_URL: http://ml:8202
+
+  ml:
+    # AI ho tro (3.19): nhung cau tra loi mo cho quality-svc. Chi trong mang noi bo, khong qua gateway.
+    image: datn/ml:demo
+    container_name: datn-demo-ml
+    restart: unless-stopped
+    build: { context: ., dockerfile: deploy/docker/ml.Dockerfile }
+    depends_on:
+      db-ml: { condition: service_healthy }
+    environment:
+      ML_DATABASE_URL: postgresql+asyncpg://ml_user:${DB_ML_PASSWORD:?chay python deploy/tao_env.py}@db-ml:5432/ml_db
+      ML_INTERNAL_API_KEY: ${INTERNAL_API_KEY:?chay python deploy/tao_env.py}
 
   media:
     # Bao ve du lieu (FP-02, FP-03): phat file mau qua token, watermark chim nhung thang nguoi xem. Khong co DB.
@@ -447,6 +470,7 @@ volumes:
   pgdata-link:
   pgdata-gate:
   pgdata-quality:
+  pgdata-ml:
   pgdata-admin:
   pgdata-notification:
   identity-keys:

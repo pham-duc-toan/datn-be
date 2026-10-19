@@ -365,10 +365,10 @@ namespace Crowd.Admin.Api.Services
                 q = q.Where(d => d.Status == tt);
             }
 
-            // Cho duyet: cu nhat truoc (xu ly theo thu tu nop). Con lai: moi nhat truoc.
+            // Moi nhat truoc (mac dinh moi danh sach). Cho duyet: theo luc mo don; con lai: theo su kien cuoi.
             q = tt == "pending" || tt == "waiting"
-                ? q.OrderBy(d => d.OpenedAt).ThenBy(d => d.Id)
-                : q.OrderByDescending(d => d.LastEventAt).ThenBy(d => d.Id);
+                ? q.OrderByDescending(d => d.OpenedAt).ThenByDescending(d => d.Id)
+                : q.OrderByDescending(d => d.LastEventAt).ThenByDescending(d => d.Id);
 
             int tong = await q.CountAsync(ct);
             List<DonDuyet> ds = await q.Skip((trang - 1) * co).Take(co).ToListAsync(ct);
