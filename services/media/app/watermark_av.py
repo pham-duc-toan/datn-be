@@ -154,17 +154,60 @@ def giai_am(pcm: np.ndarray, tan_so_mau: int, khoa: bytes) -> KetQuaGiai:
     return watermark.giai_nhieu(he_so_am(pcm, tan_so_mau, khoa), [BUOC_AM])
 
 
+def so_mau_doan_am(tan_so_mau: int) -> int:
+    """Do dai doan dau / doan cuoi mang watermark: gap doi so khung toi thieu de du 168 bit (44,1 kHz ~ 1 giay)."""
+    toi_thieu = -(-watermark.SO_BIT * 8 // max(len(_bin_am(tan_so_mau)), 1))
+    return 2 * toi_thieu * KHUNG_AM
+
+
 def nhung_file_am(nguon: Path, dich: Path, nguoi: NguoiXem, khoa: bytes) -> None:
-    """File am thanh bat ky → FLAC mang watermark."""
+    """File am thanh bat ky → FLAC; CHI doan dau + doan cuoi (so_mau_doan_am) mang watermark.
+
+    Giai ma → PCM chay qua pipe → ma hoa FLAC: doan dau nhung roi ghi, phan giua chuyen thang (khong xu ly,
+    khong nap ca file vao RAM), doan cuoi giu trong hang doi roi nhung khi het file. Doan cuoi nhung nhu mot
+    tin hieu rieng (khung tinh tu dau doan) — giai lay dung so_mau_doan_am mau cuoi la khop."""
     tt = tham_do(nguon)
     if not tt.co_am or tt.tan_so_mau <= 0 or tt.so_kenh <= 0:
         raise LoiMedia("file khong co am thanh")
-    pcm = nhung_am(_doc_pcm(nguon, tt), tt.tan_so_mau, nguoi, khoa)
-    r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "f32le", "-ar", str(tt.tan_so_mau), "-ac", str(tt.so_kenh), "-i", "-",
-                        "-c:a", "flac", "-sample_fmt", "s16", "-f", "flac", str(dich)],
-                       input=pcm.tobytes(), capture_output=True, timeout=600)
-    if r.returncode != 0:
-        raise LoiMedia("ffmpeg khong ma hoa duoc FLAC")
+    ch = tt.so_kenh
+    doan = so_mau_doan_am(tt.tan_so_mau) * ch * 4   # byte float32
+
+    def nhung(tho: bytes) -> bytes:
+        pcm = np.frombuffer(tho[:len(tho) // (ch * 4) * ch * 4], dtype=np.float32).reshape(-1, ch)
+        return nhung_am(pcm, tt.tan_so_mau, nguoi, khoa).tobytes()
+
+    giai_ma = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(nguon), "-map", "0:a:0", "-f", "f32le", "-acodec", "pcm_f32le",
+                                "-ar", str(tt.tan_so_mau), "-ac", str(ch), "-"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    ma_hoa = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "f32le", "-ar", str(tt.tan_so_mau), "-ac", str(ch), "-i", "-",
+                               "-c:a", "flac", "-sample_fmt", "s16", "-f", "flac", str(dich)],
+                              stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        assert giai_ma.stdout is not None and ma_hoa.stdin is not None
+        dau = bytearray()
+        while len(dau) < doan:
+            tho = giai_ma.stdout.read(doan - len(dau))
+            if not tho:
+                break
+            dau += tho
+        ma_hoa.stdin.write(nhung(bytes(dau)))
+        cuoi = bytearray()
+        while True:
+            tho = giai_ma.stdout.read(1 << 20)
+            if not tho:
+                break
+            cuoi += tho
+            if len(cuoi) > doan:
+                thua = len(cuoi) - doan
+                ma_hoa.stdin.write(bytes(cuoi[:thua]))
+                del cuoi[:thua]
+        ma_hoa.stdin.write(nhung(bytes(cuoi)) if len(cuoi) == doan else bytes(cuoi))
+        ma_hoa.stdin.close()
+        if ma_hoa.wait(timeout=600) != 0 or giai_ma.wait(timeout=60) != 0:
+            raise LoiMedia("ffmpeg khong xu ly duoc am thanh")
+    finally:
+        for p in (giai_ma, ma_hoa):
+            if p.poll() is None:
+                p.kill()
 
 
 # =====================================================================
@@ -436,4 +479,11 @@ def giai_file_am(duong_dan: Path, khoa: bytes) -> KetQuaGiai:
     tt = tham_do(duong_dan)
     if not tt.co_am:
         raise LoiMedia("file khong co am thanh")
-    return giai_am(_doc_pcm(duong_dan, tt), tt.tan_so_mau, khoa)
+    pcm = _doc_pcm(duong_dan, tt)
+    n = so_mau_doan_am(tt.tan_so_mau)
+    # Doan dau, roi doan cuoi; khong ra thi ca file (ban nhung moi khung kieu cu).
+    for phan in (pcm[:n], pcm[-n:]):
+        kq = giai_am(phan, tt.tan_so_mau, khoa)
+        if kq.nguoi is not None:
+            return kq
+    return giai_am(pcm, tt.tan_so_mau, khoa)
