@@ -424,6 +424,9 @@ services:
       MEDIA_MINIO_SECRET_KEY: ${MINIO_PASSWORD:?chay python deploy/tao_env.py}
       MEDIA_GRANT_KEY: ${MEDIA_GRANT_KEY:?chay python deploy/tao_env.py}
       MEDIA_WATERMARK_KEY: ${MEDIA_WATERMARK_KEY:?chay python deploy/tao_env.py}
+      # Bo dem ban chuan / ban da nhung watermark cua am thanh, video: volume rieng, tao lai container khong mat.
+      MEDIA_AV_CACHE_DIR: /var/cache/media-wm
+    volumes: [media-cache:/var/cache/media-wm]
 
   gateway:
     <<: *dotnet-service
@@ -471,6 +474,7 @@ volumes:
   pgdata-gate:
   pgdata-quality:
   pgdata-ml:
+  media-cache:
   pgdata-admin:
   pgdata-notification:
   identity-keys:

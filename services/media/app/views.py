@@ -5,9 +5,12 @@
                 (userId, hoac ma phien vuot link cua khach). Anh ro ri ra ngoai → admin giai ma → biet
                 ai. Khong luu gi: nguoi xem nam trong token, giai ma doc nguoc tu anh.
 
-Am thanh / video (watermarked): nhung watermark (watermark_av.py) — am thanh ra FLAC, video ma hoa lai H.264 —
-luu bo dem dia theo (file, nguoi xem, do manh) roi phat co Range de tua. Lan dau mo mat thoi gian tao
-(ty le voi do dai file); cac lan sau / tua la phat ngay. Ban goc (original) phat nguyen qua proxy.
+Am thanh (watermarked): nhung ca file ra FLAC, luu bo dem dia theo (file, nguoi xem), phat co Range.
+Video (watermarked): HAI tang bo dem —
+  1. ban chuan (chuan_hoa_video) theo FILE GOC, dung chung moi nguoi xem: ma hoa lai mot lan;
+  2. ban cua tung nguoi xem: chi nhung GOP dau + GOP cuoi (nhung_video_dau_cuoi), phan giua copy —
+     vai giay, khong phu thuoc do dai video.
+Ban goc (original) phat nguyen qua proxy.
 """
 
 import asyncio
@@ -124,20 +127,26 @@ async def _phat_av(q: QuyenXem, request: Request) -> Response:
     khoa = BoDem.khoa(q.storage_key, str(nguoi.loai), str(nguoi.id), str(buoc) if la_video else "am",
                       hashlib.sha256(khoa_wm).hexdigest()[:16])
 
-    def tao(dich: Path) -> None:
-        fd, tam = tempfile.mkstemp(prefix="media-goc-", suffix=PurePosixPath(q.storage_key).suffix)
-        os.close(fd)
-        try:
-            kho().tai_ve(q.storage_key, tam)
-            if la_video:
-                watermark_av.nhung_file_video(Path(tam), dich, nguoi, khoa_wm, buoc)
-            else:
-                watermark_av.nhung_file_am(Path(tam), dich, nguoi, khoa_wm)
-        finally:
-            os.unlink(tam)
+    def tai_goc(lam):
+        def tao(dich: Path) -> None:
+            fd, tam = tempfile.mkstemp(prefix="media-goc-", suffix=PurePosixPath(q.storage_key).suffix)
+            os.close(fd)
+            try:
+                kho().tai_ve(q.storage_key, tam)
+                lam(Path(tam), dich)
+            finally:
+                os.unlink(tam)
+        return tao
 
     try:
-        duong_dan = await bo_dem().lay(khoa, ".mp4" if la_video else ".flac", tao)
+        if la_video:
+            # Tang 1: ban chuan theo file goc (moi nguoi xem dung chung). Tang 2: nhung dau + cuoi cho nguoi nay.
+            chuan = await bo_dem().lay(BoDem.khoa(q.storage_key, "chuan-hoa-v1"), ".mp4", tai_goc(watermark_av.chuan_hoa_video))
+            duong_dan = await bo_dem().lay(
+                BoDem.khoa(khoa, "dau-cuoi-v1"), ".mp4",
+                lambda dich: watermark_av.nhung_video_dau_cuoi(chuan, dich, nguoi, khoa_wm, buoc))
+        else:
+            duong_dan = await bo_dem().lay(khoa, ".flac", tai_goc(lambda nguon, dich: watermark_av.nhung_file_am(nguon, dich, nguoi, khoa_wm)))
     except KhongCoFile as ex:
         raise LoiApi(404, "khong_co_file", "File mau khong con.") from ex
     except watermark_av.LoiMedia as ex:

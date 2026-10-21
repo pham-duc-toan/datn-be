@@ -8,9 +8,17 @@ Am thanh — QIM tren he so DCT cua tung khung:
     noi dung; giai thi cong phieu cua moi kenh.
   - Ra FLAC (nen khong mat) — trinh duyet phat duoc, file tai ve van giai duoc.
 
-Video — moi khung hinh nhung bang watermark anh (kenh do sang, DCT 8x8, do manh = media.watermark_strength),
-ma hoa lai H.264 chat luong cao (CRF thap) + faststart de tua duoc. Giai: lay mau toi da SO_KHUNG_GIAI
-khung, cong phieu cua moi khung — nen video lam hong tung khung van doc duoc tong the.
+Video — CHI NHUNG KHUNG DAU TIEN + KHUNG CUOI CUNG (nhanh, khong phu thuoc do dai video):
+  1. chuan_hoa_video: MOT lan moi file goc (dung chung moi nguoi xem) ma hoa lai H.264 voi GOP CO DINH
+     GOP_GIAY, khong B-frame, kich thuoc chan — de cat / ghep theo keyframe ma khong lech khung.
+  2. nhung_video_dau_cuoi (moi nguoi xem): cat ban chuan thanh GOP dau | phan giua | GOP cuoi bang
+     `-c copy`; chi GOP dau va GOP cuoi duoc giai ma, nhung watermark anh vao SO_KHUNG_NHUNG khung (dau GOP
+     dau, cuoi GOP cuoi) roi ma hoa lai CUNG thong so; phan giua giu nguyen → ghep lai (concat, copy).
+  Gioi han CO CHU DICH (chon de doi lay toc do): cat bo vai giay dau va cuoi, hoac quay man hinh tu giua
+  video, la mat watermark — chong lo "tai file ve gui nguyen", khong chong nguoi co y xoa.
+  Moi video deu vay, khong phan biet kich thuoc / do dai (video chi 1–2 khung thi ca hai khung deu la dau / cuoi).
+Giai: doc SO_KHUNG_NHUNG khung dau va cuoi, cong phieu; khong ra thi lay mau deu ca video (ban nhung moi
+khung kieu cu van giai duoc).
 
 Gioi han (ghi ro nhu anh): cat dau file am thanh (lech khung), doi toc do / tan so lay mau, thu am lai
 qua loa, cat xen / doi kich thuoc video → khong giai duoc.
@@ -20,6 +28,8 @@ Ham thuan tren numpy + goi ffmpeg / ffprobe (phai co trong PATH).
 
 import json
 import subprocess
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,6 +46,9 @@ BUOC_BIN = 3
 BUOC_AM = 0.006
 SO_KHUNG_GIAI = 48
 CRF_VIDEO = "18"
+# Dau + cuoi: do dai mot GOP cua ban chuan, so khung mang watermark o moi dau.
+GOP_GIAY = 1.0
+SO_KHUNG_NHUNG = 1   # chi khung DAU TIEN va khung CUOI CUNG
 
 
 class LoiMedia(Exception):
@@ -192,12 +205,206 @@ def nhung_file_video(nguon: Path, dich: Path, nguoi: NguoiXem, khoa: bytes, buoc
                 p.kill()
 
 
+# =====================================================================
+# VIDEO: chuan hoa mot lan + nhung dau / cuoi cho tung nguoi xem
+# =====================================================================
+
+
+def _fps(fps: str) -> float:
+    try:
+        tu, _, mau = fps.partition("/")
+        f = float(tu) / float(mau or 1)
+    except (ValueError, ZeroDivisionError):
+        f = 25.0
+    return f if f > 0 else 25.0
+
+
+def _so_khung_gop(fps: str) -> int:
+    return max(1, round(_fps(fps) * GOP_GIAY))
+
+
+def _thoi_luong(duong_dan: Path) -> float:
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(duong_dan)],
+                       capture_output=True, text=True, timeout=60)
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+def _x264(g: int) -> list[str]:
+    """Thong so ma hoa DUNG CHUNG cho ban chuan va doan nhung lai — khac la ghep bi giat hinh."""
+    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", CRF_VIDEO, "-profile:v", "high", "-pix_fmt", "yuv420p",
+            "-g", str(g), "-keyint_min", str(g), "-sc_threshold", "0", "-bf", "0", "-x264-params", "open-gop=0"]
+
+
+def _chay(lenh: list[str], timeout: int, loi: str) -> None:
+    r = subprocess.run(lenh, capture_output=True, timeout=timeout)
+    if r.returncode != 0:
+        raise LoiMedia(loi + ": " + r.stderr.decode(errors="replace")[-300:])
+
+
+def chuan_hoa_video(nguon: Path, dich: Path) -> None:
+    """Ban chuan dung chung moi nguoi xem: H.264 khong B-frame, AAC, faststart. Keyframe: GOP_GIAY mot lan, va
+    EP them ngay sau SO_KHUNG_NHUNG khung dau + ngay truoc SO_KHUNG_NHUNG khung cuoi — doan dau / cuoi cat ra chi
+    dung SO_KHUNG_NHUNG khung (moi nguoi xem chi giai ma / ma hoa lai 2 x SO_KHUNG_NHUNG khung)."""
+    tt = tham_do(nguon)
+    if not tt.co_video or tt.rong <= 0 or tt.cao <= 0:
+        raise LoiMedia("file khong co hinh")
+    f = _fps(tt.fps)
+    dai = _thoi_luong(nguon)
+    ep = ["0"]
+    if dai > 2 * SO_KHUNG_NHUNG / f:
+        ep += [f"{SO_KHUNG_NHUNG / f:.6f}", f"{dai - SO_KHUNG_NHUNG / f:.6f}"]
+    _chay(["ffmpeg", "-v", "error", "-y", "-i", str(nguon), "-map", "0:v:0", "-map", "0:a:0?",
+           "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", *_x264(_so_khung_gop(tt.fps)), "-force_key_frames", ",".join(ep),
+           "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-f", "mp4", str(dich)], 3600, "khong chuan hoa duoc video")
+
+
+def _moc_keyframe(duong_dan: Path) -> list[float]:
+    """Thoi diem cac keyframe — doc CO cua packet, khong giai ma (video 2 phut 1080p: 0,3 s thay vi 2 s)."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags",
+                        "-of", "csv=p=0", str(duong_dan)], capture_output=True, text=True, timeout=300)
+    moc = []
+    for dong in r.stdout.split():
+        phan = dong.strip().split(",")
+        if len(phan) >= 2 and "K" in phan[1]:
+            try:
+                moc.append(float(phan[0]))
+            except ValueError:
+                pass
+    return sorted(set(moc))
+
+
+def _nhung_doan(nguon: Path, dich: Path, nguoi: NguoiXem, khoa: bytes, buoc: int, g: int, dau: bool) -> None:
+    """Ma hoa lai MOT doan (GOP dau / cuoi): SO_KHUNG_NHUNG khung dau (hoac cuoi) mang watermark, am thanh copy."""
+    tt = tham_do(nguon)
+    rong, cao = tt.rong, tt.cao
+    kich = rong * cao * 3
+    giai_ma = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(nguon), "-map", "0:v:0", "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"],
+                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    ma_hoa = subprocess.Popen(
+        ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{rong}x{cao}", "-r", tt.fps, "-i", "-",
+         "-i", str(nguon), "-map", "0:v:0", "-map", "1:a:0?", *_x264(g), "-c:a", "copy",
+         # TS khong tre mux (mac dinh 0,7 s) — doan 1 khung moi tinh dung thoi luong khi ghep.
+         "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", str(dich)],
+        stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        assert giai_ma.stdout is not None and ma_hoa.stdin is not None
+
+        def nhung(tho: bytes) -> bytes:
+            return watermark.nhung(np.frombuffer(tho, np.uint8).reshape(cao, rong, 3), nguoi, khoa, buoc).tobytes()
+
+        def nhung_ca_lo(lo: list[bytes]) -> None:
+            # Cac khung doc lap: nhung song song (numpy nha GIL khi nhan ma tran) roi ghi DUNG thu tu.
+            with ThreadPoolExecutor(max_workers=len(lo) or 1) as nhom:
+                for tho in nhom.map(nhung, lo):
+                    ma_hoa.stdin.write(tho)
+
+        # Giu SO_KHUNG_NHUNG khung: GOP dau → SO_KHUNG_NHUNG khung dau tien; GOP cuoi → khong biet truoc so
+        # khung, khung bi day ra khoi hang doi ghi nguyen, het doan thi cac khung con lai chinh la cac khung cuoi.
+        cho: deque[bytes] = deque()
+        da_nhung_dau = False
+        while True:
+            tho = giai_ma.stdout.read(kich)
+            if len(tho) < kich:
+                break
+            if dau and da_nhung_dau:
+                ma_hoa.stdin.write(tho)
+                continue
+            cho.append(tho)
+            if dau and len(cho) == SO_KHUNG_NHUNG:
+                nhung_ca_lo(list(cho))
+                cho.clear()
+                da_nhung_dau = True
+            elif not dau and len(cho) > SO_KHUNG_NHUNG:
+                ma_hoa.stdin.write(cho.popleft())
+        nhung_ca_lo(list(cho))
+        ma_hoa.stdin.close()
+        if ma_hoa.wait(timeout=600) != 0 or giai_ma.wait(timeout=60) != 0:
+            raise LoiMedia("ffmpeg khong xu ly duoc doan video")
+    finally:
+        for p in (giai_ma, ma_hoa):
+            if p.poll() is None:
+                p.kill()
+
+
+def nhung_video_dau_cuoi(chuan: Path, dich: Path, nguoi: NguoiXem, khoa: bytes, buoc: int) -> None:
+    """Tu BAN CHUAN (chuan_hoa_video): chi ma hoa lai GOP dau + GOP cuoi, phan giua copy nguyen."""
+    tt = tham_do(chuan)
+    g = _so_khung_gop(tt.fps)
+    moc = _moc_keyframe(chuan)
+    if len(moc) < 3:
+        # Video 1–2 khung: moi khung deu la khung dau / cuoi.
+        nhung_file_video(chuan, dich, nguoi, khoa, buoc)
+        return
+
+    thu_muc = dich.parent / f".{dich.stem}-doan"
+    thu_muc.mkdir(parents=True, exist_ok=True)
+    try:
+        _chay(["ffmpeg", "-v", "error", "-y", "-i", str(chuan), "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy",
+               "-f", "segment", "-segment_times", f"{moc[1]:.6f},{moc[-1]:.6f}", "-segment_format", "mpegts",
+               "-muxdelay", "0", "-muxpreload", "0", "-reset_timestamps", "1", str(thu_muc / "p%d.ts")],
+              600, "khong cat duoc video")
+        dau, giua, cuoi = (thu_muc / f"p{i}.ts" for i in range(3))
+        if not (dau.exists() and giua.exists() and cuoi.exists()):
+            raise LoiMedia("cat video khong ra du ba doan")
+        # GOP dau va GOP cuoi doc lap → song song.
+        with ThreadPoolExecutor(max_workers=2) as nhom:
+            viec = [nhom.submit(_nhung_doan, dau, thu_muc / "dau.ts", nguoi, khoa, buoc, g, True),
+                    nhom.submit(_nhung_doan, cuoi, thu_muc / "cuoi.ts", nguoi, khoa, buoc, g, False)]
+            for v in viec:
+                v.result()
+        ds = thu_muc / "ghep.txt"
+        # Ghi RO thoi luong tung doan: doan chi 1 khung thi bo ghep khong tu suy ra dung (sinh khung thua, de khung nhung).
+        tong = _thoi_luong(chuan)
+        mot_khung = 1 / _fps(tt.fps)
+        doan = [(thu_muc / "dau.ts", moc[1]), (giua, moc[-1] - moc[1]), (thu_muc / "cuoi.ts", max(tong - moc[-1], mot_khung))]
+        ds.write_text("".join(f"file '{p.as_posix()}'\nduration {d:.6f}\n" for p, d in doan))
+        _chay(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(ds), "-map", "0:v:0", "-map", "0:a:0?",
+               "-c", "copy", "-movflags", "+faststart", "-f", "mp4", str(dich)], 600, "khong ghep duoc video")
+    finally:
+        for f in thu_muc.glob("*"):
+            f.unlink(missing_ok=True)
+        thu_muc.rmdir()
+
+
+def _khung_giai(duong_dan: Path, r_ra: int, c_ra: int, khoa: bytes, truoc: list[str], sau: list[str]) -> list[HeSoGiai]:
+    r = subprocess.run(["ffmpeg", "-v", "error", *truoc, "-i", str(duong_dan), "-map", "0:v:0",
+                        "-vf", f"scale={r_ra}:{c_ra}:flags=bicubic", "-fps_mode", "passthrough", *sau,
+                        "-f", "rawvideo", "-pix_fmt", "bgr24", "-"], capture_output=True, timeout=600)
+    if r.returncode != 0:
+        return []
+    kich = r_ra * c_ra * 3
+    ds = []
+    for i in range(len(r.stdout) // kich):
+        h = watermark.he_so_giai(np.frombuffer(r.stdout[i * kich:(i + 1) * kich], np.uint8).reshape(c_ra, r_ra, 3), khoa)
+        if h is not None:
+            ds.append(h)
+    return ds
+
+
 def giai_file_video(duong_dan: Path, khoa: bytes, cac_buoc: list[int], rong: int | None = None, cao: int | None = None) -> KetQuaGiai:
-    """Lay mau toi da SO_KHUNG_GIAI khung, cong phieu. rong / cao: kich thuoc GOC neu video ro ri bi thu nho."""
+    """Thu SO_KHUNG_NHUNG khung dau, roi khung cuoi; khong ra thi lay mau deu ca video (ban nhung moi khung).
+    rong / cao: kich thuoc GOC neu video ro ri bi thu nho."""
     tt = tham_do(duong_dan)
     if not tt.co_video:
         raise LoiMedia("file khong co hinh")
     r_ra, c_ra = (rong, cao) if rong and cao else (tt.rong, tt.cao)
+    dau = _khung_giai(duong_dan, r_ra, c_ra, khoa, [], ["-frames:v", str(SO_KHUNG_NHUNG)])
+    kq = watermark.giai_nhieu(dau, cac_buoc)
+    if kq.nguoi is not None:
+        return kq
+    # Khung cuoi: giai ma vai giay cuoi, giu SO_KHUNG_NHUNG khung sau cung.
+    cuoi = _khung_giai(duong_dan, r_ra, c_ra, khoa, ["-sseof", f"-{GOP_GIAY * 3 + 1:.1f}"], [])[-SO_KHUNG_NHUNG:]
+    kq = watermark.giai_nhieu(cuoi, cac_buoc)
+    if kq.nguoi is not None:
+        return kq
+    return _giai_lay_mau_deu(duong_dan, r_ra, c_ra, khoa, cac_buoc)
+
+
+def _giai_lay_mau_deu(duong_dan: Path, r_ra: int, c_ra: int, khoa: bytes, cac_buoc: list[int]) -> KetQuaGiai:
+    """Ban nhung moi khung (kieu cu, hoac video qua ngan): lay mau toi da SO_KHUNG_GIAI khung, cong phieu."""
     # Lay deu: moi khung thu n (n theo so khung uoc luong); ffmpeg tu doi kich thuoc neu can.
     so_khung = _dem_khung(duong_dan)
     nhay = max(1, so_khung // SO_KHUNG_GIAI)

@@ -3,6 +3,7 @@
   anh.png            200x150 (do)                  — mau anh hop le
   anh2.png           300x200 (xanh)                — e2e_modality tu sinh lai
   clip.mp4           320x240, 12 giay, h264 + aac  — video hop le
+  clip-hd.mp4        1280x720, 20 giay, 30 khung/giay — video du lon de chi nhung khung dau + cuoi (media-svc)
   cuoc-goi.wav       23 giay, 16 kHz mono          — cat thanh 3 doan 10 giay
   am-thanh-gia.mp4   ban sao WAV doi duoi .mp4     — ffprobe phai loai (khong co hinh)
   gia-mao.png        "MZ fake exe"                 — khong phai anh, phai bi bo qua
@@ -29,6 +30,10 @@ def dam_bao(thu_muc: str) -> None:
         _ffmpeg("-f", "lavfi", "-i", "testsrc=size=320x240:rate=10:duration=12",
                 "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=12",
                 "-ac", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", p("clip.mp4"))
+    if not os.path.exists(p("clip-hd.mp4")):
+        _ffmpeg("-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30:duration=20",
+                "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=20",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", p("clip-hd.mp4"))
     if not os.path.exists(p("cuoc-goi.wav")):
         _ffmpeg("-f", "lavfi", "-i", "sine=frequency=300:sample_rate=16000:duration=23", "-ac", "1", "-c:a", "pcm_s16le", p("cuoc-goi.wav"))
     if not os.path.exists(p("am-thanh-gia.mp4")):

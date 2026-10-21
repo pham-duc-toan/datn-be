@@ -22,6 +22,8 @@ try:
     for loai, tep, tool, duoi, mime in (
         ("audio", "cuoc-goi.wav", {"name": "doan", "kind": "temporalSegment", "classes": ["noi"]}, "flac", "audio/flac"),
         ("video", "clip.mp4", {"name": "doan", "kind": "temporalSegment", "classes": ["chay"]}, "mp4", "video/mp4"),
+        # 720p: chi nhung khung dau + cuoi (ban chuan dung chung, phan giua copy) — nhanh, khong phu thuoc do dai.
+        ("video", "clip-hd.mp4", {"name": "doan", "kind": "temporalSegment", "classes": ["chay"]}, "mp4", "video/mp4"),
     ):
         print(f"\n[{loai}]")
         P, _, mau = h.du_an(biz, f"wm {loai}", loai, {"modality": loai, "tools": [tool]}, files=[os.path.join(h.M, tep)], red=1, tran=1)

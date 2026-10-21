@@ -98,7 +98,7 @@ Chế độ chạy service trên máy (mục 0, `docker-compose.infra.yml` + `ap
 | Cổng thanh toán giả lập | payment-svc (chỉ Development) có trang "VNPay" / "MoMo" giả ở `/payments/sandbox/vnpay/*`, `/payments/sandbox/momo/*`, ký đúng thuật toán của cổng thật. Cấu hình cổng thật: `PaymentProviders:VnPay:*`, `PaymentProviders:MoMo:*`; bật / tắt bằng setting `payment.enabled_providers` |
 | `DatasetImport__AllowedPrivateHosts__0: minio` | Nhập dữ liệu từ S3 chặn mọi IP nội bộ (SSRF); stack demo cho phép riêng host `minio` để E2E nhập từ MinIO như từ S3 |
 | `QUALITY_PROJECT_URL`, `QUALITY_INTERNAL_API_KEY` | quality-svc tự bù bản sao dự án thiếu qua API nội bộ của project-svc |
-| `MEDIA_AV_CACHE_DIR` / `MEDIA_AV_CACHE_TTL_SECONDS` / `MEDIA_AV_CACHE_MAX_BYTES` | Bộ đệm đĩa bản âm thanh / video đã watermark (mặc định `/tmp/media-wm`, 6 giờ, 5 GB). Image media cần `ffmpeg` (đã cài trong Dockerfile); chạy trên máy cần `ffmpeg` trong PATH |
+| `MEDIA_AV_CACHE_DIR` / `MEDIA_AV_CACHE_TTL_SECONDS` / `MEDIA_AV_CACHE_MAX_BYTES` | Bộ đệm đĩa bản âm thanh / video đã watermark và bản chuẩn của video (mặc định `/tmp/media-wm`, 6 giờ, 5 GB; stack demo đặt `/var/cache/media-wm` trên volume `media-cache`). Image media cần `ffmpeg` (đã cài trong Dockerfile); chạy trên máy cần `ffmpeg` trong PATH |
 | setting `ops.alert_email` | Email nhận cảnh báo DLQ (trống = chỉ log + `GET /admin/ops/queues`) |
 
 ## 0.2 Bộ test E2E và CI
@@ -135,7 +135,7 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_nhap_nguon_ngoai.py` | Nhập dữ liệu từ S3 (MinIO), danh sách URL, Google Drive; chặn SSRF |
 | `e2e_xuat_mo_rong.py` | Khung xoay, track ẩn / hiện lại, xuất yolo-obb / yolo-seg / voc / coco-keypoints / conll / mot, bộ đệm kết quả gộp |
 | `e2e_chi_so_chat_luong.py` | Krippendorff alpha mọi loại công cụ, Fleiss' kappa, STAPLE mặt nạ; quality-svc tự bù bản sao dự án thiếu |
-| `e2e_watermark_av.py` | Watermark âm thanh (FLAC) / video (H.264): tua (Range 206), bộ đệm, admin giải mã ra đúng labeler, tắt bằng setting. Cần ffmpeg |
+| `e2e_watermark_av.py` | Watermark âm thanh (FLAC) / video (H.264): tua (Range 206), bộ đệm, admin giải mã ra đúng labeler, tắt bằng setting; video nhỏ (320×240, nhúng mọi khung) và video 720p (`clip-hd.mp4`, chỉ khung đầu + cuối). Cần ffmpeg |
 | `e2e_hang_doi_duyet.py` | Hàng đợi duyệt chung (KYB, dự án, khiếu nại, link, giới thiệu nghi lạm dụng), audit lượt xem giấy tờ (S-07), cổng link chỉ cho công cụ làm nhanh, mẫu bài toán, audit chỉ-ghi-thêm ở mức CSDL, cảnh báo DLQ |
 | `e2e_thong_bao_realtime.py` | Ngôn ngữ thông báo, WebSocket qua gateway (vé dùng một lần, mã đóng 4401), email 2FA bắt buộc, thư mời người chưa có tài khoản, email cảnh báo DLQ, hạn giữ thông báo |
 | `e2e_thanh_vien.py` | Vào dự án (kiến trúc 3.16): mời theo email / userId, một và nhiều người (kết quả từng dòng, giới hạn lô); **VD-S-16**: mời theo email ra cùng một kết quả cho email có / chưa có tài khoản / đã là thành viên / bị chặn, chủ dự án không thấy userId tới khi chấp nhận, lời mời câm, hạn mức email / 24 giờ (429 + `Retry-After`); mã mời (gõ tay, hết lượt, hết hạn, thu hồi, **6 người tranh 3 lượt**, dùng được khi dự án còn Nháp); kiểm cấp độ / uy tín ở `join`, lúc mời, mã mời và **trước** bài test; chế độ `approval` (gửi đơn, trùng, từ chối + thời gian chờ, rút, duyệt, uy tín tụt lúc duyệt, đơn tự đóng khi vào bằng đường khác) và `approval` kèm bài test (đạt → đơn kèm điểm); thông báo cho cả hai phía; nhận task thật sau khi vào. Cấp độ / uy tín đặt thẳng trong `identity_db.labeler_stats` |

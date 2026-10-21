@@ -2702,7 +2702,7 @@ Chỉ tải từ địa chỉ công khai (chặn IP nội bộ — SSRF); tối 
 
 ### 17.8 Âm thanh / video có watermark — **(đổi)** mục 16
 
-Link xem của labeler / reviewer / khách cổng link với mẫu **âm thanh** trả `audio/flac`, **video** trả `video/mp4` (H.264) — đã nhúng watermark người xem. Lần mở đầu tiên mất thời gian mã hoá lại (tỉ lệ với độ dài file, video ngắn vài giây); các lần sau và khi tua (`Range`) lấy từ bộ đệm. Frontend dùng `<audio>` / `<video>` như cũ, nên hiện trạng thái "đang chuẩn bị" khi chờ.
+Link xem của labeler / reviewer / khách cổng link với mẫu **âm thanh** trả `audio/flac`, **video** trả `video/mp4` (H.264) — đã nhúng watermark người xem. Âm thanh: lần mở đầu tiên mất thời gian nhúng (tỉ lệ với độ dài file). Video: chỉ khung đầu tiên và khung cuối cùng mang watermark, nên mỗi người xem chỉ chờ vài giây (không phụ thuộc độ dài); riêng **lần đầu tiên video được mở** trên hệ thống còn thêm bước chuẩn hoá một lần (dùng chung cho mọi người, ~1/6 thời lượng video ở 1080p). Các lần sau và khi tua (`Range`) lấy từ bộ đệm. Frontend dùng `<audio>` / `<video>` như cũ, nên hiện trạng thái "đang chuẩn bị" khi chờ.
 
 `POST /media/admin/watermark/decode` nhận cả file âm thanh / video (tối đa 500 MB); response thêm `mediaType: image | audio | video`. Không chịu được: cắt đầu file âm thanh, đổi tốc độ / tần số lấy mẫu, thu âm lại qua loa, cắt xén / đổi kích thước video.
 
