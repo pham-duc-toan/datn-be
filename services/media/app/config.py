@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     rabbit_password: str = "dev_rabbit_pw"
     rabbit_vhost: str = "/"
     exchange: str = "datn.events"
+    dead_letter_exchange: str = "datn.dlx"
+    delivery_limit: int = 5
 
     jwt_issuer: str = "crowd-identity"
     jwt_audience: str = "crowd-api"

@@ -12,6 +12,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from app import settings_listener, settings_store
+from app.ban_chuan import ChuanHoaSan
 from app.api import router
 from app.config import settings
 from app.errors import LoiApi, xu_ly_loi_api
@@ -43,6 +44,8 @@ async def lifespan(app: FastAPI):
     # Setting (bat / tat, do manh watermark): queue tam, giu trong bo nho. Chua co thi dung mac dinh catalog.
     ket_noi = await noi_rabbitmq(cfg)
     await settings_listener.bat_dau(ket_noi)
+    # Video vua nap: chuan hoa san (ma hoa lai ca video), xong phat video.prepared cho project-svc.
+    await ChuanHoaSan().bat_dau(ket_noi)
     log.info("media-svc san sang tren cong %s", cfg.port)
     try:
         yield

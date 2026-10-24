@@ -8,6 +8,7 @@ using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
+using Crowd.Contracts.Media;
 using Crowd.Contracts.Tasking;
 using Crowd.Project.Api.Consumers;
 using Crowd.Project.Api.Exceptions;
@@ -57,6 +58,10 @@ builder.Services.AddEventConsumer<ProjectDbContext, ProjectSettled, ProjectSettl
 // Email vua xac thuc → nhan loi moi cho gui toi email do.
 builder.Services.AddEventConsumer<ProjectDbContext, UserEmailVerified, UserEmailVerifiedProcessor>(
     builder.Configuration, "project-svc.user-email-verified");
+
+// media-svc chuan bi xong video vua nap → ghi trang thai mau; con video dang chuan bi thi chua publish / duyet.
+builder.Services.AddEventConsumer<ProjectDbContext, VideoPrepared, VideoPreparedProcessor>(
+    builder.Configuration, "project-svc.video-prepared");
 // ---- Kho anh MinIO ----
 builder.Services.Configure<ObjectStorageOptions>(builder.Configuration.GetSection(ObjectStorageOptions.SectionName));
 builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();

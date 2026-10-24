@@ -206,6 +206,8 @@ def chay_du_an(pid, so_mau, ngan_sach=None, chon=None):
     r = requests.put(G + "/projects/%s/pricing" % pid, headers=biz1,
                      json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"})
     kiem("dat gia (ca du an)", r.status_code == 200, r.text)
+    # Video vua nap: cho media-svc chuan hoa xong (video.prepared) moi publish duoc.
+    cho(lambda: requests.get(G + "/projects/%s/readiness" % pid, headers=biz1).json().get("videoPreparingCount", 0) == 0, 300)
     r = requests.post(G + "/projects/%s/publish" % pid, headers=biz1)
     kiem("publish", r.status_code == 200, r.text)
     st = cho(lambda: (lambda s: s if s == "pendingApproval" else None)(

@@ -153,7 +153,14 @@ def dat_gia(chu, pid, thuong, suat, nguong=60, deadline="2027-12-31T00:00:00Z"):
     return r
 
 
+def cho_video_san_sang(headers, pid, giay=300):
+    """Video vua nap: media-svc chuan hoa xong (video.prepared) project-svc moi cho publish."""
+    ok = cho(lambda: requests.get(G + f"/projects/{pid}/readiness", headers=headers).json().get("videoPreparingCount", 0) == 0, giay)
+    assert ok, "video chua chuan bi xong sau %ss" % giay
+
+
 def publish_va_duyet(chu, pid):
+    cho_video_san_sang(chu["h"], pid)
     requests.post(G + f"/projects/{pid}/publish", headers=chu["h"]).raise_for_status()
     ok = cho(lambda: requests.get(G + f"/projects/{pid}", headers=chu["h"]).json()["status"] == "pendingApproval", 30)
     assert ok, requests.get(G + f"/projects/{pid}", headers=chu["h"]).text

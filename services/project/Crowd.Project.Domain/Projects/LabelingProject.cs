@@ -648,9 +648,10 @@ namespace Crowd.Project.Domain.Projects
         /// <param name="soCauThat">So mau KHONG phai cau vang (moi labeler lam het).</param>
         /// <param name="coDuLieuDangXuLy">Con lo du lieu dang xu ly — chua biet het so cau.</param>
         /// <param name="congCuChoCongLink">Loai cong cu khach vang lai lam duoc (gate.allowed_tools); null = khong kiem.</param>
+        /// <param name="soVideoDangChuanBi">File video media-svc chua chuan bi xong (Sample.MediaState) — chan publish.</param>
         public IReadOnlyList<string> NhungGiConThieu(
             int soCauThat, int soCauVangChoTest, bool coDuLieuDangXuLy, QuyDinhDuAn quyDinh,
-            IReadOnlyCollection<string>? congCuChoCongLink, DateTimeOffset luc)
+            IReadOnlyCollection<string>? congCuChoCongLink, DateTimeOffset luc, int soVideoDangChuanBi = 0)
         {
             if (quyDinh == null)
             {
@@ -672,6 +673,11 @@ namespace Crowd.Project.Domain.Projects
             if (coDuLieuDangXuLy)
             {
                 thieu.Add("du_lieu_dang_xu_ly");
+            }
+
+            if (soVideoDangChuanBi > 0)
+            {
+                thieu.Add("video_dang_chuan_bi");
             }
 
             if (LabelSchema == null)
@@ -742,6 +748,15 @@ namespace Crowd.Project.Domain.Projects
         /// </summary>
         public static IReadOnlyList<string> CanhBao(int soCauVangKiemTra, LabelSchema? tapNhan)
         {
+            return CanhBao(soCauVangKiemTra, tapNhan, 0);
+        }
+
+        /// <summary>
+        /// Nhu tren, them: co file video media-svc khong chuan bi duoc (file hong) → "video_khong_xu_ly_duoc".
+        /// KHONG chan: chua co cach xoa tung mau, chan thi doanh nghiep ket — admin xem canh bao roi quyet duyet / tu choi.
+        /// </summary>
+        public static IReadOnlyList<string> CanhBao(int soCauVangKiemTra, LabelSchema? tapNhan, int soVideoLoi)
+        {
             List<string> ds = new List<string>();
             if (soCauVangKiemTra <= 0)
             {
@@ -751,6 +766,11 @@ namespace Crowd.Project.Domain.Projects
             if (tapNhan != null && tapNhan.Tools.Any(t => t.Kind == ToolKinds.FreeText))
             {
                 ds.Add("cham_cau_tra_loi_mo_lau");
+            }
+
+            if (soVideoLoi > 0)
+            {
+                ds.Add("video_khong_xu_ly_duoc");
             }
 
             return ds;
@@ -786,7 +806,7 @@ namespace Crowd.Project.Domain.Projects
         /// </summary>
         public void YeuCauPublish(
             int soCauThat, int soCauVangChoTest, int phanTramPhi, bool coDuLieuDangXuLy, QuyDinhDuAn quyDinh,
-            IReadOnlyCollection<string>? congCuChoCongLink, DateTimeOffset luc)
+            IReadOnlyCollection<string>? congCuChoCongLink, DateTimeOffset luc, int soVideoDangChuanBi = 0)
         {
             ChiKhiNhap("publish");
 
@@ -795,7 +815,7 @@ namespace Crowd.Project.Domain.Projects
                 throw new InvalidValueException("phi_khong_hop_le", "Phi nen tang phai tu 0 den 100%.");
             }
 
-            IReadOnlyList<string> thieu = NhungGiConThieu(soCauThat, soCauVangChoTest, coDuLieuDangXuLy, quyDinh, congCuChoCongLink, luc);
+            IReadOnlyList<string> thieu = NhungGiConThieu(soCauThat, soCauVangChoTest, coDuLieuDangXuLy, quyDinh, congCuChoCongLink, luc, soVideoDangChuanBi);
             if (thieu.Count > 0)
             {
                 throw new RuleViolationException(

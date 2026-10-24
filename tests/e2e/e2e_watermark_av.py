@@ -28,6 +28,9 @@ try:
         print(f"\n[{loai}]")
         P, _, mau = h.du_an(biz, f"wm {loai}", loai, {"modality": loai, "tools": [tool]}, files=[os.path.join(h.M, tep)], red=1, tran=1)
         publish_va_duyet(biz, P)
+        if loai == "video":
+            trang_thai = [x.get("mediaState") for x in requests.get(G + f"/projects/{P}/samples", headers=biz["h"]).json()["items"]]
+            kiem("video da chuan bi san truoc khi publish (mediaState = ready)", trang_thai and all(x == "ready" for x in trang_thai), trang_thai)
         tham_gia(lab, P)
         t = nhan_task(lab, P, 20)
         kiem("labeler nhan task co link xem", t is not None and t.get("fileUrl"), t)

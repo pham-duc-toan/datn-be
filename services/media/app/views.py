@@ -7,7 +7,8 @@
 
 Am thanh (watermarked): nhung ca file ra FLAC, luu bo dem dia theo (file, nguoi xem), phat co Range.
 Video (watermarked): HAI tang bo dem —
-  1. ban chuan (chuan_hoa_video) theo FILE GOC, dung chung moi nguoi xem: ma hoa lai mot lan;
+  1. ban chuan (chuan_hoa_video) theo FILE GOC, dung chung moi nguoi xem: ma hoa lai mot lan, tao SAN luc
+     nap du lieu va luu tren MinIO (ban_chuan.py);
   2. ban cua tung nguoi xem: chi nhung GOP dau + GOP cuoi (nhung_video_dau_cuoi), phan giua copy —
      vai giay, khong phu thuoc do dai video.
 Ban goc (original) phat nguyen qua proxy.
@@ -29,7 +30,7 @@ import numpy as np
 from fastapi import Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
-from app import settings_store, watermark, watermark_av
+from app import ban_chuan, settings_store, watermark, watermark_av
 from app.bo_dem import BoDem
 from app.config import settings
 from app.errors import LoiApi
@@ -141,9 +142,11 @@ async def _phat_av(q: QuyenXem, request: Request) -> Response:
     try:
         if la_video:
             # Tang 1: ban chuan theo file goc (moi nguoi xem dung chung). Tang 2: nhung dau + cuoi cho nguoi nay.
-            chuan = await bo_dem().lay(BoDem.khoa(q.storage_key, "chuan-hoa-v1"), ".mp4", tai_goc(watermark_av.chuan_hoa_video))
+            # Ban chuan thuong da tao san luc nap du lieu (ban_chuan.py) → chi tai tu MinIO ve bo dem.
+            chuan = await bo_dem().lay(BoDem.khoa(q.storage_key, "chuan-hoa-v2"), ".mp4",
+                                       lambda dich: ban_chuan.tao_ban_chuan(q.storage_key, dich))
             duong_dan = await bo_dem().lay(
-                BoDem.khoa(khoa, "dau-cuoi-v1"), ".mp4",
+                BoDem.khoa(khoa, "dau-cuoi-v2"), ".mp4",
                 lambda dich: watermark_av.nhung_video_dau_cuoi(chuan, dich, nguoi, khoa_wm, buoc))
         else:
             duong_dan = await bo_dem().lay(khoa, ".flac", tai_goc(lambda nguon, dich: watermark_av.nhung_file_am(nguon, dich, nguoi, khoa_wm)))

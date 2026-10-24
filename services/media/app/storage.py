@@ -67,9 +67,13 @@ class Kho:
         try:
             self._client.fget_object(self._bucket, key, duong_dan)
         except S3Error as ex:
-            if ex.code in ("NoSuchKey", "NoSuchBucket"):
+            if ex.code in ("NoSuchKey", "NoSuchObject", "NoSuchBucket"):
                 raise KhongCoFile(key) from ex
             raise
+
+    def tai_len(self, key: str, duong_dan: str, content_type: str) -> None:
+        """Ghi file tren dia len kho (ban chuan cua video)."""
+        self._client.fput_object(self._bucket, key, duong_dan, content_type=content_type)
 
     def luong(self, key: str, bat_dau: int, do_dai: int) -> Iterator[bytes]:
         """Doc tung khuc [bat_dau, bat_dau + do_dai) — cho Range request (tua video)."""

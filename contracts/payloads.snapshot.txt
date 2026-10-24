@@ -381,6 +381,12 @@ user.two_factor_changed v1  (UserTwoFactorChanged)
 user.unblocked v1  (UserUnblocked)
     UserId                   Guid                 required
 
+video.prepared v1  (VideoPrepared)
+    Error                    String?              nullable
+    ProjectId                Guid                 required
+    StorageKey               String               required
+    Succeeded                Boolean              required
+
 withdrawal.rejected v1  (WithdrawalRejected)
     AmountVnd                Int64                required
     LabelerId                Guid                 required

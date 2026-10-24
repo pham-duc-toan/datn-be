@@ -39,8 +39,9 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `project.paused` / `project.resumed` | task | Ngung / mo nhan bai; tiep tuc thi cong bu thoi gian lam bai cho bai dang lam |
 | `project.cancelled` **v2** | task, ledger, quality, annotation, gate, notification | Chi khi CHUA co bai nop (khong con `ApprovedAnnotationCount`) — huy bai dang lam + hoan TOAN BO ky quy; bao doanh nghiep neu da ky quy. quality / task: moc bat dau dem `project.closed_data_retention` (don du lieu van hanh); gate: xoa mau cua du an |
 | `project.completed` **v2** | task, ledger, quality, annotation, gate, notification | `PassedAttemptCount` = so bai dat cuoi cung: ledger tra du so bai do roi hoan phan con lai (con thieu → `Closing`, NC-B-01). quality / task: moc bat dau dem `project.closed_data_retention`; gate: xoa mau cua du an |
-| `dataset.ingested` | task, ml | Sinh task tu sample; ml bat dau pre-label |
+| `dataset.ingested` | task, ml, media | Sinh task tu sample; ml bat dau pre-label; media chuan hoa san video (ban chuan watermark, ghi MinIO) |
 | `gold_set.updated` | task, gate | Cap nhat bo cau hoi vang |
+| `video.prepared` (media phat) | project | media-svc chuan bi xong ban chuan cua mot FILE video (`succeeded`, `error`). project ghi `samples.media_state`; con video dang chuan bi thi chua publish / duyet |
 | `member.added` / `member.blocked` / `member.unblocked` / `member.removed` | task, annotation, media | Nhan ban `project_members` sang `*_members_cache` — nen cua phan quyen chieu ngang (VD-S-14) |
 | `member.added` (them `via`, `projectName`, khong bat buoc) | notification | `via = owner_invite`: bao nguoi duoc chu du an moi. Cac duong khac (`invite_code`, `join`, `entrance_test`, `join_request`) khong bao — nguoi do tu bam, don duoc duyet bao qua `join_request.decided`. Ban tin cu khong co `via` → khong bao |
 | `project.invitation_created` | notification | Loi moi vao du an: `userId` co → thong bao + email theo tuy chon; `userId` null (email chua co tai khoan) → email giao dich kem link dang ky `…/dang-ky?email=&invitation=` |

@@ -344,6 +344,8 @@ namespace Crowd.Project.Api.Services
                     FileUrl = s.StorageKey == null ? null : _media.TaoLink(MauXem(s), nguoi, CheDoXem.Goc),
                     Content = s.Content,
                     Metadata = s.Metadata,
+                    MediaState = s.MediaState,
+                    MediaError = s.MediaError,
                 });
             }
 

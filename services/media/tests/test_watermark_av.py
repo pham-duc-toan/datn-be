@@ -119,6 +119,16 @@ def test_video_chi_nhung_dau_cuoi(tmp_path: Path):
 
 
 @co_ffmpeg
+def test_video_nho_320x240_van_giai_duoc(tmp_path: Path):
+    # Khung nhung ma hoa CRF_NHUNG (nhe hon ban chuan) → 168 bit song duoc ca o khung nho.
+    goc, chuan, wm = tmp_path / "goc.mp4", tmp_path / "chuan.mp4", tmp_path / "wm.mp4"
+    _video_mau(goc, 4, kich="320x240")
+    watermark_av.chuan_hoa_video(goc, chuan)
+    watermark_av.nhung_video_dau_cuoi(chuan, wm, NGUOI, KHOA, 24)
+    assert watermark_av.giai_file_video(wm, KHOA, watermark.thu_tu_buoc(24)).nguoi == NGUOI
+
+
+@co_ffmpeg
 def test_video_cat_dau_van_giai_tu_cuoi_cat_ca_hai_dau_thi_mat(tmp_path: Path):
     goc, chuan, wm = tmp_path / "goc.mp4", tmp_path / "chuan.mp4", tmp_path / "wm.mp4"
     _video_mau(goc, 6)
@@ -130,11 +140,11 @@ def test_video_cat_dau_van_giai_tu_cuoi_cat_ca_hai_dau_thi_mat(tmp_path: Path):
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "1.1", "-i", str(wm), "-c", "copy", str(cat_dau)], check=True)
     assert watermark_av.giai_file_video(cat_dau, KHOA, [24]).nguoi == NGUOI
 
-    # Gioi han (chon de doi lay toc do): chi MOT khung mang watermark nen nen lai lan nua la mat; cat bo ca hai
-    # dau cung mat.
+    # Khung nhung ma hoa CRF_NHUNG nen cat dau + NEN LAI mot lan (CRF 18) van ra tu khung cuoi.
     nen_lai = tmp_path / "nen-lai.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "1.5", "-i", str(wm), "-c:v", "libx264", "-crf", "18", str(nen_lai)], check=True)
-    assert watermark_av.giai_file_video(nen_lai, KHOA, [24]).nguoi is None
+    assert watermark_av.giai_file_video(nen_lai, KHOA, [24]).nguoi == NGUOI
+    # Gioi han (chon de doi lay toc do): cat bo ca hai dau la mat.
     cat_hai = tmp_path / "cat-hai.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "1.5", "-t", "3", "-i", str(wm), "-c:v", "libx264", "-crf", "18", str(cat_hai)],
                    check=True)

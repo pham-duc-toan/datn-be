@@ -46,6 +46,8 @@ BUOC_BIN = 3
 BUOC_AM = 0.006
 SO_KHUNG_GIAI = 48
 CRF_VIDEO = "18"
+# Hai khung mang watermark: nen nhe hon de 168 bit song duoc ca o khung nho (320x240) — chi 2 khung nen khong ton.
+CRF_NHUNG = "8"
 # Dau + cuoi: do dai mot GOP cua ban chuan, so khung mang watermark o moi dau.
 GOP_GIAY = 1.0
 SO_KHUNG_NHUNG = 1   # chi khung DAU TIEN va khung CUOI CUNG
@@ -275,10 +277,11 @@ def _thoi_luong(duong_dan: Path) -> float:
         return 0.0
 
 
-def _x264(g: int) -> list[str]:
-    """Thong so ma hoa DUNG CHUNG cho ban chuan va doan nhung lai — khac la ghep bi giat hinh."""
-    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", CRF_VIDEO, "-profile:v", "high", "-pix_fmt", "yuv420p",
-            "-g", str(g), "-keyint_min", str(g), "-sc_threshold", "0", "-bf", "0", "-x264-params", "open-gop=0"]
+def _x264(g: int, crf: str = CRF_VIDEO) -> list[str]:
+    """Thong so ma hoa DUNG CHUNG cho ban chuan va doan nhung lai — khac la ghep bi giat hinh. stitchable: PPS
+    khong phu thuoc CRF → hai khung nhung duoc ma hoa chat luong cao hon (CRF_NHUNG) ma van ghep duoc."""
+    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", crf, "-profile:v", "high", "-pix_fmt", "yuv420p",
+            "-g", str(g), "-keyint_min", str(g), "-sc_threshold", "0", "-bf", "0", "-x264-params", "open-gop=0:stitchable=1"]
 
 
 def _chay(lenh: list[str], timeout: int, loi: str) -> None:
@@ -328,7 +331,7 @@ def _nhung_doan(nguon: Path, dich: Path, nguoi: NguoiXem, khoa: bytes, buoc: int
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     ma_hoa = subprocess.Popen(
         ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{rong}x{cao}", "-r", tt.fps, "-i", "-",
-         "-i", str(nguon), "-map", "0:v:0", "-map", "1:a:0?", *_x264(g), "-c:a", "copy",
+         "-i", str(nguon), "-map", "0:v:0", "-map", "1:a:0?", *_x264(g, CRF_NHUNG), "-c:a", "copy",
          # TS khong tre mux (mac dinh 0,7 s) — doan 1 khung moi tinh dung thoi luong khi ghep.
          "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", str(dich)],
         stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)

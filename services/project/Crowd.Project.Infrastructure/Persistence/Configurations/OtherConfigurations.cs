@@ -181,6 +181,8 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.SizeBytes).HasColumnName("size_bytes");
             builder.Property(x => x.Sha256).HasColumnName("sha256").HasMaxLength(64).IsRequired();
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.MediaState).HasColumnName("media_state").HasMaxLength(20);
+            builder.Property(x => x.MediaError).HasColumnName("media_error").HasMaxLength(CotDb.LoiMedia);
 
             builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             builder.HasOne<Dataset>().WithMany().HasForeignKey(x => x.DatasetId).OnDelete(DeleteBehavior.Cascade);

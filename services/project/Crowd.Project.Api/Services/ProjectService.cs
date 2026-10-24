@@ -473,17 +473,21 @@ namespace Crowd.Project.Api.Services
             int soVangTest = await DemVangAsync(id, Crowd.Project.Domain.Gold.GoldPurpose.EntranceTest, ct);
             int soVangKiemTra = await DemVangAsync(id, Crowd.Project.Domain.Gold.GoldPurpose.QualityCheck, ct);
             bool dangXuLy = await CoDuLieuDangXuLyAsync(id, ct);
+            int videoDangChuanBi = await DemVideoAsync(id, TrangThaiMedia.DangChuanBi, ct);
+            int videoLoi = await DemVideoAsync(id, TrangThaiMedia.Loi, ct);
 
             int phi = _settings.SoNguyen(SettingKeys.FeePlatformPercent);
             QuyDinhDuAn quyDinh = QuyDinhTuSetting.DuAn(_settings);
             IReadOnlyList<string> thieu = duAn.NhungGiConThieu(
-                soCauThat, soVangTest, dangXuLy, quyDinh, CongCuChoCongLink(), _clock.GetUtcNow());
+                soCauThat, soVangTest, dangXuLy, quyDinh, CongCuChoCongLink(), _clock.GetUtcNow(), videoDangChuanBi);
 
             return new ReadinessResponse
             {
                 Ready = thieu.Count == 0,
                 Missing = thieu,
-                Warnings = LabelingProject.CanhBao(soVangKiemTra, duAn.LabelSchema),
+                Warnings = LabelingProject.CanhBao(soVangKiemTra, duAn.LabelSchema, videoLoi),
+                VideoPreparingCount = videoDangChuanBi,
+                VideoFailedCount = videoLoi,
                 SampleCount = soMau,
                 QuestionCount = soCauThat,
                 QualityGoldCount = soVangKiemTra,
@@ -538,6 +542,7 @@ namespace Crowd.Project.Api.Services
             int soVangTest = await DemVangAsync(id, Crowd.Project.Domain.Gold.GoldPurpose.EntranceTest, ct);
 
             bool dangXuLy = await CoDuLieuDangXuLyAsync(id, ct);
+            int videoDangChuanBi = await DemVideoAsync(id, TrangThaiMedia.DangChuanBi, ct);
 
             IReadOnlyList<string> congCuSai = duAn.CongCuKhongHopCongLink(CongCuChoCongLink());
             if (congCuSai.Count > 0)
@@ -550,7 +555,7 @@ namespace Crowd.Project.Api.Services
 
             duAn.YeuCauPublish(
                 soCauThat, soVangTest, _settings.SoNguyen(SettingKeys.FeePlatformPercent), dangXuLy, QuyDinhTuSetting.DuAn(_settings),
-                CongCuChoCongLink(), bayGio);
+                CongCuChoCongLink(), bayGio, videoDangChuanBi);
 
             if (_saga.BoQuaKyQuy)
             {
@@ -623,6 +628,16 @@ namespace Crowd.Project.Api.Services
         public async Task<ProjectResponse> DuyetAsync(Guid id, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await LayTheoIdAsync(id, ct);
+
+            // Publish da chan khi video chua chuan bi xong; chan them o day phong du lieu nap sau / ban cu.
+            int videoDangChuanBi = await DemVideoAsync(id, TrangThaiMedia.DangChuanBi, ct);
+            if (videoDangChuanBi > 0)
+            {
+                throw new RuleViolationException(
+                    "video_dang_chuan_bi",
+                    "Con " + videoDangChuanBi + " video dang duoc chuan bi (ma hoa lai de gan watermark). Duyet sau khi xong.");
+            }
+
             duAn.Duyet(_clock.GetUtcNow());
 
             int soMau = await DemMauAsync(id, ct);
@@ -889,6 +904,16 @@ namespace Crowd.Project.Api.Services
             return _db.Datasets.AnyAsync(
                 d => d.ProjectId == projectId && (d.Status == DatasetStatus.Pending || d.Status == DatasetStatus.Ingesting),
                 ct);
+        }
+
+        /// <summary>So FILE video (khong phai so mau — doan cat dung chung file) o trang thai media cho truoc.</summary>
+        private Task<int> DemVideoAsync(Guid projectId, string trangThai, CancellationToken ct)
+        {
+            return _db.Samples
+                .Where(s => s.ProjectId == projectId && s.MediaState == trangThai)
+                .Select(s => s.StorageKey)
+                .Distinct()
+                .CountAsync(ct);
         }
 
         private Task<int> DemMauAsync(Guid projectId, CancellationToken ct)

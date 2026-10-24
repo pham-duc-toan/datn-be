@@ -90,5 +90,7 @@ namespace Crowd.Project.Domain.Common
         public const int TenMau = 500;
         public const int CanhBaoNoiDung = 1000;
         public const int VanBanNda = 20000;
+
+        public const int LoiMedia = 500;
     }
 }

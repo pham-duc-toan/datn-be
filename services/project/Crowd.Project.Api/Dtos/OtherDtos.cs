@@ -218,6 +218,11 @@ namespace Crowd.Project.Api.Dtos
 
         /// <summary>width/height, durationSec, length, segmentStart/segmentEnd...</summary>
         public required RawJson Metadata { get; init; }
+
+        /// <summary>Video: preparing | ready | failed (media-svc chuan bi ban chuan). null = khong can.</summary>
+        public string? MediaState { get; init; }
+
+        public string? MediaError { get; init; }
     }
 
     // ---- Upload thang len MinIO + manifest ----

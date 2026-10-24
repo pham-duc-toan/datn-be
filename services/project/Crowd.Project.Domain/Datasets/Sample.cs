@@ -66,6 +66,29 @@ namespace Crowd.Project.Domain.Datasets
         public DateTimeOffset CreatedAt { get; private set; }
 
         /// <summary>
+        /// Video: media-svc chuan bi ban chuan (watermark chi nhung khung dau + cuoi) — TrangThaiMedia.
+        /// null = khong can (khong phai video, hoac video nap truoc khi co buoc nay).
+        /// </summary>
+        public string? MediaState { get; private set; }
+
+        /// <summary>Ly do khi MediaState = failed.</summary>
+        public string? MediaError { get; private set; }
+
+        /// <summary>media-svc bao ket qua (video.prepared). Giao lai nhieu lan thi ghi de — vo hai.</summary>
+        public void GhiKetQuaMedia(bool thanhCong, string? loi)
+        {
+            MediaState = thanhCong ? TrangThaiMedia.SanSang : TrangThaiMedia.Loi;
+            if (thanhCong || loi == null)
+            {
+                MediaError = null;
+            }
+            else
+            {
+                MediaError = loi.Length > CotDb.LoiMedia ? loi.Substring(0, CotDb.LoiMedia) : loi;
+            }
+        }
+
+        /// <summary>
         /// Anh trong ZIP: he thong tu dat khoa "{projectId}/{sampleId}{duoi}" — khong
         /// dung ten file cua nguoi dung (co the chua "../" hay ky tu la).
         /// </summary>
@@ -131,6 +154,12 @@ namespace Crowd.Project.Domain.Datasets
             s.StorageKey = storageKey;
             s.ContentType = contentType;
             s.SizeBytes = sizeBytes;
+            if (modality == Modalities.Video)
+            {
+                // Cho media-svc chuan hoa xong (video.prepared) moi cho publish.
+                s.MediaState = TrangThaiMedia.DangChuanBi;
+            }
+
             return s;
         }
 
@@ -186,5 +215,15 @@ namespace Crowd.Project.Domain.Datasets
             s.CreatedAt = luc;
             return s;
         }
+    }
+
+    /// <summary>Gia tri cua Sample.MediaState.</summary>
+    public static class TrangThaiMedia
+    {
+        public const string DangChuanBi = "preparing";
+
+        public const string SanSang = "ready";
+
+        public const string Loi = "failed";
     }
 }

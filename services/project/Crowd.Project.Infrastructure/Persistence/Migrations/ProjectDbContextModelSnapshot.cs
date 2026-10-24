@@ -202,6 +202,16 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("dataset_id");
 
+                    b.Property<string>("MediaError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("media_error");
+
+                    b.Property<string>("MediaState")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("media_state");
+
                     b.Property<string>("Metadata")
                         .IsRequired()
                         .HasColumnType("jsonb")

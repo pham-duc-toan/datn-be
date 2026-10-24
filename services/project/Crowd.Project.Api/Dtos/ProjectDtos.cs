@@ -283,6 +283,12 @@ namespace Crowd.Project.Api.Dtos
 
         public required int SampleCount { get; init; }
 
+        /// <summary>So file video media-svc dang chuan bi (chua cho publish / duyet).</summary>
+        public required int VideoPreparingCount { get; init; }
+
+        /// <summary>So file video media-svc khong chuan bi duoc (file hong) — canh bao, khong chan.</summary>
+        public required int VideoFailedCount { get; init; }
+
         /// <summary>So cau that (mau khong phai cau vang) — moi labeler lam het chung nay.</summary>
         public required int QuestionCount { get; init; }
 

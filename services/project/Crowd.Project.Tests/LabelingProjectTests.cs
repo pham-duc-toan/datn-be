@@ -235,6 +235,20 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
+        public void Video_dang_chuan_bi_thi_chua_publish_duoc_video_loi_chi_canh_bao()
+        {
+            LabelingProject p = DuAnSanSang();
+
+            Assert.Contains("video_dang_chuan_bi", p.NhungGiConThieu(100, 0, false, QuyDinhMau.DuAn, null, Luc, 2));
+            Assert.Empty(p.NhungGiConThieu(100, 0, false, QuyDinhMau.DuAn, null, Luc, 0));
+            Assert.Throws<RuleViolationException>(() => p.YeuCauPublish(100, 0, Phi, false, QuyDinhMau.DuAn, null, Luc, 1));
+            Assert.Equal(ProjectStatus.Draft, p.Status);
+
+            Assert.Contains("video_khong_xu_ly_duoc", LabelingProject.CanhBao(1, null, 1));
+            Assert.Empty(LabelingProject.CanhBao(1, null, 0));
+        }
+
+        [Fact]
         public void Duong_di_hanh_phuc_cua_saga_Nhap_toi_Dang_chay()
         {
             LabelingProject p = DuAnSanSang();
