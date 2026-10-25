@@ -383,6 +383,19 @@ namespace Crowd.Payment.Api.Controllers
             _env = env;
         }
 
+        /// <summary>GET /payments/sandbox/checkout/{intentId}?amount= — trang thanh toan cho trinh duyet (tab moi).</summary>
+        [HttpGet("checkout/{intentId:guid}")]
+        public IActionResult TrangThanhToan(Guid intentId, [FromQuery] long amount)
+        {
+            if (!_env.IsDevelopment() || _sp.GetService<SandboxPaymentProvider>() == null)
+            {
+                return NotFound();
+            }
+
+            string tra = "/payments/sandbox/checkout/" + intentId.ToString() + "/pay?amount=" + amount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return TrangGiaLap.Tao("Cổng thử nghiệm", "#2563eb", amount, "Nạp tiền ví — mã " + intentId.ToString("N").Substring(0, 8).ToUpperInvariant(), tra, null);
+        }
+
         /// <summary>POST /payments/sandbox/checkout/{intentId}/pay?amount=</summary>
         [HttpPost("checkout/{intentId:guid}/pay")]
         public async Task<IActionResult> TraTien(Guid intentId, [FromQuery] long amount, CancellationToken ct)

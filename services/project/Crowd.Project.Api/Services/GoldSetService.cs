@@ -96,7 +96,7 @@ namespace Crowd.Project.Api.Services
         {
             if (body == null || body.Items == null || body.Items.Count == 0)
             {
-                throw new InvalidValueException("khong_co_cau_hoi", "Can it nhat mot cau hoi vang.");
+                throw new InvalidValueException("khong_co_cau_hoi", "Cần ít nhất một câu hỏi vàng.");
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
@@ -106,7 +106,7 @@ namespace Crowd.Project.Api.Services
             List<GoldItem> hienCo = await _db.GoldItems.Where(g => g.ProjectId == projectId).ToListAsync(ct);
             if (hienCo.Count + body.Items.Count > _settings.SoNguyen(SettingKeys.ProjectGoldItemsMax))
             {
-                throw new InvalidValueException("qua_nhieu_cau_vang", "Toi da " + _settings.SoNguyen(SettingKeys.ProjectGoldItemsMax) + " cau hoi vang moi du an.");
+                throw new InvalidValueException("qua_nhieu_cau_vang", "Tối đa " + _settings.SoNguyen(SettingKeys.ProjectGoldItemsMax) + " câu hỏi vàng mỗi dự án.");
             }
 
             // Moi mau phai thuoc CHINH du an nay (chong BOLA) va chua lam cau vang.
@@ -115,7 +115,7 @@ namespace Crowd.Project.Api.Services
             {
                 if (i.SampleId == null || i.Purpose == null || i.ExpectedPayload == null)
                 {
-                    throw new InvalidValueException("thieu_thong_tin", "Moi cau hoi vang can sampleId, expectedPayload va purpose.");
+                    throw new InvalidValueException("thieu_thong_tin", "Mỗi câu hỏi vàng cần sampleId, expectedPayload và purpose.");
                 }
 
                 mauYeuCau.Add(i.SampleId.Value);
@@ -123,7 +123,7 @@ namespace Crowd.Project.Api.Services
 
             if (mauYeuCau.Distinct().Count() != mauYeuCau.Count)
             {
-                throw new InvalidValueException("mau_trung", "Mot mau xuat hien hai lan trong yeu cau.");
+                throw new InvalidValueException("mau_trung", "Một mẫu xuất hiện hai lần trong yêu cầu.");
             }
 
             // Metadata mau (rong x cao, thoi luong...) de kiem dap an nam trong mau.
@@ -133,7 +133,7 @@ namespace Crowd.Project.Api.Services
                 .ToDictionaryAsync(s => s.Id, s => s.Metadata, ct);
             if (metadataMau.Count != mauYeuCau.Count)
             {
-                throw new InvalidValueException("mau_khong_thuoc_du_an", "Co mau khong thuoc du an nay.");
+                throw new InvalidValueException("mau_khong_thuoc_du_an", "Có mẫu không thuộc dự án này.");
             }
 
             HashSet<Guid> daLaVang = new HashSet<Guid>(hienCo.Select(g => g.SampleId));
@@ -144,7 +144,7 @@ namespace Crowd.Project.Api.Services
             {
                 if (daLaVang.Contains(i.SampleId!.Value))
                 {
-                    throw new RuleViolationException("da_la_cau_vang", "Mau " + i.SampleId + " da la cau hoi vang.");
+                    throw new RuleViolationException("da_la_cau_vang", "Mẫu " + i.SampleId + " đã là câu hỏi vàng.");
                 }
 
                 // Loai du lieu va cong cu do TAP NHAN cua du an quyet dinh, client chi
@@ -191,7 +191,7 @@ namespace Crowd.Project.Api.Services
 
             if (canXoa == null)
             {
-                throw new NotFoundException("Khong tim thay cau hoi vang.");
+                throw new NotFoundException("Không tìm thấy câu hỏi vàng.");
             }
 
             _db.GoldItems.Remove(canXoa);

@@ -70,7 +70,7 @@ namespace Crowd.Project.Api.Services
 
             if (duAn == null)
             {
-                throw new NotFoundException("Khong tim thay du an.");
+                throw new NotFoundException("Không tìm thấy dự án.");
             }
 
             return duAn;
@@ -86,7 +86,7 @@ namespace Crowd.Project.Api.Services
 
             if (!LaChu(duAn, caller))
             {
-                throw new ForbiddenException("Chi chu du an moi duoc thuc hien thao tac nay.");
+                throw new ForbiddenException("Chỉ chủ dự án mới được thực hiện thao tác này.");
             }
 
             return duAn;

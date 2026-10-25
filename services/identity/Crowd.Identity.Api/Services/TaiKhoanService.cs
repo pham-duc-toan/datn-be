@@ -115,7 +115,7 @@ namespace Crowd.Identity.Api.Services
             User user = await LayUserAsync(caller.LayUserId(), ct);
             if (user.DaXacThucEmail)
             {
-                throw new RuleViolationException("da_xac_thuc", "Email da duoc xac thuc.");
+                throw new RuleViolationException("da_xac_thuc", "Email đã được xác thực.");
             }
 
             await DamBaoKhongGuiQuaNhanhAsync(user.Id, MucDichMa.VerifyEmail, true, ct);
@@ -165,7 +165,7 @@ namespace Crowd.Identity.Api.Services
             User user = await LayUserAsync(ma.UserId, ct);
             if (user.Status == UserStatus.Blocked)
             {
-                throw new RuleViolationException("tai_khoan_bi_khoa", "Tai khoan dang bi khoa.");
+                throw new RuleViolationException("tai_khoan_bi_khoa", "Tài khoản đang bị khoá.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -199,7 +199,7 @@ namespace Crowd.Identity.Api.Services
                 || matKhauHienTai.Length > _settings.SoNguyen(SettingKeys.IdentityPasswordMaxLength)
                 || _matKhau.Kiem(user, matKhauHienTai) == PasswordVerificationResult.Failed)
             {
-                throw new InvalidValueException("mat_khau_hien_tai_sai", "Mat khau hien tai khong dung.");
+                throw new InvalidValueException("mat_khau_hien_tai_sai", "Mật khẩu hiện tại không đúng.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -267,7 +267,7 @@ namespace Crowd.Identity.Api.Services
             {
                 if (nemLoi)
                 {
-                    throw new RuleViolationException("gui_qua_nhanh", "Vua gui email — thu lai sau " + (int)KhoangCachGuiLai.TotalSeconds + " giay.");
+                    throw new RuleViolationException("gui_qua_nhanh", "Vừa gửi email — thử lại sau " + (int)KhoangCachGuiLai.TotalSeconds + " giây.");
                 }
 
                 return false;
@@ -282,7 +282,7 @@ namespace Crowd.Identity.Api.Services
             int toiDa = _settings.SoNguyen(SettingKeys.IdentityPasswordMaxLength);
             if (matKhau == null || matKhau.Length < toiThieu || matKhau.Length > toiDa)
             {
-                throw new InvalidValueException("mat_khau_khong_hop_le", "Mat khau phai tu " + toiThieu + " den " + toiDa + " ky tu.");
+                throw new InvalidValueException("mat_khau_khong_hop_le", "Mật khẩu phải từ " + toiThieu + " đến " + toiDa + " ký tự.");
             }
         }
 
@@ -291,7 +291,7 @@ namespace Crowd.Identity.Api.Services
             MaTaiKhoan? ma = await _ma.TimMaHopLeAsync(maGoc, mucDich, ct);
             if (ma == null)
             {
-                throw new InvalidValueException("ma_khong_hop_le", "Link khong hop le, da dung hoac da het han — hay xin link moi.");
+                throw new InvalidValueException("ma_khong_hop_le", "Link không hợp lệ, đã dùng hoặc đã hết hạn — hãy xin link mới.");
             }
 
             return ma;
@@ -302,7 +302,7 @@ namespace Crowd.Identity.Api.Services
             User? user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
             if (user == null)
             {
-                throw new NotFoundException("Khong tim thay tai khoan.");
+                throw new NotFoundException("Không tìm thấy tài khoản.");
             }
 
             return user;

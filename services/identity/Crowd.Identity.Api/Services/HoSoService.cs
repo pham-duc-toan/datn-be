@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.BuildingBlocks.Persistence;
 using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Identity.Api.Dtos;
@@ -71,7 +72,25 @@ namespace Crowd.Identity.Api.Services
 
             User u = await LayAsync(userId, ct);
             u.CapNhatHoSo(body.DisplayName ?? string.Empty, body.Bio);
-            await _db.SaveChangesAsync(ct);
+            if (body.Username != null && User.ChuanHoaUsername(body.Username) != u.Username)
+            {
+                string moi = User.ChuanHoaUsername(body.Username);
+                u.DoiUsername(moi);
+                if (await _db.Users.AnyAsync(x => x.Username == moi && x.Id != userId, ct))
+                {
+                    throw new RuleViolationException("username_da_ton_tai", "Username “" + moi + "” đã có người dùng — chọn tên khác.");
+                }
+            }
+
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "ux_users_username"))
+            {
+                throw new RuleViolationException("username_da_ton_tai", "Username vừa có người khác chọn — chọn tên khác.");
+            }
+
             return await TaoResponseAsync(u);
         }
 
@@ -103,13 +122,13 @@ namespace Crowd.Identity.Api.Services
             string duoi = Path.GetExtension(ten);
             if (ten.Length == 0 || ten.Length > 200 || !DuoiAnh.Contains(duoi))
             {
-                throw new InvalidValueException("file_khong_hop_le", "Anh dai dien phai la .png, .jpg hoac .webp.");
+                throw new InvalidValueException("file_khong_hop_le", "Ảnh đại diện phải là .png, .jpg hoặc .webp.");
             }
 
             long toiDa = _settings.SoLon(SettingKeys.IdentityAvatarMaxBytes);
             if (body.SizeBytes <= 0 || body.SizeBytes > toiDa)
             {
-                throw new InvalidValueException("file_qua_lon", "Anh dai dien toi da " + toiDa + " byte.");
+                throw new InvalidValueException("file_qua_lon", "Ảnh đại diện tối đa " + toiDa + " byte.");
             }
 
             string key = userId + "/" + Guid.CreateVersion7() + duoi.ToLowerInvariant();
@@ -134,18 +153,18 @@ namespace Crowd.Identity.Api.Services
             {
                 if (!key.StartsWith(userId + "/", StringComparison.Ordinal) || key.Length > 300 || key.Contains("..", StringComparison.Ordinal))
                 {
-                    throw new InvalidValueException("key_khong_hop_le", "Key anh dai dien khong thuoc tai khoan nay.");
+                    throw new InvalidValueException("key_khong_hop_le", "Ảnh đại diện không thuộc tài khoản này.");
                 }
 
                 ThongTinFile? file = await _kho.ThongTinAsync(key, ct);
                 if (file == null)
                 {
-                    throw new RuleViolationException("chua_tai_anh", "Chua tai anh len (link da cap nhung chua co file).");
+                    throw new RuleViolationException("chua_tai_anh", "Chưa tải ảnh lên (link đã cấp nhưng chưa có file).");
                 }
 
                 if (file.SizeBytes > _settings.SoLon(SettingKeys.IdentityAvatarMaxBytes))
                 {
-                    throw new InvalidValueException("file_qua_lon", "Anh dai dien vuot kich thuoc cho phep.");
+                    throw new InvalidValueException("file_qua_lon", "Ảnh đại diện vượt kích thước cho phép.");
                 }
             }
 
@@ -170,7 +189,7 @@ namespace Crowd.Identity.Api.Services
 
             if (ds.Count > SoHoSoCongKhaiToiDa)
             {
-                throw new InvalidValueException("qua_nhieu_id", "Toi da " + SoHoSoCongKhaiToiDa + " id moi lan.");
+                throw new InvalidValueException("qua_nhieu_id", "Tối đa " + SoHoSoCongKhaiToiDa + " id mỗi lần.");
             }
 
             List<User> users = await _db.Users.AsNoTracking().Where(u => ds.Contains(u.Id)).ToListAsync(ct);
@@ -186,6 +205,7 @@ namespace Crowd.Identity.Api.Services
                 kq.Add(new PublicProfileResponse
                 {
                     UserId = u.Id,
+                    Username = u.Username,
                     DisplayName = u.DisplayName,
                     AvatarUrl = await LinkAvatarAsync(u.AvatarKey),
                     Level = cap.TryGetValue(u.Id, out capDo) ? capDo : 1,
@@ -224,6 +244,7 @@ namespace Crowd.Identity.Api.Services
             {
                 UserId = u.Id,
                 Email = u.Email,
+                Username = u.Username,
                 EmailVerified = u.DaXacThucEmail,
                 DisplayName = u.DisplayName,
                 Bio = u.Bio,
@@ -239,7 +260,7 @@ namespace Crowd.Identity.Api.Services
             User? u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId, ct);
             if (u == null)
             {
-                throw new NotFoundException("Khong tim thay tai khoan.");
+                throw new NotFoundException("Không tìm thấy tài khoản.");
             }
 
             return u;

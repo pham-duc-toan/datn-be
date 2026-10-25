@@ -99,7 +99,7 @@ namespace Crowd.Identity.Api.Entities
 
                 if (!char.IsAsciiLetterOrDigit(c))
                 {
-                    throw new InvalidValueException("so_giay_to_khong_hop_le", "So giay to chi gom chu cai va chu so.");
+                    throw new InvalidValueException("so_giay_to_khong_hop_le", "Số giấy tờ chỉ gồm chữ cái và chữ số.");
                 }
 
                 sb.Append(char.ToUpperInvariant(c));
@@ -119,7 +119,7 @@ namespace Crowd.Identity.Api.Entities
             bool hoChieu = !toanSo && so.Length >= 8 && so.Length <= 9;
             if (!cccdHoacCmnd && !hoChieu)
             {
-                throw new InvalidValueException("so_giay_to_khong_hop_le", "CCCD 12 so, CMND 9 so, hoac ho chieu 8–9 ky tu.");
+                throw new InvalidValueException("so_giay_to_khong_hop_le", "CCCD 12 số, CMND 9 số, hoặc hộ chiếu 8–9 ký tự.");
             }
 
             return so;
@@ -132,12 +132,12 @@ namespace Crowd.Identity.Api.Entities
             string ten = (hoTen ?? string.Empty).Trim();
             if (ten.Length == 0 || ten.Length > DoDaiTenToiDa)
             {
-                throw new InvalidValueException("ho_ten_khong_hop_le", "Ho ten bat buoc, toi da " + DoDaiTenToiDa + " ky tu.");
+                throw new InvalidValueException("ho_ten_khong_hop_le", "Họ tên bắt buộc, tối đa " + DoDaiTenToiDa + " ký tự.");
             }
 
             if (!ngaySinh.HasValue || ngaySinh.Value > homNay || TinhTuoi(ngaySinh.Value, homNay) > TuoiToiDa)
             {
-                throw new InvalidValueException("ngay_sinh_khong_hop_le", "Ngay sinh khong hop le.");
+                throw new InvalidValueException("ngay_sinh_khong_hop_le", "Ngày sinh không hợp lệ.");
             }
 
             FullName = ten;
@@ -167,12 +167,12 @@ namespace Crowd.Identity.Api.Entities
             KiemSuaDuoc();
             if (FullName.Length == 0 || !DateOfBirth.HasValue || IdNumberHash.Length == 0)
             {
-                throw new RuleViolationException("ho_so_chua_du", "Dien ho ten, ngay sinh, so giay to truoc khi nop.");
+                throw new RuleViolationException("ho_so_chua_du", "Điền họ tên, ngày sinh, số giấy tờ trước khi nộp.");
             }
 
             if (FrontKey == null || BackKey == null)
             {
-                throw new RuleViolationException("thieu_anh_giay_to", "Tai anh mat truoc va mat sau cua giay to truoc khi nop.");
+                throw new RuleViolationException("thieu_anh_giay_to", "Tải ảnh mặt trước và mặt sau của giấy tờ trước khi nộp.");
             }
 
             Status = KybStatus.Submitted;
@@ -196,7 +196,7 @@ namespace Crowd.Identity.Api.Entities
             string ly = (lyDo ?? string.Empty).Trim();
             if (ly.Length == 0 || ly.Length > DoDaiLyDoToiDa)
             {
-                throw new InvalidValueException("thieu_ly_do", "Tu choi phai ghi ly do (toi da " + DoDaiLyDoToiDa + " ky tu).");
+                throw new InvalidValueException("thieu_ly_do", "Từ chối phải ghi lý do (tối đa " + DoDaiLyDoToiDa + " ký tự).");
             }
 
             Status = KybStatus.Rejected;
@@ -227,12 +227,12 @@ namespace Crowd.Identity.Api.Entities
         {
             if (Status == KybStatus.Submitted)
             {
-                throw new RuleViolationException("ho_so_dang_cho_duyet", "Ho so dang cho admin duyet — chua sua duoc.");
+                throw new RuleViolationException("ho_so_dang_cho_duyet", "Hồ sơ đang chờ admin duyệt — chưa sửa được.");
             }
 
             if (Status == KybStatus.Verified)
             {
-                throw new RuleViolationException("da_xac_minh", "Danh tinh da duoc xac minh — ho so khong sua duoc nua.");
+                throw new RuleViolationException("da_xac_minh", "Danh tính đã được xác minh — hồ sơ không sửa được nữa.");
             }
         }
 
@@ -240,7 +240,7 @@ namespace Crowd.Identity.Api.Entities
         {
             if (Status != KybStatus.Submitted)
             {
-                throw new RuleViolationException("khong_cho_duyet", "Ho so khong o trang thai cho duyet (dang " + Status + ").");
+                throw new RuleViolationException("khong_cho_duyet", "Hồ sơ không ở trạng thái chờ duyệt (đang " + Status + ").");
             }
         }
     }

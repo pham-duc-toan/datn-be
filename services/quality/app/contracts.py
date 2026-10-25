@@ -135,6 +135,7 @@ class GradedAttempt(HopDong):
     gold_total: int
     gold_correct: int
     passed: bool
+    rewarded: bool
     answered_count: int
 
 

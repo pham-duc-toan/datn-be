@@ -26,7 +26,7 @@ namespace Crowd.Tasking.Tests
         {
             Attempt a = BaiMoi();
             a.Nop(1, dat ? 1 : 0, null, null, Luc.AddHours(1));
-            a.GhiKetQua(10, dat ? 9 : 5, dat ? 90 : 50, dat, Luc.AddDays(1));
+            a.GhiKetQua(10, dat ? 9 : 5, dat ? 90 : 50, dat, dat, Luc.AddDays(1));
             return a;
         }
 
@@ -114,10 +114,10 @@ namespace Crowd.Tasking.Tests
         public void Chi_cham_bai_da_nop_va_cham_lai_khong_doi_ket_qua()
         {
             Attempt dangLam = BaiMoi();
-            Assert.Throws<RuleViolationException>(() => dangLam.GhiKetQua(1, 1, 100, true, Luc));
+            Assert.Throws<RuleViolationException>(() => dangLam.GhiKetQua(1, 1, 100, true, true, Luc));
 
             Attempt a = BaiDaCham(true);
-            a.GhiKetQua(10, 0, 0, false, Luc.AddDays(2));
+            a.GhiKetQua(10, 0, 0, false, false, Luc.AddDays(2));
             Assert.True(a.Passed);
             Assert.Equal(90, a.AgreementPercent);
             Assert.True(a.DatCuoiCung);
@@ -145,14 +145,39 @@ namespace Crowd.Tasking.Tests
         {
             Attempt a = BaiDaCham(false);
             Assert.False(a.DatCuoiCung);
-            Assert.Throws<RuleViolationException>(() => a.PhanXu(true, null, Guid.NewGuid(), Luc.AddDays(2)));
+            Assert.Throws<RuleViolationException>(() => a.PhanXu(true, null, Guid.NewGuid(), true, Luc.AddDays(2)));
 
             a.KhieuNai("Xem lai giup", Luc.AddDays(4), Luc.AddDays(2));
-            a.PhanXu(true, "Da so sai", Guid.NewGuid(), Luc.AddDays(3));
+            a.PhanXu(true, "Da so sai", Guid.NewGuid(), true, Luc.AddDays(3));
 
             Assert.Equal(AppealState.Accepted, a.AppealState);
             Assert.False(a.Passed);
             Assert.True(a.DatCuoiCung);
+        }
+
+        [Fact]
+        public void Dat_ma_het_suat_thi_khong_duoc_thuong_khieu_nai_chi_thuong_khi_con_suat()
+        {
+            Attempt hetSuat = BaiMoi();
+            hetSuat.Nop(1, 1, null, null, Luc.AddHours(1));
+            hetSuat.GhiKetQua(10, 9, 90, true, false, Luc.AddDays(1));
+            Assert.True(hetSuat.DatCuoiCung);
+            Assert.False(hetSuat.DuocThuong);
+
+            Attempt truot = BaiMoi();
+            truot.Nop(1, 0, null, null, Luc.AddHours(1));
+            Assert.Throws<InvalidValueException>(() => truot.GhiKetQua(10, 5, 50, false, true, Luc.AddDays(1)));
+
+            Attempt a = BaiDaCham(false);
+            a.KhieuNai("Xem lai", Luc.AddDays(4), Luc.AddDays(2));
+            a.PhanXu(true, null, Guid.NewGuid(), false, Luc.AddDays(3));
+            Assert.True(a.DatCuoiCung);
+            Assert.False(a.DuocThuong);
+
+            Attempt b = BaiDaCham(false);
+            b.KhieuNai("Xem lai", Luc.AddDays(4), Luc.AddDays(2));
+            b.PhanXu(true, null, Guid.NewGuid(), true, Luc.AddDays(3));
+            Assert.True(b.DuocThuong);
         }
 
         [Fact]
@@ -191,7 +216,7 @@ namespace Crowd.Tasking.Tests
         private static ProjectSnapshot DuAnChay()
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), Luc);
-            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 100000, 5, 80, 20, Luc.AddDays(10), true, false, null, null, false, Luc);
+            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 100000, 5, 5, 80, 20, Luc.AddDays(10), true, false, null, null, false, Luc);
             return s;
         }
 
@@ -260,7 +285,7 @@ namespace Crowd.Tasking.Tests
         private static ProjectSnapshot DuAnChay(int? minLevel, int? minReputation)
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(DuAnId, Luc);
-            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 100000, 3, 80, 10, Luc.AddDays(10), true, false, minLevel, minReputation, false, Luc);
+            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 100000, 3, 3, 80, 10, Luc.AddDays(10), true, false, minLevel, minReputation, false, Luc);
             return s;
         }
 
@@ -343,7 +368,7 @@ namespace Crowd.Tasking.Tests
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
 
             s.TamDung(T2);
-            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("a", "b"), 100000, 3, 80, 10, T2.AddDays(1), true, false, null, null, false, T1);
+            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("a", "b"), 100000, 3, 3, 80, 10, T2.AddDays(1), true, false, null, null, false, T1);
 
             Assert.Equal(SnapshotStatus.Paused, s.Status);
             Assert.True(s.IsConfigured);
@@ -387,7 +412,7 @@ namespace Crowd.Tasking.Tests
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), T1);
             Assert.Null(s.LabelSchema);
 
-            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("cho", "meo"), 100000, 3, 80, 10, T2, true, false, null, null, false, T1);
+            s.ApDungPublished(Guid.NewGuid(), TapNhanAnh("cho", "meo"), 100000, 3, 3, 80, 10, T2, true, false, null, null, false, T1);
 
             Assert.Equal(Modalities.Image, s.Modality);
             Assert.NotNull(s.LabelSchema);

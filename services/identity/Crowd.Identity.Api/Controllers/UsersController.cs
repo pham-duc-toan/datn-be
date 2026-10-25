@@ -57,7 +57,7 @@ namespace Crowd.Identity.Api.Controllers
                     Guid id;
                     if (!Guid.TryParse(phan, out id))
                     {
-                        throw new InvalidValueException("id_khong_hop_le", "ids phai la danh sach UUID ngan cach bang dau phay.");
+                        throw new InvalidValueException("id_khong_hop_le", "ids phải là danh sách UUID ngăn cách bằng dấu phẩy.");
                     }
 
                     ds.Add(id);

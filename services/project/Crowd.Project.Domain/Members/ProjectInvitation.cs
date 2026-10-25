@@ -68,12 +68,12 @@ namespace Crowd.Project.Domain.Members
         {
             if (role == MemberRole.Owner)
             {
-                throw new InvalidValueException("khong_the_them_owner", "Moi du an chi co mot chu so huu.");
+                throw new InvalidValueException("khong_the_them_owner", "Mỗi dự án chỉ có một chủ sở hữu.");
             }
 
             if (string.IsNullOrWhiteSpace(emailChuanHoa))
             {
-                throw new InvalidValueException("email_khong_hop_le", "Thieu email.");
+                throw new InvalidValueException("email_khong_hop_le", "Thiếu email.");
             }
 
             ProjectInvitation i = new ProjectInvitation();
@@ -100,7 +100,7 @@ namespace Crowd.Project.Domain.Members
         {
             if (UserId.HasValue && UserId.Value != userId)
             {
-                throw new RuleViolationException("loi_moi_cua_nguoi_khac", "Loi moi da gan voi tai khoan khac.");
+                throw new RuleViolationException("loi_moi_cua_nguoi_khac", "Lời mời đã gắn với tài khoản khác.");
             }
 
             UserId = userId;
@@ -124,7 +124,7 @@ namespace Crowd.Project.Domain.Members
         {
             if (Status != InvitationStatus.Pending)
             {
-                throw new RuleViolationException("loi_moi_da_xu_ly", "Loi moi da xu ly (" + Status + ").");
+                throw new RuleViolationException("loi_moi_da_xu_ly", "Lời mời đã xử lý (" + Status + ").");
             }
 
             Status = InvitationStatus.Revoked;
@@ -144,12 +144,12 @@ namespace Crowd.Project.Domain.Members
         {
             if (Status != InvitationStatus.Pending)
             {
-                throw new RuleViolationException("loi_moi_da_xu_ly", "Loi moi da xu ly (" + Status + ").");
+                throw new RuleViolationException("loi_moi_da_xu_ly", "Lời mời đã xử lý (" + Status + ").");
             }
 
             if (ExpiresAt <= luc)
             {
-                throw new RuleViolationException("loi_moi_het_han", "Loi moi da het han.");
+                throw new RuleViolationException("loi_moi_het_han", "Lời mời đã hết hạn.");
             }
         }
     }

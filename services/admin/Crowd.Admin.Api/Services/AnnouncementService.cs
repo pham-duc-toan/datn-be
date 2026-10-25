@@ -59,12 +59,12 @@ namespace Crowd.Admin.Api.Services
             string doiTuong = (body.Audience ?? "all").Trim().ToLowerInvariant();
             if (tieuDe.Length == 0 || tieuDe.Length > Announcement.DoDaiTieuDeToiDa)
             {
-                throw new AdminException(400, "tieu_de_khong_hop_le", "Tieu de tu 1 den " + Announcement.DoDaiTieuDeToiDa + " ky tu.");
+                throw new AdminException(400, "tieu_de_khong_hop_le", "Tiêu đề từ 1 đến " + Announcement.DoDaiTieuDeToiDa + " ký tự.");
             }
 
             if (noiDung.Length == 0 || noiDung.Length > Announcement.DoDaiNoiDungToiDa)
             {
-                throw new AdminException(400, "noi_dung_khong_hop_le", "Noi dung tu 1 den " + Announcement.DoDaiNoiDungToiDa + " ky tu.");
+                throw new AdminException(400, "noi_dung_khong_hop_le", "Nội dung từ 1 đến " + Announcement.DoDaiNoiDungToiDa + " ký tự.");
             }
 
             if (!DoiTuong.Contains(doiTuong))

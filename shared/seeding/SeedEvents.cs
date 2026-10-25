@@ -256,6 +256,7 @@ namespace Crowd.Seeding
                     GoldTotal = b.GoldTotal,
                     GoldCorrect = b.GoldCorrect,
                     Passed = b.Result.Passed,
+                    Rewarded = b.Result.Passed,
                     AnsweredCount = b.Answers.Count,
                 });
             }

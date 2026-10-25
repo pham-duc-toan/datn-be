@@ -112,7 +112,7 @@ namespace Crowd.Project.Infrastructure.Import
                 bool laNoiBo = diaChi.Any(LaDiaChiNoiBo);
                 if (laNoiBo && !choPhep.Contains(host))
                 {
-                    throw new NguonNgoaiException("dia_chi_noi_bo", "Khong tai tu dia chi noi bo (" + host + ").");
+                    throw new NguonNgoaiException("dia_chi_noi_bo", "Không tải từ địa chỉ nội bộ (" + host + ").");
                 }
 
                 Socket s = new Socket(SocketType.Stream, ProtocolType.Tcp);
@@ -219,7 +219,7 @@ namespace Crowd.Project.Infrastructure.Import
                         }
                         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                         {
-                            throw new NguonNgoaiException("het_gio", "Tai qua " + (int)thoiGian.TotalSeconds + " giay.");
+                            throw new NguonNgoaiException("het_gio", "Tải quá " + (int)thoiGian.TotalSeconds + " giây.");
                         }
                         catch (HttpRequestException ex) when (ex.InnerException is NguonNgoaiException)
                         {
@@ -227,7 +227,7 @@ namespace Crowd.Project.Infrastructure.Import
                         }
                         catch (HttpRequestException ex)
                         {
-                            throw new NguonNgoaiException("khong_tai_duoc", "Khong ket noi duoc: " + ex.Message);
+                            throw new NguonNgoaiException("khong_tai_duoc", "Không kết nối được: " + ex.Message);
                         }
 
                         using (r)
@@ -241,13 +241,13 @@ namespace Crowd.Project.Infrastructure.Import
 
                             if (!r.IsSuccessStatusCode)
                             {
-                                throw new NguonNgoaiException("khong_tai_duoc", "Nguon tra HTTP " + ma + ".");
+                                throw new NguonNgoaiException("khong_tai_duoc", "Nguồn trả HTTP " + ma + ".");
                             }
 
                             long? khaiBao = r.Content.Headers.ContentLength;
                             if (khaiBao.HasValue && khaiBao.Value > toiDaByte)
                             {
-                                throw new NguonNgoaiException("file_qua_lon", "File " + khaiBao.Value + " byte, toi da " + toiDaByte + ".");
+                                throw new NguonNgoaiException("file_qua_lon", "File " + khaiBao.Value + " byte, tối đa " + toiDaByte + ".");
                             }
 
                             string tam = Path.Combine(Path.GetTempPath(), "crowd-import-" + Guid.NewGuid().ToString("N"));
@@ -264,7 +264,7 @@ namespace Crowd.Project.Infrastructure.Import
                                         daDoc += n;
                                         if (daDoc > toiDaByte)
                                         {
-                                            throw new NguonNgoaiException("file_qua_lon", "File vuot " + toiDaByte + " byte.");
+                                            throw new NguonNgoaiException("file_qua_lon", "File vượt " + toiDaByte + " byte.");
                                         }
 
                                         await ra.WriteAsync(dem.AsMemory(0, n), gio.Token).ConfigureAwait(false);
@@ -274,7 +274,7 @@ namespace Crowd.Project.Infrastructure.Import
                             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                             {
                                 XoaTam(tam);
-                                throw new NguonNgoaiException("het_gio", "Tai qua " + (int)thoiGian.TotalSeconds + " giay.");
+                                throw new NguonNgoaiException("het_gio", "Tải quá " + (int)thoiGian.TotalSeconds + " giây.");
                             }
                             catch
                             {
@@ -288,7 +288,7 @@ namespace Crowd.Project.Infrastructure.Import
                     }
                 }
 
-                throw new NguonNgoaiException("chuyen_huong_qua_nhieu", "Chuyen huong qua " + SoLanChuyenHuongToiDa + " lan.");
+                throw new NguonNgoaiException("chuyen_huong_qua_nhieu", "Chuyển hướng quá " + SoLanChuyenHuongToiDa + " lần.");
             }
         }
 
@@ -299,12 +299,12 @@ namespace Crowd.Project.Infrastructure.Import
             if (string.IsNullOrWhiteSpace(url) || url.Length > 2000 || !Uri.TryCreate(url.Trim(), UriKind.Absolute, out u)
                 || (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) || string.IsNullOrEmpty(u.Host))
             {
-                throw new NguonNgoaiException("url_khong_hop_le", "URL phai la http / https day du.");
+                throw new NguonNgoaiException("url_khong_hop_le", "URL phải là http / https đầy đủ.");
             }
 
             if (!string.IsNullOrEmpty(u.UserInfo))
             {
-                throw new NguonNgoaiException("url_khong_hop_le", "URL khong duoc chua ten / mat khau.");
+                throw new NguonNgoaiException("url_khong_hop_le", "URL không được chứa tên / mật khẩu.");
             }
 
             return u;

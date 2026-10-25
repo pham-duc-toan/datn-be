@@ -169,6 +169,9 @@ namespace Crowd.Contracts.Tasking
 
         public required bool Accepted { get; init; }
 
+        /// <summary>Accepted VA con suat thuong luc phan xu (so bai duoc thuong &lt; so suat) → ledger tra thuong.</summary>
+        public required bool Rewarded { get; init; }
+
         public string? Note { get; init; }
 
         /// <summary>So cau that cua bai (identity cong vao so nhan dat khi Accepted).</summary>

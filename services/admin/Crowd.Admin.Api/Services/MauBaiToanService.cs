@@ -63,7 +63,7 @@ namespace Crowd.Admin.Api.Services
             MauBaiToan? m = await _db.MauBaiToans.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
             if (m == null || (!m.Active && !tatCa))
             {
-                throw new AdminException(404, "khong_tim_thay", "Khong tim thay mau bai toan.");
+                throw new AdminException(404, "khong_tim_thay", "Không tìm thấy mẫu bài toán.");
             }
 
             return TaoResponse(m);
@@ -79,7 +79,7 @@ namespace Crowd.Admin.Api.Services
             string ma = (body.Code ?? string.Empty).Trim().ToLowerInvariant();
             if (!MaHopLe().IsMatch(ma))
             {
-                throw new AdminException(400, "ma_khong_hop_le", "code: 2-60 ky tu a-z, 0-9, '-' (bat dau bang chu / so).");
+                throw new AdminException(400, "ma_khong_hop_le", "code: 2–60 ký tự a-z, 0-9, '-' (bắt đầu bằng chữ / số).");
             }
 
             DuLieuMau d = KiemTra(body);
@@ -92,7 +92,7 @@ namespace Crowd.Admin.Api.Services
             }
             catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "ux_workspace_templates_code"))
             {
-                throw new AdminException(409, "ma_da_ton_tai", "Da co mau voi code nay.");
+                throw new AdminException(409, "ma_da_ton_tai", "Đã có mẫu với code này.");
             }
 
             return TaoResponse(m);
@@ -162,7 +162,7 @@ namespace Crowd.Admin.Api.Services
             MauBaiToan? m = await _db.MauBaiToans.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (m == null)
             {
-                throw new AdminException(404, "khong_tim_thay", "Khong tim thay mau bai toan.");
+                throw new AdminException(404, "khong_tim_thay", "Không tìm thấy mẫu bài toán.");
             }
 
             return m;
@@ -186,19 +186,19 @@ namespace Crowd.Admin.Api.Services
             string ten = (body.Name ?? string.Empty).Trim();
             if (ten.Length == 0 || ten.Length > MauBaiToan.DoDaiTenToiDa)
             {
-                throw new AdminException(400, "ten_khong_hop_le", "name: 1-" + MauBaiToan.DoDaiTenToiDa + " ky tu.");
+                throw new AdminException(400, "ten_khong_hop_le", "name: 1-" + MauBaiToan.DoDaiTenToiDa + " ký tự.");
             }
 
             string moTa = (body.Description ?? string.Empty).Trim();
             if (moTa.Length > MauBaiToan.DoDaiMoTaToiDa)
             {
-                throw new AdminException(400, "mo_ta_qua_dai", "description toi da " + MauBaiToan.DoDaiMoTaToiDa + " ky tu.");
+                throw new AdminException(400, "mo_ta_qua_dai", "description tối đa " + MauBaiToan.DoDaiMoTaToiDa + " ký tự.");
             }
 
             string huongDan = body.GuidelineMarkdown ?? string.Empty;
             if (huongDan.Length > MauBaiToan.DoDaiHuongDanToiDa)
             {
-                throw new AdminException(400, "huong_dan_qua_dai", "guidelineMarkdown toi da " + MauBaiToan.DoDaiHuongDanToiDa + " ky tu.");
+                throw new AdminException(400, "huong_dan_qua_dai", "guidelineMarkdown tối đa " + MauBaiToan.DoDaiHuongDanToiDa + " ký tự.");
             }
 
             if (body.SuggestedUnitPriceVnd.HasValue && body.SuggestedUnitPriceVnd.Value < 0)
@@ -213,7 +213,7 @@ namespace Crowd.Admin.Api.Services
 
             if (body.LabelSchema.ValueKind != System.Text.Json.JsonValueKind.Object)
             {
-                throw new AdminException(400, "thieu_tap_nhan", "labelSchema phai la object (co modality, tools).");
+                throw new AdminException(400, "thieu_tap_nhan", "labelSchema phải là object (có modality, tools).");
             }
 
             // Cung bo doc voi project-svc: mau qua duoc day thi ap vao du an cung qua.

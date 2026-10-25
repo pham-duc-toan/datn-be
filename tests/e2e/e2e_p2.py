@@ -1,5 +1,6 @@
 # E2E P2 — cong link: link-svc (rut gon, kiem duyet, gioi thieu) + gate-svc (trang vuot link)
 # + ledger (tra sharer, ngan sach cong link, hoa hong, giu doanh thu) + annotation (nhan cong link).
+import hashlib
 import json, os, subprocess, sys, time, uuid
 import requests
 
@@ -26,7 +27,7 @@ def login(e, pw=PW):
 
 def dang_ky(vai_tro):
     email = f"e2e-p2-{uuid.uuid4().hex[:8]}@crowd.local"
-    r = requests.post(G + "/auth/register", json={"email": email, "password": PW, "displayName": "p2", "roles": vai_tro})
+    r = requests.post(G + "/auth/register", json={"email": email, "username": "u" + hashlib.sha1((email).encode()).hexdigest()[:20], "password": PW, "displayName": "p2", "roles": vai_tro})
     r.raise_for_status()
     h = login(email)
     me = requests.get(G + "/me", headers=h).json()
@@ -153,7 +154,7 @@ try:
 
     print("\n[2] Nguoi chia se: API key, rut gon don le / Quick Link / hang loat, kiem duyet link dich")
     # Chia se link la CHUC NANG cua moi tai khoan, khong con la vai tro tu chon luc dang ky.
-    r = requests.post(G + "/auth/register", json={"email": f"e2e-p2-{uuid.uuid4().hex[:8]}@crowd.local", "password": PW, "displayName": "p2", "roles": ["sharer"]})
+    r = requests.post(G + "/auth/register", json={"email": f"e2e-p2-{uuid.uuid4().hex[:8]}@crowd.local", "username": "u" + hashlib.sha1((f"e2e-p2-{uuid.uuid4().hex[:8]}@crowd.local").encode()).hexdigest()[:20], "password": PW, "displayName": "p2", "roles": ["sharer"]})
     kiem("dang ky voi vai tro 'sharer' → 400 (khong con la vai tro)", r.status_code == 400, r.text)
     sh, sh_id = dang_ky(["labeler"])
     r = requests.post(G + "/links", headers=biz, json={"url": "https://example.com/a"})

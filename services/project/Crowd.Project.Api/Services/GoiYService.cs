@@ -54,7 +54,7 @@ namespace Crowd.Project.Api.Services
             NguoiDungTraCuu? toi = await _identity.LayAsync(uid, ct);
             if (toi == null)
             {
-                throw new NotFoundException("Khong tim thay tai khoan.");
+                throw new NotFoundException("Không tìm thấy tài khoản.");
             }
 
             List<LabelingProject> ungVien = await _db.Projects.AsNoTracking()

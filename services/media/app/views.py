@@ -61,7 +61,7 @@ def doc_quyen(token: str) -> QuyenXem:
     try:
         return giai_ma(khoa_grant(), token)
     except TokenKhongHopLe as ex:
-        raise LoiApi(403, "link_khong_hop_le", "Link xem khong hop le.") from ex
+        raise LoiApi(403, "link_khong_hop_le", "Link xem không hợp lệ.") from ex
 
 
 def nguoi_xem(q: QuyenXem) -> watermark.NguoiXem:
@@ -69,7 +69,7 @@ def nguoi_xem(q: QuyenXem) -> watermark.NguoiXem:
         return watermark.NguoiXem(watermark.LOAI_TAI_KHOAN, q.user_id)
     if q.guest_session_id is not None:
         return watermark.NguoiXem(watermark.LOAI_KHACH, q.guest_session_id)
-    raise LoiApi(403, "link_khong_hop_le", "Link xem thieu nguoi xem.")
+    raise LoiApi(403, "link_khong_hop_le", "Link xem thiếu người xem.")
 
 
 @lru_cache
@@ -97,7 +97,7 @@ def gan_watermark(du_lieu: bytes, khoa_goc: str, nguoi: watermark.NguoiXem, buoc
 async def phuc_vu(token: str, request: Request) -> Response:
     q = doc_quyen(token)
     if q.het_han(datetime.now(timezone.utc)):
-        raise LoiApi(410, "link_het_han", "Link xem da het han — tai lai trang de lay link moi.")
+        raise LoiApi(410, "link_het_han", "Link xem đã hết hạn — tải lại trang để lấy link mới.")
 
     can_watermark = (q.modality in ("image", "audio", "video") and q.mode == "watermarked"
                      and settings_store.dung_sai(settings_store.WATERMARK_ENABLED))
@@ -109,13 +109,13 @@ async def phuc_vu(token: str, request: Request) -> Response:
     try:
         du_lieu = await asyncio.to_thread(kho().doc, q.storage_key)
     except KhongCoFile as ex:
-        raise LoiApi(404, "khong_co_file", "File mau khong con.") from ex
+        raise LoiApi(404, "khong_co_file", "File mẫu không còn.") from ex
     nguoi = nguoi_xem(q)
     buoc = settings_store.so_nguyen(settings_store.WATERMARK_STRENGTH)
     try:
         moi, loai = await asyncio.to_thread(gan_watermark, du_lieu, q.storage_key, nguoi, buoc)
     except ValueError as ex:
-        raise LoiApi(409, "anh_hong", "Anh hong, khong hien thi duoc.") from ex
+        raise LoiApi(409, "anh_hong", "Ảnh hỏng, không hiển thị được.") from ex
     return Response(moi, media_type=loai, headers=HEADER_CHONG_LUU)
 
 
@@ -151,10 +151,10 @@ async def _phat_av(q: QuyenXem, request: Request) -> Response:
         else:
             duong_dan = await bo_dem().lay(khoa, ".flac", tai_goc(lambda nguon, dich: watermark_av.nhung_file_am(nguon, dich, nguoi, khoa_wm)))
     except KhongCoFile as ex:
-        raise LoiApi(404, "khong_co_file", "File mau khong con.") from ex
+        raise LoiApi(404, "khong_co_file", "File mẫu không còn.") from ex
     except watermark_av.LoiMedia as ex:
         log.warning("Khong nhung duoc watermark cho %s: %s", q.storage_key, ex)
-        raise LoiApi(409, "media_hong", "File hong, khong phat duoc.") from ex
+        raise LoiApi(409, "media_hong", "File hỏng, không phát được.") from ex
     return _phat_tep(duong_dan, "video/mp4" if la_video else "audio/flac", request)
 
 
@@ -190,7 +190,7 @@ async def _phat_goc(khoa: str, request: Request) -> Response:
     try:
         tt = await asyncio.to_thread(kho().thong_tin, khoa)
     except KhongCoFile as ex:
-        raise LoiApi(404, "khong_co_file", "File mau khong con.") from ex
+        raise LoiApi(404, "khong_co_file", "File mẫu không còn.") from ex
 
     loai = tt.content_type or _loai_noi_dung(khoa)
     if loai == "application/octet-stream":

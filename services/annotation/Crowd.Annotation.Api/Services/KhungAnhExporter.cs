@@ -186,8 +186,8 @@ namespace Crowd.Annotation.Api.Services
             {
                 throw new InvalidValueException(
                     "khung_chi_cho_anh",
-                    dinhDang + " chi xuat duoc cho du an anh co cong cu bbox" + (dinhDang == "voc" ? " / polygon" : string.Empty)
-                    + ". Da giac: dung coco hoac yolo-seg.");
+                    dinhDang + " chỉ xuất được cho dự án ảnh có công cụ bbox" + (dinhDang == "voc" ? " / polygon" : string.Empty)
+                    + ". Đa giác: dùng coco hoặc yolo-seg.");
             }
 
             return congCu;
@@ -286,7 +286,7 @@ namespace Crowd.Annotation.Api.Services
                 + moTa + "\n"
                 + "Moi khung la mot doi tuong DA GOP tu cac nhan da duyet (ghep cum theo IoU, lay trung vi toa do). Mau tranh chap khong co khung.\n"
                 + "File anh khong nam trong zip — images.txt: sampleId <TAB> khoa file trong kho.\n"
-                + (boQua > 0 ? "Bo qua " + boQua + " anh khong co kich thuoc trong metadata.\n" : string.Empty);
+                + (boQua > 0 ? "Bỏ qua " + boQua + " ảnh không có kích thước trong metadata.\n" : string.Empty);
         }
 
         private static double KepDoan(double v)

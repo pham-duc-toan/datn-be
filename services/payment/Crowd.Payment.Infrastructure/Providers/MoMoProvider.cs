@@ -178,13 +178,13 @@ namespace Crowd.Payment.Infrastructure.Providers
             }
             catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException || ex is JsonException)
             {
-                throw new CongThanhToanException("MoMo khong phan hoi khi tao lenh.", ex);
+                throw new CongThanhToanException("MoMo không phản hồi khi tạo lệnh.", ex);
             }
 
             if (phanHoi == null || MoMoKy.Lay(phanHoi, "resultCode") != "0" || MoMoKy.Lay(phanHoi, "payUrl").Length == 0)
             {
                 string ma = phanHoi == null ? "?" : MoMoKy.Lay(phanHoi, "resultCode") + " " + MoMoKy.Lay(phanHoi, "message");
-                throw new CongThanhToanException("MoMo tu choi tao lenh: " + ma, null);
+                throw new CongThanhToanException("MoMo từ chối tạo lệnh: " + ma, null);
             }
 
             return MoMoKy.Lay(phanHoi, "payUrl");

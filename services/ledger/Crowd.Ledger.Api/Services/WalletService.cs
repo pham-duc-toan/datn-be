@@ -188,7 +188,7 @@ namespace Crowd.Ledger.Api.Services
 
             if (await _db.BlockedUsers.AnyAsync(b => b.UserId == uid && b.Blocked, ct))
             {
-                throw new ForbiddenException("tai_khoan_bi_khoa", "Tai khoan dang bi khoa, khong rut duoc tien.");
+                throw new ForbiddenException("tai_khoan_bi_khoa", "Tài khoản đang bị khoá, không rút được tiền.");
             }
 
             // FC-01: claim email_verified cua access token (identity cap) — khong giu ban sao. Vua xac thuc
@@ -197,7 +197,7 @@ namespace Crowd.Ledger.Api.Services
             {
                 throw new RuleViolationException(
                     "chua_xac_thuc_email",
-                    "Chua xac thuc email — bam link trong email truoc khi rut tien. Vua xac thuc xong thi dang nhap lai / lam moi token.");
+                    "Chưa xác thực email — bấm link trong email trước khi rút tiền. Vừa xác thực xong thì đăng nhập lại / làm mới token.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -225,7 +225,7 @@ namespace Crowd.Ledger.Api.Services
                 {
                     throw new RuleViolationException(
                         "khong_du_so_du",
-                        "So du kha dung " + kheDung + "d, khong du rut " + w.AmountVnd + "d.");
+                        "Số dư khả dụng " + kheDung + "đ, không đủ rút " + w.AmountVnd + "đ.");
                 }
 
                 _db.Withdrawals.Add(w);

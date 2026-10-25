@@ -3,6 +3,7 @@
 #   roi du an); FP-01 NDA dien tu; FP-05 chi labeler da xac minh; loi moi cho (email chua co tai khoan / can
 #   tu dong y); FB-23 danh sach chan / uu tien cap doanh nghiep + danh gia; FL-02 goi y du an; don xin het han.
 # Chay: python e2e_bao_ve_du_an.py   (stack demo: E2E_PROFILE=demo)
+import hashlib
 import base64, json, os, sys, time, uuid
 import requests
 
@@ -137,7 +138,7 @@ try:
     r = requests.post(G + f"/projects/{Q}/members", headers=biz["h"], json={"role": "labeler", "email": email_moi.upper()})
     kiem("moi email chua co tai khoan → 202 invitation", r.status_code == 202 and r.json()["email"] == email_moi and r.json()["userId"] is None, r.text)
     kiem("chu du an thay loi moi cho", any(x["email"] == email_moi and x["status"] == "pending" for x in requests.get(G + f"/projects/{Q}/invitations", headers=biz["h"]).json()))
-    requests.post(G + "/auth/register", json={"email": email_moi, "password": PW, "displayName": "moi", "roles": ["labeler"]}).raise_for_status()
+    requests.post(G + "/auth/register", json={"email": email_moi, "username": "u" + hashlib.sha1((email_moi).encode()).hexdigest()[:20], "password": PW, "displayName": "moi", "roles": ["labeler"]}).raise_for_status()
     t_moi = login_raw(email_moi).json()
     uid_moi = requests.get(G + "/me", headers=hdr(t_moi["accessToken"])).json()["userId"]
     time.sleep(2)

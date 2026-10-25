@@ -30,7 +30,7 @@ namespace Crowd.Identity.Api.Controllers
         /// hay mat khau sai deu y het. Tach hai thong bao thi ke tan cong thu
         /// email la biet tai khoan nao co that (VD-S-13).
         /// </summary>
-        private const string SaiThongTin = "Email hoac mat khau khong dung.";
+        private const string SaiThongTin = "Email / username hoặc mật khẩu không đúng.";
 
         private readonly AuthService _authService;
         private readonly TaiKhoanService _taiKhoan;
@@ -76,7 +76,12 @@ namespace Crowd.Identity.Api.Controllers
 
             if (ketQua.TrangThai == DangKyTrangThai.EmailDaTonTai)
             {
-                return Loi(StatusCodes.Status409Conflict, "email_da_ton_tai", "Email da duoc dang ky.");
+                return Loi(StatusCodes.Status409Conflict, "email_da_ton_tai", "Email đã được đăng ký.");
+            }
+
+            if (ketQua.TrangThai == DangKyTrangThai.UsernameDaTonTai)
+            {
+                return Loi(StatusCodes.Status409Conflict, "username_da_ton_tai", "Username đã có người dùng — chọn tên khác.");
             }
 
             RegisterResponse phanHoi = new RegisterResponse { UserId = ketQua.UserId };
@@ -101,7 +106,7 @@ namespace Crowd.Identity.Api.Controllers
 
             if (ketQua.TrangThai == DangNhapTrangThai.BiKhoa)
             {
-                return Loi(StatusCodes.Status403Forbidden, "tai_khoan_bi_khoa", "Tai khoan dang bi khoa.");
+                return Loi(StatusCodes.Status403Forbidden, "tai_khoan_bi_khoa", "Tài khoản đang bị khoá.");
             }
 
             // Tai khoan bat 2FA (FC-04): 200 nhung CHUA co token — { twoFactorRequired, challengeToken, expiresIn }.
@@ -133,22 +138,22 @@ namespace Crowd.Identity.Api.Controllers
 
             if (kq.TrangThai == XacThucHaiLopTrangThai.SaiMa)
             {
-                ObjectResult loi = Loi(StatusCodes.Status401Unauthorized, "ma_2fa_sai", "Ma xac thuc khong dung.");
+                ObjectResult loi = Loi(StatusCodes.Status401Unauthorized, "ma_2fa_sai", "Mã xác thực không đúng.");
                 ((ProblemDetails)loi.Value!).Extensions["attemptsLeft"] = kq.ConLai;
                 return loi;
             }
 
             if (kq.TrangThai == XacThucHaiLopTrangThai.HetLuot)
             {
-                return Loi(StatusCodes.Status401Unauthorized, "het_luot_2fa", "Nhap sai qua nhieu lan — dang nhap lai bang mat khau.");
+                return Loi(StatusCodes.Status401Unauthorized, "het_luot_2fa", "Nhập sai quá nhiều lần — đăng nhập lại bằng mật khẩu.");
             }
 
             if (kq.TrangThai == XacThucHaiLopTrangThai.BiKhoa)
             {
-                return Loi(StatusCodes.Status403Forbidden, "tai_khoan_bi_khoa", "Tai khoan dang bi khoa.");
+                return Loi(StatusCodes.Status403Forbidden, "tai_khoan_bi_khoa", "Tài khoản đang bị khoá.");
             }
 
-            return Loi(StatusCodes.Status401Unauthorized, "thu_thach_khong_hop_le", "Phien xac thuc 2 lop het han — dang nhap lai.");
+            return Loi(StatusCodes.Status401Unauthorized, "thu_thach_khong_hop_le", "Phiên xác thực 2 lớp hết hạn — đăng nhập lại.");
         }
 
         /// <summary>POST /auth/refresh</summary>
@@ -163,7 +168,7 @@ namespace Crowd.Identity.Api.Controllers
 
             if (cap == null)
             {
-                return Loi(StatusCodes.Status401Unauthorized, "phien_khong_hop_le", "Phien dang nhap khong con hieu luc — hay dang nhap lai.");
+                return Loi(StatusCodes.Status401Unauthorized, "phien_khong_hop_le", "Phiên đăng nhập không còn hiệu lực — hãy đăng nhập lại.");
             }
 
             return Ok(cap);
@@ -208,7 +213,7 @@ namespace Crowd.Identity.Api.Controllers
         {
             if (body == null)
             {
-                return Loi(StatusCodes.Status400BadRequest, "ma_khong_hop_le", "Thieu du lieu.");
+                return Loi(StatusCodes.Status400BadRequest, "ma_khong_hop_le", "Thiếu dữ liệu.");
             }
 
             await _taiKhoan.DatLaiMatKhauAsync(body.Token, body.NewPassword, KhachVangLai(), ct);

@@ -152,6 +152,12 @@ namespace Crowd.Payment.Api.Controllers
             });
             gd.ReturnUrl = q["vnp_ReturnUrl"];
             gd.IpnUrl = _vnpay.IpnUrl;
+            if (TrangGiaLap.LaTrinhDuyet(Request))
+            {
+                string goc = "/payments/sandbox/vnpay/pay/" + Uri.EscapeDataString(gd.MaDon);
+                return TrangGiaLap.Tao("VNPay", "#005baa", gd.AmountVnd, gd.OrderInfo, goc + "?result=success", goc + "?result=cancel");
+            }
+
             return Ok(new
             {
                 gateway = "vnpay (gia lap)",
@@ -302,6 +308,20 @@ namespace Crowd.Payment.Api.Controllers
                 message = "Thanh cong.",
                 payUrl = _sandbox.PublicUrl.TrimEnd('/') + "/payments/sandbox/momo/pay/" + gd.MaDon,
             });
+        }
+
+        /// <summary>GET /payments/sandbox/momo/pay/{orderId} — trang "vi MoMo" cho trinh duyet.</summary>
+        [HttpGet("momo/pay/{orderId}")]
+        public IActionResult MoMoTrang(string orderId)
+        {
+            GiaoDichGiaLap? gd;
+            if (!_env.IsDevelopment() || !_kho.MoMo.TryGetValue(orderId, out gd))
+            {
+                return NotFound();
+            }
+
+            string goc = "/payments/sandbox/momo/pay/" + Uri.EscapeDataString(gd.MaDon);
+            return TrangGiaLap.Tao("Ví MoMo", "#a50064", gd.AmountVnd, gd.OrderInfo, goc + "?result=success", goc + "?result=cancel");
         }
 
         /// <summary>POST /payments/sandbox/momo/pay/{orderId}?result=success|cancel — nguoi dung xac nhan tren vi.</summary>

@@ -219,14 +219,14 @@ namespace Crowd.Project.Domain.Projects
         {
             if (ownerId == Guid.Empty)
             {
-                throw new InvalidValueException("owner_rong", "Thieu chu so huu.");
+                throw new InvalidValueException("owner_rong", "Thiếu chủ sở hữu.");
             }
 
             if (!Modalities.HopLe(modality))
             {
                 throw new InvalidValueException(
                     "loai_du_lieu_khong_hop_le",
-                    "Loai du lieu phai la mot trong: " + string.Join(", ", Modalities.TatCa) + ".");
+                    "Loại dữ liệu phải là một trong: " + string.Join(", ", Modalities.TatCa) + ".");
             }
 
             LabelingProject duAn = new LabelingProject();
@@ -249,7 +249,7 @@ namespace Crowd.Project.Domain.Projects
 
         public void CapNhatThongTin(string name, string? description, ProjectVisibility visibility, DateTimeOffset luc, QuyDinhDuAn quyDinh)
         {
-            ChiKhiNhap("sua thong tin");
+            ChiKhiNhap("sửa thông tin");
             GanThongTin(name, description, visibility, luc, quyDinh);
         }
 
@@ -260,14 +260,14 @@ namespace Crowd.Project.Domain.Projects
                 throw new ArgumentNullException(nameof(schema));
             }
 
-            ChiKhiNhap("doi tap nhan");
+            ChiKhiNhap("đổi tập nhãn");
 
             // Tap nhan cho anh khong dung duoc cho du an am thanh.
             if (schema.Modality != Modality)
             {
                 throw new InvalidValueException(
                     "loai_du_lieu_khong_khop",
-                    "Tap nhan danh cho du lieu " + schema.Modality + ", du an la du lieu " + Modality + ".");
+                    "Tập nhãn dành cho dữ liệu " + schema.Modality + ", dự án là dữ liệu " + Modality + ".");
             }
 
             LabelSchema = schema;
@@ -288,7 +288,7 @@ namespace Crowd.Project.Domain.Projects
 
             if (Status != ProjectStatus.Draft && Status != ProjectStatus.Paused)
             {
-                throw KhongTheKhi("sua huong dan");
+                throw KhongTheKhi("sửa hướng dẫn");
             }
 
             foreach (GuidelineExample viDu in guideline.Examples)
@@ -297,7 +297,7 @@ namespace Crowd.Project.Domain.Projects
                 {
                     throw new InvalidValueException(
                         "nhan_vi_du_khong_co",
-                        "Vi du dung nhan '" + viDu.Label + "' khong co trong tap nhan.");
+                        "Ví dụ dùng nhãn '" + viDu.Label + "' không có trong tập nhãn.");
                 }
             }
 
@@ -317,37 +317,37 @@ namespace Crowd.Project.Domain.Projects
             DateTimeOffset luc,
             QuyDinhDuAn quyDinh)
         {
-            ChiKhiNhap("doi cau hinh gia");
+            ChiKhiNhap("đổi cấu hình giá");
 
             if (rewardVnd <= 0)
             {
-                throw new InvalidValueException("thuong_khong_hop_le", "Tien thuong phai lon hon 0.");
+                throw new InvalidValueException("thuong_khong_hop_le", "Tiền thưởng phải lớn hơn 0.");
             }
 
             if (rewardVnd < quyDinh.ThuongToiThieu)
             {
                 throw new InvalidValueException(
                     "thuong_duoi_toi_thieu",
-                    "Tien thuong toi thieu cua nen tang la " + quyDinh.ThuongToiThieu + "d cho moi nguoi lam dat.");
+                    "Tiền thưởng tối thiểu của nền tảng là " + quyDinh.ThuongToiThieu + "đ cho mỗi người làm đạt.");
             }
 
             if (slots < quyDinh.SoSuatToiThieu || slots > quyDinh.SoSuatToiDa)
             {
                 throw new InvalidValueException(
                     "so_suat_khong_hop_le",
-                    "So suat phai tu " + quyDinh.SoSuatToiThieu + " den " + quyDinh.SoSuatToiDa + " nguoi.");
+                    "Số suất thưởng phải từ " + quyDinh.SoSuatToiThieu + " đến " + quyDinh.SoSuatToiDa + " người.");
             }
 
             if (passThresholdPercent < quyDinh.NguongDatToiThieu || passThresholdPercent > quyDinh.NguongDatToiDa)
             {
                 throw new InvalidValueException(
                     "nguong_dat_ngoai_khoang",
-                    "Nguong dat phai tu " + quyDinh.NguongDatToiThieu + "% den " + quyDinh.NguongDatToiDa + "%.");
+                    "Ngưỡng đạt phải từ " + quyDinh.NguongDatToiThieu + "% đến " + quyDinh.NguongDatToiDa + "%.");
             }
 
             if (deadline <= luc)
             {
-                throw new InvalidValueException("deadline_da_qua", "Deadline phai o tuong lai.");
+                throw new InvalidValueException("deadline_da_qua", "Hạn chót phải ở tương lai.");
             }
 
             RewardVnd = rewardVnd;
@@ -362,23 +362,23 @@ namespace Crowd.Project.Domain.Projects
         public void DatKenhPhanPhoi(
             bool professional, bool linkGateway, bool collaborative, long? gateUnitPriceVnd, long? gateBudgetVnd, DateTimeOffset luc)
         {
-            ChiKhiNhap("doi kenh phan phoi");
+            ChiKhiNhap("đổi kênh phân phối");
 
             if (!professional && !linkGateway && !collaborative)
             {
-                throw new InvalidValueException("khong_co_kenh", "Phai chon it nhat mot kenh phan phoi.");
+                throw new InvalidValueException("khong_co_kenh", "Phải chọn ít nhất một kênh phân phối.");
             }
 
             long gia = gateUnitPriceVnd ?? 0;
             long nganSach = gateBudgetVnd ?? 0;
             if (gia < 0 || nganSach < 0)
             {
-                throw new InvalidValueException("gia_cong_link_khong_hop_le", "Gia va ngan sach cong link khong duoc am.");
+                throw new InvalidValueException("gia_cong_link_khong_hop_le", "Giá và ngân sách cổng link không được âm.");
             }
 
             if (linkGateway && nganSach > 0 && gia > 0 && nganSach < gia)
             {
-                throw new InvalidValueException("ngan_sach_cong_link_qua_nho", "Ngan sach cong link phai du it nhat mot nhan.");
+                throw new InvalidValueException("ngan_sach_cong_link_qua_nho", "Ngân sách cổng link phải đủ ít nhất một nhãn.");
             }
 
             AllowProfessional = professional;
@@ -398,28 +398,28 @@ namespace Crowd.Project.Domain.Projects
             DateTimeOffset luc,
             QuyDinhDuAn quyDinh)
         {
-            ChiKhiNhap("doi dieu kien tham gia");
+            ChiKhiNhap("đổi điều kiện tham gia");
 
             if (minLevel.HasValue && minLevel.Value < 1)
             {
-                throw new InvalidValueException("cap_do_khong_hop_le", "Cap do toi thieu phai tu 1.");
+                throw new InvalidValueException("cap_do_khong_hop_le", "Cấp độ tối thiểu phải từ 1.");
             }
 
             if (minReputation.HasValue && (minReputation.Value < 0 || minReputation.Value > 100))
             {
-                throw new InvalidValueException("uy_tin_khong_hop_le", "Diem uy tin toi thieu phai tu 0 den 100.");
+                throw new InvalidValueException("uy_tin_khong_hop_le", "Điểm uy tín tối thiểu phải từ 0 đến 100.");
             }
 
             if (entranceQuestionCount < 1 || entranceQuestionCount > quyDinh.SoCauTestToiDa)
             {
                 throw new InvalidValueException(
                     "so_cau_test_khong_hop_le",
-                    "So cau test phai tu 1 den " + quyDinh.SoCauTestToiDa + ".");
+                    "Số câu test phải từ 1 đến " + quyDinh.SoCauTestToiDa + ".");
             }
 
             if (entrancePassPercent < 1 || entrancePassPercent > 100)
             {
-                throw new InvalidValueException("nguong_dau_khong_hop_le", "Nguong dau phai tu 1 den 100%.");
+                throw new InvalidValueException("nguong_dau_khong_hop_le", "Ngưỡng đậu phải từ 1 đến 100%.");
             }
 
             MinLevel = minLevel;
@@ -442,28 +442,28 @@ namespace Crowd.Project.Domain.Projects
             bool requireVerifiedIdentity,
             DateTimeOffset luc)
         {
-            ChiKhiNhap("doi cau hinh bao ve");
+            ChiKhiNhap("đổi cấu hình bảo vệ");
 
             string? canhBao = string.IsNullOrWhiteSpace(contentWarning) ? null : contentWarning.Trim();
             if (sensitiveContent && canhBao == null)
             {
-                throw new InvalidValueException("thieu_canh_bao", "Du an noi dung nhay cam phai co loi canh bao cho labeler.");
+                throw new InvalidValueException("thieu_canh_bao", "Dự án nội dung nhạy cảm phải có lời cảnh báo cho labeler.");
             }
 
             if (canhBao != null && canhBao.Length > CotDb.CanhBaoNoiDung)
             {
-                throw new InvalidValueException("canh_bao_qua_dai", "Loi canh bao toi da " + CotDb.CanhBaoNoiDung + " ky tu.");
+                throw new InvalidValueException("canh_bao_qua_dai", "Lời cảnh báo tối đa " + CotDb.CanhBaoNoiDung + " ký tự.");
             }
 
             string? nda = string.IsNullOrWhiteSpace(ndaText) ? null : ndaText.Trim();
             if (ndaRequired && nda == null)
             {
-                throw new InvalidValueException("thieu_van_ban_nda", "Bat NDA thi phai co van ban thoa thuan.");
+                throw new InvalidValueException("thieu_van_ban_nda", "Bật NDA thì phải có văn bản thoả thuận.");
             }
 
             if (nda != null && nda.Length > CotDb.VanBanNda)
             {
-                throw new InvalidValueException("nda_qua_dai", "Van ban NDA toi da " + CotDb.VanBanNda + " ky tu.");
+                throw new InvalidValueException("nda_qua_dai", "Văn bản NDA tối đa " + CotDb.VanBanNda + " ký tự.");
             }
 
             if (!string.Equals(nda, NdaText, StringComparison.Ordinal))
@@ -513,13 +513,13 @@ namespace Crowd.Project.Domain.Projects
             switch (lyDo)
             {
                 case "can_xac_minh_danh_tinh":
-                    return "Du an chi nhan labeler da xac minh danh tinh (gui anh giay to o /me/identity-verification).";
+                    return "Dự án chỉ nhận labeler đã xác minh danh tính (gửi ảnh giấy tờ ở mục Xác minh danh tính).";
                 case "chua_du_tuoi":
-                    return "Du an co noi dung nhay cam, chi nhan nguoi da xac minh du tuoi.";
+                    return "Dự án có nội dung nhạy cảm, chỉ nhận người đã xác minh đủ tuổi.";
                 case "can_dong_y_dieu_khoan":
-                    return "Doc va dong y canh bao noi dung / ky NDA truoc (POST /projects/{id}/consent).";
+                    return "Bạn cần đọc và đồng ý cảnh báo nội dung / ký NDA của dự án trước.";
                 default:
-                    return "Khong du dieu kien bao ve cua du an.";
+                    return "Không đủ điều kiện bảo vệ của dự án.";
             }
         }
 
@@ -528,11 +528,11 @@ namespace Crowd.Project.Domain.Projects
         {
             if (DaKetThuc())
             {
-                throw KhongTheKhi("doi nhan");
+                throw KhongTheKhi("đổi nhãn chủ đề");
             }
 
-            _domains = ChuanHoaNhan(linhVuc, "Linh vuc");
-            _languages = ChuanHoaNhan(ngonNgu, "Ngon ngu");
+            _domains = ChuanHoaNhan(linhVuc, "Lĩnh vực");
+            _languages = ChuanHoaNhan(ngonNgu, "Ngôn ngữ");
             UpdatedAt = luc;
         }
 
@@ -550,7 +550,7 @@ namespace Crowd.Project.Domain.Projects
                 string v = (muc ?? string.Empty).Trim();
                 if (v.Length == 0 || v.Length > 50)
                 {
-                    throw new InvalidValueException("nhan_khong_hop_le", ten + ": moi muc tu 1 den 50 ky tu.");
+                    throw new InvalidValueException("nhan_khong_hop_le", ten + ": mỗi mục từ 1 đến 50 ký tự.");
                 }
 
                 if (daCo.Add(v))
@@ -561,7 +561,7 @@ namespace Crowd.Project.Domain.Projects
 
             if (kq.Count > 10)
             {
-                throw new InvalidValueException("nhan_khong_hop_le", ten + ": toi da 10 muc.");
+                throw new InvalidValueException("nhan_khong_hop_le", ten + ": tối đa 10 mục.");
             }
 
             return kq;
@@ -572,7 +572,7 @@ namespace Crowd.Project.Domain.Projects
         {
             if (FilesPurgedAt.HasValue)
             {
-                throw new RuleViolationException("file_da_xoa", "File cua du an da bi xoa.");
+                throw new RuleViolationException("file_da_xoa", "File của dự án đã bị xoá.");
             }
 
             DeleteFilesAfterClose = dongY;
@@ -594,7 +594,7 @@ namespace Crowd.Project.Domain.Projects
         /// <summary>Nap dataset chi khi Nhap: ky quy tinh theo so mau luc publish.</summary>
         public void KiemTraCoTheNapDuLieu()
         {
-            ChiKhiNhap("nap them du lieu");
+            ChiKhiNhap("nạp thêm dữ liệu");
         }
 
         /// <summary>
@@ -605,14 +605,14 @@ namespace Crowd.Project.Domain.Projects
         {
             if (Status != ProjectStatus.Draft)
             {
-                throw KhongTheKhi("sua cau hoi vang");
+                throw KhongTheKhi("sửa câu hỏi vàng");
             }
 
             if (LabelSchema == null)
             {
                 throw new RuleViolationException(
                     "chua_co_tap_nhan",
-                    "Phai dinh nghia tap nhan truoc khi tao cau hoi vang.");
+                    "Phải định nghĩa tập nhãn trước khi tạo câu hỏi vàng.");
             }
         }
 
@@ -735,34 +735,17 @@ namespace Crowd.Project.Domain.Projects
             return thieu;
         }
 
-        /// <summary>Canh bao KHONG chan publish: khong co cau vang kiem tra thi luat "khong sai cau vang" vo nghia.</summary>
-        public static IReadOnlyList<string> CanhBao(int soCauVangKiemTra)
-        {
-            return CanhBao(soCauVangKiemTra, null);
-        }
-
         /// <summary>
-        /// Nhu tren, them: tap nhan co cau tra loi mo (freeText) → "cham_cau_tra_loi_mo_lau" — khi du an ket thuc,
-        /// quality-svc cho ml-svc phan tich nghia tung cau roi moi cham (kien truc 3.19), ket qua va tien cong
-        /// cua labeler co muon hon cac dang khac.
+        /// Canh bao KHONG chan publish:
+        ///   - tap nhan co cau tra loi mo (freeText) → "cham_cau_tra_loi_mo_lau": khi du an ket thuc, quality-svc cho
+        ///     ml-svc phan tich nghia tung cau roi moi cham (kien truc 3.19), tien cong cua labeler co muon hon;
+        ///   - co file video media-svc khong chuan bi duoc (file hong) → "video_khong_xu_ly_duoc". Khong chan: chua co
+        ///     cach xoa tung mau, chan thi doanh nghiep ket — admin xem canh bao roi quyet duyet / tu choi.
+        /// Thieu cau vang kiem tra KHONG con canh bao (10/2026): cau vang la tuy chon, doanh nghiep khong can bi nhac.
         /// </summary>
-        public static IReadOnlyList<string> CanhBao(int soCauVangKiemTra, LabelSchema? tapNhan)
-        {
-            return CanhBao(soCauVangKiemTra, tapNhan, 0);
-        }
-
-        /// <summary>
-        /// Nhu tren, them: co file video media-svc khong chuan bi duoc (file hong) → "video_khong_xu_ly_duoc".
-        /// KHONG chan: chua co cach xoa tung mau, chan thi doanh nghiep ket — admin xem canh bao roi quyet duyet / tu choi.
-        /// </summary>
-        public static IReadOnlyList<string> CanhBao(int soCauVangKiemTra, LabelSchema? tapNhan, int soVideoLoi)
+        public static IReadOnlyList<string> CanhBao(LabelSchema? tapNhan, int soVideoLoi)
         {
             List<string> ds = new List<string>();
-            if (soCauVangKiemTra <= 0)
-            {
-                ds.Add("khong_co_cau_vang_kiem_tra");
-            }
-
             if (tapNhan != null && tapNhan.Tools.Any(t => t.Kind == ToolKinds.FreeText))
             {
                 ds.Add("cham_cau_tra_loi_mo_lau");
@@ -812,7 +795,7 @@ namespace Crowd.Project.Domain.Projects
 
             if (phanTramPhi < 0 || phanTramPhi > 100)
             {
-                throw new InvalidValueException("phi_khong_hop_le", "Phi nen tang phai tu 0 den 100%.");
+                throw new InvalidValueException("phi_khong_hop_le", "Phí nền tảng phải từ 0 đến 100%.");
             }
 
             IReadOnlyList<string> thieu = NhungGiConThieu(soCauThat, soCauVangChoTest, coDuLieuDangXuLy, quyDinh, congCuChoCongLink, luc, soVideoDangChuanBi);
@@ -820,7 +803,7 @@ namespace Crowd.Project.Domain.Projects
             {
                 throw new RuleViolationException(
                     "chua_san_sang_publish",
-                    "Chua the publish, con thieu: " + string.Join(", ", thieu));
+                    "Chưa thể publish, còn thiếu: " + string.Join(", ", thieu));
             }
 
             PlatformFeePercent = phanTramPhi;
@@ -831,7 +814,7 @@ namespace Crowd.Project.Domain.Projects
         /// <summary>Ledger da giu tien (escrow.reserved): Cho ky quy → Cho duyet.</summary>
         public void XacNhanDaKyQuy(DateTimeOffset luc)
         {
-            ChiKhi(ProjectStatus.PendingEscrow, "xac nhan ky quy");
+            ChiKhi(ProjectStatus.PendingEscrow, "xác nhận ký quỹ");
 
             WasEscrowed = true;
             SubmittedForApprovalAt = luc;
@@ -841,20 +824,20 @@ namespace Crowd.Project.Domain.Projects
         /// <summary>Ledger tu choi (escrow.rejected): ve Nhap kem ly do de doanh nghiep sua.</summary>
         public void KyQuyBiTuChoi(string lyDo, DateTimeOffset luc)
         {
-            ChiKhi(ProjectStatus.PendingEscrow, "tu choi ky quy");
+            ChiKhi(ProjectStatus.PendingEscrow, "từ chối ký quỹ");
             DoiTrangThai(ProjectStatus.Draft, lyDo, luc);
         }
 
         /// <summary>Admin duyet (FM-02): Cho duyet → Dang chay.</summary>
         public void Duyet(DateTimeOffset luc)
         {
-            ChiKhi(ProjectStatus.PendingApproval, "duyet");
+            ChiKhi(ProjectStatus.PendingApproval, "duyệt");
 
             if (Deadline.HasValue && Deadline.Value <= luc)
             {
                 throw new RuleViolationException(
                     "deadline_da_qua",
-                    "Deadline da qua trong luc cho duyet — nen tu choi de hoan ky quy.");
+                    "Hạn chót đã qua trong lúc chờ duyệt — nên từ chối để hoàn ký quỹ.");
             }
 
             PublishedAt = luc;
@@ -867,7 +850,7 @@ namespace Crowd.Project.Domain.Projects
         /// </summary>
         public void TuChoiDuyet(string lyDo, DateTimeOffset luc)
         {
-            ChiKhi(ProjectStatus.PendingApproval, "tu choi duyet");
+            ChiKhi(ProjectStatus.PendingApproval, "từ chối duyệt");
             BatBuocCoLyDo(lyDo);
 
             ClosedAt = luc;
@@ -889,7 +872,7 @@ namespace Crowd.Project.Domain.Projects
             {
                 throw new RuleViolationException(
                     "chua_qua_han",
-                    "Du an chua qua han cho duyet.");
+                    "Dự án chưa quá hạn chờ duyệt.");
             }
 
             ClosedAt = luc;
@@ -898,19 +881,19 @@ namespace Crowd.Project.Domain.Projects
 
         public void TamDung(DateTimeOffset luc)
         {
-            ChiKhi(ProjectStatus.Running, "tam dung");
+            ChiKhi(ProjectStatus.Running, "tạm dừng");
             DoiTrangThai(ProjectStatus.Paused, null, luc);
         }
 
         public void TiepTuc(DateTimeOffset luc)
         {
-            ChiKhi(ProjectStatus.Paused, "tiep tuc");
+            ChiKhi(ProjectStatus.Paused, "tiếp tục");
 
             if (Deadline.HasValue && Deadline.Value <= luc)
             {
                 throw new RuleViolationException(
                     "deadline_da_qua",
-                    "Deadline da qua — hay hoan thanh du an thay vi chay tiep.");
+                    "Hạn chót đã qua — hãy hoàn thành dự án thay vì chạy tiếp.");
             }
 
             DoiTrangThai(ProjectStatus.Running, null, luc);
@@ -924,12 +907,12 @@ namespace Crowd.Project.Domain.Projects
         {
             if (Status != ProjectStatus.Running && Status != ProjectStatus.Paused)
             {
-                throw KhongTheKhi("ket thuc som");
+                throw KhongTheKhi("kết thúc sớm");
             }
 
             if (FinishRequestedAt.HasValue)
             {
-                throw new RuleViolationException("da_yeu_cau_ket_thuc", "Da yeu cau ket thuc, he thong dang dong thu bai.");
+                throw new RuleViolationException("da_yeu_cau_ket_thuc", "Đã yêu cầu kết thúc, hệ thống đang đóng thu bài.");
             }
 
             FinishRequestedAt = luc;
@@ -949,7 +932,7 @@ namespace Crowd.Project.Domain.Projects
 
             if (Status != ProjectStatus.Running && Status != ProjectStatus.Paused)
             {
-                throw KhongTheKhi("bat dau cham");
+                throw KhongTheKhi("bắt đầu chấm");
             }
 
             GradingStartedAt = luc;
@@ -968,7 +951,7 @@ namespace Crowd.Project.Domain.Projects
                 return false;
             }
 
-            ChiKhi(ProjectStatus.Grading, "hoan thanh");
+            ChiKhi(ProjectStatus.Grading, "hoàn thành");
             ClosedAt = luc;
             DoiTrangThai(ProjectStatus.Completed, null, luc);
             return true;
@@ -986,7 +969,7 @@ namespace Crowd.Project.Domain.Projects
         {
             if (Status == ProjectStatus.Running)
             {
-                throw CanTamDungTruoc("huy");
+                throw CanTamDungTruoc("huỷ");
             }
 
             bool duocHuy = Status == ProjectStatus.Draft
@@ -995,7 +978,7 @@ namespace Crowd.Project.Domain.Projects
 
             if (!duocHuy)
             {
-                throw KhongTheKhi("huy");
+                throw KhongTheKhi("huỷ");
             }
 
             ClosedAt = luc;
@@ -1018,7 +1001,7 @@ namespace Crowd.Project.Domain.Projects
             {
                 throw new RuleViolationException(
                     "can_xin_duyet",
-                    "Du an can chu du an duyet — gui don xin tham gia (POST /projects/{id}/join-requests).");
+                    "Dự án cần chủ dự án duyệt — hãy gửi đơn xin tham gia.");
             }
         }
 
@@ -1030,12 +1013,12 @@ namespace Crowd.Project.Domain.Projects
         {
             if (Status != ProjectStatus.Running)
             {
-                throw new RuleViolationException("du_an_khong_chay", "Du an khong o trang thai nhan nguoi.");
+                throw new RuleViolationException("du_an_khong_chay", "Dự án không ở trạng thái nhận người.");
             }
 
             if (Visibility == ProjectVisibility.Private)
             {
-                throw new RuleViolationException("du_an_rieng_tu", "Du an rieng tu chi tham gia qua loi moi.");
+                throw new RuleViolationException("du_an_rieng_tu", "Dự án riêng tư chỉ tham gia qua lời mời.");
             }
 
             KiemTraKenhChuyenNghiep();
@@ -1046,11 +1029,28 @@ namespace Crowd.Project.Domain.Projects
         /// publish cung duoc, nhu moi truc tiep), bo qua che do hien thi va bai test — ma moi
         /// la loi moi cua chu du an.
         /// </summary>
+        /// <summary>
+        /// Chu du an them thanh vien / tao ma moi: chi khi du an DA DUOC ADMIN DUYET (PublishedAt) va chua ket
+        /// thuc — truoc khi duyet du an con co the bi tu choi / sua, moi nguoi vao luc do la vo nghia.
+        /// </summary>
+        public void KiemTraChoThemThanhVien()
+        {
+            if (DaKetThuc())
+            {
+                throw new RuleViolationException("du_an_da_ket_thuc", "Dự án đã kết thúc.");
+            }
+
+            if (PublishedAt == null)
+            {
+                throw new RuleViolationException("du_an_chua_duoc_duyet", "Dự án chưa được admin duyệt — chưa thêm thành viên hay tạo mã mời được.");
+            }
+        }
+
         public void KiemTraChoVaoBangMaMoi()
         {
             if (DaKetThuc())
             {
-                throw new RuleViolationException("du_an_da_ket_thuc", "Du an da ket thuc.");
+                throw new RuleViolationException("du_an_da_ket_thuc", "Dự án đã kết thúc.");
             }
 
             KiemTraKenhChuyenNghiep();
@@ -1111,17 +1111,17 @@ namespace Crowd.Project.Domain.Projects
             switch (lyDo)
             {
                 case "tai_khoan_bi_khoa":
-                    return "Tai khoan dang bi khoa.";
+                    return "Tài khoản đang bị khoá.";
                 case "khong_phai_labeler":
-                    return "Tai khoan khong co vai tro labeler.";
+                    return "Tài khoản không có vai trò labeler.";
                 case "chua_du_cap_do":
-                    return "Du an yeu cau cap do toi thieu " + MinLevel + ", hien tai la " + hoSo.CapDo + ".";
+                    return "Dự án yêu cầu cấp độ tối thiểu " + MinLevel + ", hiện tại là " + hoSo.CapDo + ".";
                 case "chua_du_uy_tin":
                     return hoSo.UyTin.HasValue
-                        ? "Du an yeu cau uy tin toi thieu " + MinReputation + ", hien tai la " + hoSo.UyTin.Value + "."
-                        : "Du an yeu cau uy tin toi thieu " + MinReputation + ", tai khoan chua co diem uy tin.";
+                        ? "Dự án yêu cầu uy tín tối thiểu " + MinReputation + ", hiện tại là " + hoSo.UyTin.Value + "."
+                        : "Dự án yêu cầu uy tín tối thiểu " + MinReputation + ", tài khoản chưa có điểm uy tín.";
                 default:
-                    return "Khong du dieu kien tham gia du an.";
+                    return "Không đủ điều kiện tham gia dự án.";
             }
         }
 
@@ -1141,7 +1141,7 @@ namespace Crowd.Project.Domain.Projects
             {
                 throw new InvalidValueException(
                     "ten_khong_hop_le",
-                    "Ten du an phai tu 1 den " + quyDinh.DoDaiTenToiDa + " ky tu.");
+                    "Tên dự án phải từ 1 đến " + quyDinh.DoDaiTenToiDa + " ký tự.");
             }
 
             string moTa = description == null ? string.Empty : description.Trim();
@@ -1149,7 +1149,7 @@ namespace Crowd.Project.Domain.Projects
             {
                 throw new InvalidValueException(
                     "mo_ta_qua_dai",
-                    "Mo ta toi da " + quyDinh.DoDaiMoTaToiDa + " ky tu.");
+                    "Mô tả tối đa " + quyDinh.DoDaiMoTaToiDa + " ký tự.");
             }
 
             Name = ten;
@@ -1177,7 +1177,7 @@ namespace Crowd.Project.Domain.Projects
             {
                 throw new RuleViolationException(
                     "khong_mo_kenh_chuyen_nghiep",
-                    "Du an khong nhan labeler chuyen nghiep.");
+                    "Dự án không nhận labeler chuyên nghiệp.");
             }
         }
 
@@ -1185,21 +1185,47 @@ namespace Crowd.Project.Domain.Projects
         {
             return new RuleViolationException(
                 "can_tam_dung_truoc",
-                "Hay tam dung du an truoc khi " + hanhDong + ": ngung nhan nguoi lam va nop bai moi.");
+                "Hãy tạm dừng dự án trước khi " + hanhDong + ": ngừng nhận người làm và nộp bài mới.");
+        }
+
+        /// <summary>Ten trang thai cho thong bao loi (tieng Viet, khop nhan tren frontend).</summary>
+        public static string TenTrangThai(ProjectStatus s)
+        {
+            switch (s)
+            {
+                case ProjectStatus.Draft:
+                    return "Nháp";
+                case ProjectStatus.PendingEscrow:
+                    return "Chờ ký quỹ";
+                case ProjectStatus.PendingApproval:
+                    return "Chờ duyệt";
+                case ProjectStatus.Running:
+                    return "Đang chạy";
+                case ProjectStatus.Paused:
+                    return "Tạm dừng";
+                case ProjectStatus.Grading:
+                    return "Đang chấm";
+                case ProjectStatus.Completed:
+                    return "Hoàn thành";
+                case ProjectStatus.Cancelled:
+                    return "Đã huỷ";
+                default:
+                    return s.ToString();
+            }
         }
 
         private RuleViolationException KhongTheKhi(string hanhDong)
         {
             return new RuleViolationException(
                 "chuyen_trang_thai_khong_hop_le",
-                "Khong the " + hanhDong + " khi du an dang o trang thai " + Status + ".");
+                "Không thể " + hanhDong + " khi dự án đang ở trạng thái “" + TenTrangThai(Status) + "”.");
         }
 
         private static void BatBuocCoLyDo(string lyDo)
         {
             if (string.IsNullOrWhiteSpace(lyDo))
             {
-                throw new InvalidValueException("thieu_ly_do", "Phai ghi ly do.");
+                throw new InvalidValueException("thieu_ly_do", "Phải ghi lý do.");
             }
         }
 

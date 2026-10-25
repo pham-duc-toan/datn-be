@@ -141,13 +141,13 @@ namespace Crowd.Project.Domain.Datasets
         {
             if (!Modalities.LaFile(modality))
             {
-                throw new InvalidValueException("loai_du_lieu_khong_phai_file", "Du lieu " + modality + " khong luu thanh file.");
+                throw new InvalidValueException("loai_du_lieu_khong_phai_file", "Dữ liệu " + modality + " không lưu thành file.");
             }
 
             if (string.IsNullOrWhiteSpace(storageKey) || !storageKey.StartsWith(projectId.ToString() + "/", StringComparison.Ordinal))
             {
                 // Chan dung file cua du an khac (BOLA).
-                throw new InvalidValueException("file_khong_thuoc_du_an", "File khong thuoc du an nay.");
+                throw new InvalidValueException("file_khong_thuoc_du_an", "File không thuộc dự án này.");
             }
 
             Sample s = TaoKhung(projectId, datasetId, modality, originalName, sha256, metadata, luc, quyDinh);
@@ -177,7 +177,7 @@ namespace Crowd.Project.Domain.Datasets
         {
             if (Modalities.LaFile(modality))
             {
-                throw new InvalidValueException("loai_du_lieu_la_file", "Du lieu " + modality + " phai la file.");
+                throw new InvalidValueException("loai_du_lieu_la_file", "Dữ liệu " + modality + " phải là file.");
             }
 
             if (content == null)

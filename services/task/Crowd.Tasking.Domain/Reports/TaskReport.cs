@@ -69,12 +69,12 @@ namespace Crowd.Tasking.Domain.Reports
             string? note = ghiChu == null ? null : ghiChu.Trim();
             if (note != null && note.Length > DoDaiGhiChuToiDa)
             {
-                throw new InvalidValueException("ghi_chu_qua_dai", "Ghi chu toi da " + DoDaiGhiChuToiDa + " ky tu.");
+                throw new InvalidValueException("ghi_chu_qua_dai", "Ghi chú tối đa " + DoDaiGhiChuToiDa + " ký tự.");
             }
 
             if (ly == "other" && string.IsNullOrEmpty(note))
             {
-                throw new InvalidValueException("thieu_ghi_chu", "Ly do 'other' phai kem ghi chu.");
+                throw new InvalidValueException("thieu_ghi_chu", "Lý do “khác” phải kèm ghi chú.");
             }
 
             TaskReport r = new TaskReport();

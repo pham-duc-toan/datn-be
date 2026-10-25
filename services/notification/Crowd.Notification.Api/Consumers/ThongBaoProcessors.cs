@@ -293,7 +293,7 @@ namespace Crowd.Notification.Api.Consumers
             foreach (GradedAttempt a in p.Attempts)
             {
                 NoiDung n = a.Passed
-                    ? NoiDungThongBao.BaiDat(a.AttemptId, a.AgreementPercent, p.PassThresholdPercent, p.MajorityUsed)
+                    ? NoiDungThongBao.BaiDat(a.AttemptId, a.AgreementPercent, p.PassThresholdPercent, p.MajorityUsed, a.Rewarded)
                     : NoiDungThongBao.BaiTruot(a.AttemptId, a.AgreementPercent, p.PassThresholdPercent, a.GoldCorrect, a.GoldTotal, p.MajorityUsed);
                 await Writer.GhiAsync(a.LabelerId, LoaiThongBao.KetQuaBai, n, ct);
             }
@@ -302,15 +302,21 @@ namespace Crowd.Notification.Api.Consumers
             if (chu.HasValue)
             {
                 int dat = 0;
+                int thuong = 0;
                 foreach (GradedAttempt a in p.Attempts)
                 {
                     if (a.Passed)
                     {
                         dat++;
                     }
+
+                    if (a.Rewarded)
+                    {
+                        thuong++;
+                    }
                 }
 
-                await Writer.GhiAsync(chu.Value, LoaiThongBao.DuAn, NoiDungThongBao.DuAnDaCham(p.ProjectId, dat, p.Attempts.Count), ct);
+                await Writer.GhiAsync(chu.Value, LoaiThongBao.DuAn, NoiDungThongBao.DuAnDaCham(p.ProjectId, dat, thuong, p.Attempts.Count), ct);
             }
         }
     }
@@ -324,7 +330,7 @@ namespace Crowd.Notification.Api.Consumers
 
         protected override Task XuLyPayloadAsync(AttemptAppealResolved p, CancellationToken ct)
         {
-            return Writer.GhiAsync(p.LabelerId, LoaiThongBao.KetQuaBai, NoiDungThongBao.KetQuaKhieuNai(p.AttemptId, p.Accepted, p.Note), ct);
+            return Writer.GhiAsync(p.LabelerId, LoaiThongBao.KetQuaBai, NoiDungThongBao.KetQuaKhieuNai(p.AttemptId, p.Accepted, p.Rewarded, p.Note), ct);
         }
     }
 

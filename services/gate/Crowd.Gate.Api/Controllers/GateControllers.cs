@@ -194,7 +194,7 @@ namespace Crowd.Gate.Api.Controllers
             DateOnly tu = from.HasValue ? from.Value : den.AddDays(-29);
             if (tu > den || den.DayNumber - tu.DayNumber > SoNgayToiDa)
             {
-                throw new GateException(400, "khoang_ngay_khong_hop_le", "Khoang ngay khong hop le (toi da " + SoNgayToiDa + " ngay).");
+                throw new GateException(400, "khoang_ngay_khong_hop_le", "Khoảng ngày không hợp lệ (tối đa " + SoNgayToiDa + " ngày).");
             }
 
             return new DateOnly[] { tu, den };

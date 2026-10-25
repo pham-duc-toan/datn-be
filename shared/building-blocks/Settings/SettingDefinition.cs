@@ -113,6 +113,12 @@ namespace Crowd.BuildingBlocks.Settings
         /// <summary>Vd "fee.platform_percent". Doi ten la mat gia tri admin da dat.</summary>
         public string Key { get; }
 
+        /// <summary>Ten hien thi tren man hinh admin (tieng Viet co dau, TenSetting) — khoa chi la dinh danh ky thuat.</summary>
+        public string Name
+        {
+            get { return TenSetting.Lay(Key); }
+        }
+
         /// <summary>Nhom hien thi tren man hinh admin, vd "Phi va tien".</summary>
         public string Group { get; }
 

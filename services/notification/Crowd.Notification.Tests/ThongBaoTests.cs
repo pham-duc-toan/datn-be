@@ -160,8 +160,8 @@ namespace Crowd.Notification.Tests
         public void Bai_dat_neu_ti_le_va_nguong()
         {
             Guid b = Guid.NewGuid();
-            NoiDung dat = NoiDungThongBao.BaiDat(b, 85, 80, true);
-            NoiDung itBai = NoiDungThongBao.BaiDat(b, 100, 80, false);
+            NoiDung dat = NoiDungThongBao.BaiDat(b, 85, 80, true, true);
+            NoiDung itBai = NoiDungThongBao.BaiDat(b, 100, 80, false, true);
 
             Assert.Equal("Bài làm đã đạt", dat.TieuDe);
             Assert.Contains("85% (ngưỡng 80%)", dat.NoiDungChinh, StringComparison.Ordinal);
@@ -189,8 +189,8 @@ namespace Crowd.Notification.Tests
         {
             Guid b = Guid.NewGuid();
 
-            Assert.Equal("Khiếu nại được chấp nhận", NoiDungThongBao.KetQuaKhieuNai(b, true, null).TieuDe);
-            Assert.EndsWith("Ghi chú: Giu nguyen.", NoiDungThongBao.KetQuaKhieuNai(b, false, "Giu nguyen").NoiDungChinh, StringComparison.Ordinal);
+            Assert.Equal("Khiếu nại được chấp nhận", NoiDungThongBao.KetQuaKhieuNai(b, true, true, null).TieuDe);
+            Assert.EndsWith("Ghi chú: Giu nguyen.", NoiDungThongBao.KetQuaKhieuNai(b, false, false, "Giu nguyen").NoiDungChinh, StringComparison.Ordinal);
         }
     }
 
@@ -233,7 +233,8 @@ namespace Crowd.Notification.Tests
         [Fact]
         public void Du_an_da_cham_bao_so_bai_dat()
         {
-            Assert.StartsWith("2/3 bài đạt", NoiDungThongBao.DuAnDaCham(Guid.NewGuid(), 2, 3).NoiDungChinh, StringComparison.Ordinal);
+            Assert.StartsWith("2/3 bài đạt, 1 bài nộp sớm nhất được trả thưởng", NoiDungThongBao.DuAnDaCham(Guid.NewGuid(), 2, 1, 3).NoiDungChinh, StringComparison.Ordinal);
+            Assert.Equal("Bài làm đạt nhưng đã hết suất thưởng", NoiDungThongBao.BaiDat(Guid.NewGuid(), 90, 80, true, false).TieuDe);
         }
 
         [Fact]
@@ -271,9 +272,9 @@ namespace Crowd.Notification.Tests
                 NoiDungThongBao.DoanhNghiepDaXacMinh(), NoiDungThongBao.DoanhNghiepBiTuChoi("x"), NoiDungThongBao.TaiKhoanBiKhoa(null),
                 NoiDungThongBao.TaiKhoanMoKhoa(), NoiDungThongBao.NapTienThanhCong(1000), NoiDungThongBao.DuAnDangChay(p),
                 NoiDungThongBao.DuAnThieuKyQuy(p, "x"), NoiDungThongBao.DuAnBiHuy(p, "x"), NoiDungThongBao.HoanKyQuy(p, 1),
-                NoiDungThongBao.BaiDat(p, 90, 80, true), NoiDungThongBao.BaiTruot(p, 50, 80, 0, 1, true), NoiDungThongBao.TienKhaDung(1, 1),
+                NoiDungThongBao.BaiDat(p, 90, 80, true, true), NoiDungThongBao.BaiDat(p, 90, 80, true, false), NoiDungThongBao.BaiTruot(p, 50, 80, 0, 1, true), NoiDungThongBao.TienKhaDung(1, 1),
                 NoiDungThongBao.RutThanhCong(1), NoiDungThongBao.RutThatBai("x"), NoiDungThongBao.RutBiTuChoi(1, "x"),
-                NoiDungThongBao.KetQuaKhieuNai(p, true, "x"), NoiDungThongBao.DuAnDaCham(p, 1, 2), NoiDungThongBao.CapDoMoi(2),
+                NoiDungThongBao.KetQuaKhieuNai(p, true, true, "x"), NoiDungThongBao.KetQuaKhieuNai(p, true, false, "x"), NoiDungThongBao.DuAnDaCham(p, 1, 1, 2), NoiDungThongBao.CapDoMoi(2),
                 NoiDungThongBao.HuyHieuMoi("x"), NoiDungThongBao.DuocThemVaoDuAn(p, "x"), NoiDungThongBao.DonThamGiaMoi(p, "x", null),
                 NoiDungThongBao.KetQuaDonThamGia(p, "x", false, "het_han"), NoiDungThongBao.LoiMoiDuAn(p, "x", true, DateTimeOffset.UnixEpoch),
                 NoiDungThongBao.EmailLoiMoiNguoiMoi("x", "http://l", DateTimeOffset.UnixEpoch), NoiDungThongBao.HaiLopThayDoi(false, "disabled"),

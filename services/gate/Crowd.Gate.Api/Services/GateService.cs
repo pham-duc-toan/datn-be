@@ -162,14 +162,14 @@ namespace Crowd.Gate.Api.Services
                 string? matKhau = body == null ? null : body.Password;
                 if (matKhau == null || !MatKhauLink.Kiem(matKhau, l.PasswordHash))
                 {
-                    throw new GateException(403, "sai_mat_khau", "Mat khau link khong dung.");
+                    throw new GateException(403, "sai_mat_khau", "Mật khẩu link không đúng.");
                 }
             }
 
             // Turnstile TRUOC khi phat bat cu cau nao: bot re tien chet o day, khong ton cau that (VD-L-06).
             if (!await _turnstile.KiemAsync(body == null ? null : body.TurnstileToken, khach.Ip, ct))
             {
-                throw new GateException(403, "turnstile_that_bai", "Xac minh chong bot that bai. Tai lai trang va thu lai.");
+                throw new GateException(403, "turnstile_that_bai", "Xác minh chống bot thất bại. Tải lại trang và thử lại.");
             }
 
             PhienVuot p = await PhatPhienAsync(l, khach);
@@ -326,7 +326,7 @@ namespace Crowd.Gate.Api.Services
             PhienVuot? p = await _redis.DocPhienAsync(sessionId);
             if (p == null)
             {
-                throw new GateException(410, "phien_het_han", "Bo cau hoi da het han hoac da nop. Tai lai trang.");
+                throw new GateException(410, "phien_het_han", "Bộ câu hỏi đã hết hạn hoặc đã nộp. Tải lại trang.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -335,7 +335,7 @@ namespace Crowd.Gate.Api.Services
                 throw new GateException(
                     409,
                     "chua_het_dem_nguoc",
-                    "Con " + Math.Ceiling((p.AnswerableAt - bayGio).TotalSeconds) + " giay nua moi nop duoc.");
+                    "Còn " + Math.Ceiling((p.AnswerableAt - bayGio).TotalSeconds) + " giây nữa mới nộp được.");
             }
 
             LinkCong l = LayLinkPhucVu(p.Code);
@@ -346,7 +346,7 @@ namespace Crowd.Gate.Api.Services
 
             if (!await _redis.XoaPhienAsync(p.SessionId))
             {
-                throw new GateException(409, "da_nop", "Bo cau hoi nay vua duoc nop.");
+                throw new GateException(409, "da_nop", "Bộ câu hỏi này vừa được nộp.");
             }
 
             NguongKhop nguong = NguongKhopTuSetting.Doc(_settings);
@@ -424,7 +424,7 @@ namespace Crowd.Gate.Api.Services
                 JsonElement e;
                 if (!answers.TryGetValue(id, out e))
                 {
-                    throw new GateException(400, "thieu_cau_tra_loi", "Chua tra loi het cac cau hoi.");
+                    throw new GateException(400, "thieu_cau_tra_loi", "Chưa trả lời hết các câu hỏi.");
                 }
 
                 // Kiem bang dung cua cua Crowd.Labeling nhu labeler chuyen nghiep: nhan sai → 400.
@@ -499,12 +499,12 @@ namespace Crowd.Gate.Api.Services
             string? jti = await _token.KiemAsync(token, l.LinkId);
             if (jti == null)
             {
-                throw new GateException(403, "token_khong_hop_le", "Token khong hop le hoac da het han. Vuot link lai.");
+                throw new GateException(403, "token_khong_hop_le", "Token không hợp lệ hoặc đã hết hạn. Vượt link lại.");
             }
 
             if (!await _redis.DungJtiAsync(jti))
             {
-                throw new GateException(410, "token_da_dung", "Token da duoc dung. Vuot link lai.");
+                throw new GateException(410, "token_da_dung", "Token đã được dùng. Vượt link lại.");
             }
 
             return l.DestinationUrl;
@@ -516,7 +516,7 @@ namespace Crowd.Gate.Api.Services
             if (l == null || !l.PhucVuDuoc(_clock.GetUtcNow()))
             {
                 // Chua quet xong, da vo hieu hoa, het han hay khong ton tai: cung mot cau tra loi.
-                throw new GateException(404, "link_khong_ton_tai", "Link khong ton tai, da het han hoac da bi vo hieu hoa.");
+                throw new GateException(404, "link_khong_ton_tai", "Link không tồn tại, đã hết hạn hoặc đã bị vô hiệu hoá.");
             }
 
             return l;

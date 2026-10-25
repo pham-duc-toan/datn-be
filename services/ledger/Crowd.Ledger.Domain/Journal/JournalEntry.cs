@@ -65,14 +65,14 @@ namespace Crowd.Ledger.Domain.Journal
         {
             if (string.IsNullOrWhiteSpace(accountCode))
             {
-                throw new InvalidValueException("tai_khoan_rong", "Dong but toan thieu tai khoan.");
+                throw new InvalidValueException("tai_khoan_rong", "Dòng bút toán thiếu tài khoản.");
             }
 
             // VD-M-05: amount <> 0. Dau am/duong la HUONG chuyen tien, khong phai
             // loi — dat CHECK (amount > 0) o day se pha chinh phep ghi kep.
             if (amount == 0)
             {
-                throw new InvalidValueException("so_tien_bang_0", "Dong but toan khong duoc bang 0.");
+                throw new InvalidValueException("so_tien_bang_0", "Dòng bút toán không được bằng 0.");
             }
 
             AccountCode = accountCode;
@@ -147,12 +147,12 @@ namespace Crowd.Ledger.Domain.Journal
         {
             if (string.IsNullOrWhiteSpace(reference))
             {
-                throw new InvalidValueException("thieu_tham_chieu", "But toan phai co tham chieu su viec goc.");
+                throw new InvalidValueException("thieu_tham_chieu", "Bút toán phải có tham chiếu sự việc gốc.");
             }
 
             if (lines == null || lines.Count < 2)
             {
-                throw new InvalidValueException("it_nhat_hai_dong", "But toan ghi kep can it nhat hai dong.");
+                throw new InvalidValueException("it_nhat_hai_dong", "Bút toán ghi kép cần ít nhất hai dòng.");
             }
 
             long tong = 0;
@@ -165,7 +165,7 @@ namespace Crowd.Ledger.Domain.Journal
             {
                 throw new InvalidValueException(
                     "but_toan_lech",
-                    "Tong but toan phai bang 0, dang la " + tong + ".");
+                    "Tổng bút toán phải bằng 0, đang là " + tong + ".");
             }
 
             JournalEntry e = new JournalEntry();

@@ -95,7 +95,7 @@ namespace Crowd.Project.Api.Services
         {
             if (body == null || body.Kind == null)
             {
-                throw new InvalidValueException("thieu_thong_tin", "Can kind: preferred | blocked.");
+                throw new InvalidValueException("thieu_thong_tin", "Cần kind: preferred | blocked.");
             }
 
             Guid ownerId = caller.LayUserId();
@@ -133,7 +133,7 @@ namespace Crowd.Project.Api.Services
             OwnerLabelerEntry? e = await _db.OwnerLabelerEntries.FirstOrDefaultAsync(x => x.OwnerId == ownerId && x.LabelerId == labelerId, ct);
             if (e == null)
             {
-                throw new NotFoundException("Labeler khong co trong danh sach.");
+                throw new NotFoundException("Labeler không có trong danh sách.");
             }
 
             if (e.Kind == OwnerListKind.Blocked)
@@ -155,7 +155,7 @@ namespace Crowd.Project.Api.Services
                 .ToListAsync(ct);
             if (ds.Count == 0)
             {
-                throw new RuleViolationException("danh_sach_uu_tien_rong", "Danh sach uu tien dang rong.");
+                throw new RuleViolationException("danh_sach_uu_tien_rong", "Danh sách ưu tiên đang rỗng.");
             }
 
             return await _members.ThemNhieuAsync(projectId, new AddMembersBatchRequest { Role = MemberRole.Labeler, UserIds = ds }, caller, ct);
@@ -221,7 +221,7 @@ namespace Crowd.Project.Api.Services
             bool laLabeler = await _db.ProjectMembers.AnyAsync(m => m.ProjectId == projectId && m.UserId == labelerId && m.Role == MemberRole.Labeler, ct);
             if (!laLabeler)
             {
-                throw new RuleViolationException("khong_phai_labeler_cua_du_an", "Chi danh gia labeler da tham gia du an nay.");
+                throw new RuleViolationException("khong_phai_labeler_cua_du_an", "Chỉ đánh giá labeler đã tham gia dự án này.");
             }
 
             DateTimeOffset luc = _clock.GetUtcNow();
@@ -257,7 +257,7 @@ namespace Crowd.Project.Api.Services
             bool duocXem = caller.IsAdmin || laDoanhNghiep || caller.LayUserId() == labelerId;
             if (!duocXem)
             {
-                throw new ForbiddenException("Chi doanh nghiep, admin hoac chinh labeler xem duoc danh gia.");
+                throw new ForbiddenException("Chỉ doanh nghiệp, admin hoặc chính labeler xem được đánh giá.");
             }
 
             List<int> sao = await _db.LabelerRatings.AsNoTracking().Where(r => r.LabelerId == labelerId).Select(r => r.Stars).ToListAsync(ct);

@@ -132,7 +132,7 @@ namespace Crowd.Ledger.Domain.Invoices
 
             if (vatPercent < 0 || vatPercent > 100)
             {
-                throw new InvalidValueException("vat_khong_hop_le", "Thue suat GTGT 0–100%.");
+                throw new InvalidValueException("vat_khong_hop_le", "Thuế suất GTGT 0–100%.");
             }
 
             Invoice h = new Invoice();
@@ -175,7 +175,7 @@ namespace Crowd.Ledger.Domain.Invoices
 
             if (h.TotalVnd <= 0)
             {
-                throw new RuleViolationException("khong_co_phi", "Thang " + period + " khong co phi nen tang nao de xuat hoa don.");
+                throw new RuleViolationException("khong_co_phi", "Tháng " + period + " không có phí nền tảng nào để xuất hoá đơn.");
             }
 
             foreach (PassThroughItem p in chiHo)
@@ -213,13 +213,13 @@ namespace Crowd.Ledger.Domain.Invoices
             if (string.IsNullOrWhiteSpace(ky)
                 || !DateOnly.TryParseExact(ky.Trim() + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out dau))
             {
-                throw new InvalidValueException("ky_khong_hop_le", "Ky hoa don dang yyyy-MM, vd 2026-09.");
+                throw new InvalidValueException("ky_khong_hop_le", "Kỳ hoá đơn dạng yyyy-MM, vd 2026-09.");
             }
 
             DateOnly dauThangNay = new DateOnly(homNay.Year, homNay.Month, 1);
             if (dau > dauThangNay || (dau == dauThangNay && !choPhepKyMo))
             {
-                throw new RuleViolationException("ky_chua_ket_thuc", "Chi xuat hoa don cho thang DA ket thuc.");
+                throw new RuleViolationException("ky_chua_ket_thuc", "Chỉ xuất hoá đơn cho tháng ĐÃ kết thúc.");
             }
 
             return dau.ToString("yyyy-MM", CultureInfo.InvariantCulture);

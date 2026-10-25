@@ -85,12 +85,12 @@ namespace Crowd.Link.Api.Entities
         {
             if (string.IsNullOrWhiteSpace(code) || code.Length > CotMa)
             {
-                throw new LinkException(400, "ma_khong_hop_le", "Ma link khong hop le.");
+                throw new LinkException(400, "ma_khong_hop_le", "Mã link không hợp lệ.");
             }
 
             if (expiresAt.HasValue && expiresAt.Value <= luc)
             {
-                throw new LinkException(400, "het_han_trong_qua_khu", "Thoi diem het han phai o tuong lai.");
+                throw new LinkException(400, "het_han_trong_qua_khu", "Thời điểm hết hạn phải ở tương lai.");
             }
 
             ShortLink l = new ShortLink();
@@ -119,7 +119,7 @@ namespace Crowd.Link.Api.Entities
         {
             if (Status != LinkStatus.PendingScan)
             {
-                throw new LinkException(409, "link_khong_cho_quet", "Link khong o trang thai cho quet (" + Status + ").");
+                throw new LinkException(409, "link_khong_cho_quet", "Link không ở trạng thái chờ quét (" + Status + ").");
             }
 
             Status = LinkStatus.Active;
@@ -132,7 +132,7 @@ namespace Crowd.Link.Api.Entities
         {
             if (Status != LinkStatus.PendingScan)
             {
-                throw new LinkException(409, "link_khong_cho_quet", "Link khong o trang thai cho quet (" + Status + ").");
+                throw new LinkException(409, "link_khong_cho_quet", "Link không ở trạng thái chờ quét (" + Status + ").");
             }
 
             Status = LinkStatus.Blocked;
@@ -159,12 +159,12 @@ namespace Crowd.Link.Api.Entities
         {
             if (Status == LinkStatus.Disabled || Status == LinkStatus.Blocked)
             {
-                throw new LinkException(409, "link_da_ngung", "Link da ngung phuc vu, khong sua duoc.");
+                throw new LinkException(409, "link_da_ngung", "Link đã ngừng phục vụ, không sửa được.");
             }
 
             if (expiresAt.HasValue && expiresAt.Value <= luc)
             {
-                throw new LinkException(400, "het_han_trong_qua_khu", "Thoi diem het han phai o tuong lai.");
+                throw new LinkException(400, "het_han_trong_qua_khu", "Thời điểm hết hạn phải ở tương lai.");
             }
 
             if (doiMatKhau)

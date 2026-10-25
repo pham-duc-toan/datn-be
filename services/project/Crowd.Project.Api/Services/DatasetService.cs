@@ -119,7 +119,7 @@ namespace Crowd.Project.Api.Services
             {
                 throw new RuleViolationException(
                     "zip_chi_cho_anh",
-                    "Upload ZIP chi danh cho du an anh. Du lieu " + duAn.Modality + " dung upload thang + manifest.");
+                    "Upload ZIP chỉ dành cho dự án ảnh. Dữ liệu " + duAn.Modality + " dùng upload thẳng + manifest.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -241,7 +241,7 @@ namespace Crowd.Project.Api.Services
                 {
                     throw new InvalidValueException(
                         "manifest_khong_hop_le",
-                        "Truong rows phai la mang 1-" + soDongToiDa + " dong. Nhieu hon thi upload file .jsonl va dung manifestKey.");
+                        "Trường rows phải là mảng 1–" + soDongToiDa + " dòng. Nhiều hơn thì upload file .jsonl và dùng manifestKey.");
                 }
 
                 dong = RawJson.Tu(r);
@@ -315,7 +315,7 @@ namespace Crowd.Project.Api.Services
             {
                 if (ids.Count > 100)
                 {
-                    throw new InvalidValueException("qua_nhieu_mau", "Toi da 100 ma mau moi lan.");
+                    throw new InvalidValueException("qua_nhieu_mau", "Tối đa 100 mã mẫu mỗi lần.");
                 }
 
                 q = q.Where(s => ids.Contains(s.Id));

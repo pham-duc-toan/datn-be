@@ -5,6 +5,7 @@
 # setting gioi han (x, y, suat, thoi gian giu bai), tam dung / chan thanh vien / ket thuc som, va
 # kiem tra tong (doi soat). Luong chinh chi tiet hon: e2e_du_an_trung_tam.py.
 # Chay: python e2e_tong_the.py   (stack demo / CI: dat E2E_PROFILE=demo — xem moi_truong.py)
+import hashlib
 import os, sys, time, uuid
 import requests
 
@@ -17,11 +18,11 @@ try:
     biz = dang_ky(["business"], "biz")
     biz2 = dang_ky(["business"], "biz2")
     lab = {f"lab{i}": dang_ky(["labeler"], f"lab{i}") for i in range(1, 5)}
-    r = requests.post(G + "/auth/register", json={"email": biz["email"], "password": PW, "displayName": "x", "roles": ["business"]})
+    r = requests.post(G + "/auth/register", json={"email": biz["email"], "username": "u" + hashlib.sha1((biz["email"]).encode()).hexdigest()[:20], "password": PW, "displayName": "x", "roles": ["business"]})
     kiem("dang ky trung email → 409", r.status_code == 409, r.text)
-    r = requests.post(G + "/auth/register", json={"email": f"e2e-{TAG}-adm@crowd.local", "password": PW, "displayName": "x", "roles": ["admin"]})
+    r = requests.post(G + "/auth/register", json={"email": f"e2e-{TAG}-adm@crowd.local", "username": "u" + hashlib.sha1((f"e2e-{TAG}-adm@crowd.local").encode()).hexdigest()[:20], "password": PW, "displayName": "x", "roles": ["admin"]})
     kiem("tu dang ky vai tro admin → 400", r.status_code == 400, r.text)
-    r = requests.post(G + "/auth/register", json={"email": f"e2e-{TAG}-ngan@crowd.local", "password": "abc", "displayName": "x", "roles": ["labeler"]})
+    r = requests.post(G + "/auth/register", json={"email": f"e2e-{TAG}-ngan@crowd.local", "username": "u" + hashlib.sha1((f"e2e-{TAG}-ngan@crowd.local").encode()).hexdigest()[:20], "password": "abc", "displayName": "x", "roles": ["labeler"]})
     kiem("mat khau qua ngan → 400", r.status_code == 400, r.text)
     kiem("sai mat khau → 401", login_raw(biz["email"], "SaiMatKhau@1").status_code == 401)
     kiem("email khong ton tai → 401 (cung thong bao)", login_raw(f"khong-co-{TAG}@crowd.local").status_code == 401)

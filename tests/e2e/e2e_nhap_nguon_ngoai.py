@@ -78,7 +78,7 @@ try:
     lo = cho_lo(biz, P, r.json()["id"])
     kiem("lo URL: 1 anh, bo qua 3", lo and lo["sampleCount"] == 1 and lo["skippedCount"] == 3, lo)
     loi = (lo or {}).get("errorSummary") or ""
-    kiem("metadata cloud 169.254.169.254 bi chan (dia chi noi bo)", "169.254.169.254" in loi and "noi bo" in loi, loi)
+    kiem("metadata cloud 169.254.169.254 bi chan (dia chi noi bo)", "169.254.169.254" in loi and "nội bộ" in loi, loi)
     kiem("service noi bo identity:8101 bi chan", "identity" in loi, loi)
     kiem("file khong ton tai → HTTP 404 ghi vao loi", "404" in loi, loi)
 
@@ -102,11 +102,11 @@ try:
     r = requests.post(G + f"/projects/{P}/datasets/import", headers=biz["h"], json={"name": "sai", "source": "s3", "s3": {
         "endpoint": "http://minio:9000", "bucket": BUCKET, "prefix": "anh/", "accessKey": "datn", "secretKey": "sai-mat-khau"}})
     lo = cho_lo(biz, P, r.json()["id"])
-    kiem("sai khoa → lo failed, loi 'S3 tu choi'", lo and lo["status"] == "failed" and "S3 tu choi" in (lo.get("errorSummary") or ""), lo)
+    kiem("sai khoa → lo failed, loi 'S3 tu choi'", lo and lo["status"] == "failed" and "S3 từ chối" in (lo.get("errorSummary") or ""), lo)
     r = requests.post(G + f"/projects/{P}/datasets/import", headers=biz["h"], json={"name": "noi bo", "source": "s3", "s3": {
         "endpoint": "http://db-project:5432", "bucket": "x", "accessKey": "a", "secretKey": "b"}})
     lo = cho_lo(biz, P, r.json()["id"])
-    kiem("endpoint S3 la service noi bo (db-project) → bi chan", lo and lo["status"] == "failed" and "noi bo" in (lo.get("errorSummary") or ""), lo)
+    kiem("endpoint S3 la service noi bo (db-project) → bi chan", lo and lo["status"] == "failed" and "nội bộ" in (lo.get("errorSummary") or ""), lo)
 
     print("\n[5] Xoa file goc cua du an da dong — chi khi doanh nghiep dong y (muc 3.14)")
     def so_file(pid):

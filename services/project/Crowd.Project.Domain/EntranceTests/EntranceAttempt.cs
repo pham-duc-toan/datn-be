@@ -65,21 +65,21 @@ namespace Crowd.Project.Domain.EntranceTests
 
             if (cauHoi == null || cauHoi.Count == 0)
             {
-                throw new RuleViolationException("khong_co_cau_hoi", "Du an chua co cau hoi cho bai test.");
+                throw new RuleViolationException("khong_co_cau_hoi", "Dự án chưa có câu hỏi cho bài test.");
             }
 
             if (dangCoLanChuaNop)
             {
                 throw new RuleViolationException(
                     "dang_lam_bai",
-                    "Ban dang co mot bai test chua nop. Hay nop hoac doi het gio.");
+                    "Bạn đang có một bài test chưa nộp. Hãy nộp hoặc đợi hết giờ.");
             }
 
             if (soLanDaLam >= quyDinh.SoLanToiDa)
             {
                 throw new RuleViolationException(
                     "het_luot_test",
-                    "Da het " + quyDinh.SoLanToiDa + " luot lam bai test cua du an nay.");
+                    "Đã hết " + quyDinh.SoLanToiDa + " lượt làm bài test của dự án này.");
             }
 
             EntranceAttempt a = new EntranceAttempt();
@@ -153,7 +153,7 @@ namespace Crowd.Project.Domain.EntranceTests
 
             if (SubmittedAt != null)
             {
-                throw new RuleViolationException("da_nop", "Bai test nay da nop roi.");
+                throw new RuleViolationException("da_nop", "Bài test này đã nộp rồi.");
             }
 
             SubmittedAt = luc;

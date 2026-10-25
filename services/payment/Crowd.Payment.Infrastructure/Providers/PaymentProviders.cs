@@ -195,7 +195,7 @@ namespace Crowd.Payment.Infrastructure.Providers
         {
             if (bankAccount != null && bankAccount.Contains("FAIL", StringComparison.OrdinalIgnoreCase))
             {
-                return new ProviderPayoutResult(ProviderOutcome.Failed, null, "Tai khoan nhan khong ton tai");
+                return new ProviderPayoutResult(ProviderOutcome.Failed, null, "Tài khoản nhận không tồn tại");
             }
 
             return new ProviderPayoutResult(ProviderOutcome.Succeeded, "SBX-P-" + referenceId.ToString("N"), null);

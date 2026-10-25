@@ -47,7 +47,7 @@ def test_envelope_python_ghi_ra_dung_schema_chung_va_camel_case():
     env = tao(ProjectGraded(
         project_id=uuid.uuid4(), pass_threshold_percent=80, majority_used=True,
         attempts=[GradedAttempt(attempt_id=uuid.uuid4(), labeler_id=uuid.uuid4(), comparable_count=5, matched_count=4,
-                                agreement_percent=80, gold_total=2, gold_correct=2, passed=True, answered_count=5)],
+                                agreement_percent=80, gold_total=2, gold_correct=2, passed=True, rewarded=True, answered_count=5)],
         graded_at=datetime.now(timezone.utc)),
         "quality-svc", uuid.uuid4(), None)
     du_lieu = json.loads(env.to_json())
@@ -58,7 +58,7 @@ def test_envelope_python_ghi_ra_dung_schema_chung_va_camel_case():
     assert set(du_lieu["payload"]) == {"projectId", "passThresholdPercent", "majorityUsed", "attempts", "gradedAt"}
     assert set(du_lieu["payload"]["attempts"][0]) == {
         "attemptId", "labelerId", "comparableCount", "matchedCount", "agreementPercent", "goldTotal", "goldCorrect",
-        "passed", "answeredCount"}
+        "passed", "rewarded", "answeredCount"}
 
 
 def test_truong_la_hoac_sai_loai_vao_dlq():

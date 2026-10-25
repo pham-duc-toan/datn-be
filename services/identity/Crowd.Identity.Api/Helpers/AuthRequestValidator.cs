@@ -31,7 +31,7 @@ namespace Crowd.Identity.Api.Helpers
 
             if (body == null)
             {
-                loi["body"] = new string[] { "Thieu du lieu." };
+                loi["body"] = new string[] { "Thiếu dữ liệu." };
                 return loi;
             }
 
@@ -40,7 +40,7 @@ namespace Crowd.Identity.Api.Helpers
                 || body.Email.Length > 320
                 || !MailAddress.TryCreate(body.Email.Trim(), out diaChi))
             {
-                loi["email"] = new string[] { "Email khong hop le." };
+                loi["email"] = new string[] { "Email không hợp lệ." };
             }
 
             // Gioi han TREN chan tan cong tu choi dich vu: gui mat khau 10 MB bat
@@ -53,19 +53,25 @@ namespace Crowd.Identity.Api.Helpers
             {
                 loi["password"] = new string[]
                 {
-                    "Mat khau phai tu " + toiThieu + " den "
-                    + toiDa + " ky tu.",
+                    "Mật khẩu phải từ " + toiThieu + " đến "
+                    + toiDa + " ký tự.",
                 };
+            }
+
+            string? loiUsername = Crowd.Identity.Api.Entities.User.LoiUsername(body.Username);
+            if (loiUsername != null)
+            {
+                loi["username"] = new string[] { loiUsername };
             }
 
             if (string.IsNullOrWhiteSpace(body.DisplayName) || body.DisplayName.Trim().Length > 100)
             {
-                loi["displayName"] = new string[] { "Ten hien thi tu 1 den 100 ky tu." };
+                loi["displayName"] = new string[] { "Tên hiển thị từ 1 đến 100 ký tự." };
             }
 
             if (body.Roles == null || body.Roles.Count == 0)
             {
-                loi["roles"] = new string[] { "Phai chon it nhat mot vai tro." };
+                loi["roles"] = new string[] { "Phải chọn ít nhất một vai trò." };
             }
             else
             {
@@ -76,7 +82,7 @@ namespace Crowd.Identity.Api.Helpers
                     {
                         loi["roles"] = new string[]
                         {
-                            "Vai tro chi duoc chon trong: business, labeler (chia se link kiem tien la chuc nang cua labeler).",
+                            "Vai trò chỉ được chọn trong: doanh nghiệp, người gán nhãn (chia sẻ link kiếm tiền là chức năng của người gán nhãn).",
                         };
                         break;
                     }

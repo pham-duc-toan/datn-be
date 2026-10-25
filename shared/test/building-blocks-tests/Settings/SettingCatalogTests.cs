@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Crowd.BuildingBlocks.Settings;
@@ -85,6 +86,13 @@ namespace Crowd.BuildingBlocks.Tests.Settings
                 "catalog.json lech SettingCatalog. Chay: " + BienMoiTruongCapNhat + "=1 dotnet test shared/test/building-blocks-tests");
         }
 
+        [Fact]
+        public void Moi_setting_deu_co_ten_hien_thi()
+        {
+            List<string> thieu = SettingCatalog.TatCa.Where(d => !TenSetting.Co(d.Key)).Select(d => d.Key).ToList();
+            Assert.True(thieu.Count == 0, "Thieu ten hien thi (TenSetting.cs): " + string.Join(", ", thieu));
+        }
+
         private static string TaoNoiDung()
         {
             JsonArray ds = new JsonArray();
@@ -93,6 +101,7 @@ namespace Crowd.BuildingBlocks.Tests.Settings
                 JsonObject o = new JsonObject
                 {
                     ["key"] = d.Key,
+                    ["name"] = d.Name,
                     ["group"] = d.Group,
                     ["type"] = d.TypeName,
                     ["default"] = d.DefaultValue.DeepClone(),

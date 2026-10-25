@@ -13,6 +13,9 @@ namespace Crowd.Identity.Api.Dtos
     {
         public string? Email { get; init; }
 
+        /// <summary>Ten dang nhap khong trung: 3–30 ky tu a-z 0-9 . _ (User.LoiUsername).</summary>
+        public string? Username { get; init; }
+
         public string? Password { get; init; }
 
         public string? DisplayName { get; init; }
@@ -23,6 +26,7 @@ namespace Crowd.Identity.Api.Dtos
 
     public sealed class LoginRequest
     {
+        /// <summary>Email HOAC username (co "@" o giua = email).</summary>
         public string? Email { get; init; }
 
         public string? Password { get; init; }

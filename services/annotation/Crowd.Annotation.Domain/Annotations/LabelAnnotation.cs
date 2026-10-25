@@ -134,7 +134,7 @@ namespace Crowd.Annotation.Domain.Annotations
             // co hay khong.
             if (nhan == null)
             {
-                throw new InvalidValueException("nhan_rong", "Nhan khong duoc rong.");
+                throw new InvalidValueException("nhan_rong", "Nhãn không được rỗng.");
             }
 
             LabelAnnotation a = new LabelAnnotation();
@@ -168,7 +168,7 @@ namespace Crowd.Annotation.Domain.Annotations
         {
             if (nhan == null)
             {
-                throw new InvalidValueException("nhan_rong", "Nhan khong duoc rong.");
+                throw new InvalidValueException("nhan_rong", "Nhãn không được rỗng.");
             }
 
             LabelAnnotation a = new LabelAnnotation();

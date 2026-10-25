@@ -13,6 +13,8 @@ namespace Crowd.Identity.Api.Services
     {
         ThanhCong,
         EmailDaTonTai,
+
+        UsernameDaTonTai,
     }
 
     public sealed class DangKyKetQua
@@ -36,6 +38,11 @@ namespace Crowd.Identity.Api.Services
         public static DangKyKetQua EmailDaTonTai()
         {
             return new DangKyKetQua(DangKyTrangThai.EmailDaTonTai, Guid.Empty);
+        }
+
+        public static DangKyKetQua UsernameDaTonTai()
+        {
+            return new DangKyKetQua(DangKyTrangThai.UsernameDaTonTai, Guid.Empty);
         }
     }
 

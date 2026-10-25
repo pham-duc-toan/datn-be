@@ -68,25 +68,25 @@ namespace Crowd.Project.Domain.Members
 
             if (projectId == Guid.Empty || createdBy == Guid.Empty)
             {
-                throw new InvalidValueException("id_rong", "Thieu du an hoac nguoi tao ma.");
+                throw new InvalidValueException("id_rong", "Thiếu dự án hoặc người tạo mã.");
             }
 
             if (maxUses.HasValue && (maxUses.Value < 1 || maxUses.Value > SoLuotToiDa))
             {
-                throw new InvalidValueException("so_luot_khong_hop_le", "So luot dung phai tu 1 den " + SoLuotToiDa + ".");
+                throw new InvalidValueException("so_luot_khong_hop_le", "Số lượt dùng phải từ 1 đến " + SoLuotToiDa + ".");
             }
 
             if (hieuLuc < TimeSpan.FromHours(1) || hieuLuc > quyDinh.HanMaMoiToiDa)
             {
                 throw new InvalidValueException(
                     "han_ma_moi_khong_hop_le",
-                    "Han dung cua ma moi phai tu 1 gio den " + quyDinh.HanMaMoiToiDa.TotalHours + " gio.");
+                    "Hạn dùng của mã mời phải từ 1 giờ đến " + quyDinh.HanMaMoiToiDa.TotalHours + " giờ.");
             }
 
             string? ghiChu = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
             if (ghiChu != null && ghiChu.Length > DoDaiGhiChuToiDa)
             {
-                throw new InvalidValueException("ghi_chu_qua_dai", "Ghi chu toi da " + DoDaiGhiChuToiDa + " ky tu.");
+                throw new InvalidValueException("ghi_chu_qua_dai", "Ghi chú tối đa " + DoDaiGhiChuToiDa + " ký tự.");
             }
 
             InviteCode m = new InviteCode();
@@ -140,6 +140,16 @@ namespace Crowd.Project.Domain.Members
             return lyDo == "ma_moi_het_han" ? "expired" : "exhausted";
         }
 
+        /// <summary>Ma con dung duoc khong (xem truoc dieu khoan) — nem loi nhu Dung nhung KHONG ton luot.</summary>
+        public void KiemTraDungDuoc(DateTimeOffset luc)
+        {
+            string? lyDo = LyDoKhongDung(luc);
+            if (lyDo != null)
+            {
+                throw new RuleViolationException(lyDo, GiaiThich(lyDo));
+            }
+        }
+
         /// <summary>Ghi nhan mot luot dung. Hai nguoi cung dung luot cuoi: xmin chon mot (xem cau hinh EF).</summary>
         public void Dung(DateTimeOffset luc)
         {
@@ -156,7 +166,7 @@ namespace Crowd.Project.Domain.Members
         {
             if (RevokedAt.HasValue)
             {
-                throw new RuleViolationException("ma_moi_da_thu_hoi", "Ma moi da bi thu hoi tu truoc.");
+                throw new RuleViolationException("ma_moi_da_thu_hoi", "Mã mời đã bị thu hồi từ trước.");
             }
 
             RevokedAt = luc;
@@ -187,13 +197,13 @@ namespace Crowd.Project.Domain.Members
             switch (lyDo)
             {
                 case "ma_moi_da_thu_hoi":
-                    return "Ma moi da bi chu du an thu hoi.";
+                    return "Mã mời đã bị chủ dự án thu hồi.";
                 case "ma_moi_het_han":
-                    return "Ma moi da het han.";
+                    return "Mã mời đã hết hạn.";
                 case "ma_moi_het_luot":
-                    return "Ma moi da dung het so luot.";
+                    return "Mã mời đã dùng hết số lượt.";
                 default:
-                    return "Ma moi khong dung duoc.";
+                    return "Mã mời không dùng được.";
             }
         }
 

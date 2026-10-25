@@ -17,6 +17,9 @@ namespace Crowd.Project.Api.Dtos
 
         public string? Email { get; init; }
 
+        /// <summary>Username (co the kem "@" dau) — thay cho userId.</summary>
+        public string? Username { get; init; }
+
         public MemberRole? Role { get; init; }
     }
 
@@ -26,6 +29,9 @@ namespace Crowd.Project.Api.Dtos
         public MemberRole? Role { get; init; }
 
         public IReadOnlyList<Guid>? UserIds { get; init; }
+
+        /// <summary>Username (co the kem "@" dau) — cach moi chinh, thay cho userId.</summary>
+        public IReadOnlyList<string>? Usernames { get; init; }
 
         public IReadOnlyList<string>? Emails { get; init; }
     }
@@ -48,6 +54,8 @@ namespace Crowd.Project.Api.Dtos
         public required string Input { get; init; }
 
         public Guid? UserId { get; init; }
+
+        public string? Username { get; init; }
 
         public string? DisplayName { get; init; }
 
@@ -103,6 +111,22 @@ namespace Crowd.Project.Api.Dtos
     public sealed class JoinByCodeRequest
     {
         public string? Code { get; init; }
+
+        /// <summary>
+        /// Du an co canh bao noi dung / NDA: dong y NGAY khi vao bang ma (nguoi cam ma chua la thanh vien nen
+        /// khong mo duoc trang du an de dong y truoc). null = khong gui dong y.
+        /// </summary>
+        public ConsentRequest? Consent { get; init; }
+    }
+
+    /// <summary>POST /projects/join-by-code/preview — xem du an + dieu khoan cua ma, KHONG ton luot.</summary>
+    public sealed class JoinByCodePreviewResponse
+    {
+        public required Guid ProjectId { get; init; }
+
+        public required string ProjectName { get; init; }
+
+        public required ProjectTermsResponse Terms { get; init; }
     }
 
     public sealed class JoinByCodeResponse

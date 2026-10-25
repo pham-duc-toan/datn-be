@@ -28,7 +28,7 @@ namespace Crowd.Identity.Api.Entities
                 string v = (muc ?? string.Empty).Trim();
                 if (v.Length == 0 || v.Length > DoDaiToiDa)
                 {
-                    throw new InvalidValueException(maLoi, ten + ": moi muc tu 1 den " + DoDaiToiDa + " ky tu.");
+                    throw new InvalidValueException(maLoi, ten + ": mỗi mục từ 1 đến " + DoDaiToiDa + " ký tự.");
                 }
 
                 if (daCo.Add(v))
@@ -39,7 +39,7 @@ namespace Crowd.Identity.Api.Entities
 
             if (kq.Count > SoMucToiDa)
             {
-                throw new InvalidValueException(maLoi, ten + ": toi da " + SoMucToiDa + " muc.");
+                throw new InvalidValueException(maLoi, ten + ": tối đa " + SoMucToiDa + " mục.");
             }
 
             return kq;
@@ -53,7 +53,7 @@ namespace Crowd.Identity.Api.Entities
                 string thuong = kq[i].ToLowerInvariant();
                 if (!((IList<string>)LoaiDuLieu).Contains(thuong))
                 {
-                    throw new InvalidValueException("loai_du_lieu_khong_hop_le", "Loai du lieu chi gom: image, text, audio, video, pair.");
+                    throw new InvalidValueException("loai_du_lieu_khong_hop_le", "Loại dữ liệu chỉ gồm: image, text, audio, video, pair.");
                 }
 
                 kq[i] = thuong;

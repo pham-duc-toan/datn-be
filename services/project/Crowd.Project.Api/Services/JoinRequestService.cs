@@ -110,14 +110,14 @@ namespace Crowd.Project.Api.Services
             {
                 throw new RuleViolationException(
                     "khong_can_duyet",
-                    "Du an cong khai khong can duyet — tham gia truc tiep (POST /projects/{id}/join).");
+                    "Dự án công khai không cần duyệt — tham gia trực tiếp.");
             }
 
             if (duAn.RequireEntranceTest)
             {
                 throw new RuleViolationException(
                     "can_lam_test",
-                    "Du an yeu cau bai test dau vao — lam dat thi don xin tham gia tu tao, kem diem.");
+                    "Dự án yêu cầu bài test đầu vào — làm đạt thì đơn xin tham gia tự tạo, kèm điểm.");
             }
 
             Guid userId = caller.LayUserId();
@@ -146,7 +146,7 @@ namespace Crowd.Project.Api.Services
                 d => d.ProjectId == duAn.Id && d.UserId == userId && d.Status == JoinRequestStatus.Pending, ct);
             if (dangCho)
             {
-                throw new RuleViolationException("da_co_don_dang_cho", "Ban da co don xin tham gia dang cho chu du an duyet.");
+                throw new RuleViolationException("da_co_don_dang_cho", "Bạn đã có đơn xin tham gia đang chờ chủ dự án duyệt.");
             }
 
             JoinRequest? biTuChoi = await _db.JoinRequests.AsNoTracking()
@@ -160,7 +160,7 @@ namespace Crowd.Project.Api.Services
                 {
                     throw new RuleViolationException(
                         "chua_duoc_xin_lai",
-                        "Don truoc vua bi tu choi — gui lai duoc tu " + tu.Value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " UTC.");
+                        "Đơn trước vừa bị từ chối — gửi lại được từ " + tu.Value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " UTC.");
                 }
             }
 
@@ -215,7 +215,7 @@ namespace Crowd.Project.Api.Services
             catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "ux_join_requests_dang_cho"))
             {
                 _db.ChangeTracker.Clear();
-                throw new RuleViolationException("da_co_don_dang_cho", "Ban da co don xin tham gia dang cho chu du an duyet.");
+                throw new RuleViolationException("da_co_don_dang_cho", "Bạn đã có đơn xin tham gia đang chờ chủ dự án duyệt.");
             }
         }
 
@@ -227,7 +227,7 @@ namespace Crowd.Project.Api.Services
                 .FirstOrDefaultAsync(d => d.ProjectId == projectId && d.UserId == userId && d.Status == JoinRequestStatus.Pending, ct);
             if (don == null)
             {
-                throw new NotFoundException("Khong co don xin tham gia dang cho.");
+                throw new NotFoundException("Không có đơn xin tham gia đang chờ.");
             }
 
             don.Huy(_clock.GetUtcNow());
@@ -317,13 +317,13 @@ namespace Crowd.Project.Api.Services
             LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
             if (duAn.DaKetThuc())
             {
-                throw new RuleViolationException("du_an_da_ket_thuc", "Du an da ket thuc.");
+                throw new RuleViolationException("du_an_da_ket_thuc", "Dự án đã kết thúc.");
             }
 
             JoinRequest don = await LayDonAsync(projectId, requestId, ct);
             if (don.Status != JoinRequestStatus.Pending)
             {
-                throw new RuleViolationException("don_da_xu_ly", "Don xin tham gia da duoc xu ly (" + don.Status + ").");
+                throw new RuleViolationException("don_da_xu_ly", "Đơn xin tham gia đã được xử lý (" + don.Status + ").");
             }
 
             NguoiDungTraCuu nguoi = await _members.KiemDieuKienLabelerAsync(duAn, don.UserId, ct);
@@ -413,7 +413,7 @@ namespace Crowd.Project.Api.Services
             JoinRequest? don = await _db.JoinRequests.FirstOrDefaultAsync(d => d.Id == requestId && d.ProjectId == projectId, ct);
             if (don == null)
             {
-                throw new NotFoundException("Khong tim thay don xin tham gia.");
+                throw new NotFoundException("Không tìm thấy đơn xin tham gia.");
             }
 
             return don;

@@ -124,9 +124,10 @@ namespace Crowd.Project.Api.Services
 
             bool coId = body.UserId.HasValue;
             bool coEmail = !string.IsNullOrWhiteSpace(body.Email);
-            if (body.Role == null || coId == coEmail)
+            bool coTen = !string.IsNullOrWhiteSpace(body.Username);
+            if (body.Role == null || (coId ? 1 : 0) + (coEmail ? 1 : 0) + (coTen ? 1 : 0) != 1)
             {
-                throw new InvalidValueException("thieu_thong_tin", "Can role va MOT trong hai: userId hoac email.");
+                throw new InvalidValueException("thieu_thong_tin", "Cần role và MỘT trong ba: username, userId hoặc email.");
             }
 
             AddMembersBatchRequest mot = new AddMembersBatchRequest
@@ -134,6 +135,7 @@ namespace Crowd.Project.Api.Services
                 Role = body.Role,
                 UserIds = coId ? new List<Guid> { body.UserId!.Value } : null,
                 Emails = coEmail ? new List<string> { body.Email! } : null,
+                Usernames = coTen ? new List<string> { body.Username! } : null,
             };
 
             AddMembersBatchResponse kq = await ThemNhieuAsync(projectId, mot, caller, ct);
@@ -154,12 +156,12 @@ namespace Crowd.Project.Api.Services
 
             if (r.Status == KetQuaMoi.KhongTimThay)
             {
-                throw new NotFoundException(r.Message ?? "Khong tim thay nguoi dung.");
+                throw new NotFoundException(r.Message ?? "Không tìm thấy người dùng.");
             }
 
             if (r.Status == KetQuaMoi.EmailKhongHopLe)
             {
-                throw new InvalidValueException(r.Status, r.Message ?? "Email khong hop le.");
+                throw new InvalidValueException(r.Status, r.Message ?? "Email không hợp lệ.");
             }
 
             throw new RuleViolationException(r.Status, r.Message ?? r.Status);
@@ -187,32 +189,30 @@ namespace Crowd.Project.Api.Services
 
             if (body.Role == null)
             {
-                throw new InvalidValueException("thieu_thong_tin", "Can role (labeler / reviewer).");
+                throw new InvalidValueException("thieu_thong_tin", "Cần role (labeler / reviewer).");
             }
 
             if (body.Role.Value == MemberRole.Owner)
             {
-                throw new InvalidValueException("khong_the_them_owner", "Moi du an chi co mot chu so huu.");
+                throw new InvalidValueException("khong_the_them_owner", "Mỗi dự án chỉ có một chủ sở hữu.");
             }
 
             List<DauVaoMoi> dauVao = DocDauVao(body);
+            dauVao.AddRange(await DocUsernameAsync(body.Usernames, ct));
             QuyDinhThanhVien quyDinh = QuyDinhTuSetting.ThanhVien(_settings);
             if (dauVao.Count == 0)
             {
-                throw new InvalidValueException("thieu_thong_tin", "Can it nhat mot userId hoac email.");
+                throw new InvalidValueException("thieu_thong_tin", "Cần ít nhất một username, userId hoặc email.");
             }
 
             if (dauVao.Count > quyDinh.SoNguoiMoiToiDa)
             {
                 throw new InvalidValueException(
-                    "qua_nhieu_nguoi", "Moi lan moi toi da " + quyDinh.SoNguoiMoiToiDa + " nguoi.");
+                    "qua_nhieu_nguoi", "Mỗi lần mời tối đa " + quyDinh.SoNguoiMoiToiDa + " người.");
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
-            if (duAn.DaKetThuc())
-            {
-                throw new RuleViolationException("du_an_da_ket_thuc", "Du an da ket thuc.");
-            }
+            duAn.KiemTraChoThemThanhVien();
 
             List<Guid> ids = dauVao.Where(d => d.UserId.HasValue).Select(d => d.UserId!.Value).ToList();
             List<string> emails = dauVao.Where(d => d.Email != null && d.Loi == null).Select(d => d.Email!).Distinct(StringComparer.Ordinal).ToList();
@@ -250,7 +250,7 @@ namespace Crowd.Project.Api.Services
 
             if (duAn.RequireEntranceTest)
             {
-                throw new RuleViolationException("can_lam_test", "Du an yeu cau lam bai test dau vao truoc khi tham gia.");
+                throw new RuleViolationException("can_lam_test", "Dự án yêu cầu làm bài test đầu vào trước khi tham gia.");
             }
 
             Guid userId = caller.LayUserId();
@@ -347,7 +347,7 @@ namespace Crowd.Project.Api.Services
                 // Hai request tham gia cung luc: ca hai lot qua kiem tra o tren,
                 // khoa chinh (project_id, user_id) chon ra mot.
                 _db.ChangeTracker.Clear();
-                throw new RuleViolationException("da_la_thanh_vien", "Nguoi nay da la thanh vien du an.");
+                throw new RuleViolationException("da_la_thanh_vien", "Người này đã là thành viên dự án.");
             }
         }
 
@@ -362,10 +362,10 @@ namespace Crowd.Project.Api.Services
             {
                 if (cu.State == MemberState.Blocked)
                 {
-                    throw new RuleViolationException("bi_chan", "Ban da bi chan khoi du an nay.");
+                    throw new RuleViolationException("bi_chan", "Bạn đã bị chặn khỏi dự án này.");
                 }
 
-                throw new RuleViolationException("da_la_thanh_vien", "Nguoi nay da la thanh vien du an.");
+                throw new RuleViolationException("da_la_thanh_vien", "Người này đã là thành viên dự án.");
             }
         }
 
@@ -380,7 +380,7 @@ namespace Crowd.Project.Api.Services
             NguoiDungTraCuu? nguoi = await _identity.LayAsync(userId, ct);
             if (nguoi == null)
             {
-                throw new NotFoundException("Khong tim thay tai khoan.");
+                throw new NotFoundException("Không tìm thấy tài khoản.");
             }
 
             duAn.KiemTraLabelerDuDieuKien(nguoi.HoSo());
@@ -388,7 +388,7 @@ namespace Crowd.Project.Api.Services
             // FB-23: bi doanh nghiep dua vao danh sach chan → khong vao duoc moi du an cua doanh nghiep do.
             if (await BiDoanhNghiepChanAsync(duAn.OwnerId, userId, ct))
             {
-                throw new RuleViolationException("bi_chan_boi_doanh_nghiep", "Doanh nghiep so huu du an da chan tai khoan nay.");
+                throw new RuleViolationException("bi_chan_boi_doanh_nghiep", "Doanh nghiệp sở hữu dự án đã chặn tài khoản này.");
             }
 
             // Muc 2.9 / FP-01 / FP-05: xac minh danh tinh, du tuoi (lay tu identity luc vao — moi hon claim
@@ -622,7 +622,7 @@ namespace Crowd.Project.Api.Services
                 if (d.Loi != null)
                 {
                     trangThai = d.Loi;
-                    loiGiai = d.Loi == KetQuaMoi.EmailKhongHopLe ? "Email khong hop le." : "userId khong hop le.";
+                    loiGiai = d.Loi == KetQuaMoi.EmailKhongHopLe ? "Email không hợp lệ." : "Không tìm thấy tài khoản (username / userId).";
                 }
                 else if (d.Email != null)
                 {
@@ -652,7 +652,7 @@ namespace Crowd.Project.Api.Services
                 else if (n == null)
                 {
                     trangThai = KetQuaMoi.KhongTimThay;
-                    loiGiai = "Khong co tai khoan voi userId nay.";
+                    loiGiai = "Không có tài khoản này.";
                 }
                 else if (!daXet.Add(n.UserId))
                 {
@@ -663,8 +663,8 @@ namespace Crowd.Project.Api.Services
                 {
                     trangThai = daCo[n.UserId] == MemberState.Blocked ? "bi_chan" : "da_la_thanh_vien";
                     loiGiai = trangThai == "bi_chan"
-                        ? "Nguoi nay dang bi chan khoi du an — bo chan thay vi moi lai."
-                        : "Nguoi nay da la thanh vien du an.";
+                        ? "Người này đang bị chặn khỏi dự án — bỏ chặn thay vì mời lại."
+                        : "Người này đã là thành viên dự án.";
                 }
                 else
                 {
@@ -694,7 +694,7 @@ namespace Crowd.Project.Api.Services
                         // Chu du an khong dong y canh bao / ky NDA thay nguoi khac duoc: loi moi cho nguoi do tu dong y.
                         ProjectInvitation moi = await TaoLoiMoiAsync(duAn, n.Email, n.UserId, role, false, true, caller, ct);
                         trangThai = KetQuaMoi.ChoDongY;
-                        loiGiai = "Du an can nguoi duoc moi tu dong y dieu khoan — da gui loi moi.";
+                        loiGiai = "Dự án cần người được mời tự đồng ý điều khoản — đã gửi lời mời.";
                         loiMoiId = moi.Id;
                         soMoi++;
                     }
@@ -718,6 +718,7 @@ namespace Crowd.Project.Api.Services
                 {
                     Input = d.NguyenVan,
                     UserId = n == null ? null : n.UserId,
+                    Username = n == null ? null : n.Username,
                     DisplayName = n == null ? null : n.DisplayName,
                     Status = trangThai,
                     Message = loiGiai,
@@ -761,7 +762,7 @@ namespace Crowd.Project.Api.Services
 
             throw new VuotHanMucException(
                 "vuot_han_muc_moi_email",
-                "Moi toi da " + toiDa + " email trong 24 gio (da moi " + daMoi + ", lan nay " + soLanNay + ").",
+                "Mời tối đa " + toiDa + " email trong 24 giờ (đã mời " + daMoi + ", lần này " + soLanNay + ").",
                 cho);
         }
 
@@ -805,6 +806,47 @@ namespace Crowd.Project.Api.Services
             return ds;
         }
 
+        /// <summary>
+        /// Username → userId qua identity-svc (mot lan cho ca lo). Khong ton tai → dong "khong_tim_thay" (chu du an
+        /// biet username, khong lo gi them). Dau vao nguyen van giu dang "@ten" de ket qua de doc.
+        /// </summary>
+        private async Task<List<DauVaoMoi>> DocUsernameAsync(IReadOnlyList<string>? usernames, CancellationToken ct)
+        {
+            List<DauVaoMoi> ds = new List<DauVaoMoi>();
+            if (usernames == null || usernames.Count == 0)
+            {
+                return ds;
+            }
+
+            List<string> chuan = usernames
+                .Select(x => (x ?? string.Empty).Trim().TrimStart('@').ToLowerInvariant())
+                .ToList();
+            List<string> hopLe = chuan.Where(x => x.Length > 0).Distinct(StringComparer.Ordinal).ToList();
+            Dictionary<string, Guid> theoTen = new Dictionary<string, Guid>(StringComparer.Ordinal);
+            if (hopLe.Count > 0)
+            {
+                foreach (NguoiDungTraCuu n in await _identity.TraCuuAsync(new List<Guid>(), new List<string>(), hopLe, ct))
+                {
+                    theoTen[n.Username] = n.UserId;
+                }
+            }
+
+            foreach (string ten in chuan)
+            {
+                Guid id;
+                if (ten.Length > 0 && theoTen.TryGetValue(ten, out id))
+                {
+                    ds.Add(new DauVaoMoi("@" + ten, id, null, null));
+                }
+                else
+                {
+                    ds.Add(new DauVaoMoi("@" + ten, null, null, KetQuaMoi.KhongTimThay));
+                }
+            }
+
+            return ds;
+        }
+
         private async Task<ProjectMember> LayThanhVienAsync(Guid projectId, Guid userId, CancellationToken ct)
         {
             ProjectMember? m = await _db.ProjectMembers
@@ -812,7 +854,7 @@ namespace Crowd.Project.Api.Services
 
             if (m == null)
             {
-                throw new NotFoundException("Khong tim thay thanh vien.");
+                throw new NotFoundException("Không tìm thấy thành viên.");
             }
 
             return m;

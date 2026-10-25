@@ -101,7 +101,7 @@ namespace Crowd.Annotation.Api.Services
             if (!duocPhep)
             {
                 // 404 chu khong phai 403: khong tiet lo du an co ton tai hay khong.
-                throw new NotFoundException("Khong tim thay du an.");
+                throw new NotFoundException("Không tìm thấy dự án.");
             }
         }
 
@@ -136,7 +136,7 @@ namespace Crowd.Annotation.Api.Services
             LabelAnnotation? a = await _db.Annotations.AsNoTracking().FirstOrDefaultAsync(x => x.Id == annotationId, ct);
             if (a == null)
             {
-                throw new NotFoundException("Khong tim thay nhan.");
+                throw new NotFoundException("Không tìm thấy nhãn.");
             }
 
             bool laCuaMinh = caller.UserId != null && a.LabelerId == caller.UserId;
@@ -440,7 +440,7 @@ namespace Crowd.Annotation.Api.Services
 
             if (dinhDang != null && !string.Equals(dinhDang, "json", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidValueException("dinh_dang_chua_ho_tro", "Ho tro json, csv, coco, yolo, voc, yolo-seg, yolo-obb, coco-keypoints, conll, mot.");
+                throw new InvalidValueException("dinh_dang_chua_ho_tro", "Hỗ trợ json, csv, coco, yolo, voc, yolo-seg, yolo-obb, coco-keypoints, conll, mot.");
             }
 
             return new ExportFile(JsonSerializer.SerializeToUtf8Bytes(kq, JsonXuat), "application/json", ten + ".json");
@@ -479,7 +479,7 @@ namespace Crowd.Annotation.Api.Services
             {
                 throw new RuleViolationException(
                     "chua_co_dieu_khoan",
-                    "Chua dong bo xong cau hinh cua du an. Thu lai sau it giay.");
+                    "Chưa đồng bộ xong cấu hình của dự án. Thử lại sau ít giây.");
             }
 
             return t;

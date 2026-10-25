@@ -91,13 +91,17 @@ namespace Crowd.Identity.Api.Controllers
             }
 
             emails = emails.Distinct(StringComparer.Ordinal).ToList();
-            if (ids.Count + emails.Count > TraCuuToiDa)
+            List<string> usernames = body.Usernames == null
+                ? new List<string>()
+                : body.Usernames.Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => Crowd.Identity.Api.Entities.User.ChuanHoaUsername(x)).Distinct(StringComparer.Ordinal).ToList();
+            if (ids.Count + emails.Count + usernames.Count > TraCuuToiDa)
             {
                 return BadRequest();
             }
 
             List<Crowd.Identity.Api.Entities.User> users = await _db.Users.AsNoTracking()
-                .Where(u => ids.Contains(u.Id) || emails.Contains(u.Email))
+                .Where(u => ids.Contains(u.Id) || emails.Contains(u.Email) || usernames.Contains(u.Username))
                 .ToListAsync(ct);
 
             List<Guid> tim = users.Select(u => u.Id).ToList();
@@ -123,6 +127,7 @@ namespace Crowd.Identity.Api.Controllers
                 {
                     UserId = u.Id,
                     Email = u.Email,
+                    Username = u.Username,
                     DisplayName = u.DisplayName,
                     Roles = u.Roles,
                     Locked = u.Status == UserStatus.Blocked,

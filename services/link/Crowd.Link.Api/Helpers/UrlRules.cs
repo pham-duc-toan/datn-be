@@ -38,31 +38,31 @@ namespace Crowd.Link.Api.Helpers
             string s = url == null ? string.Empty : url.Trim();
             if (s.Length == 0 || s.Length > ShortLink.CotUrl)
             {
-                throw new LinkException(400, "url_khong_hop_le", "Link dich phai co 1-" + ShortLink.CotUrl + " ky tu.");
+                throw new LinkException(400, "url_khong_hop_le", "Link đích phải có 1–" + ShortLink.CotUrl + " ký tự.");
             }
 
             Uri? uri;
             if (!Uri.TryCreate(s, UriKind.Absolute, out uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             {
-                throw new LinkException(400, "url_khong_hop_le", "Link dich phai la dia chi http(s) day du.");
+                throw new LinkException(400, "url_khong_hop_le", "Link đích phải là địa chỉ http(s) đầy đủ.");
             }
 
             if (uri.UserInfo.Length > 0)
             {
                 // "https://google.com@evil.com" — mot kieu gia mao ten mien quen thuoc.
-                throw new LinkException(400, "url_khong_hop_le", "Link dich khong duoc chua thong tin dang nhap.");
+                throw new LinkException(400, "url_khong_hop_le", "Link đích không được chứa thông tin đăng nhập.");
             }
 
             string tenMien = uri.IdnHost.ToLowerInvariant().TrimEnd('.');
             if (tenMien.Length == 0 || tenMien.Length > ShortLink.CotTenMien || tenMien == "localhost")
             {
-                throw new LinkException(400, "url_khong_hop_le", "Ten mien cua link dich khong hop le.");
+                throw new LinkException(400, "url_khong_hop_le", "Tên miền của link đích không hợp lệ.");
             }
 
             IPAddress? ip;
             if (IPAddress.TryParse(tenMien.Trim('[', ']'), out ip) && LaDiaChiNoiBo(ip))
             {
-                throw new LinkException(400, "url_khong_hop_le", "Khong rut gon dia chi mang noi bo.");
+                throw new LinkException(400, "url_khong_hop_le", "Không rút gọn địa chỉ mạng nội bộ.");
             }
 
             return new UrlChuan(uri.AbsoluteUri, tenMien);
@@ -117,7 +117,7 @@ namespace Crowd.Link.Api.Helpers
 
             if (s.Length == 0 || s.Length > ShortLink.CotTenMien || s.Contains('/', StringComparison.Ordinal) || s.Contains(' ', StringComparison.Ordinal))
             {
-                throw new LinkException(400, "ten_mien_khong_hop_le", "Ten mien khong hop le (vd: example.com).");
+                throw new LinkException(400, "ten_mien_khong_hop_le", "Tên miền không hợp lệ (vd: example.com).");
             }
 
             return s;
@@ -127,7 +127,7 @@ namespace Crowd.Link.Api.Helpers
         {
             if (!MauAlias.IsMatch(alias))
             {
-                throw new LinkException(400, "alias_khong_hop_le", "Alias gom 3-32 ky tu chu, so, '-' hoac '_'.");
+                throw new LinkException(400, "alias_khong_hop_le", "Alias gồm 3–32 ký tự chữ, số, '-' hoặc '_'.");
             }
         }
 

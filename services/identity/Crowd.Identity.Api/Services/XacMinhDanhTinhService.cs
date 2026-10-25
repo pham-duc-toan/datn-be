@@ -129,13 +129,13 @@ namespace Crowd.Identity.Api.Services
             string duoi = Path.GetExtension(ten);
             if (ten.Length == 0 || ten.Length > 200 || !DuoiChoPhep.Contains(duoi))
             {
-                throw new InvalidValueException("file_khong_hop_le", "Anh giay to phai la .png hoac .jpg.");
+                throw new InvalidValueException("file_khong_hop_le", "Ảnh giấy tờ phải là .png hoặc .jpg.");
             }
 
             long toiDa = _settings.SoLon(SettingKeys.IdentityKybFileMaxBytes);
             if (body.SizeBytes <= 0 || body.SizeBytes > toiDa)
             {
-                throw new InvalidValueException("file_qua_lon", "Anh giay to toi da " + toiDa + " byte.");
+                throw new InvalidValueException("file_qua_lon", "Ảnh giấy tờ tối đa " + toiDa + " byte.");
             }
 
             XacMinhDanhTinh x = await LayHoacTaoAsync(userId, ct);
@@ -167,12 +167,12 @@ namespace Crowd.Identity.Api.Services
                 ThongTinFile? file = await _storage.ThongTinAsync(khoa, ct);
                 if (file == null)
                 {
-                    throw new RuleViolationException("thieu_anh_giay_to", "Chua tai anh giay to len (link da cap nhung chua co file).");
+                    throw new RuleViolationException("thieu_anh_giay_to", "Chưa tải ảnh giấy tờ lên (link đã cấp nhưng chưa có file).");
                 }
 
                 if (file.SizeBytes > _settings.SoLon(SettingKeys.IdentityKybFileMaxBytes))
                 {
-                    throw new InvalidValueException("file_qua_lon", "Anh giay to vuot kich thuoc cho phep.");
+                    throw new InvalidValueException("file_qua_lon", "Ảnh giấy tờ vượt kích thước cho phép.");
                 }
             }
 
@@ -229,7 +229,7 @@ namespace Crowd.Identity.Api.Services
             User? u = await _db.Users.AsNoTracking().FirstOrDefaultAsync(v => v.Id == userId, ct);
             if (x == null || u == null)
             {
-                throw new NotFoundException("Khong tim thay ho so xac minh danh tinh.");
+                throw new NotFoundException("Không tìm thấy hồ sơ xác minh danh tính.");
             }
 
             string? truoc = x.FrontKey == null ? null : await _storage.TaoLinkXemAsync(x.FrontKey);
@@ -250,7 +250,7 @@ namespace Crowd.Identity.Api.Services
             Guid? trung = await TimTrungAsync(x, ct);
             if (trung.HasValue)
             {
-                throw new RuleViolationException("giay_to_da_dung", "Giay to nay da xac minh cho tai khoan khac (" + trung.Value + ").");
+                throw new RuleViolationException("giay_to_da_dung", "Giấy tờ này đã xác minh cho tài khoản khác (" + trung.Value + ").");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -264,7 +264,7 @@ namespace Crowd.Identity.Api.Services
             catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "ux_identity_verifications_giay_to"))
             {
                 // Hai admin duyet hai ho so cung giay to cung luc: UNIQUE tung phan chon mot ben.
-                throw new RuleViolationException("giay_to_da_dung", "Giay to nay vua duoc xac minh cho tai khoan khac.");
+                throw new RuleViolationException("giay_to_da_dung", "Giấy tờ này vừa được xác minh cho tài khoản khác.");
             }
 
             return TaoResponse(x);
@@ -312,7 +312,7 @@ namespace Crowd.Identity.Api.Services
             XacMinhDanhTinh? x = await _db.XacMinhDanhTinhs.FirstOrDefaultAsync(v => v.UserId == userId, ct);
             if (x == null)
             {
-                throw new NotFoundException("Khong tim thay ho so xac minh danh tinh.");
+                throw new NotFoundException("Không tìm thấy hồ sơ xác minh danh tính.");
             }
 
             return x;

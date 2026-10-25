@@ -83,7 +83,7 @@ namespace Crowd.Project.Tests
 
             RuleViolationException ex = Assert.Throws<RuleViolationException>(() => p.KiemTraLabelerDuDieuKien(HoSo(1, 90)));
             Assert.Equal("chua_du_cap_do", ex.Code);
-            Assert.Contains("toi thieu 3, hien tai la 1", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("tối thiểu 3, hiện tại là 1", ex.Message, StringComparison.Ordinal);
         }
 
         [Fact]

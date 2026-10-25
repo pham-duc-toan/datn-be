@@ -20,6 +20,8 @@ namespace Crowd.Project.Api.Helpers
 
         public string Email { get; init; } = string.Empty;
 
+        public string Username { get; init; } = string.Empty;
+
         public string DisplayName { get; init; } = string.Empty;
 
         public IReadOnlyList<string> Roles { get; init; } = new List<string>();
@@ -76,11 +78,26 @@ namespace Crowd.Project.Api.Helpers
             _options = options.Value;
         }
 
-        public async Task<IReadOnlyList<NguoiDungTraCuu>> TraCuuAsync(
+        public Task<IReadOnlyList<NguoiDungTraCuu>> TraCuuAsync(
             IReadOnlyCollection<Guid> userIds,
             IReadOnlyCollection<string> emails,
             CancellationToken ct)
         {
+            return TraCuuAsync(userIds, emails, new List<string>(), ct);
+        }
+
+        /// <param name="usernames">Username (chu du an moi theo username thay cho userId).</param>
+        public async Task<IReadOnlyList<NguoiDungTraCuu>> TraCuuAsync(
+            IReadOnlyCollection<Guid> userIds,
+            IReadOnlyCollection<string> emails,
+            IReadOnlyCollection<string> usernames,
+            CancellationToken ct)
+        {
+            if (usernames == null)
+            {
+                throw new ArgumentNullException(nameof(usernames));
+            }
+
             if (userIds == null)
             {
                 throw new ArgumentNullException(nameof(userIds));
@@ -91,7 +108,7 @@ namespace Crowd.Project.Api.Helpers
                 throw new ArgumentNullException(nameof(emails));
             }
 
-            if (userIds.Count == 0 && emails.Count == 0)
+            if (userIds.Count == 0 && emails.Count == 0 && usernames.Count == 0)
             {
                 return new List<NguoiDungTraCuu>();
             }
@@ -105,7 +122,7 @@ namespace Crowd.Project.Api.Helpers
             using (HttpRequestMessage req = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(goc), "internal/users/lookup")))
             {
                 req.Headers.Add(InternalApiHeaders.Key, _options.Key);
-                req.Content = JsonContent.Create(new { userIds = userIds, emails = emails });
+                req.Content = JsonContent.Create(new { userIds = userIds, emails = emails, usernames = usernames });
 
                 try
                 {

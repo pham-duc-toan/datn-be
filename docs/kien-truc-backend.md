@@ -980,6 +980,17 @@ Giới hạn hiện tại: **câu vàng** vẫn chấm ngay lúc nộp ở task-
 
 Kiểm thử: `services/quality/tests/test_cau_mo.py` (medoid, tranh chấp, câu trống, so chữ dự phòng, tích hợp `cham_du_an`), `services/ml/tests/test_api.py` (khoá nội bộ, bộ đệm, kiểm đầu vào, một test nạp mô hình thật bật bằng `ML_TEST_MO_HINH_THAT=1`), `tests/e2e/e2e_cau_tra_loi_mo.py` (chấm theo nghĩa thật; dừng container ml → pending → quá hạn → so chữ).
 
+
+### 3.20. Đợt góp ý 10/2026
+
+- **Username** (identity): cột `users.username` UNIQUE (`ux_users_username`), quy tắc ở `User.LoiUsername`; đăng nhập bằng email hoặc username; `internal/users/lookup` nhận `usernames` để project-svc mời theo username. Migration `Username` sinh username cho tài khoản cũ từ email (trùng thì thêm số).
+- **Suất thưởng** (task, quality, ledger, notification): `Slots` = số người **được thưởng**; trần người làm `MaxParticipants = Slots × project.participant_multiplier`, chụp vào `project_snapshots` lúc publish — đủ trần thì đóng thu bài. quality-svc chấm đa số trên mọi bài rồi đánh dấu `rewarded` cho n bài đạt nộp sớm nhất (`attempt_grades.rewarded`, `GradedAttempt.Rewarded`); ledger chỉ trả bài `Rewarded`; khiếu nại được chấp nhận chỉ được thưởng khi còn suất (task-svc xét dưới khoá dự án, `AttemptAppealResolved.Rewarded`). `PassedAttemptCount` của `project.settled` / `project.completed` nay là số bài **được thưởng**. Dữ liệu cũ: mọi bài đạt coi như được thưởng, trần = số suất.
+- **Mã mời + điều khoản** (project): `join-by-code/preview` cho người cầm mã đọc điều khoản dự án riêng tư; `join-by-code` nhận `consent` và ghi đồng ý trước khi kiểm điều kiện. Thêm thành viên / tạo mã chỉ khi dự án đã được duyệt (`KiemTraChoThemThanhVien`).
+- **Sửa lỗi “hết suất” giả**: hai request “bắt đầu” cùng lúc của MỘT labeler — đếm suất bỏ qua bài của chính người đó, request sau gặp UNIQUE và nhận lại đúng bài.
+- **Setting**: vẫn lưu trong bảng `settings` của admin-svc (seed khoá còn thiếu từ `SettingCatalog` lúc khởi động — không phải RAM; service khác giữ bản sao đồng bộ qua event). Thêm `TenSetting` (tên hiển thị), mô tả / nhóm / đơn vị có dấu, `catalog.json` có `name`.
+- **Thông báo lỗi có dấu**: mọi câu lỗi trả cho người dùng (C# + Python, ~600 chỗ) chuyển sang tiếng Việt có dấu; log, comment và exception hệ thống giữ không dấu.
+- **Cổng thanh toán thử nghiệm**: `TrangGiaLap` sinh trang HTML cho GET `checkout/{id}`, `vnpay/pay` (khi trình duyệt gửi `Accept: text/html`), `momo/pay/{orderId}`.
+
 ## 4. Dữ liệu chéo — ba luật cứng
 
 Đây là chỗ dự án microservice hay vỡ nhất.

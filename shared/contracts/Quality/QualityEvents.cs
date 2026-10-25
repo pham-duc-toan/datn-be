@@ -31,6 +31,12 @@ namespace Crowd.Contracts.Quality
         /// <summary>AgreementPercent &gt;= nguong VA GoldCorrect == GoldTotal.</summary>
         public required bool Passed { get; init; }
 
+        /// <summary>
+        /// Duoc tra thuong (10/2026): trong n suat cua du an — n bai Passed NOP SOM NHAT. Passed ma het suat thi
+        /// false (nhan van vao ket qua, khong co tien). ledger chi tra bai Rewarded.
+        /// </summary>
+        public required bool Rewarded { get; init; }
+
         /// <summary>So cau that labeler da tra loi (identity cong vao so nhan dat).</summary>
         public required int AnsweredCount { get; init; }
     }

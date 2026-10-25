@@ -462,6 +462,12 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("username");
+
                     b.PrimitiveCollection<List<string>>("_domains")
                         .IsRequired()
                         .HasColumnType("text[]")
@@ -487,6 +493,10 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique()
                         .HasDatabaseName("ux_users_email");
+
+                    b.HasIndex("Username")
+                        .IsUnique()
+                        .HasDatabaseName("ux_users_username");
 
                     b.ToTable("users", (string)null);
                 });

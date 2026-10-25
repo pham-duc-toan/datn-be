@@ -109,23 +109,23 @@ namespace Crowd.Ledger.Domain.Withdrawals
             long toiThieuVnd = quyDinh.ToiThieuVnd;
             if (amount <= 0)
             {
-                throw new InvalidValueException("so_tien_khong_hop_le", "So tien rut phai lon hon 0.");
+                throw new InvalidValueException("so_tien_khong_hop_le", "Số tiền rút phải lớn hơn 0.");
             }
 
             if (amount < toiThieuVnd)
             {
-                throw new InvalidValueException("duoi_muc_toi_thieu", "So tien rut toi thieu la " + toiThieuVnd + "d.");
+                throw new InvalidValueException("duoi_muc_toi_thieu", "Số tiền rút tối thiểu là " + toiThieuVnd + "đ.");
             }
 
             string tk = bankAccount == null ? string.Empty : bankAccount.Trim();
             if (tk.Length == 0 || tk.Length > 100)
             {
-                throw new InvalidValueException("thieu_tai_khoan", "Can so tai khoan ngan hang nhan tien.");
+                throw new InvalidValueException("thieu_tai_khoan", "Cần số tài khoản ngân hàng nhận tiền.");
             }
 
             if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > DoDaiKhoaToiDa)
             {
-                throw new InvalidValueException("thieu_idempotency_key", "Can header Idempotency-Key (1-100 ky tu).");
+                throw new InvalidValueException("thieu_idempotency_key", "Cần header Idempotency-Key (1–100 ký tự).");
             }
 
             Withdrawal w = new Withdrawal();
@@ -157,7 +157,7 @@ namespace Crowd.Ledger.Domain.Withdrawals
             string ly = lyDo == null ? string.Empty : lyDo.Trim();
             if (ly.Length == 0 || ly.Length > DoDaiLyDoToiDa)
             {
-                throw new InvalidValueException("thieu_ly_do", "Tu choi lenh rut phai ghi ly do (1-" + DoDaiLyDoToiDa + " ky tu).");
+                throw new InvalidValueException("thieu_ly_do", "Từ chối lệnh rút phải ghi lý do (1–" + DoDaiLyDoToiDa + " ký tự).");
             }
 
             State = WithdrawalState.Rejected;
@@ -171,7 +171,7 @@ namespace Crowd.Ledger.Domain.Withdrawals
         {
             if (State != WithdrawalState.PendingApproval)
             {
-                throw new RuleViolationException("lenh_rut_khong_cho_duyet", "Lenh rut khong o trang thai cho duyet (" + State + ").");
+                throw new RuleViolationException("lenh_rut_khong_cho_duyet", "Lệnh rút không ở trạng thái chờ duyệt (" + State + ").");
             }
         }
 
@@ -194,7 +194,7 @@ namespace Crowd.Ledger.Domain.Withdrawals
         {
             if (State != WithdrawalState.Requested)
             {
-                throw new RuleViolationException("lenh_rut_da_chot", "Lenh rut da chot (" + State + ").");
+                throw new RuleViolationException("lenh_rut_da_chot", "Lệnh rút đã chốt (" + State + ").");
             }
         }
     }

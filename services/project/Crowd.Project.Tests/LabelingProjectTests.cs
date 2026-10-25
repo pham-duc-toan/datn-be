@@ -215,10 +215,9 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
-        public void Khong_co_cau_vang_kiem_tra_chi_la_canh_bao()
+        public void Khong_co_cau_vang_kiem_tra_khong_con_canh_bao()
         {
-            Assert.Contains("khong_co_cau_vang_kiem_tra", LabelingProject.CanhBao(0));
-            Assert.Empty(LabelingProject.CanhBao(1));
+            Assert.Empty(LabelingProject.CanhBao(null, 0));
         }
 
         [Fact]
@@ -230,8 +229,8 @@ namespace Crowd.Project.Tests
             LabelSchema khongMo = LabelSchema.Doc(
                 "{\"modality\":\"image\",\"tools\":[{\"name\":\"loai\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"]}]}");
 
-            Assert.Contains("cham_cau_tra_loi_mo_lau", LabelingProject.CanhBao(1, coMo));
-            Assert.Empty(LabelingProject.CanhBao(1, khongMo));
+            Assert.Contains("cham_cau_tra_loi_mo_lau", LabelingProject.CanhBao(coMo, 0));
+            Assert.Empty(LabelingProject.CanhBao(khongMo, 0));
         }
 
         [Fact]
@@ -244,8 +243,8 @@ namespace Crowd.Project.Tests
             Assert.Throws<RuleViolationException>(() => p.YeuCauPublish(100, 0, Phi, false, QuyDinhMau.DuAn, null, Luc, 1));
             Assert.Equal(ProjectStatus.Draft, p.Status);
 
-            Assert.Contains("video_khong_xu_ly_duoc", LabelingProject.CanhBao(1, null, 1));
-            Assert.Empty(LabelingProject.CanhBao(1, null, 0));
+            Assert.Contains("video_khong_xu_ly_duoc", LabelingProject.CanhBao(null, 1));
+            Assert.Empty(LabelingProject.CanhBao(null, 0));
         }
 
         [Fact]

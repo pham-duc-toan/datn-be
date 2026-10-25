@@ -44,17 +44,17 @@ async def giai_ma_watermark(
     kich thuoc truoc khi giai. Thu buoc QIM hien tai truoc, roi moi buoc trong khoang cho phep.
     """
     if (width is None) != (height is None) or (width is not None and not (8 <= width <= CANH_TOI_DA and 8 <= height <= CANH_TOI_DA)):
-        raise LoiApi(400, "kich_thuoc_khong_hop_le", "width va height phai di cung nhau, tu 8 den 20000.")
+        raise LoiApi(400, "kich_thuoc_khong_hop_le", "width và height phải đi cùng nhau, từ 8 đến 20000.")
     loai = (file.content_type or "").split(";")[0].strip().lower()
     if loai.startswith(("audio/", "video/")) or PurePosixPath(file.filename or "").suffix.lower() in DUOI_AV:
         return await _giai_av(file, width, height)
 
     du_lieu = await file.read(KICH_THUOC_ANH_GIAI_MA_TOI_DA + 1)
     if len(du_lieu) > KICH_THUOC_ANH_GIAI_MA_TOI_DA:
-        raise LoiApi(413, "file_qua_lon", "Anh toi da 20 MB.")
+        raise LoiApi(413, "file_qua_lon", "Ảnh tối đa 20 MB.")
     anh = cv2.imdecode(np.frombuffer(du_lieu, np.uint8), cv2.IMREAD_COLOR)
     if anh is None:
-        raise LoiApi(400, "anh_khong_hop_le", "Khong doc duoc anh.")
+        raise LoiApi(400, "anh_khong_hop_le", "Không đọc được ảnh.")
 
     ung_vien = [anh]
     if width is not None and (anh.shape[1], anh.shape[0]) != (width, height):
@@ -96,7 +96,7 @@ async def _giai_av(file: UploadFile, width: int | None, height: int | None) -> d
                     break
                 tong += len(khuc)
                 if tong > KICH_THUOC_AV_GIAI_MA_TOI_DA:
-                    raise LoiApi(413, "file_qua_lon", "Am thanh / video toi da 500 MB.")
+                    raise LoiApi(413, "file_qua_lon", "Âm thanh / video tối đa 500 MB.")
                 f.write(khuc)
         khoa = khoa_watermark()
         try:
@@ -108,7 +108,7 @@ async def _giai_av(file: UploadFile, width: int | None, height: int | None) -> d
             if tt.co_am:
                 return _ket_qua(await asyncio.to_thread(watermark_av.giai_file_am, Path(tam), khoa), "audio")
         except watermark_av.LoiMedia as ex:
-            raise LoiApi(400, "media_khong_hop_le", "Khong doc duoc file am thanh / video.") from ex
-        raise LoiApi(400, "media_khong_hop_le", "File khong co hinh hay am thanh.")
+            raise LoiApi(400, "media_khong_hop_le", "Không đọc được file âm thanh / video.") from ex
+        raise LoiApi(400, "media_khong_hop_le", "File không có hình hay âm thanh.")
     finally:
         os.unlink(tam)

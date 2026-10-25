@@ -59,7 +59,7 @@ namespace Crowd.Project.Domain.Members
         {
             if (role == MemberRole.Owner)
             {
-                throw new InvalidValueException("khong_the_them_owner", "Moi du an chi co mot chu so huu.");
+                throw new InvalidValueException("khong_the_them_owner", "Mỗi dự án chỉ có một chủ sở hữu.");
             }
 
             return Tao(projectId, userId, role, luc);
@@ -103,12 +103,12 @@ namespace Crowd.Project.Domain.Members
         {
             if (Role == MemberRole.Owner)
             {
-                throw new RuleViolationException("chu_du_an_khong_roi", "Chu du an khong roi du an cua minh.");
+                throw new RuleViolationException("chu_du_an_khong_roi", "Chủ dự án không rời dự án của mình.");
             }
 
             if (State == MemberState.Blocked)
             {
-                throw new RuleViolationException("bi_chan", "Ban dang bi chan khoi du an nay.");
+                throw new RuleViolationException("bi_chan", "Bạn đang bị chặn khỏi dự án này.");
             }
         }
 
@@ -116,12 +116,12 @@ namespace Crowd.Project.Domain.Members
         {
             if (Role == MemberRole.Owner)
             {
-                throw new RuleViolationException("khong_the_chan_owner", "Khong the chan chu so huu du an.");
+                throw new RuleViolationException("khong_the_chan_owner", "Không thể chặn chủ sở hữu dự án.");
             }
 
             if (State == MemberState.Blocked)
             {
-                throw new RuleViolationException("da_bi_chan", "Thanh vien da bi chan tu truoc.");
+                throw new RuleViolationException("da_bi_chan", "Thành viên đã bị chặn từ trước.");
             }
 
             State = MemberState.Blocked;
@@ -132,7 +132,7 @@ namespace Crowd.Project.Domain.Members
         {
             if (State != MemberState.Blocked)
             {
-                throw new RuleViolationException("khong_bi_chan", "Thanh vien khong bi chan.");
+                throw new RuleViolationException("khong_bi_chan", "Thành viên không bị chặn.");
             }
 
             State = MemberState.Active;
@@ -145,7 +145,7 @@ namespace Crowd.Project.Domain.Members
         {
             if (Role == MemberRole.Owner)
             {
-                throw new RuleViolationException("khong_the_xoa_owner", "Khong the xoa chu so huu khoi du an.");
+                throw new RuleViolationException("khong_the_xoa_owner", "Không thể xoá chủ sở hữu khỏi dự án.");
             }
         }
 
@@ -153,7 +153,7 @@ namespace Crowd.Project.Domain.Members
         {
             if (projectId == Guid.Empty || userId == Guid.Empty)
             {
-                throw new InvalidValueException("id_rong", "Thieu du an hoac nguoi dung.");
+                throw new InvalidValueException("id_rong", "Thiếu dự án hoặc người dùng.");
             }
 
             ProjectMember m = new ProjectMember();

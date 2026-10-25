@@ -27,6 +27,10 @@ namespace Crowd.Identity.Api.Persistence.Configurations
             // tai chua" — TOCTOU. Rang buoc nay la thu chan duoc.
             builder.HasIndex(x => x.Email).IsUnique().HasDatabaseName("ux_users_email");
 
+            // Username: cung ly do — UNIQUE o database chan hai nguoi chon cung ten mot luc.
+            builder.Property(x => x.Username).HasColumnName("username").HasMaxLength(30).IsRequired();
+            builder.HasIndex(x => x.Username).IsUnique().HasDatabaseName("ux_users_username");
+
             builder.Property(x => x.PasswordHash)
                 .HasColumnName("password_hash").HasMaxLength(200).IsRequired();
             builder.Property(x => x.DisplayName)

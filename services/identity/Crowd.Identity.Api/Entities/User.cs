@@ -26,6 +26,7 @@ namespace Crowd.Identity.Api.Entities
         private User()
         {
             Email = string.Empty;
+            Username = string.Empty;
             PasswordHash = string.Empty;
             DisplayName = string.Empty;
             _roles = new List<string>();
@@ -41,6 +42,12 @@ namespace Crowd.Identity.Api.Entities
         /// " a@x.com" khong thanh hai tai khoan khac nhau.
         /// </summary>
         public string Email { get; private set; }
+
+        /// <summary>
+        /// Ten dang nhap cong khai, KHONG TRUNG (ux_users_username), chu thuong a-z 0-9 . _ (3–30 ky tu). Dung de
+        /// moi / tra cuu nguoi dung thay cho userId, va dang nhap thay cho email. Doi duoc (DoiUsername).
+        /// </summary>
+        public string Username { get; private set; }
 
         /// <summary>
         /// Ket qua cua PasswordHasher (PBKDF2, 100.000 vong, muoi ngau nhien).
@@ -94,12 +101,29 @@ namespace Crowd.Identity.Api.Entities
             get { return EmailVerifiedAt.HasValue; }
         }
 
+        /// <summary>Tao tai khoan, username tu sinh tu email (seed / test). Dang ky that dung ban co username.</summary>
         public static User Tao(
             string emailDaChuanHoa,
             string displayName,
             IEnumerable<string> roles,
             DateTimeOffset luc)
         {
+            return Tao(emailDaChuanHoa, UsernameTuEmail(emailDaChuanHoa), displayName, roles, luc);
+        }
+
+        public static User Tao(
+            string emailDaChuanHoa,
+            string username,
+            string displayName,
+            IEnumerable<string> roles,
+            DateTimeOffset luc)
+        {
+            string? loi = LoiUsername(username);
+            if (loi != null)
+            {
+                throw new InvalidValueException("username_khong_hop_le", loi);
+            }
+
             if (string.IsNullOrWhiteSpace(emailDaChuanHoa))
             {
                 throw new ArgumentException("email khong duoc rong", nameof(emailDaChuanHoa));
@@ -114,6 +138,7 @@ namespace Crowd.Identity.Api.Entities
 
             user.Id = Guid.CreateVersion7();
             user.Email = emailDaChuanHoa;
+            user.Username = ChuanHoaUsername(username);
             user.DisplayName = displayName;
             user._roles = new List<string>(roles);
             user.Status = UserStatus.Active;
@@ -167,13 +192,13 @@ namespace Crowd.Identity.Api.Entities
             string ten = (displayName ?? string.Empty).Trim();
             if (ten.Length == 0 || ten.Length > 100)
             {
-                throw new InvalidValueException("ten_khong_hop_le", "Ten hien thi tu 1 den 100 ky tu.");
+                throw new InvalidValueException("ten_khong_hop_le", "Tên hiển thị từ 1 đến 100 ký tự.");
             }
 
             string? gioiThieu = bio == null ? null : bio.Trim();
             if (gioiThieu != null && gioiThieu.Length > 500)
             {
-                throw new InvalidValueException("gioi_thieu_qua_dai", "Gioi thieu toi da 500 ky tu.");
+                throw new InvalidValueException("gioi_thieu_qua_dai", "Giới thiệu tối đa 500 ký tự.");
             }
 
             DisplayName = ten;
@@ -205,6 +230,87 @@ namespace Crowd.Identity.Api.Entities
             }
 
             PasswordHash = hash;
+        }
+
+        public const int UsernameToiThieu = 3;
+
+        public const int UsernameToiDa = 30;
+
+        /// <summary>Doi username (da kiem trung o service; UNIQUE o database la thu chan that).</summary>
+        public void DoiUsername(string username)
+        {
+            string? loi = LoiUsername(username);
+            if (loi != null)
+            {
+                throw new InvalidValueException("username_khong_hop_le", loi);
+            }
+
+            Username = ChuanHoaUsername(username);
+        }
+
+        /// <summary>Cat khoang trang, bo "@" dau (nguoi dung hay go "@ten"), chu thuong.</summary>
+        public static string ChuanHoaUsername(string? username)
+        {
+            string s = (username ?? string.Empty).Trim();
+            if (s.StartsWith('@'))
+            {
+                s = s.Substring(1);
+            }
+
+            return s.ToLowerInvariant();
+        }
+
+        /// <summary>null = hop le. Quy tac: 3–30 ky tu a-z 0-9 . _, khong bat dau / ket thuc bang "." hay "_".</summary>
+        public static string? LoiUsername(string? username)
+        {
+            string s = ChuanHoaUsername(username);
+            if (s.Length < UsernameToiThieu || s.Length > UsernameToiDa)
+            {
+                return "Username phải từ " + UsernameToiThieu + " đến " + UsernameToiDa + " ký tự.";
+            }
+
+            foreach (char c in s)
+            {
+                bool hop = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_';
+                if (!hop)
+                {
+                    return "Username chỉ gồm chữ thường không dấu a-z, số 0-9, dấu chấm và gạch dưới.";
+                }
+            }
+
+            if (s[0] == '.' || s[0] == '_' || s[s.Length - 1] == '.' || s[s.Length - 1] == '_')
+            {
+                return "Username không được bắt đầu hay kết thúc bằng dấu chấm / gạch dưới.";
+            }
+
+            return null;
+        }
+
+        /// <summary>Username goi y tu phan truoc "@" cua email (bo ky tu la, du 3 ky tu). Co the trung — noi goi tu xu ly.</summary>
+        public static string UsernameTuEmail(string email)
+        {
+            string truoc = (email ?? string.Empty).Split('@')[0].ToLowerInvariant();
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            foreach (char c in truoc)
+            {
+                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_')
+                {
+                    sb.Append(c);
+                }
+            }
+
+            string s = sb.ToString().Trim('.', '_');
+            if (s.Length > 24)
+            {
+                s = s.Substring(0, 24).Trim('.', '_');
+            }
+
+            if (s.Length < UsernameToiThieu)
+            {
+                s = s + "user";
+            }
+
+            return s;
         }
 
         public static string ChuanHoaEmail(string email)

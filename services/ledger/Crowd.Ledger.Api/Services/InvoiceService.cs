@@ -154,13 +154,13 @@ namespace Crowd.Ledger.Api.Services
             chiHo = kq.ChiHo;
             if (phi.Sum(p => p.PhiDaGomThueVnd) <= 0)
             {
-                throw new RuleViolationException("khong_co_phi", "Thang " + period + " khong co phi nen tang nao de xuat hoa don.");
+                throw new RuleViolationException("khong_co_phi", "Tháng " + period + " không có phí nền tảng nào để xuất hoá đơn.");
             }
 
             HoSoDoanhNghiep? hs = await _identity.LayDoanhNghiepAsync(businessId, ct);
             if (hs == null || hs.Status != "verified")
             {
-                throw new RuleViolationException("chua_xac_minh_doanh_nghiep", "Doanh nghiep chua duoc xac minh (KYB) — hoa don GTGT can ten va ma so thue da xac minh.");
+                throw new RuleViolationException("chua_xac_minh_doanh_nghiep", "Doanh nghiệp chưa được xác minh (KYB) — hoá đơn GTGT cần tên và mã số thuế đã xác minh.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -281,7 +281,7 @@ namespace Crowd.Ledger.Api.Services
             Invoice? h = await _db.Invoices.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
             if (h == null || (h.BusinessId != caller.LayUserId() && !caller.IsAdmin))
             {
-                throw new NotFoundException("Khong tim thay hoa don.");
+                throw new NotFoundException("Không tìm thấy hoá đơn.");
             }
 
             return h;

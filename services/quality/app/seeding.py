@@ -89,8 +89,8 @@ async def _seed_bai(s, p: dict) -> None:
         await s.execute(
             text(
                 "INSERT INTO attempt_grades (attempt_id, project_id, labeler_id, comparable_count, matched_count, agreement_percent, "
-                "gold_total, gold_correct, passed, answered_count, graded_at) "
-                "VALUES (:a, :p, :l, :c, :m, :pt, :gt, :gd, :ok, :n, now() - make_interval(secs => :g))"
+                "gold_total, gold_correct, passed, rewarded, answered_count, graded_at) "
+                "VALUES (:a, :p, :l, :c, :m, :pt, :gt, :gd, :ok, :ok, :n, now() - make_interval(secs => :g))"
             ),
             {"a": b["attemptId"], "p": p["projectId"], "l": b["labelerId"], "c": kq["comparableCount"], "m": kq["matchedCount"],
              "pt": kq["agreementPercent"], "gt": b["goldTotal"], "gd": b["goldCorrect"], "ok": kq["passed"],

@@ -44,7 +44,7 @@ namespace Crowd.Tasking.Domain.Attempts
 
             if (System.Text.Encoding.UTF8.GetByteCount(dataJson) > KichThuocToiDa)
             {
-                throw new InvalidValueException("cau_tra_loi_qua_lon", "Moi cau tra loi toi da " + (KichThuocToiDa / 1024) + " KB.");
+                throw new InvalidValueException("cau_tra_loi_qua_lon", "Mỗi câu trả lời tối đa " + (KichThuocToiDa / 1024) + " KB.");
             }
 
             DataJson = dataJson;

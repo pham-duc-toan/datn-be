@@ -86,17 +86,17 @@ namespace Crowd.Identity.Api.Entities
 
             if (tenSach.Length == 0 || tenSach.Length > DoDaiTenToiDa)
             {
-                throw new InvalidValueException("ten_doanh_nghiep_khong_hop_le", "Ten doanh nghiep bat buoc, toi da " + DoDaiTenToiDa + " ky tu.");
+                throw new InvalidValueException("ten_doanh_nghiep_khong_hop_le", "Tên doanh nghiệp bắt buộc, tối đa " + DoDaiTenToiDa + " ký tự.");
             }
 
             if (!MaSoThue.IsMatch(mstSach))
             {
-                throw new InvalidValueException("ma_so_thue_khong_hop_le", "Ma so thue gom 10 chu so (chi nhanh: 10 chu so-3 chu so).");
+                throw new InvalidValueException("ma_so_thue_khong_hop_le", "Mã số thuế gồm 10 chữ số (chi nhánh: 10 chữ số-3 chữ số).");
             }
 
             if (dcSach.Length == 0 || dcSach.Length > DoDaiDiaChiToiDa)
             {
-                throw new InvalidValueException("dia_chi_khong_hop_le", "Dia chi bat buoc, toi da " + DoDaiDiaChiToiDa + " ky tu.");
+                throw new InvalidValueException("dia_chi_khong_hop_le", "Địa chỉ bắt buộc, tối đa " + DoDaiDiaChiToiDa + " ký tự.");
             }
 
             CompanyName = tenSach;
@@ -119,12 +119,12 @@ namespace Crowd.Identity.Api.Entities
 
             if (CompanyName.Length == 0 || TaxCode.Length == 0 || Address.Length == 0)
             {
-                throw new RuleViolationException("ho_so_chua_du", "Dien ten, ma so thue, dia chi truoc khi nop.");
+                throw new RuleViolationException("ho_so_chua_du", "Điền tên, mã số thuế, địa chỉ trước khi nộp.");
             }
 
             if (LicenseKey == null)
             {
-                throw new RuleViolationException("thieu_giay_phep", "Tai giay phep kinh doanh len truoc khi nop.");
+                throw new RuleViolationException("thieu_giay_phep", "Tải giấy phép kinh doanh lên trước khi nộp.");
             }
 
             Status = KybStatus.Submitted;
@@ -149,7 +149,7 @@ namespace Crowd.Identity.Api.Entities
             string ly = (lyDo ?? string.Empty).Trim();
             if (ly.Length == 0 || ly.Length > DoDaiLyDoToiDa)
             {
-                throw new InvalidValueException("thieu_ly_do", "Tu choi phai ghi ly do (toi da " + DoDaiLyDoToiDa + " ky tu).");
+                throw new InvalidValueException("thieu_ly_do", "Từ chối phải ghi lý do (tối đa " + DoDaiLyDoToiDa + " ký tự).");
             }
 
             Status = KybStatus.Rejected;
@@ -163,12 +163,12 @@ namespace Crowd.Identity.Api.Entities
         {
             if (Status == KybStatus.Submitted)
             {
-                throw new RuleViolationException("ho_so_dang_cho_duyet", "Ho so dang cho admin duyet — chua sua duoc.");
+                throw new RuleViolationException("ho_so_dang_cho_duyet", "Hồ sơ đang chờ admin duyệt — chưa sửa được.");
             }
 
             if (Status == KybStatus.Verified)
             {
-                throw new RuleViolationException("da_xac_minh", "Doanh nghiep da duoc xac minh — ho so khong sua duoc nua.");
+                throw new RuleViolationException("da_xac_minh", "Doanh nghiệp đã được xác minh — hồ sơ không sửa được nữa.");
             }
         }
 
@@ -176,7 +176,7 @@ namespace Crowd.Identity.Api.Entities
         {
             if (Status != KybStatus.Submitted)
             {
-                throw new RuleViolationException("khong_cho_duyet", "Ho so khong o trang thai cho duyet (dang " + Status + ").");
+                throw new RuleViolationException("khong_cho_duyet", "Hồ sơ không ở trạng thái chờ duyệt (đang " + Status + ").");
             }
         }
     }

@@ -155,7 +155,7 @@ namespace Crowd.Tasking.Api.Services
                 Attempt? a;
                 if (bai.TryGetValue(g.AttemptId, out a))
                 {
-                    a.GhiKetQua(g.ComparableCount, g.MatchedCount, g.AgreementPercent, g.Passed, p.GradedAt);
+                    a.GhiKetQua(g.ComparableCount, g.MatchedCount, g.AgreementPercent, g.Passed, g.Rewarded, p.GradedAt);
                 }
                 else
                 {
@@ -194,15 +194,18 @@ namespace Crowd.Tasking.Api.Services
             List<Attempt> daNop = await _db.Attempts
                 .Where(a => a.ProjectId == duAn.ProjectId && a.State == AttemptState.Submitted)
                 .ToListAsync(ct);
-            int soDat = daNop.Count(a => a.DatCuoiCung);
+            // So bai DUOC THUONG (toi da so suat) — ledger tra du so nay roi hoan phan ky quy con lai.
+            int soThuong = daNop.Count(a => a.DuocThuong);
 
-            if (!duAn.Chot(soDat, luc))
+            if (!duAn.Chot(soThuong, luc))
             {
                 return false;
             }
 
-            _events.Phat(caller, new ProjectSettled { ProjectId = duAn.ProjectId, PassedAttemptCount = soDat });
-            _logger.LogInformation("Du an {ProjectId} chot ket qua: {SoDat}/{SoNop} bai dat", duAn.ProjectId, soDat, daNop.Count);
+            _events.Phat(caller, new ProjectSettled { ProjectId = duAn.ProjectId, PassedAttemptCount = soThuong });
+            _logger.LogInformation(
+                "Du an {ProjectId} chot ket qua: {SoThuong} bai duoc thuong, {SoDat} bai dat / {SoNop} bai nop",
+                duAn.ProjectId, soThuong, daNop.Count(a => a.DatCuoiCung), daNop.Count);
             return true;
         }
     }

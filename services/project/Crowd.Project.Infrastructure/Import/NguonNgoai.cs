@@ -124,7 +124,7 @@ namespace Crowd.Project.Infrastructure.Import
             }
             catch (AmazonS3Exception ex)
             {
-                throw new NguonNgoaiException("s3_tu_choi", "S3 tu choi: " + ex.ErrorCode + " " + ex.Message);
+                throw new NguonNgoaiException("s3_tu_choi", "S3 từ chối: " + ex.ErrorCode + " " + ex.Message);
             }
             catch (HttpRequestException ex) when (ex.InnerException is NguonNgoaiException)
             {
@@ -147,7 +147,7 @@ namespace Crowd.Project.Infrastructure.Import
 
             if (muc.KichThuoc.HasValue && muc.KichThuoc.Value > toiDaByte)
             {
-                throw new NguonNgoaiException("file_qua_lon", "File " + muc.KichThuoc.Value + " byte, toi da " + toiDaByte + ".");
+                throw new NguonNgoaiException("file_qua_lon", "File " + muc.KichThuoc.Value + " byte, tối đa " + toiDaByte + ".");
             }
 
             string tam = Path.Combine(Path.GetTempPath(), "crowd-import-" + Guid.NewGuid().ToString("N"));
@@ -164,7 +164,7 @@ namespace Crowd.Project.Infrastructure.Import
                         daDoc += n;
                         if (daDoc > toiDaByte)
                         {
-                            throw new NguonNgoaiException("file_qua_lon", "File vuot " + toiDaByte + " byte.");
+                            throw new NguonNgoaiException("file_qua_lon", "File vượt " + toiDaByte + " byte.");
                         }
 
                         await ra.WriteAsync(dem.AsMemory(0, n), ct).ConfigureAwait(false);
@@ -176,7 +176,7 @@ namespace Crowd.Project.Infrastructure.Import
             catch (AmazonS3Exception ex)
             {
                 File.Delete(tam);
-                throw new NguonNgoaiException("s3_tu_choi", "S3 tu choi: " + ex.ErrorCode);
+                throw new NguonNgoaiException("s3_tu_choi", "S3 từ chối: " + ex.ErrorCode);
             }
             catch
             {
@@ -300,7 +300,7 @@ namespace Crowd.Project.Infrastructure.Import
                 }
                 catch (HttpRequestException ex)
                 {
-                    throw new NguonNgoaiException("drive_tu_choi", "Google Drive tu choi liet ke thu muc: " + ex.Message);
+                    throw new NguonNgoaiException("drive_tu_choi", "Google Drive từ chối liệt kê thư mục: " + ex.Message);
                 }
 
                 using (JsonDocument doc = JsonDocument.Parse(body))

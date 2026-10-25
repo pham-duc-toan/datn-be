@@ -94,7 +94,7 @@ namespace Crowd.Annotation.Api.Services
             {
                 throw new InvalidValueException(
                     "coco_chi_cho_khung_anh",
-                    "COCO chi xuat duoc cho du an anh co cong cu bbox / polygon / mask. Dung json hoac csv.");
+                    "COCO chỉ xuất được cho dự án ảnh có công cụ bbox / polygon / mask. Dùng json hoặc csv.");
             }
 
             // Danh muc: moi (cong cu, lop) mot id. supercategory = ten cong cu.
@@ -182,9 +182,9 @@ namespace Crowd.Annotation.Api.Services
             {
                 ["info"] = new JsonObject
                 {
-                    ["description"] = "Ket qua du an " + kq.ProjectId,
+                    ["description"] = "Kết quả dự án " + kq.ProjectId,
                     ["note"] = "Moi annotation la mot doi tuong DA GOP tu cac nhan da duyet (ghep cum theo IoU; support = so nguoi ve). "
-                               + "Anh tranh chap (disputed = true, " + soTranhChap + " anh) khong co annotation cua cong cu tranh chap.",
+                               + "Ảnh tranh chấp (disputed = true, " + soTranhChap + " ảnh) không có annotation của công cụ tranh chấp.",
                 },
                 ["images"] = images,
                 ["annotations"] = annotations,

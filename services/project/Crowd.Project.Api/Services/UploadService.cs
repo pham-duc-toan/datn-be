@@ -89,12 +89,12 @@ namespace Crowd.Project.Api.Services
         {
             if (body == null || body.Files == null || body.Files.Count == 0)
             {
-                throw new InvalidValueException("khong_co_file", "Can it nhat mot file trong \"files\".");
+                throw new InvalidValueException("khong_co_file", "Cần ít nhất một file trong \"files\".");
             }
 
             if (body.Files.Count > _settings.SoNguyen(SettingKeys.UploadMaxFiles))
             {
-                throw new InvalidValueException("qua_nhieu_file", "Toi da " + _settings.SoNguyen(SettingKeys.UploadMaxFiles) + " file moi lan xin link.");
+                throw new InvalidValueException("qua_nhieu_file", "Tối đa " + _settings.SoNguyen(SettingKeys.UploadMaxFiles) + " file mỗi lần xin link.");
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
@@ -110,21 +110,21 @@ namespace Crowd.Project.Api.Services
 
                 if (ten.Length == 0)
                 {
-                    throw new InvalidValueException("thieu_ten_file", "Moi file can \"name\".");
+                    throw new InvalidValueException("thieu_ten_file", "Mỗi file cần \"name\".");
                 }
 
                 if (!DuocPhep(duAn.Modality, duoi))
                 {
                     throw new InvalidValueException(
                         "duoi_file_khong_hop_le",
-                        "File '" + ten + "' khong hop voi du lieu " + duAn.Modality + ". Cho phep: "
+                        "File '" + ten + "' không hợp với dữ liệu " + duAn.Modality + ". Cho phép: "
                         + string.Join(", ", DuoiChoPhep[duAn.Modality]) + (DuoiChoPhep[duAn.Modality].Length > 0 ? ", " : string.Empty)
                         + string.Join(", ", DuoiManifest) + ".");
                 }
 
                 if (f.SizeBytes <= 0 || f.SizeBytes > _settings.SoLon(SettingKeys.UploadMaxFileBytes))
                 {
-                    throw new InvalidValueException("dung_luong_khong_hop_le", "File '" + ten + "': dung luong phai tu 1 byte den 5 GB.");
+                    throw new InvalidValueException("dung_luong_khong_hop_le", "File '" + ten + "': dung lượng phải từ 1 byte đến 5 GB.");
                 }
 
                 string khoa = projectId.ToString() + "/raw/" + Guid.CreateVersion7().ToString() + duoi;

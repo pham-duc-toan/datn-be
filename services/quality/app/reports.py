@@ -27,7 +27,8 @@ async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, An
         "SELECT reason, finished_at, graded_at, majority_used, freetext_state, freetext_method FROM project_collections WHERE project_id = :p"),
         {"p": project_id})).first()
     cham = (await s.execute(text(
-        "SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE passed) AS dat FROM attempt_grades WHERE project_id = :p"),
+        "SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE passed) AS dat, COUNT(*) FILTER (WHERE rewarded) AS thuong "
+        "FROM attempt_grades WHERE project_id = :p"),
         {"p": project_id})).one()
     cau = (await s.execute(text(
         "SELECT status, COUNT(*) AS n FROM sample_majorities WHERE project_id = :p GROUP BY status"), {"p": project_id})).all()
@@ -42,6 +43,8 @@ async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, An
         "attemptsSubmitted": bai.n,
         "attemptsGraded": cham.n,
         "attemptsPassed": cham.dat,
+        # Bai dat duoc thuong (toi da so suat — n bai dat nop som nhat).
+        "attemptsRewarded": cham.thuong,
         "attemptsFailed": cham.n - cham.dat,
         "collectionReason": None if dot is None else dot.reason,
         "collectionFinishedAt": None if dot is None else dot.finished_at.isoformat(),
@@ -72,7 +75,7 @@ async def tinh_labelers(s: AsyncSession, project_id: uuid.UUID) -> list[dict[str
     """Tung bai nop trong du an: so cau tra loi, ti le giong da so, cau vang, dat / truot, DS, uy tin — tu du lieu song."""
     dong = (await s.execute(text(
         "SELECT a.attempt_id, a.labeler_id, a.answered_count, cardinality(a.sample_ids) AS so_cau, a.gold_total, a.gold_correct, "
-        "  a.submitted_at, g.comparable_count, g.matched_count, g.agreement_percent, g.passed, "
+        "  a.submitted_at, g.comparable_count, g.matched_count, g.agreement_percent, g.passed, g.rewarded, "
         "  (SELECT reputation FROM reputations r WHERE r.labeler_id = a.labeler_id) AS uy_tin "
         "FROM attempts a LEFT JOIN attempt_grades g ON g.attempt_id = a.attempt_id "
         "WHERE a.project_id = :p ORDER BY g.agreement_percent DESC NULLS LAST, a.submitted_at"),
@@ -104,6 +107,8 @@ async def tinh_labelers(s: AsyncSession, project_id: uuid.UUID) -> list[dict[str
             "agreementSampleCount": d.comparable_count,
             "matchedCount": d.matched_count,
             "passed": d.passed,
+            # Trong n suat thuong (n bai dat nop som nhat). passed ma rewarded false = dat nhung het suat.
+            "rewarded": d.rewarded,
             "goldAnswers": d.gold_total,
             "goldAccuracyPercent": phan_tram(d.gold_correct, d.gold_total),
             "dawidSkeneSkill": ds.get(d.labeler_id, {}),

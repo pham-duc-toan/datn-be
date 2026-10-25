@@ -47,6 +47,17 @@ class KetQuaBai:
     da_tra_loi: int
 
 
+def chon_duoc_thuong(bai: list[KetQuaBai], so_suat: int) -> set[str]:
+    """n suat thuong cho n bai DAT nop som nhat. `bai` da xep theo luc nop (som truoc) — thu tu cua cham_du_an."""
+    ra: set[str] = set()
+    for b in bai:
+        if len(ra) >= so_suat:
+            break
+        if b.dat:
+            ra.add(b.attempt_id)
+    return ra
+
+
 @dataclass(frozen=True)
 class KetQuaCau:
     sample_id: str

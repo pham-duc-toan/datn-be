@@ -1,4 +1,5 @@
 # E2E setting dong: admin doi setting qua API → service ap dung cho thao tac moi.
+import hashlib
 import json, os, subprocess, sys, time, uuid
 import requests
 
@@ -161,9 +162,9 @@ try:
     kiem("xin 2 link → 200", r.status_code == 200, r.text)
     dat_va_cho("identity.password_min_length", 12, ("identity",))
     email = f"e2e-setting-{uuid.uuid4().hex[:8]}@crowd.local"
-    r = requests.post(G + "/auth/register", json={"email": email, "password": "Abc@12345", "displayName": "x", "roles": ["labeler"]})
+    r = requests.post(G + "/auth/register", json={"email": email, "username": "u" + hashlib.sha1((email).encode()).hexdigest()[:20], "password": "Abc@12345", "displayName": "x", "roles": ["labeler"]})
     kiem("mat khau 9 ky tu khi toi thieu 12 → 400", r.status_code == 400 and "12" in r.text, r.text)
-    r = requests.post(G + "/auth/register", json={"email": email, "password": "Abc@12345678", "displayName": "x", "roles": ["labeler"]})
+    r = requests.post(G + "/auth/register", json={"email": email, "username": "u" + hashlib.sha1((email).encode()).hexdigest()[:20], "password": "Abc@12345678", "displayName": "x", "roles": ["labeler"]})
     kiem("mat khau 12 ky tu → dang ky duoc", r.status_code in (200, 201), r.text)
 
     print("\n[5] Gateway (khong DB) doi tran upload ZIP theo setting")

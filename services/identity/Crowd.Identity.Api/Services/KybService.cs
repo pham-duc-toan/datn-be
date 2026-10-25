@@ -106,13 +106,13 @@ namespace Crowd.Identity.Api.Services
             string duoi = Path.GetExtension(ten);
             if (ten.Length == 0 || ten.Length > 200 || !DuoiChoPhep.Contains(duoi))
             {
-                throw new InvalidValueException("file_khong_hop_le", "Giay phep phai la file .pdf, .png hoac .jpg (ten toi da 200 ky tu).");
+                throw new InvalidValueException("file_khong_hop_le", "Giấy phép phải là file .pdf, .png hoặc .jpg (tên tối đa 200 ký tự).");
             }
 
             long toiDa = _settings.SoLon(SettingKeys.IdentityKybFileMaxBytes);
             if (body.SizeBytes <= 0 || body.SizeBytes > toiDa)
             {
-                throw new InvalidValueException("file_qua_lon", "File giay phep toi da " + toiDa + " byte.");
+                throw new InvalidValueException("file_qua_lon", "File giấy phép tối đa " + toiDa + " byte.");
             }
 
             Guid uid = caller.LayUserId();
@@ -142,12 +142,12 @@ namespace Crowd.Identity.Api.Services
                 ThongTinFile? file = await _storage.ThongTinAsync(p.LicenseKey, ct);
                 if (file == null)
                 {
-                    throw new RuleViolationException("thieu_giay_phep", "Chua tai file giay phep len (link da cap nhung chua co file).");
+                    throw new RuleViolationException("thieu_giay_phep", "Chưa tải file giấy phép lên (link đã cấp nhưng chưa có file).");
                 }
 
                 if (file.SizeBytes > _settings.SoLon(SettingKeys.IdentityKybFileMaxBytes))
                 {
-                    throw new InvalidValueException("file_qua_lon", "File giay phep vuot kich thuoc cho phep.");
+                    throw new InvalidValueException("file_qua_lon", "File giấy phép vượt kích thước cho phép.");
                 }
             }
 
@@ -205,7 +205,7 @@ namespace Crowd.Identity.Api.Services
             User? u = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == businessId, ct);
             if (p == null || u == null)
             {
-                throw new NotFoundException("Khong tim thay ho so doanh nghiep.");
+                throw new NotFoundException("Không tìm thấy hồ sơ doanh nghiệp.");
             }
 
             string? link = p.LicenseKey == null ? null : await _storage.TaoLinkXemAsync(p.LicenseKey);
@@ -258,7 +258,7 @@ namespace Crowd.Identity.Api.Services
             BusinessProfile? p = await _db.BusinessProfiles.FirstOrDefaultAsync(x => x.UserId == uid, ct);
             if (p == null)
             {
-                throw new NotFoundException("Khong tim thay ho so doanh nghiep.");
+                throw new NotFoundException("Không tìm thấy hồ sơ doanh nghiệp.");
             }
 
             return p;

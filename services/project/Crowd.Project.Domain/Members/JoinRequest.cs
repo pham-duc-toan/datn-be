@@ -62,7 +62,7 @@ namespace Crowd.Project.Domain.Members
         {
             if (projectId == Guid.Empty || userId == Guid.Empty)
             {
-                throw new InvalidValueException("id_rong", "Thieu du an hoac nguoi dung.");
+                throw new InvalidValueException("id_rong", "Thiếu dự án hoặc người dùng.");
             }
 
             JoinRequest d = new JoinRequest();
@@ -125,7 +125,7 @@ namespace Crowd.Project.Domain.Members
         {
             if (Status != JoinRequestStatus.Pending)
             {
-                throw new RuleViolationException("don_da_xu_ly", "Don xin tham gia da duoc xu ly (" + Status + ").");
+                throw new RuleViolationException("don_da_xu_ly", "Đơn xin tham gia đã được xử lý (" + Status + ").");
             }
         }
 
@@ -139,7 +139,7 @@ namespace Crowd.Project.Domain.Members
             string s = chu.Trim();
             if (s.Length > DoDaiLoiNhanToiDa)
             {
-                throw new InvalidValueException(maLoi, ten + " toi da " + DoDaiLoiNhanToiDa + " ky tu.");
+                throw new InvalidValueException(maLoi, ten + " tối đa " + DoDaiLoiNhanToiDa + " ký tự.");
             }
 
             return s;

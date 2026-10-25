@@ -79,7 +79,7 @@ namespace Crowd.Link.Api.Services
                     ma = await _db.ReferralCodes.AsNoTracking().FirstOrDefaultAsync(r => r.UserId == userId, ct);
                     if (ma == null)
                     {
-                        throw new LinkException(409, "xung_dot_dong_thoi", "Thu lai sau it giay.");
+                        throw new LinkException(409, "xung_dot_dong_thoi", "Thử lại sau ít giây.");
                     }
                 }
             }
@@ -97,26 +97,26 @@ namespace Crowd.Link.Api.Services
             ReferralCode? chu = await _db.ReferralCodes.AsNoTracking().FirstOrDefaultAsync(r => r.Code == ma, ct);
             if (chu == null)
             {
-                throw new LinkException(404, "ma_gioi_thieu_sai", "Ma gioi thieu khong ton tai.");
+                throw new LinkException(404, "ma_gioi_thieu_sai", "Mã giới thiệu không tồn tại.");
             }
 
             if (chu.UserId == toi)
             {
-                throw new LinkException(409, "tu_gioi_thieu", "Khong nhap ma gioi thieu cua chinh minh.");
+                throw new LinkException(409, "tu_gioi_thieu", "Không nhập mã giới thiệu của chính mình.");
             }
 
             KnownUser? u = await _db.KnownUsers.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == toi, ct);
             DateTimeOffset bayGio = _clock.GetUtcNow();
             if (u == null || bayGio - u.RegisteredAt > _settings.ThoiGian(SettingKeys.LinkReferralClaimWindow))
             {
-                throw new LinkException(409, "qua_han_nhap_ma", "Chi tai khoan moi dang ky moi nhap duoc ma gioi thieu.");
+                throw new LinkException(409, "qua_han_nhap_ma", "Chỉ tài khoản mới đăng ký mới nhập được mã giới thiệu.");
             }
 
             // Vong A moi B, B moi A: chan.
             bool vong = await _db.Referrals.AnyAsync(r => r.ReferrerId == toi && r.ReferredId == chu.UserId, ct);
             if (vong)
             {
-                throw new LinkException(409, "gioi_thieu_vong", "Hai tai khoan khong the gioi thieu lan nhau.");
+                throw new LinkException(409, "gioi_thieu_vong", "Hai tài khoản không thể giới thiệu lẫn nhau.");
             }
 
             // Chong lam dung (VD-L-05 mo rong): dau hieu nghi ngo → ghi nhan nhung CHUA phat referral.registered
@@ -138,7 +138,7 @@ namespace Crowd.Link.Api.Services
             }
             catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "PK_referrals"))
             {
-                throw new LinkException(409, "da_co_nguoi_gioi_thieu", "Ban da nhap ma gioi thieu roi.");
+                throw new LinkException(409, "da_co_nguoi_gioi_thieu", "Bạn đã nhập mã giới thiệu rồi.");
             }
         }
 
@@ -213,12 +213,12 @@ namespace Crowd.Link.Api.Services
             Referral? r = await _db.Referrals.FirstOrDefaultAsync(x => x.ReferredId == referredId, ct);
             if (r == null)
             {
-                throw new LinkException(404, "khong_tim_thay", "Khong tim thay gioi thieu.");
+                throw new LinkException(404, "khong_tim_thay", "Không tìm thấy giới thiệu.");
             }
 
             if (!r.Xet(chapNhan, caller.LayUserId(), _clock.GetUtcNow()))
             {
-                throw new LinkException(409, "da_xet", "Gioi thieu nay khong o trang thai cho xet.");
+                throw new LinkException(409, "da_xet", "Giới thiệu này không ở trạng thái chờ xét.");
             }
 
             if (chapNhan)

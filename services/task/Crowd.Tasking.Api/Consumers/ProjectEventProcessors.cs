@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Consumers;
+using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.Contracts.Project;
 using Crowd.Contracts.Quality;
@@ -120,15 +121,22 @@ namespace Crowd.Tasking.Api.Consumers
     public sealed class ProjectPublishedProcessor : IEventProcessor<ProjectPublished>
     {
         private readonly TaskDbContext _db;
+        private readonly ISettings _settings;
 
-        public ProjectPublishedProcessor(TaskDbContext db)
+        public ProjectPublishedProcessor(TaskDbContext db, ISettings settings)
         {
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
             }
 
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
             _db = db;
+            _settings = settings;
         }
 
         public async Task XuLyAsync(EventEnvelope<ProjectPublished> envelope, CancellationToken ct)
@@ -144,6 +152,8 @@ namespace Crowd.Tasking.Api.Consumers
                 LabelSchema.Doc(p.LabelSchema),
                 p.RewardVnd,
                 p.Slots,
+                // Tran nguoi lam = so suat thuong x he so — chup luc publish.
+                p.Slots * _settings.SoNguyen(SettingKeys.ProjectParticipantMultiplier),
                 p.PassThresholdPercent,
                 p.QuestionCount,
                 p.Deadline,

@@ -178,7 +178,7 @@ namespace Crowd.Project.Api.Services
         {
             if (body.ValueKind != JsonValueKind.Object)
             {
-                throw new InvalidValueException("tap_nhan_sai_dinh_dang", "Tap nhan phai la mot object JSON.");
+                throw new InvalidValueException("tap_nhan_sai_dinh_dang", "Tập nhãn phải là một object JSON.");
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
@@ -190,7 +190,7 @@ namespace Crowd.Project.Api.Services
             {
                 throw new RuleViolationException(
                     "da_co_cau_hoi_vang",
-                    "Du an da co cau hoi vang. Xoa cau hoi vang truoc khi doi tap nhan.");
+                    "Dự án đã có câu hỏi vàng. Xoá câu hỏi vàng trước khi đổi tập nhãn.");
             }
 
             System.Text.Json.Nodes.JsonObject o = (System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(body.GetRawText())!;
@@ -252,7 +252,7 @@ namespace Crowd.Project.Api.Services
 
             if (body.Deadline == null)
             {
-                throw new InvalidValueException("thieu_deadline", "Phai co deadline.");
+                throw new InvalidValueException("thieu_deadline", "Phải có hạn chót.");
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
@@ -485,7 +485,7 @@ namespace Crowd.Project.Api.Services
             {
                 Ready = thieu.Count == 0,
                 Missing = thieu,
-                Warnings = LabelingProject.CanhBao(soVangKiemTra, duAn.LabelSchema, videoLoi),
+                Warnings = LabelingProject.CanhBao(duAn.LabelSchema, videoLoi),
                 VideoPreparingCount = videoDangChuanBi,
                 VideoFailedCount = videoLoi,
                 SampleCount = soMau,
@@ -501,6 +501,7 @@ namespace Crowd.Project.Api.Services
                     PassThresholdMax = quyDinh.NguongDatToiDa,
                     MinSlots = quyDinh.SoSuatToiThieu,
                     MaxSlots = quyDinh.SoSuatToiDa,
+                    ParticipantMultiplier = _settings.SoNguyen(SettingKeys.ProjectParticipantMultiplier),
                     MaxQuestions = quyDinh.SoCauToiDa,
                     MinRewardVnd = quyDinh.ThuongToiThieu,
                 },
@@ -528,14 +529,14 @@ namespace Crowd.Project.Api.Services
             {
                 throw new RuleViolationException(
                     "chua_xac_minh_doanh_nghiep",
-                    "Doanh nghiep chua duoc xac minh (KYB). Nop ho so tai /kyb/me va cho admin duyet truoc khi publish. Vua duoc duyet thi lam moi token (dang nhap lai).");
+                    "Doanh nghiệp chưa được xác minh (KYB). Nộp hồ sơ ở mục Xác minh doanh nghiệp và chờ admin duyệt trước khi publish. Vừa được duyệt thì làm mới token (đăng nhập lại).");
             }
 
             if (chuTuPublish && !caller.DaXacThucEmail)
             {
                 throw new RuleViolationException(
                     "chua_xac_thuc_email",
-                    "Chua xac thuc email — bam link trong email truoc khi publish du an. Vua xac thuc xong thi lam moi token (dang nhap lai).");
+                    "Chưa xác thực email — bấm link trong email trước khi publish dự án. Vừa xác thực xong thì làm mới token (đăng nhập lại).");
             }
 
             int soCauThat = await DemCauThatAsync(id, ct);
@@ -549,7 +550,7 @@ namespace Crowd.Project.Api.Services
             {
                 throw new RuleViolationException(
                     "cong_cu_khong_hop_cong_link",
-                    "Cong link chi cho cong cu lam nhanh (" + string.Join(", ", CongCuChoCongLink()) + "). Tat cong link hoac bo cong cu: "
+                    "Cổng link chỉ cho công cụ làm nhanh (" + string.Join(", ", CongCuChoCongLink()) + "). Tắt cổng link hoặc bỏ công cụ: "
                     + string.Join(", ", congCuSai) + ".");
             }
 
@@ -635,7 +636,7 @@ namespace Crowd.Project.Api.Services
             {
                 throw new RuleViolationException(
                     "video_dang_chuan_bi",
-                    "Con " + videoDangChuanBi + " video dang duoc chuan bi (ma hoa lai de gan watermark). Duyet sau khi xong.");
+                    "Còn " + videoDangChuanBi + " video đang được chuẩn bị (mã hoá lại để gắn watermark). Duyệt sau khi xong.");
             }
 
             duAn.Duyet(_clock.GetUtcNow());
@@ -727,8 +728,8 @@ namespace Crowd.Project.Api.Services
             {
                 throw new ChuaTheDongDuAnException(
                     !task.Paused
-                        ? "He thong dang xu ly lenh tam dung, thu lai sau vai giay."
-                        : "Da co " + task.SubmittedCount + " bai nop — khong huy duoc. Bam \"Ket thuc som\" de cham va tra thuong cho nguoi dat.",
+                        ? "Hệ thống đang xử lý lệnh tạm dừng, thử lại sau vài giây."
+                        : "Đã có " + task.SubmittedCount + " bài nộp — không huỷ được. Bấm \"Kết thúc sớm\" để chấm và trả thưởng cho người đạt.",
                     new
                     {
                         reasons = !task.Paused ? LyDoChuaDongBoTamDung : LyDoDaCoBaiNop,
@@ -794,7 +795,7 @@ namespace Crowd.Project.Api.Services
             LabelingProject? duAn = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
             if (duAn == null || duAn.PublishedAt == null || duAn.LabelSchema == null || duAn.Deadline == null)
             {
-                throw new NotFoundException("Du an chua publish.");
+                throw new NotFoundException("Dự án chưa publish.");
             }
 
             int soMau = await DemMauAsync(id, ct);
@@ -892,7 +893,7 @@ namespace Crowd.Project.Api.Services
             LabelingProject? duAn = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
             if (duAn == null)
             {
-                throw new NotFoundException("Khong tim thay du an.");
+                throw new NotFoundException("Không tìm thấy dự án.");
             }
 
             return duAn;
@@ -946,7 +947,7 @@ namespace Crowd.Project.Api.Services
 
             if (soThuoc != khacNhau.Count)
             {
-                throw new InvalidValueException("mau_khong_thuoc_du_an", "Co mau khong thuoc du an nay.");
+                throw new InvalidValueException("mau_khong_thuoc_du_an", "Có mẫu không thuộc dự án này.");
             }
         }
 

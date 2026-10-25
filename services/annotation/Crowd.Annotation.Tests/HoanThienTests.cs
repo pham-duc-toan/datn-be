@@ -124,7 +124,7 @@ namespace Crowd.Annotation.Tests
             Assert.Equal("0 0.5 0.5 0.5 0.5\n", zip["labels/" + kq.Samples[0].SampleId + ".txt"]);
             Assert.False(zip.ContainsKey("labels/" + kq.Samples[1].SampleId + ".txt"));
             Assert.Equal("mat\n", zip["classes.txt"]);
-            Assert.Contains("Bo qua 1 anh", zip["README.txt"], StringComparison.Ordinal);
+            Assert.Contains("Bỏ qua 1 ảnh", zip["README.txt"], StringComparison.Ordinal);
         }
 
         [Fact]

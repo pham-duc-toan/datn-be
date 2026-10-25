@@ -157,6 +157,9 @@ namespace Crowd.Tasking.Api.Dtos
         /// <summary>Ket qua cuoi (sau khieu nai).</summary>
         public bool? FinalPassed { get; init; }
 
+        /// <summary>Duoc tra thuong (trong n suat — n bai dat nop som nhat). Dat ma false = het suat thuong. null = chua cham.</summary>
+        public bool? Rewarded { get; init; }
+
         public DateTimeOffset? GradedAt { get; init; }
 
         // ---- Khieu nai ----
@@ -194,13 +197,17 @@ namespace Crowd.Tasking.Api.Dtos
     {
         public required Guid ProjectId { get; init; }
 
+        /// <summary>So suat THUONG: so nguoi duoc thuong (n bai dat nop som nhat).</summary>
         public required int Slots { get; init; }
+
+        /// <summary>Tran so nguoi lam bai (dang lam + da nop) = Slots x he so luc publish.</summary>
+        public required int MaxParticipants { get; init; }
 
         public required int InProgress { get; init; }
 
         public required int Submitted { get; init; }
 
-        /// <summary>Slots − InProgress − Submitted.</summary>
+        /// <summary>MaxParticipants − InProgress − Submitted: con bao nhieu cho LAM BAI.</summary>
         public required int Available { get; init; }
 
         public required int QuestionCount { get; init; }
@@ -229,7 +236,11 @@ namespace Crowd.Tasking.Api.Dtos
     {
         public required Guid ProjectId { get; init; }
 
+        /// <summary>So suat THUONG.</summary>
         public required int Slots { get; init; }
+
+        /// <summary>Tran so nguoi lam bai — du tran thi dong thu bai. Ban chup cu (truoc 10/2026) khong co → 0.</summary>
+        public int MaxParticipants { get; init; }
 
         public required int QuestionCount { get; init; }
 

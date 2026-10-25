@@ -136,7 +136,7 @@ namespace Crowd.Payment.Api.Services
             ICongNap? cong = _congNap.Tim(ten);
             if (cong == null || ten == PaymentIntent.ChuyenKhoanThuCong || !CacCongDangMo().Contains(ten))
             {
-                throw new InvalidValueException("cong_khong_ho_tro", "Cong '" + ten + "' khong mo. Cong dang mo: " + string.Join(", ", CacCongDangMo()) + ".");
+                throw new InvalidValueException("cong_khong_ho_tro", "Cổng '" + ten + "' không mở. Cổng đang mở: " + string.Join(", ", CacCongDangMo()) + ".");
             }
 
             Guid businessId = caller.LayUserId();
@@ -183,7 +183,7 @@ namespace Crowd.Payment.Api.Services
         {
             if (!_settings.DungSai(SettingKeys.PaymentManualTransferEnabled))
             {
-                throw new RuleViolationException("chuyen_khoan_tat", "Nen tang dang tat nap tien bang chuyen khoan thu cong.");
+                throw new RuleViolationException("chuyen_khoan_tat", "Nền tảng đang tắt nạp tiền bằng chuyển khoản thủ công.");
             }
 
             Guid businessId = caller.LayUserId();
@@ -204,7 +204,7 @@ namespace Crowd.Payment.Api.Services
             PaymentIntent? i = await _db.Intents.FirstOrDefaultAsync(x => x.Id == intentId, ct);
             if (i == null || i.BusinessId != uid)
             {
-                throw new NotFoundException("Khong tim thay lenh nap.");
+                throw new NotFoundException("Không tìm thấy lệnh nạp.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -230,7 +230,7 @@ namespace Crowd.Payment.Api.Services
             // Lenh nap cua nguoi khac → 404 (BOLA).
             if (i == null || (i.BusinessId != uid && !caller.IsAdmin))
             {
-                throw new NotFoundException("Khong tim thay lenh nap.");
+                throw new NotFoundException("Không tìm thấy lệnh nạp.");
             }
 
             return TaoResponse(i);
@@ -247,7 +247,7 @@ namespace Crowd.Payment.Api.Services
             PaymentIntent? i = await _db.Intents.FirstOrDefaultAsync(x => x.Id == intentId, ct);
             if (i == null || i.BusinessId != uid)
             {
-                throw new NotFoundException("Khong tim thay lenh nap.");
+                throw new NotFoundException("Không tìm thấy lệnh nạp.");
             }
 
             if (i.Status == PaymentIntentStatus.Pending && !i.LaChuyenKhoanThuCong)
@@ -339,19 +339,19 @@ namespace Crowd.Payment.Api.Services
             if (thongBao == null)
             {
                 _logger.LogWarning("Thong bao cong {Cong} chu ky SAI — tu choi. Co the la gia mao.", cong.Name);
-                throw new ForbiddenException("chu_ky_sai", "Chu ky thong bao khong hop le.");
+                throw new ForbiddenException("chu_ky_sai", "Chữ ký thông báo không hợp lệ.");
             }
 
             PaymentIntent? intent = await _db.Intents.FirstOrDefaultAsync(i => i.Id == thongBao.IntentId, ct);
             if (intent == null)
             {
-                throw new NotFoundException("Khong tim thay lenh nap.");
+                throw new NotFoundException("Không tìm thấy lệnh nạp.");
             }
 
             // Lenh cua cong KHAC (vd chuyen khoan thu cong) khong duoc chot bang thong bao cong nay.
             if (!string.Equals(intent.Provider, cong.Name, StringComparison.Ordinal))
             {
-                throw new RuleViolationException("sai_cong", "Lenh nap khong thuoc cong " + cong.Name + ".");
+                throw new RuleViolationException("sai_cong", "Lệnh nạp không thuộc cổng " + cong.Name + ".");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -373,7 +373,7 @@ namespace Crowd.Payment.Api.Services
             // So tien thong bao phai khop lenh — chan som truoc khi hoi nguoc.
             if (thongBao.AmountVnd != intent.AmountVnd)
             {
-                throw new RuleViolationException("sai_so_tien", "Cong bao " + thongBao.AmountVnd + "d nhung lenh nap la " + intent.AmountVnd + "d.");
+                throw new RuleViolationException("sai_so_tien", "Cổng báo " + thongBao.AmountVnd + "đ nhưng lệnh nạp là " + intent.AmountVnd + "đ.");
             }
 
             KetQuaTraCuuNap kq = await cong.TraCuuNapAsync(YeuCau(intent, null), ct);
@@ -385,7 +385,7 @@ namespace Crowd.Payment.Api.Services
             if (kq.TrangThai == TrangThaiTraCuu.KhongRo)
             {
                 // Chua hoi duoc: KHONG cong tien theo mot minh IPN. Cong gui lai IPN / worker doi soat se chot.
-                throw new CongChuaXacNhanException("Chua hoi nguoc duoc cong " + cong.Name + " (" + kq.MaKetQua + ").");
+                throw new CongChuaXacNhanException("Chưa hỏi ngược được cổng " + cong.Name + " (" + kq.MaKetQua + ").");
             }
 
             if (kq.TrangThai != TrangThaiTraCuu.DaThanhToan)
@@ -393,7 +393,7 @@ namespace Crowd.Payment.Api.Services
                 _logger.LogWarning(
                     "IPN {Cong} bao thanh cong lenh {IntentId} nhung tra cuu noi {TrangThai} ({Ma}) — KHONG cong tien",
                     cong.Name, intent.Id, kq.TrangThai, kq.MaKetQua);
-                throw new RuleViolationException("cong_khong_xac_nhan", "Cong khong xac nhan giao dich nay.");
+                throw new RuleViolationException("cong_khong_xac_nhan", "Cổng không xác nhận giao dịch này.");
             }
 
             return await ChotThanhCongAsync(intent, kq.ProviderTxnId.Length > 0 ? kq.ProviderTxnId : thongBao.ProviderTxnId, kq.AmountVnd, correlationId, ct);
@@ -489,7 +489,7 @@ namespace Crowd.Payment.Api.Services
             PaymentIntent? i = await _db.Intents.FirstOrDefaultAsync(x => x.Id == intentId, ct);
             if (i == null || !i.LaChuyenKhoanThuCong)
             {
-                throw new NotFoundException("Khong tim thay lenh nap chuyen khoan.");
+                throw new NotFoundException("Không tìm thấy lệnh nạp chuyển khoản.");
             }
 
             return i;
@@ -605,7 +605,7 @@ namespace Crowd.Payment.Api.Services
             catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "ux_intents_provider_txn"))
             {
                 // Mot ma giao dich (cong / sao ke) dung cho HAI lenh nap: gian lan hoac nham.
-                throw new RuleViolationException("ma_giao_dich_trung", "Ma giao dich da duoc dung cho lenh nap khac.");
+                throw new RuleViolationException("ma_giao_dich_trung", "Mã giao dịch đã được dùng cho lệnh nạp khác.");
             }
         }
 

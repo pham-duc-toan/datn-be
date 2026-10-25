@@ -38,7 +38,7 @@ class NguoiGoi:
 def nguoi_goi(request: Request) -> NguoiGoi:
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
-        raise LoiApi(401, "chua_dang_nhap", "Thieu token.")
+        raise LoiApi(401, "chua_dang_nhap", "Thiếu token.")
 
     token = header[len("Bearer "):]
     cfg = settings()
@@ -46,7 +46,7 @@ def nguoi_goi(request: Request) -> NguoiGoi:
         khoa = _khach_jwks().get_signing_key_from_jwt(token)
         claims = jwt.decode(token, khoa.key, algorithms=["RS256"], audience=cfg.jwt_audience, issuer=cfg.jwt_issuer)
     except jwt.PyJWTError as ex:
-        raise LoiApi(401, "token_khong_hop_le", "Token khong hop le hoac da het han.") from ex
+        raise LoiApi(401, "token_khong_hop_le", "Token không hợp lệ hoặc đã hết hạn.") from ex
 
     vai_tro = claims.get("role", [])
     if isinstance(vai_tro, str):
@@ -55,7 +55,7 @@ def nguoi_goi(request: Request) -> NguoiGoi:
     try:
         uid = uuid.UUID(claims["sub"])
     except (KeyError, ValueError) as ex:
-        raise LoiApi(401, "token_khong_hop_le", "Token thieu sub.") from ex
+        raise LoiApi(401, "token_khong_hop_le", "Token thiếu sub.") from ex
 
     return NguoiGoi(user_id=uid, roles=frozenset(vai_tro))
 
@@ -65,7 +65,7 @@ def can_vai_tro(*vai_tro: str):
 
     def kiem(ng: NguoiGoi = Depends(nguoi_goi)) -> NguoiGoi:
         if not ng.roles.intersection(vai_tro):
-            raise LoiApi(403, "khong_co_quyen", "Vai tro khong duoc phep.")
+            raise LoiApi(403, "khong_co_quyen", "Vai trò không được phép.")
         return ng
 
     return kiem

@@ -68,6 +68,7 @@ namespace Crowd.Identity.Api.Seeding
             DateTimeOffset lucTao = _clock.GetUtcNow() - TimeSpan.FromDays(10);
             int soTao = 0;
 
+            HashSet<string> daDung = new HashSet<string>(StringComparer.Ordinal);
             foreach (SeedUser su in KichBanSeed.Users)
             {
                 string email = User.ChuanHoaEmail(su.Email);
@@ -80,7 +81,16 @@ namespace Crowd.Identity.Api.Seeding
                     continue;
                 }
 
-                User user = User.Tao(email, su.DisplayName, su.Roles, lucTao);
+                // Username tu sinh tu email; trung (vd hai email cung phan truoc "@") thi them so.
+                string goc = User.UsernameTuEmail(email);
+                string username = goc;
+                for (int i = 2; daDung.Contains(username) || await _db.Users.AnyAsync(u => u.Username == username, ct); i++)
+                {
+                    username = goc + i;
+                }
+
+                daDung.Add(username);
+                User user = User.Tao(email, username, su.DisplayName, su.Roles, lucTao);
                 SeedIds.GanId(user, su.Id);
                 user.DatPasswordHash(_matKhau.Bam(user, KichBanSeed.MatKhauChung));
                 // Tai khoan seed da xac thuc email san (FC-01): kich ban demo rut tien / publish duoc ngay.

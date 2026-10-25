@@ -96,6 +96,12 @@ namespace Crowd.Tasking.Domain.Attempts
         /// <summary>null = chua cham.</summary>
         public bool? Passed { get; private set; }
 
+        /// <summary>
+        /// Duoc tra thuong (10/2026): so suat n = so nguoi DUOC THUONG — n bai DAT nop som nhat (quality-svc chon).
+        /// Bai dat nop muon hon van "dat" (nhan vao ket qua) nhung het suat thuong. null = chua cham.
+        /// </summary>
+        public bool? Rewarded { get; private set; }
+
         public DateTimeOffset? GradedAt { get; private set; }
 
         // ---- Khieu nai ca bai ----
@@ -117,10 +123,16 @@ namespace Crowd.Tasking.Domain.Attempts
             get { return State == AttemptState.InProgress; }
         }
 
-        /// <summary>Ket qua cuoi (sau khieu nai): dat thi duoc tra thuong.</summary>
+        /// <summary>Ket qua cuoi (sau khieu nai): dat chat luong. Tien thuong xem DuocThuong.</summary>
         public bool DatCuoiCung
         {
             get { return Passed == true || AppealState == AppealState.Accepted; }
+        }
+
+        /// <summary>Duoc tra thuong (trong n suat) — gom ca khieu nai duoc chap nhan khi con suat.</summary>
+        public bool DuocThuong
+        {
+            get { return Rewarded == true; }
         }
 
         /// <param name="cauHoi">Mau that + mau vang kiem tra, DA XAO theo thu tu rieng cua bai nay.</param>
@@ -134,12 +146,12 @@ namespace Crowd.Tasking.Domain.Attempts
 
             if (cauHoi.Count == 0)
             {
-                throw new RuleViolationException("du_an_chua_co_cau_hoi", "Du an chua co cau hoi nao.");
+                throw new RuleViolationException("du_an_chua_co_cau_hoi", "Dự án chưa có câu hỏi nào.");
             }
 
             if (hetHan <= luc)
             {
-                throw new RuleViolationException("da_qua_deadline", "Du an da qua han chot.");
+                throw new RuleViolationException("da_qua_deadline", "Dự án đã quá hạn chót.");
             }
 
             Attempt a = new Attempt();
@@ -164,17 +176,17 @@ namespace Crowd.Tasking.Domain.Attempts
         {
             if (State == AttemptState.Submitted)
             {
-                throw new RuleViolationException("bai_da_nop", "Bai da nop, khong sua duoc nua.");
+                throw new RuleViolationException("bai_da_nop", "Bài đã nộp, không sửa được nữa.");
             }
 
             if (State != AttemptState.InProgress)
             {
-                throw new RuleViolationException("bai_da_ket_thuc", "Bai lam da ket thuc (" + State + ").");
+                throw new RuleViolationException("bai_da_ket_thuc", "Bài làm đã kết thúc (" + State + ").");
             }
 
             if (luc >= ExpiresAt)
             {
-                throw new RuleViolationException("bai_da_het_han", "Da het thoi gian giu bai.");
+                throw new RuleViolationException("bai_da_het_han", "Đã hết thời gian giữ bài.");
             }
         }
 
@@ -235,11 +247,16 @@ namespace Crowd.Tasking.Domain.Attempts
         }
 
         /// <summary>project.graded: ghi ket qua. Giao lai cung ket qua → khong doi.</summary>
-        public void GhiKetQua(int soSoDuoc, int soGiong, int phanTram, bool dat, DateTimeOffset luc)
+        public void GhiKetQua(int soSoDuoc, int soGiong, int phanTram, bool dat, bool duocThuong, DateTimeOffset luc)
         {
+            if (duocThuong && !dat)
+            {
+                throw new InvalidValueException("thuong_bai_truot", "Bài trượt không thể được thưởng.");
+            }
+
             if (State != AttemptState.Submitted)
             {
-                throw new RuleViolationException("bai_chua_nop", "Chi cham bai da nop.");
+                throw new RuleViolationException("bai_chua_nop", "Chỉ chấm bài đã nộp.");
             }
 
             if (GradedAt.HasValue)
@@ -251,6 +268,7 @@ namespace Crowd.Tasking.Domain.Attempts
             MatchedCount = soGiong;
             AgreementPercent = phanTram;
             Passed = dat;
+            Rewarded = duocThuong;
             GradedAt = luc;
         }
 
@@ -259,28 +277,28 @@ namespace Crowd.Tasking.Domain.Attempts
         {
             if (Passed == null)
             {
-                throw new RuleViolationException("chua_cham", "Bai chua duoc cham.");
+                throw new RuleViolationException("chua_cham", "Bài chưa được chấm.");
             }
 
             if (Passed == true)
             {
-                throw new RuleViolationException("bai_da_dat", "Bai da dat, khong can khieu nai.");
+                throw new RuleViolationException("bai_da_dat", "Bài đã đạt, không cần khiếu nại.");
             }
 
             if (AppealState != AppealState.None)
             {
-                throw new RuleViolationException("da_khieu_nai", "Moi bai chi khieu nai mot lan.");
+                throw new RuleViolationException("da_khieu_nai", "Mỗi bài chỉ khiếu nại một lần.");
             }
 
             if (luc > hanKhieuNai)
             {
-                throw new RuleViolationException("het_han_khieu_nai", "Da het han khieu nai.");
+                throw new RuleViolationException("het_han_khieu_nai", "Đã hết hạn khiếu nại.");
             }
 
             string nd = (noiDung ?? string.Empty).Trim();
             if (nd.Length == 0 || nd.Length > DoDaiKhieuNaiToiDa)
             {
-                throw new InvalidValueException("noi_dung_khieu_nai_khong_hop_le", "Noi dung khieu nai tu 1 den " + DoDaiKhieuNaiToiDa + " ky tu.");
+                throw new InvalidValueException("noi_dung_khieu_nai_khong_hop_le", "Nội dung khiếu nại từ 1 đến " + DoDaiKhieuNaiToiDa + " ký tự.");
             }
 
             AppealState = AppealState.Open;
@@ -288,20 +306,26 @@ namespace Crowd.Tasking.Domain.Attempts
             AppealedAt = luc;
         }
 
-        public void PhanXu(bool chapNhan, string? ghiChu, Guid nguoiXu, DateTimeOffset luc)
+        /// <param name="conSuat">Chap nhan khieu nai ma con suat thuong (so bai duoc thuong &lt; so suat) → duoc thuong.</param>
+        public void PhanXu(bool chapNhan, string? ghiChu, Guid nguoiXu, bool conSuat, DateTimeOffset luc)
         {
             if (AppealState != AppealState.Open)
             {
-                throw new RuleViolationException("khong_co_khieu_nai_mo", "Bai nay khong co khieu nai dang cho phan xu.");
+                throw new RuleViolationException("khong_co_khieu_nai_mo", "Bài này không có khiếu nại đang chờ phân xử.");
             }
 
             string? gc = string.IsNullOrWhiteSpace(ghiChu) ? null : ghiChu.Trim();
             if (gc != null && gc.Length > DoDaiKhieuNaiToiDa)
             {
-                throw new InvalidValueException("ghi_chu_qua_dai", "Ghi chu toi da " + DoDaiKhieuNaiToiDa + " ky tu.");
+                throw new InvalidValueException("ghi_chu_qua_dai", "Ghi chú tối đa " + DoDaiKhieuNaiToiDa + " ký tự.");
             }
 
             AppealState = chapNhan ? AppealState.Accepted : AppealState.Rejected;
+            if (chapNhan && conSuat)
+            {
+                Rewarded = true;
+            }
+
             AppealNote = gc;
             AppealResolvedBy = nguoiXu;
             AppealResolvedAt = luc;

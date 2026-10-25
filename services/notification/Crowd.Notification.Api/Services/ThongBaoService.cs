@@ -82,7 +82,7 @@ namespace Crowd.Notification.Api.Services
             ThongBao? t = await _db.ThongBaos.FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, ct);
             if (t == null)
             {
-                throw new NotFoundException("Khong tim thay thong bao.");
+                throw new NotFoundException("Không tìm thấy thông báo.");
             }
 
             if (t.DanhDauDaDoc(_clock.GetUtcNow()))
@@ -124,7 +124,7 @@ namespace Crowd.Notification.Api.Services
         {
             if (body == null || body.Items == null || body.Items.Count == 0)
             {
-                throw new InvalidValueException("thieu_tuy_chon", "Can danh sach items [{ type, emailEnabled }].");
+                throw new InvalidValueException("thieu_tuy_chon", "Cần danh sách items [{ type, emailEnabled }].");
             }
 
             foreach (PreferenceItem i in body.Items)
@@ -132,12 +132,12 @@ namespace Crowd.Notification.Api.Services
                 LoaiThongBao? l = LoaiThongBao.Tim(i.Type ?? string.Empty);
                 if (l == null)
                 {
-                    throw new InvalidValueException("loai_khong_hop_le", "Loai thong bao khong ton tai: " + i.Type + ".");
+                    throw new InvalidValueException("loai_khong_hop_le", "Loại thông báo không tồn tại: " + i.Type + ".");
                 }
 
                 if (l.BatBuoc && !i.EmailEnabled)
                 {
-                    throw new InvalidValueException("loai_bat_buoc", "Email loai " + l.Ma + " la bat buoc, khong tat duoc.");
+                    throw new InvalidValueException("loai_bat_buoc", "Email loại " + l.Ma + " là bắt buộc, không tắt được.");
                 }
 
                 TuyChonEmail? tc = await _db.TuyChonEmails.FirstOrDefaultAsync(x => x.UserId == userId && x.Type == l.Ma, ct);

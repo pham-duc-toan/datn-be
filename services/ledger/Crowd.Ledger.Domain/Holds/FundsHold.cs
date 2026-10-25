@@ -122,7 +122,7 @@ namespace Crowd.Ledger.Domain.Holds
         {
             if (State != HoldState.Held)
             {
-                throw new RuleViolationException("khong_con_treo", "Khoan treo da giai phong hoac da giu lai.");
+                throw new RuleViolationException("khong_con_treo", "Khoản treo đã giải phóng hoặc đã giữ lại.");
             }
 
             State = HoldState.Withheld;
@@ -138,7 +138,7 @@ namespace Crowd.Ledger.Domain.Holds
         {
             if (!DenHan(luc))
             {
-                throw new RuleViolationException("chua_den_han", "Khoan treo chua den han hoac da giai phong.");
+                throw new RuleViolationException("chua_den_han", "Khoản treo chưa đến hạn hoặc đã giải phóng.");
             }
 
             State = HoldState.Released;

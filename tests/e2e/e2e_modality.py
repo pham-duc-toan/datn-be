@@ -251,7 +251,7 @@ keys = upload(pid, [os.path.join(M, "anh.png"), os.path.join(M, "anh2.png"), os.
 d = nap_manifest(pid, rows=[{"file": keys[0], "name": "do.png"}, {"file": keys[1], "name": "xanh.png"},
                             {"file": keys[2], "name": "gia-mao.png"}, {"file": "khac-du-an/x.png"}])
 kiem("2 mau, bo qua 2 (gia mao + khac du an)", d and d["sampleCount"] == 2 and d["skippedCount"] == 2, d)
-kiem("ErrorSummary neu ro ly do", d and "khong phai anh" in (d.get("errorSummary") or "") and "khong thuoc du an" in d["errorSummary"], d)
+kiem("ErrorSummary neu ro ly do", d and "không phải ảnh" in (d.get("errorSummary") or "") and "không thuộc dự án" in d["errorSummary"], d)
 ms = mau(pid)
 kiem("mau anh co metadata width/height that", sorted((m["metadata"]["width"], m["metadata"]["height"]) for m in ms) == [(200, 150), (300, 200)], [m["metadata"] for m in ms])
 mau_do = [m for m in ms if m["metadata"]["width"] == 200][0]
@@ -328,7 +328,7 @@ r = requests.post(G + "/projects/%s/uploads" % pid, headers=biz1, json={"files":
 kiem("xin link .wav cho du an video → 400 (loc so bo theo duoi)", r.status_code == 400, r.text)
 keys = upload(pid, [os.path.join(M, "clip.mp4"), os.path.join(M, "am-thanh-gia.mp4")])
 d = nap_manifest(pid, rows=[{"file": keys[0]}, {"file": keys[1]}])
-kiem("mp4 that nhan, WAV doi ten .mp4 bi ffprobe loai (khong co hinh)", d and d["sampleCount"] == 1 and "khong phai video" in (d.get("errorSummary") or ""), d)
+kiem("mp4 that nhan, WAV doi ten .mp4 bi ffprobe loai (khong co hinh)", d and d["sampleCount"] == 1 and "không phải video" in (d.get("errorSummary") or ""), d)
 ms = mau(pid)
 kiem("metadata video 320x240, ~12 giay", ms and ms[0]["metadata"]["width"] == 320 and ms[0]["metadata"]["height"] == 240 and abs(ms[0]["metadata"]["durationSec"] - 12) < 0.5, ms and ms[0]["metadata"])
 t = chay_du_an(pid, 1)

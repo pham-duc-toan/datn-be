@@ -33,14 +33,23 @@ namespace Crowd.Project.Api.Services
         private readonly MemberService _members;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
+        private readonly BaoVeService _baoVe;
 
         public InviteCodeService(
             ProjectDbContext db,
             ProjectAccessService access,
             MemberService members,
             ISettings settings,
-            TimeProvider clock)
+            TimeProvider clock,
+            BaoVeService baoVe)
         {
+            if (baoVe == null)
+            {
+                throw new ArgumentNullException(nameof(baoVe));
+            }
+
+            _baoVe = baoVe;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -81,6 +90,7 @@ namespace Crowd.Project.Api.Services
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
+            duAn.KiemTraChoThemThanhVien();
             duAn.KiemTraChoVaoBangMaMoi();
 
             QuyDinhThanhVien quyDinh = QuyDinhTuSetting.ThanhVien(_settings);
@@ -91,7 +101,7 @@ namespace Crowd.Project.Api.Services
                 {
                     throw new InvalidValueException(
                         "han_ma_moi_khong_hop_le",
-                        "Han dung cua ma moi phai tu 1 gio den " + quyDinh.HanMaMoiToiDa.TotalHours + " gio.");
+                        "Hạn dùng của mã mời phải từ 1 giờ đến " + quyDinh.HanMaMoiToiDa.TotalHours + " giờ.");
                 }
 
                 han = TimeSpan.FromHours(body.ExpiresInHours.Value);
@@ -129,7 +139,7 @@ namespace Crowd.Project.Api.Services
             InviteCode? ma = await _db.InviteCodes.FirstOrDefaultAsync(c => c.Id == codeId && c.ProjectId == projectId, ct);
             if (ma == null)
             {
-                throw new NotFoundException("Khong tim thay ma moi.");
+                throw new NotFoundException("Không tìm thấy mã mời.");
             }
 
             DateTimeOffset luc = _clock.GetUtcNow();
@@ -143,7 +153,36 @@ namespace Crowd.Project.Api.Services
         /// ket thuc → chua la thanh vien (khong ton luot) → dieu kien cap do / uy tin → ma con dung
         /// duoc → ghi luot + them thanh vien trong MOT transaction.
         /// </summary>
-        public async Task<JoinByCodeResponse> VaoBangMaAsync(JoinByCodeRequest body, Caller caller, CancellationToken ct)
+        public async Task<JoinByCodePreviewResponse> XemTruocAsync(JoinByCodeRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            string code = InviteCode.ChuanHoa(body.Code);
+            InviteCode? ma = code.Length == InviteCode.DoDaiMa
+                ? await _db.InviteCodes.AsNoTracking().FirstOrDefaultAsync(c => c.Code == code, ct)
+                : null;
+            if (ma == null)
+            {
+                throw new NotFoundException("Mã mời không tồn tại.");
+            }
+
+            LabelingProject duAn = await _db.Projects.AsNoTracking().FirstAsync(p => p.Id == ma.ProjectId, ct);
+            duAn.KiemTraChoVaoBangMaMoi();
+            ma.KiemTraDungDuoc(_clock.GetUtcNow());
+
+            return new JoinByCodePreviewResponse
+            {
+                ProjectId = duAn.Id,
+                ProjectName = duAn.Name,
+                Terms = await _baoVe.DieuKhoanChoNguoiAsync(duAn, caller.LayUserId(), ct),
+            };
+        }
+
+        /// <param name="ip">Dia chi / trinh duyet luc dong y dieu khoan (bang chung NDA).</param>
+        public async Task<JoinByCodeResponse> VaoBangMaAsync(JoinByCodeRequest body, string? ip, string? trinhDuyet, Caller caller, CancellationToken ct)
         {
             if (body == null)
             {
@@ -153,7 +192,7 @@ namespace Crowd.Project.Api.Services
             string code = InviteCode.ChuanHoa(body.Code);
             if (code.Length != InviteCode.DoDaiMa)
             {
-                throw new NotFoundException("Ma moi khong ton tai.");
+                throw new NotFoundException("Mã mời không tồn tại.");
             }
 
             Guid userId = caller.LayUserId();
@@ -164,7 +203,7 @@ namespace Crowd.Project.Api.Services
                 InviteCode? ma = await _db.InviteCodes.FirstOrDefaultAsync(c => c.Code == code, ct);
                 if (ma == null)
                 {
-                    throw new NotFoundException("Ma moi khong ton tai.");
+                    throw new NotFoundException("Mã mời không tồn tại.");
                 }
 
                 // Labeler chua la thanh vien du an rieng tu thi khong "xem" duoc du an — doc thang.
@@ -174,6 +213,13 @@ namespace Crowd.Project.Api.Services
 
                 if (!daKiemDieuKien)
                 {
+                    // Dong y dieu khoan gui kem ma: ghi truoc khi kiem dieu kien (kiem doc lai tu database).
+                    if (body.Consent != null && duAn.CanDongYCaNhan())
+                    {
+                        ma.KiemTraDungDuoc(_clock.GetUtcNow());
+                        await _baoVe.GhiDongYAsync(duAn, userId, body.Consent, ip, trinhDuyet, ct);
+                    }
+
                     await _members.KiemDieuKienLabelerAsync(duAn, userId, ct);
                     daKiemDieuKien = true;
                 }

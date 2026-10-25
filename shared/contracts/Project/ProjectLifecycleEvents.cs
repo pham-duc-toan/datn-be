@@ -233,7 +233,7 @@ namespace Crowd.Contracts.Project
 
         public required Guid OwnerId { get; init; }
 
-        /// <summary>So bai DAT cuoi cung (sau khieu nai) — so nguoi ledger phai tra thuong truoc khi hoan.</summary>
+        /// <summary>So bai DUOC THUONG cuoi cung (sau khieu nai, toi da so suat) — so nguoi ledger phai tra truoc khi hoan. Ten giu nguyen tu ban cu (khi moi bai dat deu duoc thuong).</summary>
         public required int PassedAttemptCount { get; init; }
     }
 }

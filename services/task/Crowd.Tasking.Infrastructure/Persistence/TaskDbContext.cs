@@ -139,6 +139,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property(x => x.MatchedCount).HasColumnName("matched_count");
                 b.Property(x => x.AgreementPercent).HasColumnName("agreement_percent");
                 b.Property(x => x.Passed).HasColumnName("passed");
+                b.Property(x => x.Rewarded).HasColumnName("rewarded");
                 b.Property(x => x.GradedAt).HasColumnName("graded_at");
 
                 b.Property(x => x.AppealState).HasColumnName("appeal_state").HasConversion<string>().HasMaxLength(20).IsRequired();
@@ -232,6 +233,7 @@ namespace Crowd.Tasking.Infrastructure.Persistence
                 b.Property<string?>("_labelSchemaJson").HasColumnName("label_schema").HasColumnType("jsonb");
                 b.Property(x => x.RewardVnd).HasColumnName("reward_vnd").IsRequired();
                 b.Property(x => x.Slots).HasColumnName("slots").IsRequired();
+                b.Property(x => x.MaxParticipants).HasColumnName("max_participants").IsRequired();
                 b.Property(x => x.PassThresholdPercent).HasColumnName("pass_threshold_percent").IsRequired();
                 b.Property(x => x.QuestionCount).HasColumnName("question_count").IsRequired();
                 b.Property(x => x.CollectionFinishedAt).HasColumnName("collection_finished_at");

@@ -3,7 +3,7 @@
 Du an lam trung tam (kien truc 3.18): moi labeler lam MOT bai gom moi cau cua du an, nop ca bai; du an dong
 thu bai (du suat / het han / ket thuc som) thi quality-svc cham mot lan, ledger tra thuong bai dat.
 """
-import json, os, subprocess, sys, time, uuid
+import hashlib, json, os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -52,14 +52,14 @@ def dang_ky(vai, ten, xac_minh=True, xac_thuc=True):
     """Tao tai khoan moi. Mac dinh bam link xac thuc email (chua xac thuc thi chua rut tien / publish
     duoc); doanh nghiep: tu lam KYB + admin duyet. xac_minh / xac_thuc = False de test chinh cac luong do."""
     email = f"e2e-{TAG}-{ten}@crowd.local"
-    r = requests.post(G + "/auth/register", json={"email": email, "password": PW, "displayName": ten, "roles": vai})
+    r = requests.post(G + "/auth/register", json={"email": email, "username": "u" + hashlib.sha1((email).encode()).hexdigest()[:20], "password": PW, "displayName": ten, "roles": vai})
     assert r.status_code in (200, 201), r.text
     if xac_thuc:
         xac_thuc_email(email)
     t = login_raw(email).json()
     h = hdr(t["accessToken"])
     uid = requests.get(G + "/me", headers=h).json()["userId"]
-    u = {"h": h, "id": uid, "email": email, "refresh": t["refreshToken"]}
+    u = {"h": h, "id": uid, "email": email, "username": "u" + hashlib.sha1(email.encode()).hexdigest()[:20], "refresh": t["refreshToken"]}
     if "business" in vai and xac_minh:
         xac_minh_kyb(u)
     return u
@@ -112,6 +112,15 @@ def dat_va_cho(key, value, dbs):
         ok = cho(lambda: sql(db, f"select version from settings_replica where key='{key}'") == str(ver), 20)
         assert ok, f"{db} chua nhan {key} v{ver}"
     time.sleep(0.5)
+
+
+# He so tran nguoi lam (10/2026) = 1 cho cac bo E2E: chung viet theo "so suat = so nguoi lam, du suat thi dong thu
+# bai". Bo e2e_suat_thuong.py dat E2E_HE_SO_NGUOI_LAM=giu va tu dat he so de kiem cach tinh moi.
+if os.environ.get("E2E_HE_SO_NGUOI_LAM") != "giu":
+    _he_so = requests.get(G + "/admin/settings/project.participant_multiplier", headers=admin).json()["value"]
+    GOC.setdefault("project.participant_multiplier", _he_so)
+    if _he_so != 1:
+        dat_va_cho("project.participant_multiplier", 1, ["task"])
 
 
 def vi(u):

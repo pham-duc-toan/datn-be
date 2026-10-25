@@ -121,7 +121,7 @@ namespace Crowd.Project.Api.Services
 
             if (duAn.Modality != Modalities.Image && duAn.Modality != Modalities.Audio && duAn.Modality != Modalities.Video)
             {
-                throw new InvalidValueException("nhap_ngoai_chi_cho_file", "Nhap tu nguon ngoai chi cho du an anh / am thanh / video. Van ban dung manifest JSON.");
+                throw new InvalidValueException("nhap_ngoai_chi_cho_file", "Nhập từ nguồn ngoài chỉ cho dự án ảnh / âm thanh / video. Văn bản dùng manifest JSON.");
             }
 
             string nguon = (body.Source ?? string.Empty).Trim().ToLowerInvariant();
@@ -134,7 +134,7 @@ namespace Crowd.Project.Api.Services
                 List<string> urls = (body.Urls ?? new List<string>()).Where(u => !string.IsNullOrWhiteSpace(u)).Select(u => u.Trim()).Distinct(StringComparer.Ordinal).ToList();
                 if (urls.Count == 0 || urls.Count > toiDa)
                 {
-                    throw new InvalidValueException("thieu_url", "Can 1–" + toiDa + " URL.");
+                    throw new InvalidValueException("thieu_url", "Cần 1–" + toiDa + " URL.");
                 }
 
                 foreach (string u in urls)
@@ -149,7 +149,7 @@ namespace Crowd.Project.Api.Services
                 ImportS3Request? s3 = body.S3;
                 if (s3 == null || string.IsNullOrWhiteSpace(s3.Bucket) || string.IsNullOrWhiteSpace(s3.AccessKey) || string.IsNullOrWhiteSpace(s3.SecretKey))
                 {
-                    throw new InvalidValueException("thieu_thong_so_s3", "S3 can bucket, accessKey, secretKey.");
+                    throw new InvalidValueException("thieu_thong_so_s3", "S3 cần bucket, accessKey, secretKey.");
                 }
 
                 if (!string.IsNullOrWhiteSpace(s3.Endpoint))
@@ -170,7 +170,7 @@ namespace Crowd.Project.Api.Services
                     .Where(l => !string.IsNullOrWhiteSpace(l)).Select(l => l.Trim()).ToList();
                 if (links.Count == 0 || links.Count > toiDa)
                 {
-                    throw new InvalidValueException("thieu_link_drive", "Can 1–" + toiDa + " link Google Drive.");
+                    throw new InvalidValueException("thieu_link_drive", "Cần 1–" + toiDa + " link Google Drive.");
                 }
 
                 foreach (string l in links)
@@ -178,12 +178,12 @@ namespace Crowd.Project.Api.Services
                     bool laThuMuc = GoogleDrive.MaThuMuc(l) != null;
                     if (GoogleDrive.MaFile(l) == null && !laThuMuc)
                     {
-                        throw new InvalidValueException("link_drive_khong_hop_le", "Khong nhan ra link Google Drive: " + l);
+                        throw new InvalidValueException("link_drive_khong_hop_le", "Không nhận ra link Google Drive: " + l);
                     }
 
                     if (laThuMuc && string.IsNullOrWhiteSpace(_options.GoogleApiKey))
                     {
-                        throw new InvalidValueException("chua_cau_hinh_google_drive", "Thu muc Drive can khoa API Google (DatasetImport:GoogleApiKey) — dan link tung file thay the.");
+                        throw new InvalidValueException("chua_cau_hinh_google_drive", "Thư mục Drive cần khoá API Google (DatasetImport:GoogleApiKey) — dán link từng file thay thế.");
                     }
                 }
 
@@ -191,7 +191,7 @@ namespace Crowd.Project.Api.Services
             }
             else
             {
-                throw new InvalidValueException("nguon_khong_ho_tro", "source: urls | s3 | gdrive.");
+                throw new InvalidValueException("nguon_khong_ho_tro", "Nguồn: urls | s3 | gdrive.");
             }
 
             return new KeyValuePair<string, string>(nguon, spec.ToJsonString());
@@ -274,7 +274,7 @@ namespace Crowd.Project.Api.Services
                     s3.Dispose();
                 }
 
-                loi.Add("nguon: " + ex.Message);
+                loi.Add("nguồn: " + ex.Message);
                 return new KetQuaNhapNgoai { Dong = dong, Loi = loi, SoBoQua = 1, SpecKhongBiMat = BoBiMat(spec) };
             }
 
@@ -283,7 +283,7 @@ namespace Crowd.Project.Api.Services
                 if (muc.Count > toiDa)
                 {
                     boQua += muc.Count - toiDa;
-                    loi.Add("nguon: chi lay " + toiDa + " file dau (dataset.import_max_files).");
+                    loi.Add("nguồn: chỉ lấy " + toiDa + " file đầu (dataset.import_max_files).");
                     muc = muc.Take(toiDa).ToList();
                 }
 
@@ -311,7 +311,7 @@ namespace Crowd.Project.Api.Services
                         boQua++;
                         if (loi.Count < _settings.SoNguyen(SettingKeys.DatasetErrorSampleCount))
                         {
-                            loi.Add("nguon " + m.Ten + ": " + ex.Message);
+                            loi.Add("nguồn " + m.Ten + ": " + ex.Message);
                         }
                     }
                 }

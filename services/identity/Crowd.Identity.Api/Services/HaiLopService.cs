@@ -98,7 +98,7 @@ namespace Crowd.Identity.Api.Services
             HaiLop? h = await _db.HaiLops.FirstOrDefaultAsync(x => x.UserId == userId, ct);
             if (h != null && h.DangBat)
             {
-                throw new RuleViolationException("hai_lop_dang_bat", "2FA dang bat — tat truoc khi cai dat lai.");
+                throw new RuleViolationException("hai_lop_dang_bat", "2FA đang bật — tắt trước khi cài đặt lại.");
             }
 
             byte[] biMat = Totp.TaoBiMat();
@@ -130,19 +130,19 @@ namespace Crowd.Identity.Api.Services
             HaiLop? h = await _db.HaiLops.FirstOrDefaultAsync(x => x.UserId == userId, ct);
             if (h == null)
             {
-                throw new RuleViolationException("chua_cai_dat", "Goi POST /me/2fa/setup truoc.");
+                throw new RuleViolationException("chua_cai_dat", "Cần bắt đầu cài đặt 2FA trước.");
             }
 
             if (h.DangBat)
             {
-                throw new RuleViolationException("hai_lop_dang_bat", "2FA da bat.");
+                throw new RuleViolationException("hai_lop_dang_bat", "2FA đã bật.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
             long buoc = Totp.Kiem(_khoa.GiaiMa(h.SecretCipher), ma, bayGio, h.LastUsedStep);
             if (buoc < 0)
             {
-                throw new InvalidValueException("ma_2fa_sai", "Ma khong dung — kiem tra dong ho dien thoai va quet lai ma QR.");
+                throw new InvalidValueException("ma_2fa_sai", "Mã không đúng — kiểm tra đồng hồ điện thoại và quét lại mã QR.");
             }
 
             List<string> maGoc = TaoMaDuPhong();
@@ -191,7 +191,7 @@ namespace Crowd.Identity.Api.Services
             HaiLop? h = await _db.HaiLops.FirstOrDefaultAsync(x => x.UserId == userId, ct);
             if (h == null || !h.DangBat)
             {
-                throw new RuleViolationException("hai_lop_chua_bat", "Tai khoan nay chua bat 2FA.");
+                throw new RuleViolationException("hai_lop_chua_bat", "Tài khoản này chưa bật 2FA.");
             }
 
             _db.HaiLops.Remove(h);
@@ -281,7 +281,7 @@ namespace Crowd.Identity.Api.Services
                 || matKhau.Length > _settings.SoNguyen(SettingKeys.IdentityPasswordMaxLength)
                 || _matKhau.Kiem(user, matKhau) == PasswordVerificationResult.Failed)
             {
-                throw new InvalidValueException("mat_khau_hien_tai_sai", "Mat khau khong dung.");
+                throw new InvalidValueException("mat_khau_hien_tai_sai", "Mật khẩu không đúng.");
             }
         }
 
@@ -292,7 +292,7 @@ namespace Crowd.Identity.Api.Services
                 string? sach = ChuanHoaMaDuPhong(maDuPhong);
                 if (sach == null || !h.DungMaDuPhong(BamMaDuPhong(_khoa, sach)))
                 {
-                    throw new InvalidValueException("ma_2fa_sai", "Ma du phong khong dung hoac da dung.");
+                    throw new InvalidValueException("ma_2fa_sai", "Mã dự phòng không đúng hoặc đã dùng.");
                 }
 
                 return;
@@ -301,7 +301,7 @@ namespace Crowd.Identity.Api.Services
             long buoc = Totp.Kiem(_khoa.GiaiMa(h.SecretCipher), ma, _clock.GetUtcNow(), h.LastUsedStep);
             if (buoc < 0)
             {
-                throw new InvalidValueException("ma_2fa_sai", "Ma 2FA khong dung.");
+                throw new InvalidValueException("ma_2fa_sai", "Mã 2FA không đúng.");
             }
 
             h.GhiBuocDaDung(buoc);
@@ -312,7 +312,7 @@ namespace Crowd.Identity.Api.Services
             HaiLop? h = await _db.HaiLops.FirstOrDefaultAsync(x => x.UserId == userId, ct);
             if (h == null || !h.DangBat)
             {
-                throw new RuleViolationException("hai_lop_chua_bat", "2FA chua bat.");
+                throw new RuleViolationException("hai_lop_chua_bat", "2FA chưa bật.");
             }
 
             return h;
@@ -323,7 +323,7 @@ namespace Crowd.Identity.Api.Services
             User? u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId, ct);
             if (u == null)
             {
-                throw new NotFoundException("Khong tim thay tai khoan.");
+                throw new NotFoundException("Không tìm thấy tài khoản.");
             }
 
             return u;

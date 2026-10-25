@@ -154,7 +154,7 @@ namespace Crowd.Admin.Api.Services
         {
             if (body == null || !body.Value.HasValue)
             {
-                throw new AdminException(400, "thieu_gia_tri", "Can truong \"value\".");
+                throw new AdminException(400, "thieu_gia_tri", "Cần trường \"value\".");
             }
 
             SettingDefinition d = DinhNghia(key);
@@ -228,7 +228,7 @@ namespace Crowd.Admin.Api.Services
                     throw new AdminException(
                         409,
                         "xung_dot_setting",
-                        "'" + nho + "' phai nho hon hoac bang '" + lon + "' (hien " + khac + " = " + giaTriKhac + ").");
+                        "'" + nho + "' phải nhỏ hơn hoặc bằng '" + lon + "' (hiện " + khac + " = " + giaTriKhac + ").");
                 }
             }
         }
@@ -311,7 +311,7 @@ namespace Crowd.Admin.Api.Services
             SettingDefinition? d = SettingCatalog.Tim(key);
             if (d == null)
             {
-                throw new AdminException(404, "khong_tim_thay", "Khong co setting '" + key + "'.");
+                throw new AdminException(404, "khong_tim_thay", "Không có setting '" + key + "'.");
             }
 
             return d;
@@ -327,6 +327,7 @@ namespace Crowd.Admin.Api.Services
             return new SettingResponse
             {
                 Key = d.Key,
+                Name = d.Name,
                 Group = d.Group,
                 Type = d.TypeName,
                 Unit = d.Unit,

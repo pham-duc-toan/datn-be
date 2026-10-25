@@ -201,6 +201,11 @@ try:
 
     # 6 nguoi dung cung luc mot ma 3 luot: dung 3 nguoi vao.
     P2, _ = du_an(biz, "DONGTHOI", "private")
+    r = tao_ma(biz, P2, maxUses=3)
+    kiem("du an chua duoc duyet → tao ma 409 du_an_chua_duoc_duyet", r.status_code == 409 and "du_an_chua_duoc_duyet" in r.text, r.text)
+    r = requests.post(G + f"/projects/{P2}/members/batch", headers=biz["h"], json={"role": "labeler", "usernames": [L["l8"]["username"]]})
+    kiem("du an chua duoc duyet → them thanh vien 409", r.status_code == 409 and "du_an_chua_duoc_duyet" in r.text, r.text)
+    publish_va_duyet(biz, P2)
     ma3 = tao_ma(biz, P2, maxUses=3).json()
     kq = {}
 
@@ -214,8 +219,6 @@ try:
     kiem("usedCount = 3, du an co 3 labeler",
          requests.get(G + f"/projects/{P2}/invite-codes", headers=biz["h"]).json()[0]["usedCount"] == 3
          and len([m for m in thanh_vien(biz, P2).values() if m["role"] == "labeler"]) == 3)
-    kiem("ma moi dung duoc khi du an con Nhap (chua publish)",
-         requests.get(G + f"/projects/{P2}", headers=biz["h"]).json()["status"] == "draft")
 
     # =================================================================================
     print("\n[3] Kiem cap do / uy tin ngay luc vao du an (cung ma loi task-svc)")
@@ -224,12 +227,12 @@ try:
     publish_va_duyet(biz, P3)
     r = requests.post(G + f"/projects/{P3}/join", headers=L["thap"]["h"])
     kiem("cap 1 join du an doi cap 2 → 409 chua_du_cap_do, co giai thich",
-         r.status_code == 409 and code(r) == "chua_du_cap_do" and "toi thieu 2, hien tai la 1" in r.json()["detail"], r.text)
+         r.status_code == 409 and code(r) == "chua_du_cap_do" and "tối thiểu 2, hiện tại là 1" in r.json()["detail"], r.text)
     r = requests.post(G + f"/projects/{P3}/join", headers=L["chuaut"]["h"])
     kiem("chua co diem uy tin → 409 chua_du_uy_tin", r.status_code == 409 and code(r) == "chua_du_uy_tin", r.text)
     dat_cap(L["chuaut"], 3, 40)
     r = requests.post(G + f"/projects/{P3}/join", headers=L["chuaut"]["h"])
-    kiem("uy tin 40 < 50 → 409 chua_du_uy_tin", r.status_code == 409 and code(r) == "chua_du_uy_tin" and "hien tai la 40" in r.json()["detail"], r.text)
+    kiem("uy tin 40 < 50 → 409 chua_du_uy_tin", r.status_code == 409 and code(r) == "chua_du_uy_tin" and "hiện tại là 40" in r.json()["detail"], r.text)
     dat_cap(L["chuaut"], 3, 55)
     r = requests.post(G + f"/projects/{P3}/join", headers=L["chuaut"]["h"])
     kiem("du dieu kien → join 200", r.status_code == 200, r.text)
@@ -361,6 +364,8 @@ try:
 
     biz3 = dang_ky(["business"], "s16")
     P8, _ = du_an(biz3, "S16", "private")
+    nap(biz3, 2000000)
+    publish_va_duyet(biz3, P8)  # chi moi duoc khi du an da duoc duyet
     chan = dang_ky(["labeler"], "s16-chan")
     requests.put(G + f"/projects/labeler-lists/{chan['id']}", headers=biz3["h"], json={"kind": "blocked"}).raise_for_status()
     dat_va_cho("project.email_invite_daily_max", 4, ("project",))

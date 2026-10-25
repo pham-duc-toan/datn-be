@@ -52,6 +52,8 @@ namespace Crowd.Identity.Api.Dtos
 
         public required string Email { get; init; }
 
+        public required string Username { get; init; }
+
         public required bool EmailVerified { get; init; }
 
         public required string DisplayName { get; init; }
@@ -71,6 +73,9 @@ namespace Crowd.Identity.Api.Dtos
     public sealed class UpdateProfileRequest
     {
         public string? DisplayName { get; init; }
+
+        /// <summary>null = giu nguyen username.</summary>
+        public string? Username { get; init; }
 
         public string? Bio { get; init; }
     }
@@ -137,6 +142,8 @@ namespace Crowd.Identity.Api.Dtos
     {
         public required Guid UserId { get; init; }
 
+        public required string Username { get; init; }
+
         public required string DisplayName { get; init; }
 
         public string? AvatarUrl { get; init; }
@@ -178,6 +185,9 @@ namespace Crowd.Identity.Api.Dtos
 
         /// <summary>Email bat ky hoa / thuong, co khoang trang — identity tu chuan hoa.</summary>
         public IReadOnlyList<string>? Emails { get; init; }
+
+        /// <summary>Username (co the kem "@" dau) — chu du an moi theo username thay cho userId.</summary>
+        public IReadOnlyList<string>? Usernames { get; init; }
     }
 
     /// <summary>
@@ -189,6 +199,8 @@ namespace Crowd.Identity.Api.Dtos
         public required Guid UserId { get; init; }
 
         public required string Email { get; init; }
+
+        public required string Username { get; init; }
 
         public required string DisplayName { get; init; }
 

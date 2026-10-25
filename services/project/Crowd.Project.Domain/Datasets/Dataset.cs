@@ -88,12 +88,12 @@ namespace Crowd.Project.Domain.Datasets
 
             if (coDong == coFile)
             {
-                throw new InvalidValueException("manifest_khong_hop_le", "Can DUNG MOT trong hai: \"rows\" hoac \"manifestKey\".");
+                throw new InvalidValueException("manifest_khong_hop_le", "Cần ĐÚNG MỘT trong hai: \"rows\" hoặc \"manifestKey\".");
             }
 
             if (coFile && !manifestKey!.StartsWith(projectId.ToString() + "/", StringComparison.Ordinal))
             {
-                throw new InvalidValueException("file_khong_thuoc_du_an", "File manifest khong thuoc du an nay.");
+                throw new InvalidValueException("file_khong_thuoc_du_an", "File manifest không thuộc dự án này.");
             }
 
             Dataset d = TaoKhung(projectId, name, luc, quyDinh);
@@ -108,12 +108,12 @@ namespace Crowd.Project.Domain.Datasets
         {
             if (nguon != "urls" && nguon != "s3" && nguon != "gdrive")
             {
-                throw new InvalidValueException("nguon_khong_ho_tro", "Nguon: urls | s3 | gdrive.");
+                throw new InvalidValueException("nguon_khong_ho_tro", "Nguồn: urls | s3 | gdrive.");
             }
 
             if (string.IsNullOrWhiteSpace(specJson))
             {
-                throw new InvalidValueException("thieu_thong_so_nguon", "Thieu thong so nguon.");
+                throw new InvalidValueException("thieu_thong_so_nguon", "Thiếu thông số nguồn.");
             }
 
             Dataset d = TaoKhung(projectId, name, luc, quyDinh);
@@ -147,7 +147,7 @@ namespace Crowd.Project.Domain.Datasets
             {
                 throw new RuleViolationException(
                     "khong_co_anh_hop_le",
-                    "File ZIP khong co anh hop le nao (chi nhan jpg, png, webp).");
+                    "File ZIP không có ảnh hợp lệ nào (chỉ nhận jpg, png, webp).");
             }
 
             SampleCount = soMau;
@@ -163,7 +163,7 @@ namespace Crowd.Project.Domain.Datasets
         {
             if (Status != DatasetStatus.Pending)
             {
-                throw new RuleViolationException("dataset_khong_cho", "Dataset khong o trang thai cho xu ly (" + Status + ").");
+                throw new RuleViolationException("dataset_khong_cho", "Lô dữ liệu không ở trạng thái chờ xử lý (" + Status + ").");
             }
 
             Status = DatasetStatus.Ingesting;
@@ -174,7 +174,7 @@ namespace Crowd.Project.Domain.Datasets
         {
             if (Status != DatasetStatus.Ingesting)
             {
-                throw new RuleViolationException("dataset_khong_dang_xu_ly", "Dataset khong dang xu ly (" + Status + ").");
+                throw new RuleViolationException("dataset_khong_dang_xu_ly", "Lô dữ liệu không đang xử lý (" + Status + ").");
             }
 
             SampleCount = soMau;
@@ -198,7 +198,7 @@ namespace Crowd.Project.Domain.Datasets
             {
                 throw new InvalidValueException(
                     "ten_dataset_khong_hop_le",
-                    "Ten dataset phai tu 1 den " + quyDinh.DoDaiTenLoToiDa + " ky tu.");
+                    "Tên lô dữ liệu phải từ 1 đến " + quyDinh.DoDaiTenLoToiDa + " ký tự.");
             }
 
             Dataset d = new Dataset();

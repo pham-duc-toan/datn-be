@@ -133,9 +133,15 @@ namespace Crowd.Identity.Api.Services
                 return DangKyKetQua.EmailDaTonTai();
             }
 
+            string username = User.ChuanHoaUsername(body.Username);
+            if (await _db.Users.AnyAsync(u => u.Username == username, ct))
+            {
+                return DangKyKetQua.UsernameDaTonTai();
+            }
+
             List<string> vaiTro = body.Roles!.Distinct(StringComparer.Ordinal).ToList();
 
-            User user = User.Tao(email, body.DisplayName!.Trim(), vaiTro, _clock.GetUtcNow());
+            User user = User.Tao(email, username, body.DisplayName!.Trim(), vaiTro, _clock.GetUtcNow());
             user.DatPasswordHash(_matKhau.Bam(user, body.Password!));
 
             _db.Users.Add(user);
@@ -173,6 +179,10 @@ namespace Crowd.Identity.Api.Services
                 // lot qua AnyAsync o tren, database chon ra mot nguoi.
                 return DangKyKetQua.EmailDaTonTai();
             }
+            catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "ux_users_username"))
+            {
+                return DangKyKetQua.UsernameDaTonTai();
+            }
 
             return DangKyKetQua.ThanhCong(user.Id);
         }
@@ -188,8 +198,19 @@ namespace Crowd.Identity.Api.Services
                 throw new ArgumentNullException(nameof(body));
             }
 
-            string email = User.ChuanHoaEmail(body.Email!);
-            User? user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
+            // Dang nhap bang email HOAC username: co "@" o giua la email; "@ten" (go kem @ dau) van la username.
+            string dinhDanh = body.Email!.Trim();
+            User? user;
+            if (dinhDanh.IndexOf('@', 1) > 0)
+            {
+                string email = User.ChuanHoaEmail(dinhDanh);
+                user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
+            }
+            else
+            {
+                string username = User.ChuanHoaUsername(dinhDanh);
+                user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username, ct);
+            }
 
             if (user == null)
             {

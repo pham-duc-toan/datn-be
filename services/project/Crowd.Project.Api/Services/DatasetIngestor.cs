@@ -210,7 +210,7 @@ namespace Crowd.Project.Api.Services
                     JsonObject? o = dong[i] as JsonObject;
                     if (o == null)
                     {
-                        throw new InvalidValueException("dong_khong_hop_le", "dong phai la mot object JSON.");
+                        throw new InvalidValueException("dong_khong_hop_le", "dòng phải là một object JSON.");
                     }
 
                     foreach (Sample s in await TaoMauAsync(o, i, duAn, lo, bayGio, ct))
@@ -286,7 +286,7 @@ namespace Crowd.Project.Api.Services
                     JsonArray? mang = JsonNode.Parse(await r.ReadToEndAsync(ct)) as JsonArray;
                     if (mang == null)
                     {
-                        throw new InvalidValueException("manifest_khong_hop_le", "File .json phai la mot mang.");
+                        throw new InvalidValueException("manifest_khong_hop_le", "File .json phải là một mảng.");
                     }
 
                     foreach (JsonNode? n in mang)
@@ -323,7 +323,7 @@ namespace Crowd.Project.Api.Services
 
             if (dong.Count > _settings.SoNguyen(SettingKeys.DatasetManifestFileMaxRows))
             {
-                throw new InvalidValueException("manifest_qua_dai", "Manifest toi da " + _settings.SoNguyen(SettingKeys.DatasetManifestFileMaxRows) + " dong.");
+                throw new InvalidValueException("manifest_qua_dai", "Manifest tối đa " + _settings.SoNguyen(SettingKeys.DatasetManifestFileMaxRows) + " dòng.");
             }
 
             return dong;
@@ -352,7 +352,7 @@ namespace Crowd.Project.Api.Services
                 case Modalities.Video:
                     return await TaoMediaAsync(o, ten, duAn, lo, bayGio, ct);
                 default:
-                    throw new InvalidValueException("loai_du_lieu_khong_hop_le", "Loai du lieu " + duAn.Modality + " chua ho tro.");
+                    throw new InvalidValueException("loai_du_lieu_khong_hop_le", "Loại dữ liệu " + duAn.Modality + " chưa hỗ trợ.");
             }
         }
 
@@ -362,7 +362,7 @@ namespace Crowd.Project.Api.Services
             int doDaiToiDa = _settings.SoNguyen(SettingKeys.DatasetTextMaxChars);
             if (text.Length > doDaiToiDa)
             {
-                throw new InvalidValueException("text_qua_dai", "van ban toi da " + doDaiToiDa + " ky tu.");
+                throw new InvalidValueException("text_qua_dai", "văn bản tối đa " + doDaiToiDa + " ký tự.");
             }
 
             RawJson noiDung = RawJson.Tu(new JsonObject { ["text"] = text });
@@ -389,7 +389,7 @@ namespace Crowd.Project.Api.Services
             int doDaiToiDa = _settings.SoNguyen(SettingKeys.DatasetTextMaxChars);
             if (nd.Json.Length > doDaiToiDa)
             {
-                throw new InvalidValueException("text_qua_dai", "noi dung cap toi da " + doDaiToiDa + " ky tu.");
+                throw new InvalidValueException("text_qua_dai", "nội dung cặp tối đa " + doDaiToiDa + " ký tự.");
             }
 
             return Sample.TaoTuNoiDung(duAn.Id, lo.Id, Modalities.Pair, nd, ten, Bam(nd.Json), SampleMetadata.Rong, bayGio, QuyDinhTuSetting.DuLieu(_settings));
@@ -405,7 +405,7 @@ namespace Crowd.Project.Api.Services
             if (mang == null || mang.Count < SoMucToiThieu || mang.Count > SoMucToiDa)
             {
                 throw new InvalidValueException(
-                    "items_khong_hop_le", "\"items\" phai la mang tu " + SoMucToiThieu + " den " + SoMucToiDa + " muc.");
+                    "items_khong_hop_le", "\"items\" phải là mảng từ " + SoMucToiThieu + " đến " + SoMucToiDa + " mục.");
             }
 
             JsonArray muc = new JsonArray();
@@ -420,7 +420,7 @@ namespace Crowd.Project.Api.Services
 
                 if (string.IsNullOrWhiteSpace(chu))
                 {
-                    throw new InvalidValueException("items_khong_hop_le", "moi muc trong \"items\" phai la chuoi khong rong.");
+                    throw new InvalidValueException("items_khong_hop_le", "mỗi mục trong \"items\" phải là chuỗi không rỗng.");
                 }
 
                 muc.Add(chu);
@@ -437,7 +437,7 @@ namespace Crowd.Project.Api.Services
             int doDaiToiDa = _settings.SoNguyen(SettingKeys.DatasetTextMaxChars);
             if (nd.Json.Length > doDaiToiDa)
             {
-                throw new InvalidValueException("text_qua_dai", "noi dung danh sach toi da " + doDaiToiDa + " ky tu.");
+                throw new InvalidValueException("text_qua_dai", "nội dung danh sách tối đa " + doDaiToiDa + " ký tự.");
             }
 
             SampleMetadata md = new SampleMetadata { ItemCount = muc.Count };
@@ -452,7 +452,7 @@ namespace Crowd.Project.Api.Services
 
             if (tt.SizeBytes > _settings.SoLon(SettingKeys.DatasetImageMaxBytes))
             {
-                throw new InvalidValueException("anh_qua_lon", "anh toi da " + (_settings.SoLon(SettingKeys.DatasetImageMaxBytes) / (1024 * 1024)) + " MB.");
+                throw new InvalidValueException("anh_qua_lon", "ảnh tối đa " + (_settings.SoLon(SettingKeys.DatasetImageMaxBytes) / (1024 * 1024)) + " MB.");
             }
 
             byte[] noiDung;
@@ -468,7 +468,7 @@ namespace Crowd.Project.Api.Services
             string? loai = LoaiAnh(noiDung);
             if (!kichThuoc.HasValue || loai == null)
             {
-                throw new InvalidValueException("khong_phai_anh", "file khong phai anh png / jpeg / webp hop le.");
+                throw new InvalidValueException("khong_phai_anh", "file không phải ảnh png / jpeg / webp hợp lệ.");
             }
 
             SampleMetadata md = new SampleMetadata { Width = kichThuoc.Value.Width, Height = kichThuoc.Value.Height };
@@ -497,12 +497,12 @@ namespace Crowd.Project.Api.Services
             {
                 if (laVideo && !media.CoVideo)
                 {
-                    throw new InvalidValueException("khong_phai_video", "file khong co hinh anh (khong phai video).");
+                    throw new InvalidValueException("khong_phai_video", "file không có hình ảnh (không phải video).");
                 }
 
                 if (!laVideo && !media.CoAudio)
                 {
-                    throw new InvalidValueException("khong_phai_am_thanh", "file khong co am thanh.");
+                    throw new InvalidValueException("khong_phai_am_thanh", "file không có âm thanh.");
                 }
             }
 
@@ -515,7 +515,7 @@ namespace Crowd.Project.Api.Services
             {
                 throw new InvalidValueException(
                     "khong_doc_duoc_thoi_luong",
-                    "khong doc duoc thoi luong — cai ffprobe (FFmpeg) hoac khai \"durationSec\" trong dong manifest.");
+                    "không đọc được thời lượng — cài ffprobe (FFmpeg) hoặc khai \"durationSec\" trong dòng manifest.");
             }
 
             string loai = tt.ContentType != null && tt.ContentType != "application/octet-stream"
@@ -597,12 +597,12 @@ namespace Crowd.Project.Api.Services
 
             if (!khoa.StartsWith(duAn.Id.ToString() + "/", StringComparison.Ordinal))
             {
-                throw new InvalidValueException("file_khong_thuoc_du_an", "file '" + khoa + "' khong thuoc du an nay.");
+                throw new InvalidValueException("file_khong_thuoc_du_an", "file '" + khoa + "' không thuộc dự án này.");
             }
 
             if (await _storage.ThongTinAsync(khoa, ct) == null)
             {
-                throw new InvalidValueException("khong_tim_thay_file", "khong tim thay file '" + khoa + "' (da upload chua?).");
+                throw new InvalidValueException("khong_tim_thay_file", "không tìm thấy file '" + khoa + "' (đã upload chưa?).");
             }
 
             return khoa;
@@ -633,7 +633,7 @@ namespace Crowd.Project.Api.Services
             string? s = ChuoiTuyChon(o, ten);
             if (s == null || s.Trim().Length == 0)
             {
-                throw new InvalidValueException("thieu_truong", "thieu truong \"" + ten + "\".");
+                throw new InvalidValueException("thieu_truong", "thiếu trường \"" + ten + "\".");
             }
 
             return s;
@@ -662,7 +662,7 @@ namespace Crowd.Project.Api.Services
         {
             if (loi.Count < _settings.SoNguyen(SettingKeys.DatasetErrorSampleCount))
             {
-                loi.Add("dong " + (viTri + 1).ToString(CultureInfo.InvariantCulture) + ": " + thongBao);
+                loi.Add("dòng " + (viTri + 1).ToString(CultureInfo.InvariantCulture) + ": " + thongBao);
             }
         }
     }

@@ -112,7 +112,7 @@ namespace Crowd.Tasking.Api.Services
 
             if (cu != null && cu.State == AttemptState.Submitted)
             {
-                throw new RuleViolationException("da_nop_bai", "Ban da nop bai cho du an nay — cho du an ket thuc de xem ket qua.");
+                throw new RuleViolationException("da_nop_bai", "Bạn đã nộp bài cho dự án này — chờ dự án kết thúc để xem kết quả.");
             }
 
             if (cu != null && cu.ExpiresAt > bayGio)
@@ -128,7 +128,7 @@ namespace Crowd.Tasking.Api.Services
             string? lyDo = EligibilityPolicy.LyDoTuChoi(duAnDoc, thanhVien, labeler, bayGio);
             if (lyDo != null)
             {
-                throw new ForbiddenException(lyDo, "Ban chua du dieu kien lam bai cua du an nay.");
+                throw new ForbiddenException(lyDo, "Bạn chưa đủ điều kiện làm bài của dự án này.");
             }
 
             var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -138,7 +138,7 @@ namespace Crowd.Tasking.Api.Services
                 ProjectSnapshot? duAn = await TaskQueries.KhoaDuAnAsync(_db, projectId, ct);
                 if (duAn == null || !duAn.ConNhanBai(bayGio))
                 {
-                    throw new RuleViolationException("du_an_khong_nhan_bai", "Du an khong con nhan bai lam.");
+                    throw new RuleViolationException("du_an_khong_nhan_bai", "Dự án không còn nhận bài làm.");
                 }
 
                 // Bai cu qua han ma worker chua kip quet: cho het han ngay de lam bai moi.
@@ -151,13 +151,19 @@ namespace Crowd.Tasking.Api.Services
                     }
                 }
 
+                // KHONG dem bai cua chinh nguoi nay: hai request "bat dau" cung luc cua MOT labeler (FE goi
+                // trung) — request sau thay bai request truoc vua tao, dem thanh du suat → bao "het suat" sai.
+                // Bo qua bai cua minh thi request sau di tiep toi UNIQUE (project, labeler) ben duoi va tra lai
+                // chinh bai do.
                 int dangGiu = await _db.Attempts.CountAsync(
-                    a => a.ProjectId == projectId && a.Id != (cu == null ? Guid.Empty : cu.Id)
+                    a => a.ProjectId == projectId && a.LabelerId != labelerId
                          && (a.State == AttemptState.Submitted || (a.State == AttemptState.InProgress && a.ExpiresAt > bayGio)),
                     ct);
-                if (dangGiu >= duAn.Slots)
+                // Tran NGUOI LAM (so suat thuong x he so, chup luc publish) — khong phai so suat thuong: cho nhieu
+                // nguoi lam hon de da so chac hon; n suat thuong trao cho n bai dat nop som nhat khi cham.
+                if (dangGiu >= duAn.MaxParticipants)
                 {
-                    throw new RuleViolationException("het_suat", "Du an da du " + duAn.Slots + " nguoi lam bai.");
+                    throw new RuleViolationException("het_suat", "Dự án đã đủ " + duAn.MaxParticipants + " người làm bài.");
                 }
 
                 // 3. DE: moi cau that (Open) + cau vang kiem tra — thu tu xao rieng cho bai nay.
@@ -235,14 +241,14 @@ namespace Crowd.Tasking.Api.Services
                 Attempt? a = await TaskQueries.KhoaBaiAsync(_db, attemptId, ct);
                 if (a == null || a.LabelerId != labelerId)
                 {
-                    throw new NotFoundException("Khong tim thay bai lam.");
+                    throw new NotFoundException("Không tìm thấy bài làm.");
                 }
 
                 a.KiemConLamDuoc(bayGio);
 
                 if (!a.CoCauHoi(sampleId))
                 {
-                    throw new NotFoundException("Cau hoi khong thuoc bai lam nay.");
+                    throw new NotFoundException("Câu hỏi không thuộc bài làm này.");
                 }
 
                 AttemptAnswer? tl = await _db.AttemptAnswers.FirstOrDefaultAsync(x => x.AttemptId == attemptId && x.SampleId == sampleId, ct);
@@ -259,7 +265,7 @@ namespace Crowd.Tasking.Api.Services
                 {
                     if (data!.Value.ValueKind != JsonValueKind.Object)
                     {
-                        throw new InvalidValueException("cau_tra_loi_sai_dinh_dang", "Cau tra loi phai la mot object JSON.");
+                        throw new InvalidValueException("cau_tra_loi_sai_dinh_dang", "Câu trả lời phải là một object JSON.");
                     }
 
                     string json = data.Value.GetRawText();
@@ -307,7 +313,7 @@ namespace Crowd.Tasking.Api.Services
             Attempt? xem = await _db.Attempts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == attemptId, ct);
             if (xem == null || xem.LabelerId != labelerId)
             {
-                throw new NotFoundException("Khong tim thay bai lam.");
+                throw new NotFoundException("Không tìm thấy bài làm.");
             }
 
             var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -316,25 +322,25 @@ namespace Crowd.Tasking.Api.Services
                 ProjectSnapshot? duAn = await TaskQueries.KhoaDuAnAsync(_db, xem.ProjectId, ct);
                 if (duAn == null || duAn.LabelSchema == null)
                 {
-                    throw new RuleViolationException("du_an_chua_san_sang", "Khong tim thay cau hinh du an.");
+                    throw new RuleViolationException("du_an_chua_san_sang", "Không tìm thấy cấu hình dự án.");
                 }
 
                 Attempt? a = await TaskQueries.KhoaBaiAsync(_db, attemptId, ct);
                 if (a == null)
                 {
-                    throw new NotFoundException("Khong tim thay bai lam.");
+                    throw new NotFoundException("Không tìm thấy bài làm.");
                 }
 
                 a.KiemConLamDuoc(bayGio);
 
                 if (duAn.Status == SnapshotStatus.Paused)
                 {
-                    throw new RuleViolationException("du_an_tam_dung", "Du an dang tam dung — bai van duoc giu, nop lai khi du an chay tiep.");
+                    throw new RuleViolationException("du_an_tam_dung", "Dự án đang tạm dừng — bài vẫn được giữ, nộp lại khi dự án chạy tiếp.");
                 }
 
                 if (!duAn.ConNhanBai(bayGio))
                 {
-                    throw new RuleViolationException("du_an_khong_nhan_bai", "Du an khong con nhan bai nop.");
+                    throw new RuleViolationException("du_an_khong_nhan_bai", "Dự án không còn nhận bài nộp.");
                 }
 
                 Dictionary<Guid, LabelingTask> cauHoi = await _db.Tasks.AsNoTracking()
@@ -355,7 +361,7 @@ namespace Crowd.Tasking.Api.Services
 
                 if (tongByte > _settings.SoLon(SettingKeys.TaskAttemptMaxBytes))
                 {
-                    throw new InvalidValueException("bai_qua_lon", "Toan bo cau tra loi vuot gioi han kich thuoc mot bai.");
+                    throw new InvalidValueException("bai_qua_lon", "Toàn bộ câu trả lời vượt giới hạn kích thước một bài.");
                 }
 
                 NguongKhop nguong = NguongKhopTuSetting.Doc(_settings);
@@ -437,7 +443,7 @@ namespace Crowd.Tasking.Api.Services
 
                 int daNop = await _db.Attempts.CountAsync(x => x.ProjectId == a.ProjectId && x.State == AttemptState.Submitted, ct);
                 bool vuaDong = false;
-                if (daNop >= duAn.Slots)
+                if (daNop >= duAn.MaxParticipants)
                 {
                     vuaDong = await _thuBai.DongThuBaiAsync(duAn, "du_suat", bayGio, caller, ct);
                     await _db.SaveChangesAsync(ct);
@@ -471,12 +477,12 @@ namespace Crowd.Tasking.Api.Services
                 Attempt? a = await TaskQueries.KhoaBaiAsync(_db, attemptId, ct);
                 if (a == null || a.LabelerId != labelerId)
                 {
-                    throw new NotFoundException("Khong tim thay bai lam.");
+                    throw new NotFoundException("Không tìm thấy bài làm.");
                 }
 
                 if (a.State == AttemptState.Submitted)
                 {
-                    throw new RuleViolationException("bai_da_nop", "Bai da nop, khong bo duoc.");
+                    throw new RuleViolationException("bai_da_nop", "Bài đã nộp, không bỏ được.");
                 }
 
                 a.Huy(_clock.GetUtcNow());
@@ -509,13 +515,13 @@ namespace Crowd.Tasking.Api.Services
                 Attempt? a = await TaskQueries.KhoaBaiAsync(_db, attemptId, ct);
                 if (a == null || a.LabelerId != labelerId)
                 {
-                    throw new NotFoundException("Khong tim thay bai lam.");
+                    throw new NotFoundException("Không tìm thấy bài làm.");
                 }
 
                 ProjectSnapshot duAn = await _db.ProjectSnapshots.AsNoTracking().FirstAsync(p => p.ProjectId == a.ProjectId, ct);
                 if (duAn.SettledAt.HasValue || !duAn.AppealDeadline.HasValue)
                 {
-                    throw new RuleViolationException("het_han_khieu_nai", "Du an da chot ket qua.");
+                    throw new RuleViolationException("het_han_khieu_nai", "Dự án đã chốt kết quả.");
                 }
 
                 a.KhieuNai(body.Message, duAn.AppealDeadline.Value, bayGio);
@@ -554,7 +560,7 @@ namespace Crowd.Tasking.Api.Services
             Attempt? xem = await _db.Attempts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == attemptId, ct);
             if (xem == null)
             {
-                throw new NotFoundException("Khong tim thay bai lam.");
+                throw new NotFoundException("Không tìm thấy bài làm.");
             }
 
             var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -563,7 +569,9 @@ namespace Crowd.Tasking.Api.Services
                 ProjectSnapshot duAn = (await TaskQueries.KhoaDuAnAsync(_db, xem.ProjectId, ct))!;
                 Attempt a = (await TaskQueries.KhoaBaiAsync(_db, attemptId, ct))!;
 
-                a.PhanXu(body.Accept, body.Note, caller.LayUserId(), bayGio);
+                // Chap nhan khieu nai: duoc thuong neu CON suat (khong lay lai tien cua bai da tra). Dem duoi khoa du an.
+                int daThuong = await _db.Attempts.CountAsync(x => x.ProjectId == a.ProjectId && x.Rewarded == true, ct);
+                a.PhanXu(body.Accept, body.Note, caller.LayUserId(), daThuong < duAn.Slots, bayGio);
 
                 int daLam = await _db.AttemptAnswers.CountAsync(x => x.AttemptId == a.Id, ct);
                 _events.Phat(caller, new AttemptAppealResolved
@@ -572,6 +580,7 @@ namespace Crowd.Tasking.Api.Services
                     ProjectId = a.ProjectId,
                     LabelerId = a.LabelerId,
                     Accepted = body.Accept,
+                    Rewarded = body.Accept && a.DuocThuong,
                     Note = a.AppealNote,
                     AnsweredCount = daLam,
                 });
@@ -631,7 +640,7 @@ namespace Crowd.Tasking.Api.Services
             ProjectSnapshot? duAn = await _db.ProjectSnapshots.AsNoTracking().FirstOrDefaultAsync(p => p.ProjectId == projectId, ct);
             if (duAn == null || !duAn.IsConfigured)
             {
-                throw new NotFoundException("Du an chua chay.");
+                throw new NotFoundException("Dự án chưa chạy.");
             }
 
             int dangLam = await _db.Attempts.CountAsync(a => a.ProjectId == projectId && a.State == AttemptState.InProgress && a.ExpiresAt > bayGio, ct);
@@ -656,9 +665,10 @@ namespace Crowd.Tasking.Api.Services
             {
                 ProjectId = projectId,
                 Slots = duAn.Slots,
+                MaxParticipants = duAn.MaxParticipants,
                 InProgress = dangLam,
                 Submitted = daNop,
-                Available = Math.Max(0, duAn.Slots - dangLam - daNop),
+                Available = Math.Max(0, duAn.MaxParticipants - dangLam - daNop),
                 QuestionCount = duAn.QuestionCount,
                 RewardVnd = duAn.RewardVnd,
                 PassThresholdPercent = duAn.PassThresholdPercent,
@@ -742,6 +752,7 @@ namespace Crowd.Tasking.Api.Services
             {
                 ProjectId = id,
                 Slots = duAn.Slots,
+                MaxParticipants = duAn.MaxParticipants,
                 QuestionCount = duAn.QuestionCount,
                 InProgress = So(AttemptState.InProgress),
                 Submitted = daNop,
@@ -756,7 +767,7 @@ namespace Crowd.Tasking.Api.Services
                 SettledAt = duAn.SettledAt,
                 PassedCount = duAn.PassedCount,
                 OpenAppeals = khieuNai,
-                EstimatedCompletionAt = duAn.CollectionFinishedAt.HasValue ? duAn.CollectionFinishedAt : UocTinhXong(duAn.Slots - daNop, nop24h, bayGio),
+                EstimatedCompletionAt = duAn.CollectionFinishedAt.HasValue ? duAn.CollectionFinishedAt : UocTinhXong(duAn.MaxParticipants - daNop, nop24h, bayGio),
             };
         }
 
@@ -824,7 +835,7 @@ namespace Crowd.Tasking.Api.Services
             Attempt? a = await _db.Attempts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == attemptId, ct);
             if (a == null || a.LabelerId != uid)
             {
-                throw new NotFoundException("Khong tim thay bai lam.");
+                throw new NotFoundException("Không tìm thấy bài làm.");
             }
 
             return a;
@@ -836,7 +847,7 @@ namespace Crowd.Tasking.Api.Services
             {
                 if (!await _db.ProjectSnapshots.AnyAsync(p => p.ProjectId == projectId, ct))
                 {
-                    throw new NotFoundException("Khong tim thay du an.");
+                    throw new NotFoundException("Không tìm thấy dự án.");
                 }
 
                 return;
@@ -849,7 +860,7 @@ namespace Crowd.Tasking.Api.Services
                 ct);
             if (!laChu || !await _db.ProjectSnapshots.AnyAsync(p => p.ProjectId == projectId, ct))
             {
-                throw new NotFoundException("Khong tim thay du an.");
+                throw new NotFoundException("Không tìm thấy dự án.");
             }
         }
 
@@ -916,6 +927,7 @@ namespace Crowd.Tasking.Api.Services
                 GoldCorrect = daCham ? a.GoldCorrect : null,
                 Passed = a.Passed,
                 FinalPassed = daCham ? a.DatCuoiCung : null,
+                Rewarded = daCham ? a.DuocThuong : null,
                 GradedAt = a.GradedAt,
                 AppealState = Ten(a.AppealState),
                 AppealMessage = a.AppealMessage,

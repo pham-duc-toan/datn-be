@@ -138,7 +138,7 @@ namespace Crowd.Tasking.Api.Seeding
         {
             MemberAddedProcessor thanhVien = new MemberAddedProcessor(_db);
             GoldSetUpdatedProcessor cauVang = new GoldSetUpdatedProcessor(_db, _loggers.CreateLogger<GoldSetUpdatedProcessor>());
-            ProjectPublishedProcessor daPublish = new ProjectPublishedProcessor(_db);
+            ProjectPublishedProcessor daPublish = new ProjectPublishedProcessor(_db, _settings);
 
             foreach (SeedProject sp in duAn)
             {
@@ -235,7 +235,7 @@ namespace Crowd.Tasking.Api.Seeding
 
                     if (b.Result != null)
                     {
-                        a.GhiKetQua(b.Result.ComparableCount, b.Result.MatchedCount, b.Result.AgreementPercent, b.Result.Passed, bayGio - sp.GradedAgo!.Value);
+                        a.GhiKetQua(b.Result.ComparableCount, b.Result.MatchedCount, b.Result.AgreementPercent, b.Result.Passed, b.Result.Passed, bayGio - sp.GradedAgo!.Value);
                     }
 
                     _db.Attempts.Add(a);

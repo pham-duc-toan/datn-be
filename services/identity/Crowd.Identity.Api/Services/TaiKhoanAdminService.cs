@@ -71,7 +71,7 @@ namespace Crowd.Identity.Api.Services
                 // ILIKE cua Postgres: khong phan biet hoa thuong, chay trong DB. Escape ky tu dai dien.
                 string mau = "%" + tim.Trim().Replace("\\", "\\\\", StringComparison.Ordinal)
                     .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal) + "%";
-                q = q.Where(u => EF.Functions.ILike(u.Email, mau) || EF.Functions.ILike(u.DisplayName, mau));
+                q = q.Where(u => EF.Functions.ILike(u.Email, mau) || EF.Functions.ILike(u.Username, mau) || EF.Functions.ILike(u.DisplayName, mau));
             }
 
             if (!string.IsNullOrWhiteSpace(vaiTro))
@@ -113,13 +113,13 @@ namespace Crowd.Identity.Api.Services
             string ly = (lyDo ?? string.Empty).Trim();
             if (ly.Length == 0 || ly.Length > 1000)
             {
-                throw new InvalidValueException("thieu_ly_do", "Khoa tai khoan phai ghi ly do (toi da 1000 ky tu).");
+                throw new InvalidValueException("thieu_ly_do", "Khoá tài khoản phải ghi lý do (tối đa 1000 ký tự).");
             }
 
             User u = await LayAsync(userId, ct);
             if (u.Roles.Contains("admin"))
             {
-                throw new RuleViolationException("khong_khoa_admin", "Khong khoa duoc tai khoan admin.");
+                throw new RuleViolationException("khong_khoa_admin", "Không khoá được tài khoản admin.");
             }
 
             var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -187,7 +187,7 @@ namespace Crowd.Identity.Api.Services
             User? u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId, ct);
             if (u == null)
             {
-                throw new NotFoundException("Khong tim thay tai khoan.");
+                throw new NotFoundException("Không tìm thấy tài khoản.");
             }
 
             return u;
@@ -223,6 +223,7 @@ namespace Crowd.Identity.Api.Services
 
             return new AdminUserResponse
             {
+                Username = u.Username,
                 UserId = u.Id,
                 Email = u.Email,
                 DisplayName = u.DisplayName,

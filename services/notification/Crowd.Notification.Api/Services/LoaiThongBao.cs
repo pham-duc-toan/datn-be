@@ -174,7 +174,8 @@ namespace Crowd.Notification.Api.Services
 
         // ---- ket qua cham ca du an (docs 3.18) ----
 
-        public static NoiDung BaiDat(Guid attemptId, int phanTram, int nguong, bool dungDaSo)
+        /// <param name="duocThuong">Trong n suat thuong (n bai dat nop som nhat). false = dat nhung het suat.</param>
+        public static NoiDung BaiDat(Guid attemptId, int phanTram, int nguong, bool dungDaSo, bool duocThuong)
         {
             string ly = dungDaSo
                 ? "Bạn giống đa số " + phanTram + "% (ngưỡng " + nguong + "%) và đúng hết câu kiểm tra."
@@ -182,6 +183,16 @@ namespace Crowd.Notification.Api.Services
             string lyEn = dungDaSo
                 ? "You matched the majority on " + phanTram + "% (threshold " + nguong + "%) and answered every check question correctly."
                 : "You answered every check question correctly (too few submissions to compare with the majority).";
+            if (!duocThuong)
+            {
+                return new NoiDung(
+                        "Bài làm đạt nhưng đã hết suất thưởng",
+                        ly + " Dự án chỉ thưởng cho số bài đạt nộp sớm nhất bằng số suất — các suất đã được trao cho bài nộp trước bạn. Kết quả của bạn vẫn được tính vào uy tín.",
+                        "/attempts/" + attemptId)
+                    .En("Passed, but all reward slots were taken",
+                        lyEn + " The project rewards only the earliest passing submissions, one per slot — all slots went to earlier submissions. Your result still counts toward your reputation.");
+            }
+
             return new NoiDung("Bài làm đã đạt", ly + " Tiền thưởng của dự án đã được trả vào ví.", "/attempts/" + attemptId)
                 .En("Attempt passed", lyEn + " The project reward has been paid to your wallet.");
         }
@@ -207,9 +218,15 @@ namespace Crowd.Notification.Api.Services
                 .En("Attempt not passed", "Your attempt " + string.Join(", ", lyEn) + ". You may appeal the whole attempt within the allowed period.");
         }
 
-        public static NoiDung KetQuaKhieuNai(Guid attemptId, bool chapNhan, string? ghiChu)
+        public static NoiDung KetQuaKhieuNai(Guid attemptId, bool chapNhan, bool duocThuong, string? ghiChu)
         {
             string chu = string.IsNullOrWhiteSpace(ghiChu) ? string.Empty : " Ghi chú: " + ghiChu + ".";
+            if (chapNhan && !duocThuong)
+            {
+                return new NoiDung("Khiếu nại được chấp nhận", "Bài làm được tính là đạt, nhưng dự án đã hết suất thưởng nên không có tiền thưởng." + chu, "/attempts/" + attemptId)
+                    .En("Appeal accepted", "Your attempt now counts as passed, but all reward slots were already taken, so no reward is paid." + chu);
+            }
+
             return chapNhan
                 ? new NoiDung("Khiếu nại được chấp nhận", "Bài làm được tính là đạt và đã được trả thưởng." + chu, "/attempts/" + attemptId)
                     .En("Appeal accepted", "Your attempt now counts as passed and the reward has been paid." + chu)
@@ -217,13 +234,13 @@ namespace Crowd.Notification.Api.Services
                     .En("Appeal rejected", "The grading result stands." + chu);
         }
 
-        public static NoiDung DuAnDaCham(Guid projectId, int soDat, int soBai)
+        public static NoiDung DuAnDaCham(Guid projectId, int soDat, int soThuong, int soBai)
         {
             return new NoiDung("Dự án đã chấm xong",
-                soDat + "/" + soBai + " bài đạt và đã được trả thưởng. Kết quả gán nhãn đã sẵn sàng; phần ký quỹ còn dư hoàn về ví khi hết hạn khiếu nại.",
+                soDat + "/" + soBai + " bài đạt, " + soThuong + " bài nộp sớm nhất được trả thưởng. Kết quả gán nhãn đã sẵn sàng; phần ký quỹ còn dư hoàn về ví khi hết hạn khiếu nại.",
                 "/projects/" + projectId)
                 .En("Project graded",
-                    soDat + "/" + soBai + " attempts passed and were paid. Results are ready; unused escrow returns to your wallet after the appeal window.");
+                    soDat + "/" + soBai + " attempts passed; the " + soThuong + " earliest were paid. Results are ready; unused escrow returns to your wallet after the appeal window.");
         }
 
         /// <summary>soKhoan &gt; 1: da gop nhieu khoan treo (vnd la tong).</summary>

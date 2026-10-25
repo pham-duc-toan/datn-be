@@ -113,7 +113,7 @@ namespace Crowd.Admin.Api.Services
             DateOnly tu = from ?? den.AddDays(-29);
             if (tu > den || den.DayNumber - tu.DayNumber + 1 > SoNgayToiDa)
             {
-                throw new AdminException(400, "khoang_ngay_khong_hop_le", "from <= to, toi da " + SoNgayToiDa + " ngay.");
+                throw new AdminException(400, "khoang_ngay_khong_hop_le", "from <= to, tối đa " + SoNgayToiDa + " ngày.");
             }
 
             // Doc tu bang DEM theo ngay (stats_daily, AuditConsumer cong don) — khong quet nhat ky chi tiet:

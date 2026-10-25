@@ -17,6 +17,7 @@ attempt.appeal_resolved v1  (AttemptAppealResolved)
     LabelerId                Guid                 required
     Note                     String?              nullable
     ProjectId                Guid                 required
+    Rewarded                 Boolean              required
 
 attempt.submitted v1  (AttemptSubmitted)
     Answers                  IReadOnlyList<AttemptAnswer> required

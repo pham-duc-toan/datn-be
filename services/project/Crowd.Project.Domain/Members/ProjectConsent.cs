@@ -66,12 +66,12 @@ namespace Crowd.Project.Domain.Members
 
             if (!duAn.CanDongYCaNhan())
             {
-                throw new RuleViolationException("khong_can_dong_y", "Du an khong co canh bao noi dung hay NDA.");
+                throw new RuleViolationException("khong_can_dong_y", "Dự án không có cảnh báo nội dung hay NDA.");
             }
 
             if (duAn.SensitiveContent && !dongYCanhBao)
             {
-                throw new InvalidValueException("chua_dong_y_canh_bao", "Phai dong y canh bao noi dung nhay cam.");
+                throw new InvalidValueException("chua_dong_y_canh_bao", "Phải đồng ý cảnh báo nội dung nhạy cảm.");
             }
 
             if (duAn.NdaRequired)
@@ -79,12 +79,12 @@ namespace Crowd.Project.Domain.Members
                 string ten = (hoTen ?? string.Empty).Trim();
                 if (!dongYNda)
                 {
-                    throw new InvalidValueException("chua_dong_y_nda", "Phai dong y thoa thuan bao mat (NDA).");
+                    throw new InvalidValueException("chua_dong_y_nda", "Phải đồng ý thoả thuận bảo mật (NDA).");
                 }
 
                 if (ten.Length < 2 || ten.Length > DoDaiTenToiDa)
                 {
-                    throw new InvalidValueException("thieu_ho_ten_ky", "Go ho ten day du de ky NDA (2–" + DoDaiTenToiDa + " ky tu).");
+                    throw new InvalidValueException("thieu_ho_ten_ky", "Gõ họ tên đầy đủ để ký NDA (2–" + DoDaiTenToiDa + " ký tự).");
                 }
 
                 NdaVersion = duAn.NdaVersion;

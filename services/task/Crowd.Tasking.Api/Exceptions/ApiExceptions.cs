@@ -48,7 +48,7 @@ namespace Crowd.Tasking.Api.Exceptions
     public sealed class BaiChuaHopLeException : Exception
     {
         public BaiChuaHopLeException(IReadOnlyList<Crowd.Tasking.Api.Dtos.InvalidAnswer> cauSai)
-            : base("Co " + (cauSai == null ? 0 : cauSai.Count) + " cau tra loi chua dung dinh dang — sua roi nop lai.")
+            : base("Có " + (cauSai == null ? 0 : cauSai.Count) + " câu trả lời chưa đúng định dạng — sửa rồi nộp lại.")
         {
             CauSai = cauSai ?? new List<Crowd.Tasking.Api.Dtos.InvalidAnswer>();
         }

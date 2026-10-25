@@ -37,7 +37,7 @@ namespace Crowd.Project.Domain.Projects
             {
                 throw new InvalidValueException(
                     "huong_dan_khong_hop_le",
-                    "Huong dan phai tu 1 den " + quyDinh.DoDaiHuongDanToiDa + " ky tu.");
+                    "Hướng dẫn phải từ 1 đến " + quyDinh.DoDaiHuongDanToiDa + " ký tự.");
             }
 
             List<GuidelineExample> danhSach = new List<GuidelineExample>();
@@ -50,7 +50,7 @@ namespace Crowd.Project.Domain.Projects
             {
                 throw new InvalidValueException(
                     "qua_nhieu_vi_du",
-                    "Toi da " + quyDinh.SoViDuToiDa + " vi du.");
+                    "Tối đa " + quyDinh.SoViDuToiDa + " ví dụ.");
             }
 
             foreach (GuidelineExample vd in danhSach)
@@ -59,7 +59,7 @@ namespace Crowd.Project.Domain.Projects
                 {
                     throw new InvalidValueException(
                         "giai_thich_khong_hop_le",
-                        "Moi vi du can giai thich tu 1 den " + quyDinh.DoDaiGiaiThichToiDa + " ky tu.");
+                        "Mỗi ví dụ cần giải thích từ 1 đến " + quyDinh.DoDaiGiaiThichToiDa + " ký tự.");
                 }
             }
 
@@ -87,7 +87,7 @@ namespace Crowd.Project.Domain.Projects
             // Do dai toi da kiem o Guideline.Tao theo quy dinh hien tai.
             if (string.IsNullOrWhiteSpace(explanation))
             {
-                throw new InvalidValueException("giai_thich_khong_hop_le", "Moi vi du can giai thich.");
+                throw new InvalidValueException("giai_thich_khong_hop_le", "Mỗi ví dụ cần giải thích.");
             }
 
             SampleId = sampleId;

@@ -45,9 +45,9 @@ async def luu_tru(project_id: uuid.UUID) -> dict:
             "SELECT closed_at, archived_at, purged_at FROM projects WHERE project_id = :p FOR UPDATE"),
             {"p": project_id})).first()
         if d is None:
-            raise LoiApi(404, "khong_tim_thay", "Khong tim thay du an.")
+            raise LoiApi(404, "khong_tim_thay", "Không tìm thấy dự án.")
         if d.closed_at is None:
-            raise LoiApi(409, "du_an_chua_dong", "Chi luu tru du lieu chat luong cua du an da dong.")
+            raise LoiApi(409, "du_an_chua_dong", "Chỉ lưu trữ dữ liệu chất lượng của dự án đã đóng.")
         if d.purged_at is not None:
             return {"projectId": str(project_id), "purgedAt": d.purged_at.isoformat(), "purgedNow": False, "deleted": {}}
         if d.archived_at is None:

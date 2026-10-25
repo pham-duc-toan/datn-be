@@ -9,6 +9,9 @@ namespace Crowd.Admin.Api.Dtos
     {
         public required string Key { get; init; }
 
+        /// <summary>Ten hien thi (tieng Viet co dau) — frontend hien ten nay, khoa chi la chu nho ben duoi.</summary>
+        public required string Name { get; init; }
+
         /// <summary>Nhom hien thi tren man hinh admin.</summary>
         public required string Group { get; init; }
 

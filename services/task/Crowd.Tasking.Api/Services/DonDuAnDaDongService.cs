@@ -93,12 +93,12 @@ namespace Crowd.Tasking.Api.Services
 
                 if (duAn == null)
                 {
-                    throw new NotFoundException("Khong tim thay du an.");
+                    throw new NotFoundException("Không tìm thấy dự án.");
                 }
 
                 if (duAn.Status != SnapshotStatus.Closed)
                 {
-                    throw new RuleViolationException("du_an_chua_dong", "Chi don du lieu van hanh cua du an da dong.");
+                    throw new RuleViolationException("du_an_chua_dong", "Chỉ dọn dữ liệu vận hành của dự án đã đóng.");
                 }
 
                 if (duAn.DataPurgedAt.HasValue)
@@ -122,6 +122,7 @@ namespace Crowd.Tasking.Api.Services
                     {
                         ProjectId = tienDo.ProjectId,
                         Slots = tienDo.Slots,
+                        MaxParticipants = tienDo.MaxParticipants,
                         QuestionCount = tienDo.QuestionCount,
                         InProgress = tienDo.InProgress,
                         Submitted = tienDo.Submitted,

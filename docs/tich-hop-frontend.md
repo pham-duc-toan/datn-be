@@ -2878,3 +2878,21 @@ Công cụ `freeText` (payload `{"text": "..."}`) giờ được **chấm**: lú
   - hộp xác nhận nộp bài;
   - trang kết quả bài khi chưa chấm (`labelSchema.tools[].kind`).
 - Setting admin: `quality.freetext_similarity` (0,6), `quality.freetext_lexical_similarity` (0,38), `quality.freetext_analysis_timeout` (3600 s), `quality.freetext_analysis_interval` (5 s).
+
+## 20. Đợt góp ý 10/2026 (username, suất thưởng, mã mời, cổng thử nghiệm…)
+
+**Username.** `POST /auth/register` bắt buộc `username` (3–30 ký tự `a-z 0-9 . _`, không bắt đầu / kết thúc bằng `.` `_`, không trùng → 409 `username_da_ton_tai`). `POST /auth/login` nhận email **hoặc** username trong trường `email` (có `@` ở giữa = email). `GET/PUT /me/profile` có `username` (đổi được). `GET /users/public` và `/users/admin` trả `username`. Mời thành viên: `POST /projects/{id}/members/batch { role, usernames: ["@an", "binh"], emails }` (`userIds` vẫn nhận); kết quả có `username`. Tài khoản cũ được tự sinh username từ phần trước `@` của email.
+
+**Suất thưởng = số người được thưởng.** `slots` là số suất thưởng; tối đa `slots × participantMultiplier` người được làm (`readiness.limits.participantMultiplier`, setting `project.participant_multiplier`, mặc định 2; chụp vào dự án lúc publish). `GET /tasks/projects/{id}/slots` thêm `maxParticipants`, `available` = chỗ làm còn trống; `progress` thêm `maxParticipants`. Khi chấm, n bài **đạt** nộp sớm nhất được thưởng: `AttemptSummary.rewarded` (đạt mà `false` = hết suất thưởng), báo cáo chất lượng có `rewarded` từng bài và `attemptsRewarded`. Khiếu nại được chấp nhận chỉ có tiền khi còn suất.
+
+**Mã mời + điều khoản.** `POST /projects/join-by-code/preview { code }` → `{ projectId, projectName, terms }` (không tốn lượt). Dự án có cảnh báo / NDA mà chưa đồng ý: gửi `POST /projects/join-by-code { code, consent: { acceptContentWarning, acceptNda, fullName } }` — đồng ý và vào trong một lần. Lời mời theo email vào dự án riêng tư: đọc `GET /projects/{id}/terms` (người được mời đọc được), `POST /projects/{id}/consent`, rồi `accept`.
+
+**Khác:**
+- Dự án chưa được admin duyệt: thêm thành viên / tạo mã mời → 409 `du_an_chua_duoc_duyet`; FE ẩn phần mời và ẩn tab Kết quả / Chất lượng / Câu bị báo lỗi.
+- `PUT /projects/{id}/protection` trả **điều khoản**, không phải dự án — FE tải lại dự án sau khi lưu.
+- Bỏ cảnh báo `khong_co_cau_vang_kiem_tra`.
+- Cổng thanh toán thử nghiệm (sandbox / VNPay / MoMo, chỉ Development): mở `checkoutUrl` bằng trình duyệt ra trang thanh toán có nút Thanh toán / Huỷ (trước đây 404 / 405 / JSON).
+- `GET /admin/settings` thêm `name` (tên hiển thị có dấu); mô tả, nhóm, đơn vị đều có dấu.
+- Khoá công cụ của tập nhãn và tên lô dữ liệu do FE tự sinh (tên dự án không dấu + loại công cụ; tên dự án + ngày giờ nạp) — không còn ô nhập. Trình soạn tập nhãn có popup “Hướng dẫn các loại công cụ” kèm ví dụ và giải thích từng trường.
+- Thông báo lỗi backend trả cho người dùng là tiếng Việt có dấu; FE ưu tiên hiện nguyên văn câu của backend khi câu đó có dấu (giữ chi tiết như “Mật khẩu link phải từ 4 đến 100 ký tự.”).
+- Link xem giấy phép KYB / giấy tờ xác minh danh tính tự lấy lại mỗi 4 phút (hết hạn sau 5 phút) và khi ảnh tải lỗi.

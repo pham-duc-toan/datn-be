@@ -108,7 +108,7 @@ namespace Crowd.Project.Api.Services
             LabelingProject duAn = await _db.Projects.FirstAsync(p => p.Id == moi.ProjectId, ct);
             if (duAn.DaKetThuc())
             {
-                throw new RuleViolationException("du_an_da_ket_thuc", "Du an da ket thuc.");
+                throw new RuleViolationException("du_an_da_ket_thuc", "Dự án đã kết thúc.");
             }
 
             Guid uid = caller.LayUserId();
@@ -153,7 +153,7 @@ namespace Crowd.Project.Api.Services
             ProjectInvitation? moi = await _db.ProjectInvitations.FirstOrDefaultAsync(i => i.Id == invitationId && i.ProjectId == projectId, ct);
             if (moi == null)
             {
-                throw new NotFoundException("Khong tim thay loi moi.");
+                throw new NotFoundException("Không tìm thấy lời mời.");
             }
 
             moi.ThuHoi(_clock.GetUtcNow());
@@ -246,12 +246,12 @@ namespace Crowd.Project.Api.Services
             NguoiDungTraCuu? nguoi = await _identity.LayAsync(userId, ct);
             if (nguoi == null || nguoi.Locked)
             {
-                throw new RuleViolationException("tai_khoan_bi_khoa", "Tai khoan dang bi khoa.");
+                throw new RuleViolationException("tai_khoan_bi_khoa", "Tài khoản đang bị khoá.");
             }
 
             if (await _members.BiDoanhNghiepChanAsync(duAn.OwnerId, userId, ct))
             {
-                throw new RuleViolationException("bi_chan_boi_doanh_nghiep", "Doanh nghiep so huu du an da chan tai khoan nay.");
+                throw new RuleViolationException("bi_chan_boi_doanh_nghiep", "Doanh nghiệp sở hữu dự án đã chặn tài khoản này.");
             }
 
             string? lyDo = duAn.LyDoKhongDuDieuKienBaoVe(nguoi.IdentityVerified, nguoi.Adult, await _baoVe.DaDongYAsync(duAn, userId, ct));
@@ -267,7 +267,7 @@ namespace Crowd.Project.Api.Services
             ProjectInvitation? moi = await _db.ProjectInvitations.FirstOrDefaultAsync(i => i.Id == invitationId && i.UserId == uid, ct);
             if (moi == null)
             {
-                throw new NotFoundException("Khong tim thay loi moi.");
+                throw new NotFoundException("Không tìm thấy lời mời.");
             }
 
             return moi;

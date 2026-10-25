@@ -90,7 +90,7 @@ namespace Crowd.Project.Infrastructure.Datasets
             }
             catch (InvalidDataException)
             {
-                throw new InvalidValueException("khong_phai_zip", "File tai len khong phai ZIP hop le.");
+                throw new InvalidValueException("khong_phai_zip", "File tải lên không phải ZIP hợp lệ.");
             }
 
             using (archive)
@@ -99,7 +99,7 @@ namespace Crowd.Project.Infrastructure.Datasets
                 {
                     throw new InvalidValueException(
                         "zip_qua_nhieu_file",
-                        "ZIP toi da " + gioiHan.MaxEntries + " file.");
+                        "ZIP tối đa " + gioiHan.MaxEntries + " file.");
                 }
 
                 int soBoQua = 0;
@@ -134,7 +134,7 @@ namespace Crowd.Project.Infrastructure.Datasets
                     tongByte = tongByte + noiDung.Length;
                     if (tongByte > gioiHan.MaxTotalBytes)
                     {
-                        throw new InvalidValueException("zip_qua_lon", "Tong dung luong anh vuot gioi han.");
+                        throw new InvalidValueException("zip_qua_lon", "Tổng dung lượng ảnh vượt giới hạn.");
                     }
 
                     string ten = entry.FullName.Length > 500 ? entry.FullName.Substring(0, 500) : entry.FullName;

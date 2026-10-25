@@ -136,7 +136,7 @@ namespace Crowd.Ledger.Api.Services
                 Withdrawal? w = await _db.Withdrawals.FirstOrDefaultAsync(x => x.Id == id, ct);
                 if (w == null)
                 {
-                    throw new NotFoundException("Khong tim thay lenh rut.");
+                    throw new NotFoundException("Không tìm thấy lệnh rút.");
                 }
 
                 await hanhDong(w, _clock.GetUtcNow());

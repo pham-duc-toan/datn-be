@@ -62,7 +62,7 @@ namespace Crowd.Tasking.Api.Services
 
             if (!body.SampleId.HasValue)
             {
-                throw new InvalidValueException("thieu_mau", "Can truong sampleId cua cau bi loi.");
+                throw new InvalidValueException("thieu_mau", "Cần trường sampleId của câu bị lỗi.");
             }
 
             Guid labelerId = caller.LayUserId();
@@ -75,7 +75,7 @@ namespace Crowd.Tasking.Api.Services
                 Attempt? a = await TaskQueries.KhoaBaiAsync(_db, attemptId, ct);
                 if (a == null || a.LabelerId != labelerId)
                 {
-                    throw new NotFoundException("Khong tim thay bai lam.");
+                    throw new NotFoundException("Không tìm thấy bài làm.");
                 }
 
                 DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -83,18 +83,18 @@ namespace Crowd.Tasking.Api.Services
 
                 if (!a.CoCauHoi(sampleId))
                 {
-                    throw new NotFoundException("Cau hoi khong thuoc bai lam nay.");
+                    throw new NotFoundException("Câu hỏi không thuộc bài làm này.");
                 }
 
                 LabelingTask? task = await _db.Tasks.FirstOrDefaultAsync(t => t.ProjectId == a.ProjectId && t.SampleId == sampleId, ct);
                 if (task == null)
                 {
-                    throw new NotFoundException("Khong tim thay cau hoi.");
+                    throw new NotFoundException("Không tìm thấy câu hỏi.");
                 }
 
                 if (await _db.TaskReports.AnyAsync(r => r.AttemptId == a.Id && r.SampleId == sampleId, ct))
                 {
-                    throw new RuleViolationException("da_bao_loi", "Ban da bao loi cau nay.");
+                    throw new RuleViolationException("da_bao_loi", "Bạn đã báo lỗi câu này.");
                 }
 
                 TaskReport r = TaskReport.Tao(a.Id, task.Id, a.ProjectId, sampleId, labelerId, body.Reason, body.Note, bayGio);
@@ -171,7 +171,7 @@ namespace Crowd.Tasking.Api.Services
                 TaskReport? r = await _db.TaskReports.FirstOrDefaultAsync(x => x.Id == reportId, ct);
                 if (r == null)
                 {
-                    throw new NotFoundException("Khong tim thay bao loi.");
+                    throw new NotFoundException("Không tìm thấy báo lỗi.");
                 }
 
                 await KiemChuDuAnAsync(r.ProjectId, caller, ct);
@@ -224,7 +224,7 @@ namespace Crowd.Tasking.Api.Services
             Guid uid = caller.LayUserId();
             if (!await _db.ProjectSnapshots.AnyAsync(p => p.ProjectId == projectId && p.OwnerId == uid, ct))
             {
-                throw new NotFoundException("Khong tim thay du an.");
+                throw new NotFoundException("Không tìm thấy dự án.");
             }
         }
 

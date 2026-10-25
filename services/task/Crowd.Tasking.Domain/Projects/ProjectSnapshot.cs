@@ -74,8 +74,14 @@ namespace Crowd.Tasking.Domain.Projects
         /// <summary>Thuong cho MOT nguoi lam dat ca du an (docs 3.18).</summary>
         public long RewardVnd { get; private set; }
 
-        /// <summary>So suat: toi da bay nhieu bai (dang lam + da nop).</summary>
+        /// <summary>So suat THUONG (10/2026): so nguoi duoc thuong — n bai dat nop som nhat.</summary>
         public int Slots { get; private set; }
+
+        /// <summary>
+        /// Tran so nguoi lam bai (dang lam + da nop) = Slots x project.participant_multiplier, CHUP luc publish (admin
+        /// doi setting giua chung khong lam lech du an dang chay). Du tran thi dong thu bai.
+        /// </summary>
+        public int MaxParticipants { get; private set; }
 
         /// <summary>t — % cau giong da so toi thieu de dat.</summary>
         public int PassThresholdPercent { get; private set; }
@@ -147,6 +153,7 @@ namespace Crowd.Tasking.Domain.Projects
             LabelSchema labelSchema,
             long rewardVnd,
             int slots,
+            int maxParticipants,
             int passThresholdPercent,
             int questionCount,
             DateTimeOffset deadline,
@@ -168,6 +175,7 @@ namespace Crowd.Tasking.Domain.Projects
             _labelSchema = labelSchema;
             RewardVnd = rewardVnd;
             Slots = slots;
+            MaxParticipants = Math.Max(maxParticipants, slots);
             PassThresholdPercent = passThresholdPercent;
             QuestionCount = questionCount;
             Deadline = deadline;
@@ -275,7 +283,7 @@ namespace Crowd.Tasking.Domain.Projects
 
             if (Status != SnapshotStatus.Closed)
             {
-                throw new RuleViolationException("du_an_chua_dong", "Chi don du lieu van hanh cua du an da dong.");
+                throw new RuleViolationException("du_an_chua_dong", "Chỉ dọn dữ liệu vận hành của dự án đã đóng.");
             }
 
             if (FinalProgressJson == null)

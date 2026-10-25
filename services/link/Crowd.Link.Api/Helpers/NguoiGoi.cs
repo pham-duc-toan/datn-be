@@ -44,7 +44,7 @@ namespace Crowd.Link.Api.Helpers
             {
                 if (!http.User.IsInRole(CrowdRoles.Labeler) && !http.User.IsInRole(CrowdRoles.Sharer))
                 {
-                    throw new LinkException(403, "khong_duoc_chia_se_link", "Chi tai khoan nguoi gan nhan (labeler) moi chia se link kiem tien.");
+                    throw new LinkException(403, "khong_duoc_chia_se_link", "Chỉ tài khoản người gán nhãn (labeler) mới chia sẻ link kiếm tiền.");
                 }
 
                 return Caller.TuHttp(http, ActorRole.Sharer);
@@ -59,7 +59,7 @@ namespace Crowd.Link.Api.Helpers
             Guid? chu = await links.XacThucApiKeyAsync(key, ct);
             if (chu == null)
             {
-                throw new LinkException(401, "chua_xac_thuc", "Can token dang nhap hoac API key hop le.");
+                throw new LinkException(401, "chua_xac_thuc", "Cần token đăng nhập hoặc API key hợp lệ.");
             }
 
             return Caller.TuNguoiDung(http, chu.Value, ActorRole.Sharer);

@@ -101,7 +101,7 @@ namespace Crowd.Project.Api.Services
 
             if (!duAn.RequireEntranceTest)
             {
-                throw new RuleViolationException("khong_can_test", "Du an khong yeu cau bai test — tham gia truc tiep.");
+                throw new RuleViolationException("khong_can_test", "Dự án không yêu cầu bài test — tham gia trực tiếp.");
             }
 
             Guid userId = caller.LayUserId();
@@ -110,7 +110,7 @@ namespace Crowd.Project.Api.Services
             bool daLaThanhVien = await _db.ProjectMembers.AnyAsync(m => m.ProjectId == projectId && m.UserId == userId, ct);
             if (daLaThanhVien)
             {
-                throw new RuleViolationException("da_la_thanh_vien", "Ban da la thanh vien (hoac da bi chan khoi) du an nay.");
+                throw new RuleViolationException("da_la_thanh_vien", "Bạn đã là thành viên (hoặc đã bị chặn khỏi) dự án này.");
             }
 
             // Kiem dieu kien TRUOC khi lam bai: khong de labeler lam xong moi biet khong du cap do.
@@ -190,7 +190,7 @@ namespace Crowd.Project.Api.Services
 
             if (lan == null)
             {
-                throw new NotFoundException("Khong tim thay bai test.");
+                throw new NotFoundException("Không tìm thấy bài test.");
             }
 
             LabelingProject duAn = await _access.LayDeXemAsync(projectId, caller, ct);

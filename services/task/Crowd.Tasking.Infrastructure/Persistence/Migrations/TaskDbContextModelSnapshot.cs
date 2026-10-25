@@ -219,6 +219,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
+                    b.Property<bool?>("Rewarded")
+                        .HasColumnType("boolean")
+                        .HasColumnName("rewarded");
+
                     b.Property<uint>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -408,6 +412,10 @@ namespace Crowd.Tasking.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsPrivate")
                         .HasColumnType("boolean")
                         .HasColumnName("is_private");
+
+                    b.Property<int>("MaxParticipants")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_participants");
 
                     b.Property<int?>("MinLevel")
                         .HasColumnType("integer")

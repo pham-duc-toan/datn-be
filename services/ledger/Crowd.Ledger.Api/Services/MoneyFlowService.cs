@@ -190,7 +190,7 @@ namespace Crowd.Ledger.Api.Services
             ProjectEscrow? escrow = await _db.Escrows.FirstOrDefaultAsync(x => x.ProjectId == c.ProjectId, ct);
             if (escrow == null)
             {
-                throw new RuleViolationException("chua_ky_quy", "Du an " + c.ProjectId + " chua co ky quy — khong chi duoc.");
+                throw new RuleViolationException("chua_ky_quy", "Dự án " + c.ProjectId + " chưa có ký quỹ — không chi được.");
             }
 
             long tong = checked(c.SharerAmountVnd + c.PlatformAmountVnd);
@@ -435,8 +435,9 @@ namespace Crowd.Ledger.Api.Services
         // =====================================================================
 
         /// <summary>
-        /// project.graded: moi bai DAT nhan thuong cua mot suat — ky quy −(thuong + phi) → labeler +thuong
-        /// (treo ledger.reward_hold), nen tang +phi; phat funds.held. Bai truot khong nhan gi.
+        /// project.graded: moi bai DUOC THUONG (Rewarded — n bai dat nop som nhat, quality-svc chon) nhan thuong cua
+        /// mot suat — ky quy −(thuong + phi) → labeler +thuong (treo ledger.reward_hold), nen tang +phi; phat
+        /// funds.held. Bai truot, va bai dat nhung het suat, khong nhan gi.
         ///
         /// Cac truong hop KHONG DUOC CHI (nem loi → thu lai → DLQ cho nguoi xem, VD-D-06 — khong bao gio
         /// nuot im lang vi day la tien cua nguoi lao dong):
@@ -451,7 +452,7 @@ namespace Crowd.Ledger.Api.Services
 
             int daTra = await DemBaiDaTraAsync(p.ProjectId, ct);
             int moi = 0;
-            foreach (GradedAttempt a in p.Attempts.Where(x => x.Passed).OrderBy(x => x.AttemptId))
+            foreach (GradedAttempt a in p.Attempts.Where(x => x.Rewarded).OrderBy(x => x.AttemptId))
             {
                 if (await ChiMotBaiAsync(escrow, a.AttemptId, a.LabelerId, daTra + moi, caller, ct))
                 {
@@ -463,10 +464,13 @@ namespace Crowd.Ledger.Api.Services
             await DongNeuDaTraDuAsync(escrow, daTra + moi, caller, ct);
         }
 
-        /// <summary>attempt.appeal_resolved: khieu nai ca bai duoc chap nhan → bai thanh dat, tra thuong.</summary>
+        /// <summary>
+        /// attempt.appeal_resolved: khieu nai ca bai duoc chap nhan VA con suat (task-svc xet duoi khoa du an —
+        /// Rewarded) → tra thuong. Chap nhan ma het suat: bai thanh dat nhung khong co tien.
+        /// </summary>
         public async Task ChiThuongKhieuNaiAsync(AttemptAppealResolved p, Caller caller, CancellationToken ct)
         {
-            if (!p.Accepted)
+            if (!p.Accepted || !p.Rewarded)
             {
                 return;
             }
@@ -484,18 +488,18 @@ namespace Crowd.Ledger.Api.Services
             ProjectEscrow? escrow = await _db.Escrows.FirstOrDefaultAsync(x => x.ProjectId == projectId, ct);
             if (escrow == null)
             {
-                throw new RuleViolationException("chua_ky_quy", "Du an " + projectId + " chua co ky quy — khong tra thuong duoc.");
+                throw new RuleViolationException("chua_ky_quy", "Dự án " + projectId + " chưa có ký quỹ — không trả thưởng được.");
             }
 
             if (!escrow.DaCoDieuKhoan)
             {
                 // project.published chua toi (queue khac): thu lai sau.
-                throw new RuleViolationException("chua_co_dieu_khoan", "Ky quy du an " + projectId + " chua co dieu khoan thuong.");
+                throw new RuleViolationException("chua_co_dieu_khoan", "Ký quỹ dự án " + projectId + " chưa có điều khoản thưởng.");
             }
 
             if (escrow.State == EscrowState.Closed)
             {
-                throw new RuleViolationException("ky_quy_da_dong", "Ky quy du an " + projectId + " da tra ve doanh nghiep.");
+                throw new RuleViolationException("ky_quy_da_dong", "Ký quỹ dự án " + projectId + " đã trả về doanh nghiệp.");
             }
 
             return escrow;
@@ -513,7 +517,7 @@ namespace Crowd.Ledger.Api.Services
             if (escrow.VuotSoSuat(daTra))
             {
                 throw new RuleViolationException(
-                    "vuot_so_suat", "Du an " + escrow.ProjectId + " da tra " + daTra + " bai = so suat " + escrow.Slots + ".");
+                    "vuot_so_suat", "Dự án " + escrow.ProjectId + " đã trả " + daTra + " bài = số suất " + escrow.Slots + ".");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -638,7 +642,7 @@ namespace Crowd.Ledger.Api.Services
             Withdrawal? w = await _db.Withdrawals.FirstOrDefaultAsync(x => x.Id == p.WithdrawalId, ct);
             if (w == null)
             {
-                throw new RuleViolationException("khong_co_lenh_rut", "Khong tim thay lenh rut " + p.WithdrawalId);
+                throw new RuleViolationException("khong_co_lenh_rut", "Không tìm thấy lệnh rút " + p.WithdrawalId);
             }
 
             if (w.State != WithdrawalState.Requested)
@@ -657,7 +661,7 @@ namespace Crowd.Ledger.Api.Services
             Withdrawal? w = await _db.Withdrawals.FirstOrDefaultAsync(x => x.Id == p.WithdrawalId, ct);
             if (w == null)
             {
-                throw new RuleViolationException("khong_co_lenh_rut", "Khong tim thay lenh rut " + p.WithdrawalId);
+                throw new RuleViolationException("khong_co_lenh_rut", "Không tìm thấy lệnh rút " + p.WithdrawalId);
             }
 
             if (w.State != WithdrawalState.Requested)

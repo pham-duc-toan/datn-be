@@ -103,7 +103,7 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 {
                     throw new RuleViolationException(
                         "khong_du_so_du",
-                        "Tai khoan " + dong.AccountCode + " khong du so du cho giao dich nay.");
+                        "Tài khoản " + dong.AccountCode + " không đủ số dư cho giao dịch này.");
                 }
             }
 

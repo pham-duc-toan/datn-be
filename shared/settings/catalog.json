@@ -1,190 +1,207 @@
 [
   {
     "key": "fee.platform_percent",
-    "group": "Phi va tien",
+    "name": "Phí nền tảng",
+    "group": "Phí và tiền",
     "type": "int",
     "default": 30,
     "min": 0,
     "max": 90,
     "unit": "%",
     "effect": "newOperations",
-    "description": "Phi nen tang cong them tren don gia moi nhan. Chot vao du an luc publish — du an dang chay giu muc cu."
+    "description": "Phí nền tảng cộng thêm trên tiền thưởng mỗi bài đạt. Chốt vào dự án lúc publish — dự án đang chạy giữ mức cũ."
   },
   {
     "key": "payment.deposit_min_vnd",
-    "group": "Phi va tien",
+    "name": "Nạp tối thiểu mỗi lần",
+    "group": "Phí và tiền",
     "type": "long",
     "default": 10000,
     "min": 1000,
     "max": 1000000000000,
-    "unit": "dong",
+    "unit": "đồng",
     "effect": "newOperations",
-    "description": "So tien nap toi thieu mot lan."
+    "description": "Số tiền nạp tối thiểu một lần."
   },
   {
     "key": "payment.deposit_max_vnd",
-    "group": "Phi va tien",
+    "name": "Nạp tối đa mỗi lần",
+    "group": "Phí và tiền",
     "type": "long",
     "default": 500000000,
     "min": 1000,
     "max": 10000000000000,
-    "unit": "dong",
+    "unit": "đồng",
     "effect": "newOperations",
-    "description": "So tien nap toi da mot lan."
+    "description": "Số tiền nạp tối đa một lần."
   },
   {
     "key": "payment.manual_transfer_enabled",
-    "group": "Phi va tien",
+    "name": "Cho nạp bằng chuyển khoản",
+    "group": "Phí và tiền",
     "type": "bool",
     "default": true,
     "min": null,
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Cho phep nap bang chuyen khoan thu cong (doanh nghiep bao da chuyen, admin xac nhan)."
+    "description": "Cho phép nạp bằng chuyển khoản thủ công (doanh nghiệp báo đã chuyển, admin xác nhận)."
   },
   {
     "key": "payment.manual_transfer_bank_info",
-    "group": "Phi va tien",
+    "name": "Tài khoản nhận chuyển khoản",
+    "group": "Phí và tiền",
     "type": "text",
     "default": "Ngan hang DATN Bank - STK 0123456789 - CONG TY DATN",
     "min": null,
     "max": 500,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Thong tin tai khoan nhan tien hien cho doanh nghiep khi nap chuyen khoan."
+    "description": "Thông tin tài khoản nhận tiền hiện cho doanh nghiệp khi nạp chuyển khoản."
   },
   {
     "key": "payment.payout_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ chi tiền",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 5,
     "min": 1,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky worker gui lenh chi tien ra cong thanh toan."
+    "description": "Chu kỳ worker gửi lệnh chi tiền ra cổng thanh toán."
   },
   {
     "key": "payment.payout_lookup_after",
-    "group": "Ky thuat",
+    "name": "Hỏi lại lệnh chi treo sau",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 900,
     "min": 60,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Lenh chi treo qua lau thi hoi nguoc cong ve trang thai (doi soat)."
+    "description": "Lệnh chi treo quá lâu thì hỏi ngược cổng về trạng thái (đối soát)."
   },
   {
     "key": "payment.enabled_providers",
-    "group": "Phi va tien",
+    "name": "Cổng nạp tiền đang mở",
+    "group": "Phí và tiền",
     "type": "text",
     "default": "sandbox,vnpay,momo",
     "min": null,
     "max": 100,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Cong nap tien dang mo (sandbox, vnpay, momo — ngan cach dau phay). Cong phai CO cau hinh khoa moi dung duoc; tat mot cong khi cong do su co."
+    "description": "Cổng nạp tiền đang mở (sandbox, vnpay, momo — ngăn cách dấu phẩy). Cổng phải CÓ cấu hình khoá mới dùng được; tắt một cổng khi cổng đó sự cố."
   },
   {
     "key": "payment.deposit_lookup_after",
-    "group": "Ky thuat",
+    "name": "Hỏi lại lệnh nạp treo sau",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 900,
     "min": 60,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Lenh nap qua cong chua co ket qua sau bay nhieu thi hoi nguoc cong (doi soat, VD-M-09) — phong khi IPN bi lac."
+    "description": "Lệnh nạp qua cổng chưa có kết quả sau bấy nhiêu thì hỏi ngược cổng (đối soát, VD-M-09) — phòng khi IPN bị lạc."
   },
   {
     "key": "payment.deposit_expire_after",
-    "group": "Phi va tien",
+    "name": "Lệnh nạp hết hạn sau",
+    "group": "Phí và tiền",
     "type": "durationSeconds",
     "default": 86400,
     "min": 900,
     "max": 2592000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Lenh nap qua cong qua thoi gian nay ma cong van chua bao da thu tien thi danh dau het han (that bai)."
+    "description": "Lệnh nạp qua cổng quá thời gian này mà cổng vẫn chưa báo đã thu tiền thì đánh dấu hết hạn (thất bại)."
   },
   {
     "key": "payment.deposit_reconcile_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ đối soát lệnh nạp",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 60,
     "min": 5,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky worker doi soat lenh nap treo."
+    "description": "Chu kỳ worker đối soát lệnh nạp treo."
   },
   {
     "key": "payment.deposit_reconcile_batch",
-    "group": "Ky thuat",
+    "name": "Số lệnh nạp mỗi lần đối soát",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 50,
     "min": 1,
     "max": 1000,
-    "unit": "lenh",
+    "unit": "lệnh",
     "effect": "newOperations",
-    "description": "So lenh nap treo hoi nguoc cong moi lan doi soat."
+    "description": "Số lệnh nạp treo hỏi ngược cổng mỗi lần đối soát."
   },
   {
     "key": "ledger.reward_hold",
-    "group": "Phi va tien",
+    "name": "Giữ tiền thưởng dự án",
+    "group": "Phí và tiền",
     "type": "durationSeconds",
     "default": 0,
     "min": 0,
     "max": 7776000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Tien thuong du an cua labeler dat treo bao lau truoc khi rut duoc. 0 = kha dung ngay khi du an cham xong."
+    "description": "Tiền thưởng dự án của labeler đạt treo bao lâu trước khi rút được. 0 = khả dụng ngay khi dự án chấm xong."
   },
   {
     "key": "ledger.hold_duration",
-    "group": "Phi va tien",
+    "name": "Giữ tiền công vừa duyệt",
+    "group": "Phí và tiền",
     "type": "durationSeconds",
     "default": 259200,
     "min": 0,
     "max": 7776000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Tien cong vua duyet bi TREO bao lau truoc khi labeler rut duoc (de xu ly khieu nai, gian lan)."
+    "description": "Tiền công vừa duyệt bị TREO bao lâu trước khi labeler rút được (để xử lý khiếu nại, gian lận)."
   },
   {
     "key": "ledger.hold_release_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ giải phóng tiền treo",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 60,
     "min": 5,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky worker quet khoan treo den han."
+    "description": "Chu kỳ worker quét khoản treo đến hạn."
   },
   {
     "key": "ledger.hold_release_batch_size",
-    "group": "Ky thuat",
+    "name": "Số khoản treo mỗi lô",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 100,
     "min": 1,
     "max": 10000,
-    "unit": "khoan",
+    "unit": "khoản",
     "effect": "newOperations",
-    "description": "So khoan treo den han giai phong moi lo."
+    "description": "Số khoản treo đến hạn giải phóng mỗi lô."
   },
   {
     "key": "ledger.gate_payout_mode",
-    "group": "Ky thuat",
+    "name": "Cách chi tiền cổng link",
+    "group": "Kỹ thuật",
     "type": "text",
     "default": "perClick",
     "min": null,
     "max": 50,
     "unit": "",
     "effect": "newOperations",
-    "description": "Chi tien luot vuot link: perClick = moi luot mot but toan ngay (tien vao vi sau vai giay, nghen khi tai cao); batched = gom theo du an moi ledger.gate_batch_interval roi viet mot but toan (VD-M-08).",
+    "description": "Chi tiền lượt vượt link: perClick = mỗi lượt một bút toán ngay (tiền vào ví sau vài giây, nghẽn khi tải cao); batched = gom theo dự án mỗi ledger.gate_batch_interval rồi viết một bút toán (VD-M-08).",
     "choices": [
       "perClick",
       "batched"
@@ -192,1905 +209,2090 @@
   },
   {
     "key": "ledger.gate_batch_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ gom lượt vượt link",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 60,
     "min": 1,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Che do batched: gom luot vuot link bao lau mot lan."
+    "description": "Chế độ batched: gom lượt vượt link bao lâu một lần."
   },
   {
     "key": "ledger.gate_batch_size",
-    "group": "Ky thuat",
+    "name": "Số lượt vượt link mỗi lô",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 5000,
     "min": 1,
     "max": 100000,
-    "unit": "luot",
+    "unit": "lượt",
     "effect": "newOperations",
-    "description": "Che do batched: toi da bay nhieu luot moi lo."
+    "description": "Chế độ batched: tối đa bấy nhiêu lượt mỗi lô."
   },
   {
     "key": "ledger.withdraw_min_vnd",
-    "group": "Phi va tien",
+    "name": "Rút tối thiểu mỗi lần",
+    "group": "Phí và tiền",
     "type": "long",
     "default": 50000,
     "min": 0,
     "max": 1000000000000,
-    "unit": "dong",
+    "unit": "đồng",
     "effect": "newOperations",
-    "description": "So tien rut toi thieu mot lan."
+    "description": "Số tiền rút tối thiểu một lần."
   },
   {
     "key": "ledger.withdraw_tax_threshold_vnd",
-    "group": "Phi va tien",
+    "name": "Ngưỡng khấu trừ thuế khi rút",
+    "group": "Phí và tiền",
     "type": "long",
     "default": 2000000,
     "min": 0,
     "max": 10000000000000,
-    "unit": "dong",
+    "unit": "đồng",
     "effect": "newOperations",
-    "description": "Rut tu muc nay tro len thi khau tru thue TNCN."
+    "description": "Rút từ mức này trở lên thì khấu trừ thuế TNCN."
   },
   {
     "key": "ledger.withdraw_tax_percent",
-    "group": "Phi va tien",
+    "name": "Thuế suất khi rút",
+    "group": "Phí và tiền",
     "type": "int",
     "default": 10,
     "min": 0,
     "max": 50,
     "unit": "%",
     "effect": "newOperations",
-    "description": "Thue suat khau tru khi rut tien."
+    "description": "Thuế suất khấu trừ khi rút tiền."
   },
   {
     "key": "invoice.vat_percent",
-    "group": "Phi va tien",
+    "name": "Thuế GTGT trên phí",
+    "group": "Phí và tiền",
     "type": "int",
     "default": 10,
     "min": 0,
     "max": 20,
     "unit": "%",
     "effect": "newOperations",
-    "description": "Thue suat GTGT tren phi nen tang (FB-05). Phi da thu la gia DA GOM thue; hoa don tach nguoc ra phan chua thue + thue. Ap cho hoa don xuat sau khi doi."
+    "description": "Thuế suất GTGT trên phí nền tảng (FB-05). Phí đã thu là giá ĐÃ GỒM thuế; hoá đơn tách ngược ra phần chưa thuế + thuế. Áp cho hoá đơn xuất sau khi đổi."
   },
   {
     "key": "invoice.seller_name",
-    "group": "Phi va tien",
+    "name": "Tên đơn vị bán",
+    "group": "Phí và tiền",
     "type": "text",
     "default": "CONG TY TNHH NEN TANG GAN NHAN DATN",
     "min": null,
     "max": 200,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Ten don vi ban hang in tren hoa don."
+    "description": "Tên đơn vị bán hàng in trên hoá đơn."
   },
   {
     "key": "invoice.seller_tax_code",
-    "group": "Phi va tien",
+    "name": "Mã số thuế đơn vị bán",
+    "group": "Phí và tiền",
     "type": "text",
     "default": "0109999999",
     "min": null,
     "max": 20,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Ma so thue don vi ban hang."
+    "description": "Mã số thuế đơn vị bán hàng."
   },
   {
     "key": "invoice.seller_address",
-    "group": "Phi va tien",
+    "name": "Địa chỉ đơn vị bán",
+    "group": "Phí và tiền",
     "type": "text",
     "default": "So 1 Dai Co Viet, Hai Ba Trung, Ha Noi",
     "min": null,
     "max": 300,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Dia chi don vi ban hang."
+    "description": "Địa chỉ đơn vị bán hàng."
   },
   {
     "key": "invoice.serial_template",
-    "group": "Phi va tien",
+    "name": "Ký hiệu hoá đơn",
+    "group": "Phí và tiền",
     "type": "text",
     "default": "1C{yy}TDN",
     "min": null,
     "max": 20,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Ky hieu hoa don; {yy} = 2 so cuoi nam. 1 = hoa don GTGT, C = co ma cua co quan thue, T = dien tu, DN = ma rieng."
+    "description": "Ký hiệu hoá đơn; {yy} = 2 số cuối năm. 1 = hoá đơn GTGT, C = có mã của cơ quan thuế, T = điện tử, DN = mã riêng."
   },
   {
     "key": "invoice.auto_issue",
-    "group": "Phi va tien",
+    "name": "Tự xuất hoá đơn hằng tháng",
+    "group": "Phí và tiền",
     "type": "bool",
     "default": true,
     "min": null,
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Bat: dau moi thang tu xuat hoa don thang truoc cho moi doanh nghiep co phat sinh phi nen tang (da xac minh KYB)."
+    "description": "Bật: đầu mỗi tháng tự xuất hoá đơn tháng trước cho mọi doanh nghiệp có phát sinh phí nền tảng (đã xác minh KYB)."
   },
   {
     "key": "invoice.auto_issue_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ kiểm tra xuất hoá đơn",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 3600,
     "min": 60,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky worker kiem tra va tu xuat hoa don thang truoc."
+    "description": "Chu kỳ worker kiểm tra và tự xuất hoá đơn tháng trước."
   },
   {
     "key": "invoice.allow_open_period",
-    "group": "Ky thuat",
+    "name": "Cho xuất hoá đơn tháng chưa hết",
+    "group": "Kỹ thuật",
     "type": "bool",
     "default": false,
     "min": null,
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "CHI DE KIEM THU: cho xuat hoa don cho thang CHUA ket thuc. Bat tren moi truong that se chiem mat ky cua thang (moi thang mot hoa don)."
+    "description": "CHỈ ĐỂ KIỂM THỬ: cho xuất hoá đơn cho tháng CHƯA kết thúc. Bật trên môi trường thật sẽ chiếm mất kỳ của tháng (mỗi tháng một hoá đơn)."
   },
   {
     "key": "project.auto_approve",
-    "group": "Tu dong duyet",
+    "name": "Tự duyệt dự án",
+    "group": "Tự động duyệt",
     "type": "bool",
     "default": false,
     "min": null,
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Bat: du an ky quy xong chay ngay, khong cho admin duyet."
+    "description": "Bật: dự án ký quỹ xong chạy ngay, không chờ admin duyệt."
   },
   {
     "key": "ledger.withdraw_auto_approve",
-    "group": "Tu dong duyet",
+    "name": "Tự duyệt lệnh rút",
+    "group": "Tự động duyệt",
     "type": "bool",
     "default": true,
     "min": null,
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Bat: lenh rut khong vuot nguong ben duoi duoc chuyen tien ngay. Tat: moi lenh rut cho admin duyet."
+    "description": "Bật: lệnh rút không vượt ngưỡng bên dưới được chuyển tiền ngay. Tắt: mọi lệnh rút chờ admin duyệt."
   },
   {
     "key": "ledger.withdraw_auto_approve_max_vnd",
-    "group": "Tu dong duyet",
+    "name": "Ngưỡng tự duyệt lệnh rút",
+    "group": "Tự động duyệt",
     "type": "long",
     "default": 2000000,
     "min": 0,
     "max": 10000000000000,
-    "unit": "dong",
+    "unit": "đồng",
     "effect": "newOperations",
-    "description": "Nguong tu duyet rut tien: lenh lon hon so nay luon cho admin duyet."
+    "description": "Ngưỡng tự duyệt rút tiền: lệnh lớn hơn số này luôn chờ admin duyệt."
   },
   {
     "key": "payment.manual_transfer_auto_approve_max_vnd",
-    "group": "Tu dong duyet",
+    "name": "Ngưỡng tự xác nhận chuyển khoản",
+    "group": "Tự động duyệt",
     "type": "long",
     "default": 0,
     "min": 0,
     "max": 1000000000000,
-    "unit": "dong",
+    "unit": "đồng",
     "effect": "newOperations",
-    "description": "Lenh nap chuyen khoan thu cong KHONG vuot so nay duoc tu xac nhan khi doanh nghiep bao da chuyen. 0 = luon cho admin. CANH BAO: tu xac nhan la cong tien ma chua ai doi chieu sao ke."
+    "description": "Lệnh nạp chuyển khoản thủ công KHÔNG vượt số này được tự xác nhận khi doanh nghiệp báo đã chuyển. 0 = luôn chờ admin. CẢNH BÁO: tự xác nhận là cộng tiền mà chưa ai đối chiếu sao kê."
   },
   {
     "key": "project.approval_timeout",
-    "group": "Du an",
+    "name": "Hạn admin duyệt dự án",
+    "group": "Dự án",
     "type": "durationSeconds",
     "default": 259200,
     "min": 3600,
     "max": 2592000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Du an cho admin duyet qua lau thi tu huy va hoan ky quy."
+    "description": "Dự án chờ admin duyệt quá lâu thì tự huỷ và hoàn ký quỹ."
   },
   {
     "key": "project.approval_scan_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ quét dự án chờ duyệt",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 600,
     "min": 10,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky quet du an cho duyet qua han."
+    "description": "Chu kỳ quét dự án chờ duyệt quá hạn."
   },
   {
     "key": "project.join_request_ttl",
-    "group": "Du an",
+    "name": "Hạn đơn xin tham gia",
+    "group": "Dự án",
     "type": "durationSeconds",
     "default": 1209600,
     "min": 86400,
     "max": 15552000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Don xin tham gia chu du an khong duyet qua thoi gian nay thi tu het han (labeler gui lai duoc ngay)."
+    "description": "Đơn xin tham gia chủ dự án không duyệt quá thời gian này thì tự hết hạn (labeler gửi lại được ngay)."
   },
   {
     "key": "project.invitation_ttl",
-    "group": "Du an",
+    "name": "Hạn lời mời",
+    "group": "Dự án",
     "type": "durationSeconds",
     "default": 1209600,
     "min": 86400,
     "max": 15552000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Loi moi cho (email chua co tai khoan, hoac du an can labeler tu dong y dieu khoan) song bao lau."
+    "description": "Lời mời chờ (email chưa có tài khoản, hoặc dự án cần labeler tự đồng ý điều khoản) sống bao lâu."
   },
   {
     "key": "project.email_invite_daily_max",
-    "group": "Du an",
+    "name": "Mời qua email tối đa mỗi ngày",
+    "group": "Dự án",
     "type": "int",
     "default": 200,
     "min": 1,
     "max": 100000,
-    "unit": "loi moi",
+    "unit": "lời mời",
     "effect": "newOperations",
-    "description": "So email toi da mot nguoi duoc moi vao du an trong 24 gio (VD-S-16) — chan dung o moi de do danh sach email. Vuot → 429."
+    "description": "Số email tối đa một người được mời vào dự án trong 24 giờ (VD-S-16) — chặn dùng ô mời để dò danh sách email. Vượt → 429."
   },
   {
     "key": "project.housekeeping_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ dọn đơn / lời mời",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 600,
     "min": 10,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky worker don don xin tham gia / loi moi qua han."
+    "description": "Chu kỳ worker dọn đơn xin tham gia / lời mời quá hạn."
   },
   {
     "key": "project.pass_threshold_min",
-    "group": "Du an",
+    "name": "Ngưỡng đạt thấp nhất (x)",
+    "group": "Dự án",
     "type": "int",
     "default": 60,
     "min": 1,
     "max": 100,
     "unit": "%",
     "effect": "newOperations",
-    "description": "x — NGUONG DUOI doanh nghiep duoc chon cho ti le cau giong da so (t). Labeler chi duoc thuong khi ti le cau tra loi giong da so >= t va khong sai cau vang nao."
+    "description": "x — NGƯỠNG DƯỚI doanh nghiệp được chọn cho tỉ lệ câu giống đa số (t). Labeler chỉ được thưởng khi tỉ lệ câu trả lời giống đa số ≥ t và không sai câu vàng nào."
   },
   {
     "key": "project.pass_threshold_max",
-    "group": "Du an",
+    "name": "Ngưỡng đạt cao nhất (y)",
+    "group": "Dự án",
     "type": "int",
     "default": 95,
     "min": 1,
     "max": 100,
     "unit": "%",
     "effect": "newOperations",
-    "description": "y — NGUONG TREN doanh nghiep duoc chon cho t (x <= t <= y)."
+    "description": "y — NGƯỠNG TRÊN doanh nghiệp được chọn cho t (x ≤ t ≤ y)."
   },
   {
     "key": "project.max_questions",
-    "group": "Du an",
+    "name": "Số câu tối đa mỗi dự án",
+    "group": "Dự án",
     "type": "int",
     "default": 500,
     "min": 1,
     "max": 10000,
-    "unit": "cau",
+    "unit": "câu",
     "effect": "newOperations",
-    "description": "So cau (mau du lieu, khong tinh cau vang) toi da cua mot du an — moi labeler lam HET cac cau trong mot bai. Du lieu lon hon thi tach thanh nhieu du an."
+    "description": "Số câu (mẫu dữ liệu, không tính câu vàng) tối đa của một dự án — mỗi labeler làm HẾT các câu trong một bài. Dữ liệu lớn hơn thì tách thành nhiều dự án."
   },
   {
     "key": "project.min_slots",
-    "group": "Du an",
+    "name": "Số suất thưởng tối thiểu",
+    "group": "Dự án",
     "type": "int",
     "default": 3,
     "min": 1,
     "max": 100,
-    "unit": "nguoi",
+    "unit": "người",
     "effect": "newOperations",
-    "description": "So suat (so nguoi lam bai) toi thieu cua mot du an. Can >= 3 de 'da so' co nghia."
+    "description": "Số suất thưởng (số người được thưởng) tối thiểu doanh nghiệp được đặt cho một dự án. Cần ≥ 3 để “đa số” có nghĩa."
   },
   {
     "key": "project.max_slots",
-    "group": "Du an",
+    "name": "Số suất thưởng tối đa",
+    "group": "Dự án",
     "type": "int",
     "default": 50,
     "min": 1,
     "max": 1000,
-    "unit": "nguoi",
+    "unit": "người",
     "effect": "newOperations",
-    "description": "So suat toi da cua mot du an."
+    "description": "Số suất thưởng tối đa doanh nghiệp được đặt cho một dự án."
+  },
+  {
+    "key": "project.participant_multiplier",
+    "name": "Hệ số trần người làm bài",
+    "group": "Dự án",
+    "type": "int",
+    "default": 2,
+    "min": 1,
+    "max": 20,
+    "unit": "lần",
+    "effect": "newOperations",
+    "description": "Trần số người làm bài = số suất thưởng × hệ số này. Cho nhiều người làm hơn số suất để “đa số” chắc hơn; khi chấm, n suất thưởng trao cho n bài ĐẠT nộp sớm nhất, bài đạt sau đó không có tiền. Đủ trần thì dự án đóng thu bài. Chụp vào dự án lúc publish."
   },
   {
     "key": "project.min_reward_vnd",
-    "group": "Du an",
+    "name": "Tiền thưởng tối thiểu mỗi suất",
+    "group": "Dự án",
     "type": "long",
     "default": 10000,
     "min": 0,
     "max": 10000000000,
-    "unit": "dong",
+    "unit": "đồng",
     "effect": "newOperations",
-    "description": "Tien thuong toi thieu cho MOT nguoi lam dat ca du an (FM-04). 0 = khong gioi han."
+    "description": "Tiền thưởng tối thiểu cho MỘT người làm đạt cả dự án (FM-04). 0 = không giới hạn."
   },
   {
     "key": "annotation.history_retention",
-    "group": "Gan nhan va duyet nhan",
+    "name": "Giữ lịch sử nhãn",
+    "group": "Gán nhãn và duyệt nhãn",
     "type": "durationSeconds",
     "default": 31536000,
     "min": 0,
     "max": 315360000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Han giu nhat ky vong doi nhan (annotation_history): dong cu hon bi xoa, tru dong moi nhat cua moi nhan. 0 = khong bao gio xoa."
+    "description": "Hạn giữ nhật ký vòng đời nhãn (annotation_history): dòng cũ hơn bị xoá, trừ dòng mới nhất của mỗi nhãn. 0 = không bao giờ xoá."
   },
   {
     "key": "annotation.history_cleanup_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ dọn lịch sử nhãn",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 3600,
     "min": 10,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky worker don annotation_history."
+    "description": "Chu kỳ worker dọn annotation_history."
   },
   {
     "key": "project.closed_data_retention",
-    "group": "Du an",
+    "name": "Giữ dữ liệu vận hành dự án đã đóng",
+    "group": "Dự án",
     "type": "durationSeconds",
     "default": 7776000,
     "min": 0,
     "max": 315360000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Du an da dong (hoan thanh / huy) bao lau thi xoa du lieu VAN HANH cua no: task, luot giu, bao loi (task-svc); nhan tho va vong dong thuan (quality-svc). Truoc khi xoa, tien do va bao cao chat luong duoc chup lai nen van xem duoc. Nhan da nop / da duyet, ket qua, so cai, mau du lieu va uy tin labeler KHONG bi xoa. 0 = khong bao gio xoa."
+    "description": "Dự án đã đóng (hoàn thành / huỷ) bao lâu thì xoá dữ liệu VẬN HÀNH của nó: task, lượt giữ, báo lỗi (task-svc); nhãn thô và vòng đồng thuận (quality-svc). Trước khi xoá, tiến độ và báo cáo chất lượng được chụp lại nên vẫn xem được. Nhãn đã nộp / đã duyệt, kết quả, sổ cái, mẫu dữ liệu và uy tín labeler KHÔNG bị xoá. 0 = không bao giờ xoá."
   },
   {
     "key": "project.entrance_question_default",
-    "group": "Du an",
+    "name": "Số câu bài test mặc định",
+    "group": "Dự án",
     "type": "int",
     "default": 10,
     "min": 1,
     "max": 500,
-    "unit": "cau",
+    "unit": "câu",
     "effect": "newOperations",
-    "description": "So cau bai test dau vao mac dinh cua du an moi tao."
+    "description": "Số câu bài test đầu vào mặc định của dự án mới tạo."
   },
   {
     "key": "project.entrance_pass_percent_default",
-    "group": "Du an",
+    "name": "Điểm đạt bài test mặc định",
+    "group": "Dự án",
     "type": "int",
     "default": 80,
     "min": 1,
     "max": 100,
     "unit": "%",
     "effect": "newOperations",
-    "description": "Nguong dau bai test dau vao mac dinh cua du an moi tao."
+    "description": "Ngưỡng đậu bài test đầu vào mặc định của dự án mới tạo."
   },
   {
     "key": "project.entrance_question_max",
-    "group": "Du an",
+    "name": "Số câu bài test tối đa",
+    "group": "Dự án",
     "type": "int",
     "default": 50,
     "min": 1,
     "max": 500,
-    "unit": "cau",
+    "unit": "câu",
     "effect": "newOperations",
-    "description": "So cau bai test dau vao toi da."
+    "description": "Số câu bài test đầu vào tối đa."
   },
   {
     "key": "project.gold_items_max",
-    "group": "Du an",
+    "name": "Số câu vàng tối đa",
+    "group": "Dự án",
     "type": "int",
     "default": 2000,
     "min": 1,
     "max": 100000,
-    "unit": "cau",
+    "unit": "câu",
     "effect": "newOperations",
-    "description": "So cau hoi vang toi da moi du an."
+    "description": "Số câu hỏi vàng tối đa mỗi dự án."
   },
   {
     "key": "project.name_max_length",
-    "group": "Du an",
+    "name": "Độ dài tên dự án",
+    "group": "Dự án",
     "type": "int",
     "default": 200,
     "min": 10,
     "max": 200,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai ten du an (cot DB toi da 200)."
+    "description": "Độ dài tên dự án (cột DB tối đa 200)."
   },
   {
     "key": "project.description_max_length",
-    "group": "Du an",
+    "name": "Độ dài mô tả dự án",
+    "group": "Dự án",
     "type": "int",
     "default": 5000,
     "min": 100,
     "max": 5000,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai mo ta du an (cot DB toi da 5000)."
+    "description": "Độ dài mô tả dự án (cột DB tối đa 5000)."
   },
   {
     "key": "guideline.markdown_max_length",
-    "group": "Du an",
+    "name": "Độ dài hướng dẫn",
+    "group": "Dự án",
     "type": "int",
     "default": 20000,
     "min": 100,
     "max": 200000,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai huong dan (markdown)."
+    "description": "Độ dài hướng dẫn (markdown)."
   },
   {
     "key": "guideline.examples_max",
-    "group": "Du an",
+    "name": "Số ví dụ trong hướng dẫn",
+    "group": "Dự án",
     "type": "int",
     "default": 50,
     "min": 0,
     "max": 500,
-    "unit": "vi du",
+    "unit": "ví dụ",
     "effect": "newOperations",
-    "description": "So vi du toi da trong huong dan."
+    "description": "Số ví dụ tối đa trong hướng dẫn."
   },
   {
     "key": "guideline.explanation_max_length",
-    "group": "Du an",
+    "name": "Độ dài giải thích ví dụ",
+    "group": "Dự án",
     "type": "int",
     "default": 1000,
     "min": 10,
     "max": 10000,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai giai thich moi vi du."
+    "description": "Độ dài giải thích mỗi ví dụ."
   },
   {
     "key": "entrance.max_attempts",
-    "group": "Du an",
+    "name": "Số lần làm bài test",
+    "group": "Dự án",
     "type": "int",
     "default": 3,
     "min": 1,
     "max": 100,
-    "unit": "lan",
+    "unit": "lần",
     "effect": "newOperations",
-    "description": "So lan lam bai test dau vao toi da moi du an."
+    "description": "Số lần làm bài test đầu vào tối đa mỗi dự án."
   },
   {
     "key": "entrance.duration",
-    "group": "Du an",
+    "name": "Thời gian làm bài test",
+    "group": "Dự án",
     "type": "durationSeconds",
     "default": 1800,
     "min": 60,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Thoi gian lam mot bai test dau vao."
+    "description": "Thời gian làm một bài test đầu vào."
   },
   {
     "key": "project.member_batch_max",
-    "group": "Du an",
+    "name": "Mời tối đa mỗi lần",
+    "group": "Dự án",
     "type": "int",
     "default": 100,
     "min": 1,
     "max": 1000,
-    "unit": "nguoi",
+    "unit": "người",
     "effect": "newOperations",
-    "description": "So nguoi toi da trong mot lan chu du an moi nhieu nguoi (theo email / userId)."
+    "description": "Số người tối đa trong một lần chủ dự án mời nhiều người (theo email / username)."
   },
   {
     "key": "project.invite_code_max_ttl",
-    "group": "Du an",
+    "name": "Hạn tối đa của mã mời",
+    "group": "Dự án",
     "type": "durationSeconds",
     "default": 2592000,
     "min": 3600,
     "max": 31536000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Han dung toi da cua mot ma moi tham gia du an (chu du an khong dat han thi lay 7 ngay, khong vuot muc nay)."
+    "description": "Hạn dùng tối đa của một mã mời tham gia dự án (chủ dự án không đặt hạn thì lấy 7 ngày, không vượt mức này)."
   },
   {
     "key": "project.join_request_cooldown",
-    "group": "Du an",
+    "name": "Chờ gửi lại đơn bị từ chối",
+    "group": "Dự án",
     "type": "durationSeconds",
     "default": 86400,
     "min": 0,
     "max": 2592000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Don xin tham gia bi tu choi: labeler phai cho bao lau moi duoc gui don moi vao cung du an. 0 = gui lai ngay."
+    "description": "Đơn xin tham gia bị từ chối: labeler phải chờ bao lâu mới được gửi đơn mới vào cùng dự án. 0 = gửi lại ngay."
   },
   {
     "key": "dataset.zip_max_bytes",
-    "group": "Du lieu va file",
+    "name": "Dung lượng ZIP tối đa",
+    "group": "Dữ liệu và file",
     "type": "long",
     "default": 209715200,
     "min": 1048576,
     "max": 2147483648,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kich thuoc toi da file ZIP anh upload qua API (gateway va project-svc cung ap)."
+    "description": "Kích thước tối đa file ZIP ảnh upload qua API (gateway và project-svc cùng áp)."
   },
   {
     "key": "dataset.zip_max_entries",
-    "group": "Du lieu va file",
+    "name": "Số file tối đa trong ZIP",
+    "group": "Dữ liệu và file",
     "type": "int",
     "default": 10000,
     "min": 1,
     "max": 1000000,
     "unit": "file",
     "effect": "newOperations",
-    "description": "So file toi da trong mot ZIP."
+    "description": "Số file tối đa trong một ZIP."
   },
   {
     "key": "dataset.zip_image_max_bytes",
-    "group": "Du lieu va file",
+    "name": "Dung lượng mỗi ảnh trong ZIP",
+    "group": "Dữ liệu và file",
     "type": "long",
     "default": 20971520,
     "min": 1024,
     "max": 1073741824,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kich thuoc toi da moi anh trong ZIP (sau giai nen)."
+    "description": "Kích thước tối đa mỗi ảnh trong ZIP (sau giải nén)."
   },
   {
     "key": "dataset.zip_total_max_bytes",
-    "group": "Du lieu va file",
+    "name": "Tổng dung lượng giải nén ZIP",
+    "group": "Dữ liệu và file",
     "type": "long",
     "default": 2147483648,
     "min": 1048576,
     "max": 107374182400,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Tong dung luong sau giai nen toi da cua mot ZIP (chong bom ZIP)."
+    "description": "Tổng dung lượng sau giải nén tối đa của một ZIP (chống bom ZIP)."
   },
   {
     "key": "dataset.manifest_inline_max_rows",
-    "group": "Du lieu va file",
+    "name": "Số dòng manifest gửi kèm",
+    "group": "Dữ liệu và file",
     "type": "int",
     "default": 1000,
     "min": 1,
     "max": 100000,
-    "unit": "dong",
+    "unit": "dòng",
     "effect": "newOperations",
-    "description": "So dong manifest toi da gui kem request."
+    "description": "Số dòng manifest tối đa gửi kèm request."
   },
   {
     "key": "dataset.manifest_file_max_rows",
-    "group": "Du lieu va file",
+    "name": "Số dòng file manifest",
+    "group": "Dữ liệu và file",
     "type": "int",
     "default": 50000,
     "min": 1,
     "max": 10000000,
-    "unit": "dong",
+    "unit": "dòng",
     "effect": "newOperations",
-    "description": "So dong toi da cua file manifest .jsonl."
+    "description": "Số dòng tối đa của file manifest .jsonl."
   },
   {
     "key": "dataset.text_max_chars",
-    "group": "Du lieu va file",
+    "name": "Độ dài mẫu văn bản",
+    "group": "Dữ liệu và file",
     "type": "int",
     "default": 100000,
     "min": 100,
     "max": 10000000,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai toi da mot mau van ban."
+    "description": "Độ dài tối đa một mẫu văn bản."
   },
   {
     "key": "dataset.image_max_bytes",
-    "group": "Du lieu va file",
+    "name": "Dung lượng mỗi ảnh",
+    "group": "Dữ liệu và file",
     "type": "long",
     "default": 52428800,
     "min": 1024,
     "max": 2147483648,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kich thuoc toi da mot anh nap qua manifest."
+    "description": "Kích thước tối đa một ảnh nạp qua manifest."
   },
   {
     "key": "dataset.event_batch_size",
-    "group": "Ky thuat",
+    "name": "Số mẫu mỗi event nạp dữ liệu",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 500,
     "min": 1,
     "max": 10000,
-    "unit": "mau",
+    "unit": "mẫu",
     "effect": "newOperations",
-    "description": "So mau moi event dataset.ingested (chia lo khi nap nhieu)."
+    "description": "Số mẫu mỗi event dataset.ingested (chia lô khi nạp nhiều)."
   },
   {
     "key": "dataset.import_max_files",
-    "group": "Du lieu va file",
+    "name": "Số file mỗi lô nhập ngoài",
+    "group": "Dữ liệu và file",
     "type": "int",
     "default": 500,
     "min": 1,
     "max": 100000,
     "unit": "file",
     "effect": "newOperations",
-    "description": "Nhap tu nguon ngoai (S3 / Google Drive / danh sach URL, FB-11): so file toi da moi lo."
+    "description": "Nhập từ nguồn ngoài (S3 / Google Drive / danh sách URL, FB-11): số file tối đa mỗi lô."
   },
   {
     "key": "dataset.import_file_max_bytes",
-    "group": "Du lieu va file",
+    "name": "Dung lượng mỗi file nhập ngoài",
+    "group": "Dữ liệu và file",
     "type": "long",
     "default": 524288000,
     "min": 1048576,
     "max": 10737418240,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Nhap tu nguon ngoai: kich thuoc toi da moi file am thanh / video (anh theo dataset.image_max_bytes)."
+    "description": "Nhập từ nguồn ngoài: kích thước tối đa mỗi file âm thanh / video (ảnh theo dataset.image_max_bytes)."
   },
   {
     "key": "dataset.import_timeout",
-    "group": "Ky thuat",
+    "name": "Thời gian tải mỗi file nhập ngoài",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 120,
     "min": 5,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Nhap tu nguon ngoai: thoi gian toi da tai MOT file."
+    "description": "Nhập từ nguồn ngoài: thời gian tối đa tải MỘT file."
   },
   {
     "key": "dataset.worker_idle",
-    "group": "Ky thuat",
+    "name": "Worker nạp dữ liệu nghỉ",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 2,
     "min": 0.1,
     "max": 600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Worker nap du lieu nghi bao lau khi het viec."
+    "description": "Worker nạp dữ liệu nghỉ bao lâu khi hết việc."
   },
   {
     "key": "dataset.name_max_length",
-    "group": "Du lieu va file",
+    "name": "Độ dài tên lô dữ liệu",
+    "group": "Dữ liệu và file",
     "type": "int",
     "default": 200,
     "min": 10,
     "max": 200,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai ten lo du lieu (cot DB toi da 200)."
+    "description": "Độ dài tên lô dữ liệu (cột DB tối đa 200). Tên lô do hệ thống tự sinh từ tên dự án + ngày giờ nạp."
   },
   {
     "key": "dataset.error_summary_max_length",
-    "group": "Du lieu va file",
+    "name": "Độ dài tóm tắt lỗi lô",
+    "group": "Dữ liệu và file",
     "type": "int",
     "default": 4000,
     "min": 100,
     "max": 4000,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai tom tat loi cua lo (cot DB toi da 4000)."
+    "description": "Độ dài tóm tắt lỗi của lô (cột DB tối đa 4000)."
   },
   {
     "key": "dataset.error_sample_count",
-    "group": "Du lieu va file",
+    "name": "Số dòng lỗi ghi lại",
+    "group": "Dữ liệu và file",
     "type": "int",
     "default": 20,
     "min": 1,
     "max": 1000,
-    "unit": "dong",
+    "unit": "dòng",
     "effect": "newOperations",
-    "description": "So dong loi dau tien ghi lai khi nap mot lo du lieu."
+    "description": "Số dòng lỗi đầu tiên ghi lại khi nạp một lô dữ liệu."
   },
   {
     "key": "sample.name_max_length",
-    "group": "Du lieu va file",
+    "name": "Độ dài tên mẫu",
+    "group": "Dữ liệu và file",
     "type": "int",
     "default": 500,
     "min": 10,
     "max": 500,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai ten mau (cot DB toi da 500)."
+    "description": "Độ dài tên mẫu (cột DB tối đa 500)."
   },
   {
     "key": "upload.max_files",
-    "group": "Du lieu va file",
+    "name": "Số file mỗi lần upload",
+    "group": "Dữ liệu và file",
     "type": "int",
     "default": 100,
     "min": 1,
     "max": 10000,
     "unit": "file",
     "effect": "newOperations",
-    "description": "So file toi da moi lan xin link upload."
+    "description": "Số file tối đa mỗi lần xin link upload."
   },
   {
     "key": "upload.max_file_bytes",
-    "group": "Du lieu va file",
+    "name": "Dung lượng mỗi file upload",
+    "group": "Dữ liệu và file",
     "type": "long",
     "default": 5368709120,
     "min": 1048576,
     "max": 5368709120,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kich thuoc toi da moi file upload thang (gioi han cua mot lenh PUT S3 la 5 GB)."
+    "description": "Kích thước tối đa mỗi file upload thẳng (giới hạn của một lệnh PUT S3 là 5 GB)."
   },
   {
     "key": "upload.link_ttl",
-    "group": "Du lieu va file",
+    "name": "Hạn link upload",
+    "group": "Dữ liệu và file",
     "type": "durationSeconds",
     "default": 3600,
     "min": 60,
     "max": 604800,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Link upload ky san song bao lau."
+    "description": "Link upload ký sẵn sống bao lâu."
   },
   {
     "key": "storage.view_link_ttl",
-    "group": "Du lieu va file",
+    "name": "Hạn link xem file",
+    "group": "Dữ liệu và file",
     "type": "durationSeconds",
     "default": 300,
     "min": 10,
     "max": 604800,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Link xem file ky san (anh, am thanh, video) song bao lau."
+    "description": "Link xem file ký sẵn (ảnh, âm thanh, video) sống bao lâu."
   },
   {
     "key": "media.ffprobe_timeout",
-    "group": "Ky thuat",
+    "name": "Thời gian đo file media",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 60,
     "min": 1,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Thoi gian toi da cho mot lan ffprobe do file."
+    "description": "Thời gian tối đa cho một lần ffprobe đo file."
   },
   {
     "key": "task.attempt_duration",
-    "group": "Gan nhan va duyet nhan",
+    "name": "Thời gian giữ một bài làm",
+    "group": "Gán nhãn và duyệt nhãn",
     "type": "durationSeconds",
     "default": 172800,
     "min": 600,
     "max": 2592000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Labeler giu mot suat lam bai bao lau ke tu luc bat dau (khong qua han chot du an). Het han chua nop thi mat suat, nguoi khac vao lam."
+    "description": "Labeler giữ một lượt làm bài bao lâu kể từ lúc bắt đầu (không quá hạn chót dự án). Hết hạn chưa nộp thì mất lượt, người khác vào làm."
   },
   {
     "key": "task.attempt_max_bytes",
-    "group": "Ky thuat",
+    "name": "Dung lượng tối đa một bài làm",
+    "group": "Kỹ thuật",
     "type": "long",
     "default": 8388608,
     "min": 65536,
     "max": 67108864,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kich thuoc toi da toan bo cau tra loi cua mot bai lam (moi cau van gioi han 256 KB)."
+    "description": "Kích thước tối đa toàn bộ câu trả lời của một bài làm (mỗi câu vẫn giới hạn 256 KB)."
   },
   {
     "key": "task.appeal_window",
-    "group": "Gan nhan va duyet nhan",
+    "name": "Hạn khiếu nại kết quả",
+    "group": "Gán nhãn và duyệt nhãn",
     "type": "durationSeconds",
     "default": 259200,
     "min": 0,
     "max": 7776000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Sau khi cham, labeler TRUOT duoc khieu nai ket qua ca bai trong bao lau. Ky quy con lai chi hoan doanh nghiep khi het han nay va khong con khieu nai mo."
+    "description": "Sau khi chấm, labeler TRƯỢT được khiếu nại kết quả cả bài trong bao lâu. Ký quỹ còn lại chỉ hoàn doanh nghiệp khi hết hạn này và không còn khiếu nại mở."
   },
   {
     "key": "task.reaper_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ quét bài hết hạn",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 30,
     "min": 1,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky quet lease qua han."
+    "description": "Chu kỳ quét lượt giữ quá hạn."
   },
   {
     "key": "task.report_auto_exclude",
-    "group": "Du an",
+    "name": "Tự loại mẫu khi bị báo lỗi",
+    "group": "Dự án",
     "type": "int",
     "default": 3,
     "min": 1,
     "max": 100,
-    "unit": "nguoi",
+    "unit": "người",
     "effect": "newOperations",
-    "description": "Bao nhieu labeler khac nhau bao loi cung mot mau thi tu loai mau do khoi du an (FL-07)."
+    "description": "Bao nhiêu labeler khác nhau báo lỗi cùng một mẫu thì tự loại mẫu đó khỏi dự án (FL-07)."
   },
   {
     "key": "task.reaper_batch_size",
-    "group": "Ky thuat",
+    "name": "Số lượt hết hạn mỗi lô",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 200,
     "min": 1,
     "max": 10000,
-    "unit": "lease",
+    "unit": "lượt giữ",
     "effect": "newOperations",
-    "description": "So lease qua han reaper khoa va tra ve pool moi lo."
+    "description": "Số lượt giữ quá hạn reaper khoá và trả về pool mỗi lô."
   },
   {
     "key": "annotation.imbalance_threshold_percent",
-    "group": "Gan nhan va duyet nhan",
+    "name": "Ngưỡng cảnh báo lệch lớp",
+    "group": "Gán nhãn và duyệt nhãn",
     "type": "int",
     "default": 80,
     "min": 50,
     "max": 99,
     "unit": "%",
     "effect": "newOperations",
-    "description": "Canh bao lech phan bo (FB-24) khi mot lop chiem tren bay nhieu phan tram so nhan cua cong cu."
+    "description": "Cảnh báo lệch phân bố (FB-24) khi một lớp chiếm trên bấy nhiêu phần trăm số nhãn của công cụ."
   },
   {
     "key": "annotation.imbalance_min_labels",
-    "group": "Gan nhan va duyet nhan",
+    "name": "Số nhãn tối thiểu để cảnh báo lệch",
+    "group": "Gán nhãn và duyệt nhãn",
     "type": "int",
     "default": 20,
     "min": 1,
     "max": 100000,
-    "unit": "nhan",
+    "unit": "nhãn",
     "effect": "newOperations",
-    "description": "Cong cu can it nhat bay nhieu nhan moi bat dau canh bao lech phan bo."
+    "description": "Công cụ cần ít nhất bấy nhiêu nhãn mới bắt đầu cảnh báo lệch phân bố."
   },
   {
     "key": "quality.ds_interval",
-    "group": "Chat luong",
+    "name": "Chu kỳ Dawid-Skene",
+    "group": "Chất lượng",
     "type": "durationSeconds",
     "default": 900,
     "min": 10,
     "max": 604800,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky chay lo Dawid-Skene."
+    "description": "Chu kỳ chạy lô Dawid-Skene."
   },
   {
     "key": "quality.fraud_enabled",
-    "group": "Chat luong",
+    "name": "Bật phát hiện gian lận",
+    "group": "Chất lượng",
     "type": "bool",
     "default": true,
     "min": null,
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Bat phat hien gian lan (tat thi khong mo ho so moi)."
+    "description": "Bật phát hiện gian lận (tắt thì không mở hồ sơ mới)."
   },
   {
     "key": "quality.fraud_min_seconds",
-    "group": "Chat luong",
+    "name": "Thời gian tối thiểu mỗi câu",
+    "group": "Chất lượng",
     "type": "double",
     "default": 2,
     "min": 0,
     "max": 600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Trung binh moi cau duoi bay nhieu giay luon bi coi la lam qua nhanh."
+    "description": "Trung bình mỗi câu dưới bấy nhiêu giây luôn bị coi là làm quá nhanh."
   },
   {
     "key": "quality.fraud_fast_ratio",
-    "group": "Chat luong",
+    "name": "Tỉ lệ làm quá nhanh",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.25,
     "min": 0,
     "max": 1,
-    "unit": "lan",
+    "unit": "lần",
     "effect": "newOperations",
-    "description": "Hoac nhanh hon ti le nay nhan voi so giay moi cau trung vi cua cac bai khac trong du an."
+    "description": "Hoặc nhanh hơn tỉ lệ này nhân với số giây mỗi câu trung vị của các bài khác trong dự án."
   },
   {
     "key": "quality.fraud_fast_window",
-    "group": "Chat luong",
+    "name": "Số câu tối thiểu để xét tốc độ",
+    "group": "Chất lượng",
     "type": "int",
     "default": 20,
     "min": 3,
     "max": 1000,
-    "unit": "cau",
+    "unit": "câu",
     "effect": "newOperations",
-    "description": "Bai nop co it nhat bay nhieu cau da tra loi moi xet lam qua nhanh (it cau qua thi so giay khong dang tin)."
+    "description": "Bài nộp có ít nhất bấy nhiêu câu đã trả lời mới xét làm quá nhanh (ít câu quá thì số giây không đáng tin)."
   },
   {
     "key": "quality.fraud_same_label_streak",
-    "group": "Chat luong",
+    "name": "Chuỗi chọn cùng một lớp",
+    "group": "Chất lượng",
     "type": "int",
     "default": 30,
     "min": 3,
     "max": 10000,
-    "unit": "cau",
+    "unit": "câu",
     "effect": "newOperations",
-    "description": "Trong mot bai, chon cung mot lop bay nhieu cau lien tiep (trong khi nguoi khac chon da dang) thi mo ho so."
+    "description": "Trong một bài, chọn cùng một lớp bấy nhiêu câu liên tiếp (trong khi người khác chọn đa dạng) thì mở hồ sơ."
   },
   {
     "key": "quality.fraud_shared_accounts",
-    "group": "Chat luong",
+    "name": "Số tài khoản chung IP / thiết bị",
+    "group": "Chất lượng",
     "type": "int",
     "default": 3,
     "min": 2,
     "max": 1000,
-    "unit": "tai khoan",
+    "unit": "tài khoản",
     "effect": "newOperations",
-    "description": "Bay nhieu tai khoan khac nhau nop tu cung IP / thiet bi trong khoang thoi gian duoi thi mo ho so."
+    "description": "Bấy nhiêu tài khoản khác nhau nộp từ cùng IP / thiết bị trong khoảng thời gian dưới thì mở hồ sơ."
   },
   {
     "key": "quality.fraud_shared_window",
-    "group": "Chat luong",
+    "name": "Khoảng xét chung IP / thiết bị",
+    "group": "Chất lượng",
     "type": "durationSeconds",
     "default": 86400,
     "min": 60,
     "max": 2592000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Khoang thoi gian xet chung IP / thiet bi."
+    "description": "Khoảng thời gian xét chung IP / thiết bị."
   },
   {
     "key": "quality.fraud_ignore_private_ips",
-    "group": "Chat luong",
+    "name": "Bỏ qua IP nội bộ",
+    "group": "Chất lượng",
     "type": "bool",
     "default": true,
     "min": null,
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Bo qua IP noi bo / loopback khi xet chung IP (moi truong dev, mang cong ty dung chung NAT)."
+    "description": "Bỏ qua IP nội bộ / loopback khi xét chung IP (môi trường dev, mạng công ty dùng chung NAT)."
   },
   {
     "key": "quality.fraud_reopen_cooldown",
-    "group": "Chat luong",
+    "name": "Không mở lại hồ sơ gian lận trong",
+    "group": "Chất lượng",
     "type": "durationSeconds",
     "default": 604800,
     "min": 0,
     "max": 31536000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Ho so da xu ly (bo qua / xac nhan) thi khong mo lai cung khoa trong khoang nay."
+    "description": "Hồ sơ đã xử lý (bỏ qua / xác nhận) thì không mở lại cùng khoá trong khoảng này."
   },
   {
     "key": "quality.fraud_submission_retention",
-    "group": "Chat luong",
+    "name": "Giữ dữ liệu xét gian lận",
+    "group": "Chất lượng",
     "type": "durationSeconds",
     "default": 604800,
     "min": 86400,
     "max": 31536000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Giu du lieu luot nop dung de xet gian lan (toc do, IP, thiet bi) bao lau. Thuat toan chi can vai chuc luot gan nhat va cua so chung IP — khong can giu mai."
+    "description": "Giữ dữ liệu lượt nộp dùng để xét gian lận (tốc độ, IP, thiết bị) bao lâu. Thuật toán chỉ cần vài chục lượt gần nhất và cửa sổ chung IP — không cần giữ mãi."
   },
   {
     "key": "quality.ds_min_labels",
-    "group": "Chat luong",
+    "name": "Số nhãn tối thiểu cho Dawid-Skene",
+    "group": "Chất lượng",
     "type": "int",
     "default": 5,
     "min": 1,
     "max": 10000,
-    "unit": "nhan",
+    "unit": "nhãn",
     "effect": "newOperations",
-    "description": "Labeler can toi thieu bao nhieu nhan trong du an thi moi cham do tin cay Dawid-Skene."
+    "description": "Labeler cần tối thiểu bao nhiêu nhãn trong dự án thì mới chấm độ tin cậy Dawid-Skene."
   },
   {
     "key": "quality.reputation_gold_weight",
-    "group": "Chat luong",
+    "name": "Trọng số câu vàng trong uy tín",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.6,
     "min": 0,
     "max": 1,
     "unit": "",
     "effect": "newOperations",
-    "description": "Trong so cau vang trong diem uy tin (phan con lai la dong thuan / Dawid-Skene)."
+    "description": "Trọng số câu vàng trong điểm uy tín (phần còn lại là đồng thuận / Dawid-Skene)."
   },
   {
     "key": "quality.reputation_prior",
-    "group": "Chat luong",
+    "name": "Điểm uy tín khởi đầu",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.7,
     "min": 0,
     "max": 1,
     "unit": "",
     "effect": "newOperations",
-    "description": "Muc tien nghiem cua diem uy tin (nguoi moi bat dau quanh muc nay)."
+    "description": "Mức tiên nghiệm của điểm uy tín (người mới bắt đầu quanh mức này)."
   },
   {
     "key": "quality.reputation_prior_strength",
-    "group": "Chat luong",
+    "name": "Sức nặng điểm khởi đầu",
+    "group": "Chất lượng",
     "type": "double",
     "default": 2,
     "min": 0,
     "max": 1000,
-    "unit": "nhan",
+    "unit": "nhãn",
     "effect": "newOperations",
-    "description": "Suc nang tien nghiem: so bang chung can de diem roi xa muc tien nghiem."
+    "description": "Sức nặng tiên nghiệm: số bằng chứng cần để điểm rời xa mức tiên nghiệm."
   },
   {
     "key": "labeling.threshold.bbox",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp khung chữ nhật",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.5,
     "min": 0,
     "max": 1,
     "unit": "IoU",
     "effect": "newOperations",
-    "description": "Nguong cham cau vang mac dinh cho khung (cong cu khong tu dat matchThreshold)."
+    "description": "Ngưỡng chấm mặc định cho khung chữ nhật (công cụ không tự đặt matchThreshold)."
   },
   {
     "key": "labeling.threshold.polygon",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp đa giác",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.5,
     "min": 0,
     "max": 1,
     "unit": "IoU",
     "effect": "newOperations",
-    "description": "Nguong cham mac dinh cho da giac."
+    "description": "Ngưỡng chấm mặc định cho đa giác."
   },
   {
     "key": "labeling.threshold.span",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp đoạn văn bản",
+    "group": "Chất lượng",
     "type": "double",
     "default": 1,
     "min": 0,
     "max": 1,
     "unit": "F1",
     "effect": "newOperations",
-    "description": "Nguong cham mac dinh cho doan van ban."
+    "description": "Ngưỡng chấm mặc định cho đoạn văn bản."
   },
   {
     "key": "labeling.threshold.transcription",
-    "group": "Chat luong",
+    "name": "Ngưỡng lỗi ký tự khi chép",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.1,
     "min": 0,
     "max": 1,
     "unit": "CER",
     "effect": "newOperations",
-    "description": "Ti le loi ky tu toi da cho ban chep (nho hon = khat khe hon)."
+    "description": "Tỉ lệ lỗi ký tự tối đa cho bản chép (nhỏ hơn = khắt khe hơn)."
   },
   {
     "key": "labeling.threshold.temporal_segment",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp đoạn thời gian",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.5,
     "min": 0,
     "max": 1,
     "unit": "IoU",
     "effect": "newOperations",
-    "description": "Nguong cham mac dinh cho doan thoi gian."
+    "description": "Ngưỡng chấm mặc định cho đoạn thời gian."
   },
   {
     "key": "labeling.threshold.keypoint",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp điểm mốc",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.98,
     "min": 0,
     "max": 1,
-    "unit": "do giong",
+    "unit": "độ giống",
     "effect": "newOperations",
-    "description": "Nguong mac dinh cho diem moc: 1 − (do lech / duong cheo anh). 0.98 = lech toi da 2% duong cheo."
+    "description": "Ngưỡng mặc định cho điểm mốc: 1 − (độ lệch / đường chéo ảnh). 0,98 = lệch tối đa 2% đường chéo."
   },
   {
     "key": "labeling.threshold.polyline",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp đường gấp khúc",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.97,
     "min": 0,
     "max": 1,
-    "unit": "do giong",
+    "unit": "độ giống",
     "effect": "newOperations",
-    "description": "Nguong mac dinh cho duong gap khuc: 1 − (do lech trung binh / duong cheo anh)."
+    "description": "Ngưỡng mặc định cho đường gấp khúc: 1 − (độ lệch trung bình / đường chéo ảnh)."
   },
   {
     "key": "labeling.threshold.mask",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp mặt nạ",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.5,
     "min": 0,
     "max": 1,
     "unit": "IoU",
     "effect": "newOperations",
-    "description": "Nguong mac dinh cho mat na phan vung."
+    "description": "Ngưỡng mặc định cho mặt nạ phân vùng."
   },
   {
     "key": "labeling.threshold.track",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp theo dõi đối tượng",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.5,
     "min": 0,
     "max": 1,
     "unit": "IoU",
     "effect": "newOperations",
-    "description": "Nguong mac dinh cho chuoi khung theo doi trong video (IoU khong-thoi gian)."
+    "description": "Ngưỡng mặc định cho chuỗi khung theo dõi trong video (IoU không-thời gian)."
   },
   {
     "key": "labeling.threshold.relation",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp quan hệ",
+    "group": "Chất lượng",
     "type": "double",
     "default": 1,
     "min": 0,
     "max": 1,
     "unit": "F1",
     "effect": "newOperations",
-    "description": "Nguong cham mac dinh cho quan he giua cac doan van ban."
+    "description": "Ngưỡng chấm mặc định cho quan hệ giữa các đoạn văn bản."
   },
   {
     "key": "labeling.threshold.ranking",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp xếp hạng",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.8,
     "min": 0,
     "max": 1,
     "unit": "Kendall",
     "effect": "newOperations",
-    "description": "Nguong mac dinh cho xep hang: ti le cap muc duoc xep cung thu tu."
+    "description": "Ngưỡng mặc định cho xếp hạng: tỉ lệ cặp mục được xếp cùng thứ tự."
   },
   {
     "key": "quality.consensus_min_f1",
-    "group": "Chat luong",
+    "name": "Ngưỡng khớp kết quả gộp",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.8,
     "min": 0,
     "max": 1,
     "unit": "F1",
     "effect": "newOperations",
-    "description": "Gop nhan cong cu dang danh sach (khung, da giac, doan...): mot nguoi tinh la KHOP ket qua gop khi F1 giua cac doi tuong cua ho va cac doi tuong da gop dat muc nay. Khong qua mot nua so nguoi khop thi mau la tranh chap."
+    "description": "Gộp nhãn công cụ dạng danh sách (khung, đa giác, đoạn...): một người tính là KHỚP kết quả gộp khi F1 giữa các đối tượng của họ và các đối tượng đã gộp đạt mức này. Không quá một nửa số người khớp thì mẫu là tranh chấp."
   },
   {
     "key": "quality.freetext_similarity",
-    "group": "Chat luong",
+    "name": "Ngưỡng giống nghĩa câu trả lời mở",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.6,
     "min": 0.3,
     "max": 0.99,
     "unit": "cosine",
     "effect": "newOperations",
-    "description": "Cau tra loi mo (freeText) cham THEO NGHIA (ml-svc nhung cau): mot nguoi giong da so khi do giong cosine giua cau cua ho va cau 'o giua' cum (medoid) dat muc nay. Cau cung nghia khac chu thuong 0,63 - 0,9; cau lac de gan 0."
+    "description": "Câu trả lời mở (freeText) chấm THEO NGHĨA (ml-svc nhúng câu): một người giống đa số khi độ giống cosine giữa câu của họ và câu “ở giữa” cụm (medoid) đạt mức này. Câu cùng nghĩa khác chữ thường 0,63 – 0,9; câu lạc đề gần 0."
   },
   {
     "key": "quality.freetext_lexical_similarity",
-    "group": "Chat luong",
+    "name": "Ngưỡng giống chữ câu trả lời mở",
+    "group": "Chất lượng",
     "type": "double",
     "default": 0.38,
     "min": 0.1,
     "max": 0.99,
     "unit": "cosine",
     "effect": "newOperations",
-    "description": "Nguong khi PHAI cham cau tra loi mo bang so CHU (n-gram ky tu) vi ml-svc khong phan tich kip. So chu yeu hon so nghia: cau cung nghia khac chu chi 0,4 - 0,5."
+    "description": "Ngưỡng khi PHẢI chấm câu trả lời mở bằng so CHỮ (n-gram ký tự) vì ml-svc không phân tích kịp. So chữ yếu hơn so nghĩa: câu cùng nghĩa khác chữ chỉ 0,4 – 0,5."
   },
   {
     "key": "quality.freetext_analysis_timeout",
-    "group": "Chat luong",
+    "name": "Chờ phân tích câu trả lời mở",
+    "group": "Chất lượng",
     "type": "durationSeconds",
     "default": 3600,
     "min": 10,
     "max": 604800,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Sau khi du an dong thu bai, cho ml-svc phan tich het cau tra loi mo toi da bao lau; qua han thi cham bang so chu de khong giu tien cua labeler."
+    "description": "Sau khi dự án đóng thu bài, chờ ml-svc phân tích hết câu trả lời mở tối đa bao lâu; quá hạn thì chấm bằng so chữ để không giữ tiền của labeler."
   },
   {
     "key": "quality.freetext_analysis_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ phân tích câu trả lời mở",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 5,
     "min": 1,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky quality-svc gui cau tra loi mo moi sang ml-svc va thu cham lai du an dang cho phan tich."
+    "description": "Chu kỳ quality-svc gửi câu trả lời mở mới sang ml-svc và thử chấm lại dự án đang chờ phân tích."
   },
   {
     "key": "identity.access_token_lifetime",
-    "group": "Tai khoan",
+    "name": "Hạn access token",
+    "group": "Tài khoản",
     "type": "durationSeconds",
     "default": 900,
     "min": 60,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Access token song bao lau."
+    "description": "Access token sống bao lâu."
   },
   {
     "key": "identity.refresh_token_lifetime",
-    "group": "Tai khoan",
+    "name": "Hạn đăng nhập",
+    "group": "Tài khoản",
     "type": "durationSeconds",
     "default": 1209600,
     "min": 3600,
     "max": 31536000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Refresh token song bao lau (dang nhap duoc giu bao lau)."
+    "description": "Refresh token sống bao lâu (đăng nhập được giữ bao lâu)."
   },
   {
     "key": "identity.password_min_length",
-    "group": "Tai khoan",
+    "name": "Mật khẩu tối thiểu",
+    "group": "Tài khoản",
     "type": "int",
     "default": 8,
     "min": 6,
     "max": 128,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai mat khau toi thieu."
+    "description": "Độ dài mật khẩu tối thiểu."
   },
   {
     "key": "identity.password_max_length",
-    "group": "Tai khoan",
+    "name": "Mật khẩu tối đa",
+    "group": "Tài khoản",
     "type": "int",
     "default": 128,
     "min": 16,
     "max": 1024,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai mat khau toi da."
+    "description": "Độ dài mật khẩu tối đa."
   },
   {
     "key": "identity.kyb_file_max_bytes",
-    "group": "Tai khoan",
+    "name": "Dung lượng giấy phép KYB",
+    "group": "Tài khoản",
     "type": "long",
     "default": 10485760,
     "min": 102400,
     "max": 52428800,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kich thuoc toi da file giay phep kinh doanh (KYB)."
+    "description": "Kích thước tối đa file giấy phép kinh doanh (KYB)."
   },
   {
     "key": "identity.refresh_token_cleanup_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ dọn refresh token",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 120,
     "min": 60,
     "max": 604800,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky xoa refresh token da het han."
+    "description": "Chu kỳ xoá refresh token đã hết hạn."
   },
   {
     "key": "identity.frontend_url",
-    "group": "Tai khoan",
+    "name": "Địa chỉ frontend",
+    "group": "Tài khoản",
     "type": "text",
     "default": "http://localhost:5173",
     "min": null,
     "max": 300,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Dia chi frontend — dung de dung link trong email xac thuc / dat lai mat khau."
+    "description": "Địa chỉ frontend — dùng để dựng link trong email xác thực / đặt lại mật khẩu."
   },
   {
     "key": "identity.email_verify_ttl",
-    "group": "Tai khoan",
+    "name": "Hạn link xác thực email",
+    "group": "Tài khoản",
     "type": "durationSeconds",
     "default": 86400,
     "min": 600,
     "max": 2592000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Link xac thuc email song bao lau."
+    "description": "Link xác thực email sống bao lâu."
   },
   {
     "key": "identity.password_reset_ttl",
-    "group": "Tai khoan",
+    "name": "Hạn link đặt lại mật khẩu",
+    "group": "Tài khoản",
     "type": "durationSeconds",
     "default": 1800,
     "min": 300,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Link dat lai mat khau song bao lau."
+    "description": "Link đặt lại mật khẩu sống bao lâu."
   },
   {
     "key": "identity.avatar_max_bytes",
-    "group": "Tai khoan",
+    "name": "Dung lượng ảnh đại diện",
+    "group": "Tài khoản",
     "type": "long",
     "default": 2097152,
     "min": 51200,
     "max": 20971520,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kich thuoc toi da anh dai dien."
+    "description": "Kích thước tối đa ảnh đại diện."
   },
   {
     "key": "identity.level_rules",
-    "group": "Tai khoan",
+    "name": "Điều kiện lên cấp",
+    "group": "Tài khoản",
     "type": "text",
     "default": "2=50/50;3=200/65;4=1000/75;5=5000/85",
     "min": null,
     "max": 200,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Dieu kien len cap: cap=so nhan duoc duyet/uy tin toi thieu, ngan cach bang ';'. Sai dinh dang thi dung mac dinh."
+    "description": "Điều kiện lên cấp: cấp=số nhãn được duyệt/uy tín tối thiểu, ngăn cách bằng ';'. Sai định dạng thì dùng mặc định."
   },
   {
     "key": "identity.two_factor_issuer",
-    "group": "Tai khoan",
+    "name": "Tên trong ứng dụng 2FA",
+    "group": "Tài khoản",
     "type": "text",
     "default": "DATN Crowd",
     "min": null,
     "max": 50,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Ten hien trong ung dung xac thuc (Google Authenticator...) khi nguoi dung bat 2FA (FC-04)."
+    "description": "Tên hiện trong ứng dụng xác thực (Google Authenticator...) khi người dùng bật 2FA (FC-04)."
   },
   {
     "key": "identity.two_factor_challenge_ttl",
-    "group": "Tai khoan",
+    "name": "Thời gian nhập mã 2FA",
+    "group": "Tài khoản",
     "type": "durationSeconds",
     "default": 300,
     "min": 60,
     "max": 1800,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Dang nhap dung mat khau cua tai khoan bat 2FA: co bao lau de nhap ma 6 so."
+    "description": "Đăng nhập đúng mật khẩu của tài khoản bật 2FA: có bao lâu để nhập mã 6 số."
   },
   {
     "key": "identity.two_factor_max_attempts",
-    "group": "Tai khoan",
+    "name": "Số lần nhập sai mã 2FA",
+    "group": "Tài khoản",
     "type": "int",
     "default": 5,
     "min": 1,
     "max": 20,
-    "unit": "lan",
+    "unit": "lần",
     "effect": "newOperations",
-    "description": "So lan nhap sai ma 2FA toi da cho MOT lan dang nhap; het luot phai dang nhap lai bang mat khau (chong do ma 6 so)."
+    "description": "Số lần nhập sai mã 2FA tối đa cho MỘT lần đăng nhập; hết lượt phải đăng nhập lại bằng mật khẩu (chống dò mã 6 số)."
   },
   {
     "key": "identity.adult_age",
-    "group": "Tai khoan",
+    "name": "Tuổi xem nội dung nhạy cảm",
+    "group": "Tài khoản",
     "type": "int",
     "default": 18,
     "min": 16,
     "max": 21,
-    "unit": "tuoi",
+    "unit": "tuổi",
     "effect": "newOperations",
-    "description": "Tuoi toi thieu de xem du an noi dung nhay cam (muc 2.9, VD-P-04). Tinh tu ngay sinh tren giay to da duoc admin xac minh."
+    "description": "Tuổi tối thiểu để xem dự án nội dung nhạy cảm (mục 2.9, VD-P-04). Tính từ ngày sinh trên giấy tờ đã được admin xác minh."
   },
   {
     "key": "admin.audit_excluded_types",
-    "group": "Ky thuat",
+    "name": "Event không ghi nhật ký",
+    "group": "Kỹ thuật",
     "type": "text",
     "default": "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,dataset.ingested,attempt.submitted,reputation.changed,funds.held,hold.expired,gate.budget_changed",
     "min": null,
     "max": 1000,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Loai event KHONG luu chi tiet vao nhat ky audit (tan suat cao, do he thong / luong gan nhan sinh ra — van duoc DEM cho bao cao tong quan), ngan cach bang dau phay."
+    "description": "Loại event KHÔNG lưu chi tiết vào nhật ký audit (tần suất cao, do hệ thống / luồng gán nhãn sinh ra — vẫn được ĐẾM cho báo cáo tổng quan), ngăn cách bằng dấu phẩy."
   },
   {
     "key": "admin.audit_retention_days",
-    "group": "Ky thuat",
+    "name": "Giữ nhật ký audit",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 365,
     "min": 7,
     "max": 3650,
-    "unit": "ngay",
+    "unit": "ngày",
     "effect": "newOperations",
-    "description": "Giu nhat ky audit bao nhieu ngay."
+    "description": "Giữ nhật ký audit bao nhiêu ngày."
   },
   {
     "key": "ops.dlq_alert_threshold",
-    "group": "Ky thuat",
+    "name": "Ngưỡng cảnh báo DLQ",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 1,
     "min": 1,
     "max": 1000000,
     "unit": "message",
     "effect": "newOperations",
-    "description": "Mot hang doi DLQ co tu bay nhieu message tro len thi canh bao (message vao DLQ = tien / trang thai co the dang dung)."
+    "description": "Một hàng đợi DLQ có từ bấy nhiêu message trở lên thì cảnh báo (message vào DLQ = tiền / trạng thái có thể đang đứng)."
   },
   {
     "key": "ops.dlq_check_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ kiểm tra DLQ",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 60,
     "min": 10,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky admin-svc doc do sau cac DLQ qua RabbitMQ management API."
+    "description": "Chu kỳ admin-svc đọc độ sâu các DLQ qua RabbitMQ management API."
   },
   {
     "key": "ops.alert_repeat",
-    "group": "Ky thuat",
+    "name": "Nhắc lại cảnh báo sau",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 3600,
     "min": 60,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "DLQ van con message sau khoang nay thi canh bao lai (tranh spam moi chu ky)."
+    "description": "DLQ vẫn còn message sau khoảng này thì cảnh báo lại (tránh spam mỗi chu kỳ)."
   },
   {
     "key": "ops.alert_email",
-    "group": "Ky thuat",
+    "name": "Email nhận cảnh báo vận hành",
+    "group": "Kỹ thuật",
     "type": "text",
     "default": "",
     "min": null,
     "max": 200,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Email nhan canh bao van hanh (DLQ). Trong = chi ghi log va hien tren man hinh admin."
+    "description": "Email nhận cảnh báo vận hành (DLQ). Trống = chỉ ghi log và hiện trên màn hình admin."
   },
   {
     "key": "media.watermark_enabled",
-    "group": "Bao ve du lieu",
+    "name": "Bật watermark",
+    "group": "Bảo vệ dữ liệu",
     "type": "bool",
     "default": true,
     "min": null,
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Gan watermark chim (nhung thang nguoi xem) vao anh phat cho labeler / reviewer / khach cong link."
+    "description": "Gắn watermark chìm (nhúng thẳng người xem) vào ảnh / âm thanh / video phát cho labeler / reviewer / khách cổng link."
   },
   {
     "key": "media.watermark_strength",
-    "group": "Bao ve du lieu",
+    "name": "Độ mạnh watermark",
+    "group": "Bảo vệ dữ liệu",
     "type": "int",
     "default": 24,
     "min": 6,
     "max": 80,
-    "unit": "buoc QIM",
+    "unit": "bước QIM",
     "effect": "newOperations",
-    "description": "Do manh watermark chim: lon thi ben hon voi nen JPEG nhung de lo hon. Doi gia tri thi anh da phat truoc do VAN giai ma duoc (bo giai thu moi buoc 6-80)."
+    "description": "Độ mạnh watermark chìm: lớn thì bền hơn với nén JPEG nhưng dễ lộ hơn. Đổi giá trị thì ảnh đã phát trước đó VẪN giải mã được (bộ giải thử mọi bước 6–80)."
   },
   {
     "key": "gateway.rate_limit_per_minute",
-    "group": "Ky thuat",
+    "name": "Giới hạn request mỗi phút",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 600,
     "min": 10,
     "max": 1000000,
-    "unit": "request/phut",
+    "unit": "request/phút",
     "effect": "newOperations",
-    "description": "Moi nguoi dung (hoac moi IP neu chua dang nhap) duoc goi toi da bay nhieu request moi phut."
+    "description": "Mỗi người dùng (hoặc mỗi IP nếu chưa đăng nhập) được gọi tối đa bấy nhiêu request mỗi phút."
   },
   {
     "key": "gateway.rate_limit_auth_per_minute",
-    "group": "Ky thuat",
+    "name": "Giới hạn đăng nhập / đăng ký mỗi phút",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 20,
     "min": 1,
     "max": 1000000,
-    "unit": "request/phut",
+    "unit": "request/phút",
     "effect": "newOperations",
-    "description": "Moi IP: dang nhap / dang ky / quen mat khau / dat lai mat khau / xac thuc email toi da bay nhieu lan moi phut."
+    "description": "Mỗi IP: đăng nhập / đăng ký / quên mật khẩu / đặt lại mật khẩu / xác thực email tối đa bấy nhiêu lần mỗi phút."
   },
   {
     "key": "gateway.rate_limit_money_per_minute",
-    "group": "Ky thuat",
+    "name": "Giới hạn lệnh tiền mỗi phút",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 30,
     "min": 1,
     "max": 1000000,
-    "unit": "request/phut",
+    "unit": "request/phút",
     "effect": "newOperations",
-    "description": "Moi nguoi dung: tao lenh nap tien / rut tien toi da bay nhieu lan moi phut."
+    "description": "Mỗi người dùng: tạo lệnh nạp tiền / rút tiền tối đa bấy nhiêu lần mỗi phút."
   },
   {
     "key": "notification.email_enabled",
-    "group": "Thong bao",
+    "name": "Gửi email thông báo",
+    "group": "Thông báo",
     "type": "bool",
     "default": true,
     "min": null,
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Gui email thong bao (tat thi chi con thong bao trong ung dung)."
+    "description": "Gửi email thông báo (tắt thì chỉ còn thông báo trong ứng dụng)."
   },
   {
     "key": "notification.email_from",
-    "group": "Thong bao",
+    "name": "Địa chỉ gửi email",
+    "group": "Thông báo",
     "type": "text",
     "default": "Crowd Label <no-reply@crowd.local>",
     "min": null,
     "max": 200,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Dia chi nguoi gui email thong bao."
+    "description": "Địa chỉ người gửi email thông báo."
   },
   {
     "key": "notification.email_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ gửi email",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 5,
     "min": 1,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky worker gui email thong bao."
+    "description": "Chu kỳ worker gửi email thông báo."
   },
   {
     "key": "notification.email_batch_size",
-    "group": "Ky thuat",
+    "name": "Số email mỗi lô",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 50,
     "min": 1,
     "max": 1000,
     "unit": "email",
     "effect": "newOperations",
-    "description": "So email moi lo gui."
+    "description": "Số email mỗi lô gửi."
   },
   {
     "key": "notification.retention_days",
-    "group": "Thong bao",
+    "name": "Giữ thông báo",
+    "group": "Thông báo",
     "type": "int",
     "default": 180,
     "min": 7,
     "max": 3650,
-    "unit": "ngay",
+    "unit": "ngày",
     "effect": "newOperations",
-    "description": "Giu thong bao / email giao dich bao nhieu ngay (dong con email cho gui khong bi xoa)."
+    "description": "Giữ thông báo / email giao dịch bao nhiêu ngày (dòng còn email chờ gửi không bị xoá)."
   },
   {
     "key": "notification.cleanup_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ dọn thông báo",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 3600,
     "min": 60,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky job xoa thong bao qua han giu va ve realtime het han."
+    "description": "Chu kỳ job xoá thông báo quá hạn giữ và vé realtime hết hạn."
   },
   {
     "key": "notification.realtime_ticket_ttl",
-    "group": "Ky thuat",
+    "name": "Hạn vé WebSocket",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 30,
     "min": 5,
     "max": 300,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Ve mo WebSocket thong bao realtime song bao lau (dung mot lan)."
+    "description": "Vé mở WebSocket thông báo realtime sống bao lâu (dùng một lần)."
   },
   {
     "key": "notification.email_max_attempts",
-    "group": "Ky thuat",
+    "name": "Số lần gửi lại email lỗi",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 5,
     "min": 1,
     "max": 50,
-    "unit": "lan",
+    "unit": "lần",
     "effect": "newOperations",
-    "description": "Gui email loi bao nhieu lan thi bo (thong bao trong ung dung van con)."
+    "description": "Gửi email lỗi bao nhiêu lần thì bỏ (thông báo trong ứng dụng vẫn còn)."
   },
   {
     "key": "outbox.poll_interval",
-    "group": "Ky thuat",
+    "name": "Outbox nghỉ khi rảnh",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 0.5,
     "min": 0.05,
     "max": 60,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Outbox nghi bao lau khi khong co event cho gui."
+    "description": "Outbox nghỉ bao lâu khi không có event chờ gửi."
   },
   {
     "key": "outbox.batch_size",
-    "group": "Ky thuat",
+    "name": "Số event mỗi lô outbox",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 50,
     "min": 1,
     "max": 5000,
     "unit": "event",
     "effect": "newOperations",
-    "description": "So event moi lo outbox."
+    "description": "Số event mỗi lô outbox."
   },
   {
     "key": "outbox.publish_timeout",
-    "group": "Ky thuat",
+    "name": "Chờ broker xác nhận",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 10,
     "min": 1,
     "max": 300,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Cho broker xac nhan mot event toi da bao lau."
+    "description": "Chờ broker xác nhận một event tối đa bao lâu."
   },
   {
     "key": "outbox.retry_max_delay",
-    "group": "Ky thuat",
+    "name": "Giãn cách thử lại tối đa",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 300,
     "min": 1,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Gui event that bai thi thu lai sau 2, 4, 8... giay — khong lui qua muc nay."
+    "description": "Gửi event thất bại thì thử lại sau 2, 4, 8... giây — không lùi quá mức này."
   },
   {
     "key": "consumers.reconnect_delay",
-    "group": "Ky thuat",
+    "name": "Thử nối lại RabbitMQ sau",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 5,
     "min": 1,
     "max": 300,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Consumer chua noi duoc RabbitMQ thi thu lai sau bao lau."
+    "description": "Consumer chưa nối được RabbitMQ thì thử lại sau bao lâu."
   },
   {
     "key": "outbox.retention",
-    "group": "Ky thuat",
+    "name": "Giữ event đã gửi",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 604800,
     "min": 3600,
     "max": 31536000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Event DA GUI giu trong bang outbox bao lau roi xoa (de tra soat su co). Event chua gui khong bao gio bi xoa."
+    "description": "Event ĐÃ GỬI giữ trong bảng outbox bao lâu rồi xoá (để tra soát sự cố). Event chưa gửi không bao giờ bị xoá."
   },
   {
     "key": "outbox.cleanup_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ dọn outbox",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 300,
     "min": 10,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu ky don bang outbox (event da gui) va processed_events (dau vet chong xu ly trung) qua han."
+    "description": "Chu kỳ dọn bảng outbox (event đã gửi) và processed_events (dấu vết chống xử lý trùng) quá hạn."
   },
   {
     "key": "consumers.processed_retention",
-    "group": "Ky thuat",
+    "name": "Giữ dấu vết event đã xử lý",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 1209600,
     "min": 86400,
     "max": 31536000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Dau vet 'da xu ly event nay' giu bao lau. Phai DAI hon thoi gian mot message co the bi giao lai (ke ca dua lai tu DLQ) — qua han ma message cu quay lai thi bi xu ly lan hai."
+    "description": "Dấu vết “đã xử lý event này” giữ bao lâu. Phải DÀI hơn thời gian một message có thể bị giao lại (kể cả đưa lại từ DLQ) — quá hạn mà message cũ quay lại thì bị xử lý lần hai."
   },
   {
     "key": "consumers.prefetch_count",
-    "group": "Ky thuat",
+    "name": "Số message nhận trước",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 10,
     "min": 1,
     "max": 1000,
     "unit": "message",
     "effect": "restart",
-    "description": "So message broker day toi moi consumer truoc khi ack. Co tac dung khi service khoi dong lai."
+    "description": "Số message broker đẩy tới mỗi consumer trước khi ack. Có tác dụng khi service khởi động lại."
   },
   {
     "key": "settings.reload_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ đọc lại setting",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 5,
     "min": 1,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Moi service doc lai ban sao setting tu DB cua no sau moi khoang nay."
+    "description": "Mỗi service đọc lại bản sao setting từ DB của nó sau mỗi khoảng này."
   },
   {
     "key": "settings.snapshot_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ phát lại toàn bộ setting",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 300,
     "min": 10,
     "max": 86400,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "admin-svc phat lai toan bo setting dinh ky (de service lo mat event van dong bo)."
+    "description": "admin-svc phát lại toàn bộ setting định kỳ (để service lỡ mất event vẫn đồng bộ)."
   },
   {
     "key": "gate.enabled",
-    "group": "Cong link",
+    "name": "Bật cổng vượt link",
+    "group": "Cổng link",
     "type": "bool",
     "default": true,
     "min": null,
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Tat = trang vuot link chi chuyen thang toi dich, khong phat cau hoi, khong tra tien sharer."
+    "description": "Tắt = trang vượt link chỉ chuyển thẳng tới đích, không phát câu hỏi, không trả tiền sharer."
   },
   {
     "key": "gate.allowed_tools",
-    "group": "Cong link",
+    "name": "Công cụ dùng được ở cổng link",
+    "group": "Cổng link",
     "type": "text",
     "default": "classification,pairwise,number,bbox,keypoint,span",
     "min": null,
     "max": 200,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Loai cong cu khach vang lai lam duoc o trang vuot link (vai giay, khong uy tin). Du an bat cong link ma co cong cu ngoai danh sach thi KHONG publish duoc."
+    "description": "Loại công cụ khách vãng lai làm được ở trang vượt link (vài giây, không uy tín). Dự án bật cổng link mà có công cụ ngoài danh sách thì KHÔNG publish được."
   },
   {
     "key": "gate.countdown",
-    "group": "Cong link",
+    "name": "Đếm ngược ở cổng link",
+    "group": "Cổng link",
     "type": "durationSeconds",
     "default": 8,
     "min": 0,
     "max": 120,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Dem nguoc toi thieu truoc khi khach nop bai (server kiem, khong chi la giao dien)."
+    "description": "Đếm ngược tối thiểu trước khi khách nộp bài (server kiểm, không chỉ là giao diện)."
   },
   {
     "key": "gate.gold_per_session",
-    "group": "Cong link",
+    "name": "Số câu vàng mỗi lượt vượt link",
+    "group": "Cổng link",
     "type": "int",
     "default": 1,
     "min": 1,
     "max": 5,
-    "unit": "cau",
+    "unit": "câu",
     "effect": "newOperations",
-    "description": "So cau vang (da biet dap an) moi luot vuot link."
+    "description": "Số câu vàng (đã biết đáp án) mỗi lượt vượt link."
   },
   {
     "key": "gate.real_per_session",
-    "group": "Cong link",
+    "name": "Số câu thật mỗi lượt vượt link",
+    "group": "Cổng link",
     "type": "int",
     "default": 2,
     "min": 1,
     "max": 10,
-    "unit": "cau",
+    "unit": "câu",
     "effect": "newOperations",
-    "description": "So cau that (can thu thap nhan) moi luot vuot link."
+    "description": "Số câu thật (cần thu thập nhãn) mỗi lượt vượt link."
   },
   {
     "key": "gate.session_ttl",
-    "group": "Cong link",
+    "name": "Hạn bộ câu hỏi cổng link",
+    "group": "Cổng link",
     "type": "durationSeconds",
     "default": 600,
     "min": 60,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Bo cau hoi da phat song bao lau."
+    "description": "Bộ câu hỏi đã phát sống bao lâu."
   },
   {
     "key": "gate.token_ttl",
-    "group": "Cong link",
+    "name": "Hạn token mở link đích",
+    "group": "Cổng link",
     "type": "durationSeconds",
     "default": 180,
     "min": 30,
     "max": 900,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Token mo link dich dung mot lan, song bao lau (VD-L-02)."
+    "description": "Token mở link đích dùng một lần, sống bao lâu (VD-L-02)."
   },
   {
     "key": "gate.ip_dedupe_window",
-    "group": "Cong link",
+    "name": "Khoảng chống trùng IP",
+    "group": "Cổng link",
     "type": "durationSeconds",
     "default": 86400,
     "min": 0,
     "max": 2592000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Moi IP chi tinh mot luot co tien cho moi link trong khoang nay (dac ta: 24 gio)."
+    "description": "Mỗi IP chỉ tính một lượt có tiền cho mỗi link trong khoảng này (đặc tả: 24 giờ)."
   },
   {
     "key": "gate.max_labels_per_sample",
-    "group": "Cong link",
+    "name": "Số nhãn cổng link mỗi mẫu",
+    "group": "Cổng link",
     "type": "int",
     "default": 5,
     "min": 1,
     "max": 1000,
-    "unit": "nhan",
+    "unit": "nhãn",
     "effect": "newOperations",
-    "description": "Moi mau nhan toi da bay nhieu nhan tu cong link."
+    "description": "Mỗi mẫu nhận tối đa bấy nhiêu nhãn từ cổng link."
   },
   {
     "key": "gate.cache_refresh_interval",
-    "group": "Cong link",
+    "name": "Chu kỳ nạp lại bộ đệm cổng",
+    "group": "Cổng link",
     "type": "durationSeconds",
     "default": 60,
     "min": 5,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Gate nap lai bo nho dem du an / mau / link tu ban sao sau moi khoang nay."
+    "description": "Gate nạp lại bộ nhớ đệm dự án / mẫu / link từ bản sao sau mỗi khoảng này."
   },
   {
     "key": "gate.event_flush_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ chuyển lượt vượt link",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 1,
     "min": 0.2,
     "max": 60,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Gate chuyen luot vuot tu Redis Stream sang outbox + ClickHouse sau moi khoang nay."
+    "description": "Gate chuyển lượt vượt từ Redis Stream sang outbox + ClickHouse sau mỗi khoảng này."
   },
   {
     "key": "gate.event_batch_size",
-    "group": "Ky thuat",
+    "name": "Số lượt vượt link mỗi lô chuyển",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 200,
     "min": 1,
     "max": 5000,
-    "unit": "luot",
+    "unit": "lượt",
     "effect": "newOperations",
-    "description": "So luot vuot gate chuyen moi lo."
+    "description": "Số lượt vượt gate chuyển mỗi lô."
   },
   {
     "key": "link.code_length",
-    "group": "Cong link",
+    "name": "Độ dài mã link",
+    "group": "Cổng link",
     "type": "int",
     "default": 7,
     "min": 5,
     "max": 12,
-    "unit": "ky tu",
+    "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Do dai ma link ngau nhien."
+    "description": "Độ dài mã link ngẫu nhiên."
   },
   {
     "key": "link.bulk_max",
-    "group": "Cong link",
+    "name": "Rút gọn hàng loạt tối đa",
+    "group": "Cổng link",
     "type": "int",
     "default": 100,
     "min": 1,
     "max": 1000,
     "unit": "link",
     "effect": "newOperations",
-    "description": "Rut gon hang loat toi da bay nhieu link moi lan (FS-03)."
+    "description": "Rút gọn hàng loạt tối đa bấy nhiêu link mỗi lần (FS-03)."
   },
   {
     "key": "link.report_review_threshold",
-    "group": "Cong link",
+    "name": "Ngưỡng báo cáo link",
+    "group": "Cổng link",
     "type": "int",
     "default": 3,
     "min": 1,
     "max": 1000,
-    "unit": "bao cao",
+    "unit": "báo cáo",
     "effect": "newOperations",
-    "description": "Link bi bao cao tu bay nhieu IP khac nhau thi vao hang doi kiem duyet."
+    "description": "Link bị báo cáo từ bấy nhiêu IP khác nhau thì vào hàng đợi kiểm duyệt."
   },
   {
     "key": "link.scan_interval",
-    "group": "Ky thuat",
+    "name": "Chu kỳ quét link chờ kiểm duyệt",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 2,
     "min": 1,
     "max": 3600,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Worker quet link cho kiem duyet (Safe Browsing) sau moi khoang nay."
+    "description": "Worker quét link chờ kiểm duyệt (Safe Browsing) sau mỗi khoảng này."
   },
   {
     "key": "link.referral_percent",
-    "group": "Cong link",
+    "name": "Hoa hồng giới thiệu",
+    "group": "Cổng link",
     "type": "int",
     "default": 10,
     "min": 0,
     "max": 50,
     "unit": "%",
     "effect": "newOperations",
-    "description": "Nguoi gioi thieu huong phan tram nay tren doanh thu cong link cua nguoi duoc moi (FS-08). Lay tu phan cua nen tang."
+    "description": "Người giới thiệu hưởng phần trăm này trên doanh thu cổng link của người được mời (FS-08). Lấy từ phần của nền tảng."
   },
   {
     "key": "link.referral_max_per_ip",
-    "group": "Cong link",
+    "name": "Giới thiệu tối đa cùng IP",
+    "group": "Cổng link",
     "type": "int",
     "default": 2,
     "min": 1,
     "max": 1000,
-    "unit": "tai khoan",
+    "unit": "tài khoản",
     "effect": "newOperations",
-    "description": "Mot nguoi gioi thieu da co bay nhieu nguoi nhap ma tu CUNG mot IP trong 24 gio thi nguoi tiep theo bi danh dau nghi lam dung (chua tinh hoa hong, cho admin xet)."
+    "description": "Một người giới thiệu đã có bấy nhiêu người nhập mã từ CÙNG một IP trong 24 giờ thì người tiếp theo bị đánh dấu nghi lạm dụng (chưa tính hoa hồng, chờ admin xét)."
   },
   {
     "key": "link.referral_burst_per_hour",
-    "group": "Cong link",
+    "name": "Giới thiệu tối đa mỗi giờ",
+    "group": "Cổng link",
     "type": "int",
     "default": 10,
     "min": 1,
     "max": 100000,
-    "unit": "tai khoan",
+    "unit": "tài khoản",
     "effect": "newOperations",
-    "description": "Mot nguoi gioi thieu da co bay nhieu nguoi nhap ma trong 1 gio thi nguoi tiep theo bi danh dau nghi lam dung (dot bien)."
+    "description": "Một người giới thiệu đã có bấy nhiêu người nhập mã trong 1 giờ thì người tiếp theo bị đánh dấu nghi lạm dụng (đột biến)."
   },
   {
     "key": "link.referral_min_earnings_vnd",
-    "group": "Cong link",
+    "name": "Thu nhập tối thiểu để trả hoa hồng",
+    "group": "Cổng link",
     "type": "long",
     "default": 50000,
     "min": 0,
     "max": 1000000000000,
-    "unit": "dong",
+    "unit": "đồng",
     "effect": "newOperations",
-    "description": "Chi tra hoa hong sau khi nguoi duoc moi da tu kiem duoc tong bay nhieu (chong tai khoan clone tu moi nhau — VD-L-05)."
+    "description": "Chỉ trả hoa hồng sau khi người được mời đã tự kiếm được tổng bấy nhiêu (chống tài khoản clone tự mời nhau — VD-L-05)."
   },
   {
     "key": "link.referral_claim_window",
-    "group": "Cong link",
+    "name": "Hạn nhập mã giới thiệu",
+    "group": "Cổng link",
     "type": "durationSeconds",
     "default": 604800,
     "min": 0,
     "max": 31536000,
-    "unit": "giay",
+    "unit": "giây",
     "effect": "newOperations",
-    "description": "Tai khoan moi tao trong khoang nay moi nhap duoc ma gioi thieu."
+    "description": "Tài khoản mới tạo trong khoảng này mới nhập được mã giới thiệu."
   }
 ]

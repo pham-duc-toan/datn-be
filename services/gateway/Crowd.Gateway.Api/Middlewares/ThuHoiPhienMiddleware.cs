@@ -46,7 +46,7 @@ namespace Crowd.Gateway.Api.Middlewares
                 await context.Response.WriteAsync(LoiJson.Tao(
                     StatusCodes.Status401Unauthorized,
                     "phien_da_bi_thu_hoi",
-                    "Phien dang nhap da bi thu hoi (doi mat khau, dang xuat moi thiet bi hoac tai khoan bi khoa) — hay dang nhap lai."));
+                    "Phiên đăng nhập đã bị thu hồi (đổi mật khẩu, đăng xuất mọi thiết bị hoặc tài khoản bị khoá) — hãy đăng nhập lại."));
                 return;
             }
 

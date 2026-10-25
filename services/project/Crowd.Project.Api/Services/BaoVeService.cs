@@ -87,20 +87,53 @@ namespace Crowd.Project.Api.Services
             LabelingProject duAn = await LayDeXemHoacDuocMoiAsync(projectId, caller, ct);
             if (duAn.DaKetThuc())
             {
-                throw new RuleViolationException("du_an_da_ket_thuc", "Du an da ket thuc.");
+                throw new RuleViolationException("du_an_da_ket_thuc", "Dự án đã kết thúc.");
             }
 
-            Guid uid = caller.LayUserId();
+            ProjectConsent c = await GhiDongYAsync(duAn, caller.LayUserId(), body, ip, trinhDuyet, ct);
+            return TaoTerms(duAn, c);
+        }
+
+        /// <summary>
+        /// Ghi dong y canh bao / ky NDA cua mot nguoi (da kiem quyen o noi goi: xem duoc du an, duoc moi, hoac cam
+        /// ma moi con dung duoc) va LUU ngay — kiem dieu kien sau do doc lai tu database.
+        /// </summary>
+        public async Task<ProjectConsent> GhiDongYAsync(
+            LabelingProject duAn, Guid userId, ConsentRequest body, string? ip, string? trinhDuyet, CancellationToken ct)
+        {
+            if (duAn == null)
+            {
+                throw new ArgumentNullException(nameof(duAn));
+            }
+
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            ProjectConsent? c = await _db.ProjectConsents.FirstOrDefaultAsync(x => x.ProjectId == projectId && x.UserId == uid, ct);
+            ProjectConsent? c = await _db.ProjectConsents.FirstOrDefaultAsync(x => x.ProjectId == duAn.Id && x.UserId == userId, ct);
             if (c == null)
             {
-                c = ProjectConsent.Tao(projectId, uid, bayGio);
+                c = ProjectConsent.Tao(duAn.Id, userId, bayGio);
                 _db.ProjectConsents.Add(c);
             }
 
             c.DongY(duAn, body.AcceptContentWarning, body.AcceptNda, body.FullName, ip, trinhDuyet, bayGio);
             await _db.SaveChangesAsync(ct);
+            return c;
+        }
+
+        /// <summary>Dieu khoan + trang thai dong y cua mot nguoi (cho trang nhap ma moi — chua la thanh vien).</summary>
+        public async Task<ProjectTermsResponse> DieuKhoanChoNguoiAsync(LabelingProject duAn, Guid userId, CancellationToken ct)
+        {
+            if (duAn == null)
+            {
+                throw new ArgumentNullException(nameof(duAn));
+            }
+
+            ProjectConsent? c = await _db.ProjectConsents.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ProjectId == duAn.Id && x.UserId == userId, ct);
             return TaoTerms(duAn, c);
         }
 
@@ -162,7 +195,7 @@ namespace Crowd.Project.Api.Services
                 i => i.ProjectId == projectId && i.UserId == uid && i.Status == InvitationStatus.Pending && i.ExpiresAt > bayGio, ct);
             if (!duocMoi)
             {
-                throw new NotFoundException("Khong tim thay du an.");
+                throw new NotFoundException("Không tìm thấy dự án.");
             }
 
             return await _db.Projects.FirstAsync(p => p.Id == projectId, ct);

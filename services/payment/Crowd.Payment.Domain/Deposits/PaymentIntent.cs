@@ -107,12 +107,12 @@ namespace Crowd.Payment.Domain.Deposits
             {
                 throw new InvalidValueException(
                     "so_tien_nap_khong_hop_le",
-                    "So tien nap phai tu " + quyDinh.ToiThieuVnd + " den " + quyDinh.ToiDaVnd + "d.");
+                    "Số tiền nạp phải từ " + quyDinh.ToiThieuVnd + " đến " + quyDinh.ToiDaVnd + "đ.");
             }
 
             if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 100)
             {
-                throw new InvalidValueException("thieu_idempotency_key", "Can header Idempotency-Key (1-100 ky tu).");
+                throw new InvalidValueException("thieu_idempotency_key", "Cần header Idempotency-Key (1–100 ký tự).");
             }
 
             PaymentIntent p = new PaymentIntent();
@@ -145,7 +145,7 @@ namespace Crowd.Payment.Domain.Deposits
 
             if (Status != PaymentIntentStatus.Pending)
             {
-                throw new RuleViolationException("lenh_nap_da_chot", "Lenh nap da chot (" + Status + ").");
+                throw new RuleViolationException("lenh_nap_da_chot", "Lệnh nạp đã chốt (" + Status + ").");
             }
 
             Status = PaymentIntentStatus.AwaitingApproval;
@@ -162,13 +162,13 @@ namespace Crowd.Payment.Domain.Deposits
             ChiChuyenKhoanThuCong();
             if (Status != PaymentIntentStatus.Pending && Status != PaymentIntentStatus.AwaitingApproval)
             {
-                throw new RuleViolationException("lenh_nap_da_chot", "Lenh nap da chot (" + Status + ").");
+                throw new RuleViolationException("lenh_nap_da_chot", "Lệnh nạp đã chốt (" + Status + ").");
             }
 
             string ma = maGiaoDich == null ? string.Empty : maGiaoDich.Trim();
             if (ma.Length > 100)
             {
-                throw new InvalidValueException("ma_giao_dich_qua_dai", "Ma giao dich toi da 100 ky tu.");
+                throw new InvalidValueException("ma_giao_dich_qua_dai", "Mã giao dịch tối đa 100 ký tự.");
             }
 
             Status = PaymentIntentStatus.Succeeded;
@@ -182,13 +182,13 @@ namespace Crowd.Payment.Domain.Deposits
             ChiChuyenKhoanThuCong();
             if (Status != PaymentIntentStatus.Pending && Status != PaymentIntentStatus.AwaitingApproval)
             {
-                throw new RuleViolationException("lenh_nap_da_chot", "Lenh nap da chot (" + Status + ").");
+                throw new RuleViolationException("lenh_nap_da_chot", "Lệnh nạp đã chốt (" + Status + ").");
             }
 
             string ly = lyDo == null ? string.Empty : lyDo.Trim();
             if (ly.Length == 0 || ly.Length > DoDaiLyDoToiDa)
             {
-                throw new InvalidValueException("thieu_ly_do", "Tu choi lenh nap phai ghi ly do (1-" + DoDaiLyDoToiDa + " ky tu).");
+                throw new InvalidValueException("thieu_ly_do", "Từ chối lệnh nạp phải ghi lý do (1–" + DoDaiLyDoToiDa + " ký tự).");
             }
 
             Status = PaymentIntentStatus.Rejected;
@@ -201,7 +201,7 @@ namespace Crowd.Payment.Domain.Deposits
         {
             if (!LaChuyenKhoanThuCong)
             {
-                throw new RuleViolationException("khong_phai_chuyen_khoan", "Lenh nap qua cong thanh toan — chi cong moi xac nhan duoc.");
+                throw new RuleViolationException("khong_phai_chuyen_khoan", "Lệnh nạp qua cổng thanh toán — chỉ cổng mới xác nhận được.");
             }
         }
 
@@ -216,7 +216,7 @@ namespace Crowd.Payment.Domain.Deposits
         {
             if (string.IsNullOrWhiteSpace(providerTxnId))
             {
-                throw new InvalidValueException("thieu_ma_giao_dich", "Webhook thieu ma giao dich cua cong.");
+                throw new InvalidValueException("thieu_ma_giao_dich", "Webhook thiếu mã giao dịch của cổng.");
             }
 
             if (Status == PaymentIntentStatus.Succeeded)
@@ -226,19 +226,19 @@ namespace Crowd.Payment.Domain.Deposits
                     return false;
                 }
 
-                throw new RuleViolationException("da_thanh_toan", "Lenh nap da thanh cong voi ma giao dich khac.");
+                throw new RuleViolationException("da_thanh_toan", "Lệnh nạp đã thành công với mã giao dịch khác.");
             }
 
             if (Status != PaymentIntentStatus.Pending)
             {
-                throw new RuleViolationException("lenh_nap_da_chot", "Lenh nap da chot (" + Status + ").");
+                throw new RuleViolationException("lenh_nap_da_chot", "Lệnh nạp đã chốt (" + Status + ").");
             }
 
             if (soTienCongBao != AmountVnd)
             {
                 throw new RuleViolationException(
                     "sai_so_tien",
-                    "Cong bao " + soTienCongBao + "d nhung lenh nap la " + AmountVnd + "d.");
+                    "Cổng báo " + soTienCongBao + "đ nhưng lệnh nạp là " + AmountVnd + "đ.");
             }
 
             Status = PaymentIntentStatus.Succeeded;
@@ -267,7 +267,7 @@ namespace Crowd.Payment.Domain.Deposits
         {
             if (string.IsNullOrWhiteSpace(url) || url.Length > 2000)
             {
-                throw new InvalidValueException("link_thanh_toan_khong_hop_le", "Link thanh toan cua cong khong hop le.");
+                throw new InvalidValueException("link_thanh_toan_khong_hop_le", "Link thanh toán của cổng không hợp lệ.");
             }
 
             CheckoutUrl = url;

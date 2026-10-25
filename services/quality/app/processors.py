@@ -70,7 +70,7 @@ async def _bu_ban_sao(s: AsyncSession, project_id: uuid.UUID):
 
 async def _du_an(s: AsyncSession, project_id: uuid.UUID):
     return (await s.execute(
-        text("SELECT label_schema, pass_threshold_percent FROM projects WHERE project_id = :p"), {"p": project_id})).first()
+        text("SELECT label_schema, pass_threshold_percent, slots FROM projects WHERE project_id = :p"), {"p": project_id})).first()
 
 
 async def project_dong(s: AsyncSession, env: Envelope) -> None:
@@ -195,6 +195,9 @@ async def thu_cham(s: AsyncSession, project_id: uuid.UUID, env: Envelope) -> Non
          for b in bai],
         nhan, metadata, {str(x) for x in dot.excluded_sample_ids}, du_an.pass_threshold_percent, tham_so, mo or None)
 
+    # So suat = so nguoi DUOC THUONG: n bai dat nop som nhat (kq.bai giu thu tu luc nop cua `bai`).
+    thuong = cham.chon_duoc_thuong(kq.bai, du_an.slots if du_an.slots is not None else len(kq.bai))
+
     luc = datetime.now(timezone.utc)
     for c in kq.cau:
         await s.execute(
@@ -209,11 +212,12 @@ async def thu_cham(s: AsyncSession, project_id: uuid.UUID, env: Envelope) -> Non
         await s.execute(
             text(
                 "INSERT INTO attempt_grades (attempt_id, project_id, labeler_id, comparable_count, matched_count, agreement_percent, "
-                "gold_total, gold_correct, passed, answered_count, graded_at) "
-                "VALUES (:a, :p, :l, :c, :m, :pt, :gt, :gd, :ok, :n, :at) ON CONFLICT (attempt_id) DO NOTHING"
+                "gold_total, gold_correct, passed, rewarded, answered_count, graded_at) "
+                "VALUES (:a, :p, :l, :c, :m, :pt, :gt, :gd, :ok, :th, :n, :at) ON CONFLICT (attempt_id) DO NOTHING"
             ),
             {"a": uuid.UUID(b.attempt_id), "p": project_id, "l": uuid.UUID(b.labeler_id), "c": b.so_duoc, "m": b.giong,
-             "pt": b.phan_tram, "gt": b.gold_total, "gd": b.gold_correct, "ok": b.dat, "n": b.da_tra_loi, "at": luc},
+             "pt": b.phan_tram, "gt": b.gold_total, "gd": b.gold_correct, "ok": b.dat, "th": b.attempt_id in thuong,
+             "n": b.da_tra_loi, "at": luc},
         )
     await s.execute(
         text("UPDATE project_collections SET graded_at = :at, majority_used = :mj, "
@@ -227,7 +231,7 @@ async def thu_cham(s: AsyncSession, project_id: uuid.UUID, env: Envelope) -> Non
         attempts=[GradedAttempt(
             attempt_id=uuid.UUID(b.attempt_id), labeler_id=uuid.UUID(b.labeler_id), comparable_count=b.so_duoc,
             matched_count=b.giong, agreement_percent=b.phan_tram, gold_total=b.gold_total, gold_correct=b.gold_correct,
-            passed=b.dat, answered_count=b.da_tra_loi) for b in kq.bai],
+            passed=b.dat, rewarded=b.attempt_id in thuong, answered_count=b.da_tra_loi) for b in kq.bai],
         graded_at=luc), env.correlation_id, env.event_id)
 
     # Cap nhat uy tin theo THU TU CO DINH (labeler_id tang dan): hai du an cham song song cung hai labeler
@@ -235,7 +239,8 @@ async def thu_cham(s: AsyncSession, project_id: uuid.UUID, env: Envelope) -> Non
     for labeler in sorted({uuid.UUID(b.labeler_id) for b in kq.bai}, key=str):
         await cap_nhat_uy_tin(s, labeler, env)
 
-    log.info("Cham du an %s: %s bai, %s dat (da so: %s)", project_id, len(kq.bai), sum(1 for b in kq.bai if b.dat), kq.dung_da_so)
+    log.info("Cham du an %s: %s bai, %s dat, %s duoc thuong (da so: %s)", project_id, len(kq.bai),
+             sum(1 for b in kq.bai if b.dat), len(thuong), kq.dung_da_so)
 
 
 def cong_cu_mo(schema: dict) -> list[str]:

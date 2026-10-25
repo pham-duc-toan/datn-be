@@ -67,7 +67,7 @@ namespace Crowd.Ledger.Api.Services
             DateOnly tu = from ?? den.AddDays(-29);
             if (tu > den || den.DayNumber - tu.DayNumber + 1 > SoNgayToiDa)
             {
-                throw new InvalidValueException("khoang_ngay_khong_hop_le", "from <= to, toi da " + SoNgayToiDa + " ngay.");
+                throw new InvalidValueException("khoang_ngay_khong_hop_le", "from <= to, tối đa " + SoNgayToiDa + " ngày.");
             }
 
             // Npgsql chi nhan DateTimeOffset UTC (offset 0): moc ngay gio Viet Nam doi ve UTC.
@@ -127,7 +127,7 @@ namespace Crowd.Ledger.Api.Services
             ProjectEscrow? escrow = await _db.Escrows.AsNoTracking().FirstOrDefaultAsync(e => e.ProjectId == projectId, ct);
             if (escrow == null || (!caller.IsAdmin && escrow.OwnerId != caller.LayUserId()))
             {
-                throw new NotFoundException("Khong tim thay ky quy cua du an nay.");
+                throw new NotFoundException("Không tìm thấy ký quỹ của dự án này.");
             }
 
             string taiKhoan = AccountCodes.ProjectEscrow(projectId);

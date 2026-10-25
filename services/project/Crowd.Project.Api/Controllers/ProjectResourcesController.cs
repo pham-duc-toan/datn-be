@@ -147,7 +147,20 @@ namespace Crowd.Project.Api.Controllers
         [Authorize(Roles = CrowdRoles.Labeler)]
         public async Task<IActionResult> VaoBangMa([FromBody] JoinByCodeRequest body, CancellationToken ct)
         {
-            return Ok(await _service.VaoBangMaAsync(body, Caller.TuHttp(HttpContext, ActorRole.Labeler), ct));
+            string? ip = HttpContext.Connection.RemoteIpAddress == null ? null : HttpContext.Connection.RemoteIpAddress.ToString();
+            string? ua = Request.Headers.UserAgent;
+            return Ok(await _service.VaoBangMaAsync(body, ip, ua, Caller.TuHttp(HttpContext, ActorRole.Labeler), ct));
+        }
+
+        /// <summary>
+        /// POST /projects/join-by-code/preview — { code }: ten du an + dieu khoan (canh bao / NDA) cua ma, KHONG ton
+        /// luot. Trang nhap ma hien o dong y truoc khi goi join-by-code kem consent.
+        /// </summary>
+        [HttpPost("join-by-code/preview")]
+        [Authorize(Roles = CrowdRoles.Labeler)]
+        public async Task<IActionResult> XemTruocMa([FromBody] JoinByCodeRequest body, CancellationToken ct)
+        {
+            return Ok(await _service.XemTruocAsync(body, Caller.TuHttp(HttpContext, ActorRole.Labeler), ct));
         }
 
         private Caller ChuDuAn()
@@ -304,7 +317,7 @@ namespace Crowd.Project.Api.Controllers
         {
             if (file == null || file.Length == 0)
             {
-                throw new InvalidValueException("thieu_file", "Can file ZIP (truong 'file').");
+                throw new InvalidValueException("thieu_file", "Cần file ZIP (trường 'file').");
             }
 
             using (System.IO.Stream luong = file.OpenReadStream())
@@ -342,7 +355,7 @@ namespace Crowd.Project.Api.Controllers
                     Guid g;
                     if (!Guid.TryParse(phan, out g))
                     {
-                        throw new InvalidValueException("ma_mau_khong_hop_le", "Ma mau '" + phan + "' khong hop le.");
+                        throw new InvalidValueException("ma_mau_khong_hop_le", "Mã mẫu '" + phan + "' không hợp lệ.");
                     }
 
                     loc.Add(g);

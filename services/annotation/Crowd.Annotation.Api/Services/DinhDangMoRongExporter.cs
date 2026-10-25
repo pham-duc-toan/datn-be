@@ -220,8 +220,8 @@ namespace Crowd.Annotation.Api.Services
             {
                 ["info"] = new JsonObject
                 {
-                    ["description"] = "Diem moc du an " + kq.ProjectId,
-                    ["note"] = "The hien k = diem thu k (trai sang phai) cua moi lop — tap nhan khong gom diem theo the hien.",
+                    ["description"] = "Điểm mốc dự án " + kq.ProjectId,
+                    ["note"] = "Thể hiện k = điểm thứ k (trái sang phải) của mỗi lớp — tập nhãn không gom điểm theo thể hiện.",
                 },
                 ["images"] = images,
                 ["annotations"] = annotations,
@@ -430,7 +430,7 @@ namespace Crowd.Annotation.Api.Services
             List<ToolDefinition> ds = tapNhan.Tools.Where(t => t.Kind == kind).ToList();
             if (tapNhan.Modality != modality || ds.Count == 0)
             {
-                throw new InvalidValueException("dinh_dang_khong_hop_du_an", dinhDang + " chi xuat cho du an " + dieuKien + ". Dung json hoac csv.");
+                throw new InvalidValueException("dinh_dang_khong_hop_du_an", dinhDang + " chỉ xuất cho dự án " + dieuKien + ". Dùng json hoặc csv.");
             }
 
             return ds;
@@ -488,7 +488,7 @@ namespace Crowd.Annotation.Api.Services
                     Ghi(zip, "README.txt", ten + " — " + (kq.Samples.Count - boQua) + " anh, " + soDoiTuong + " doi tuong.\n" + moTa + "\n"
                         + "Moi doi tuong DA GOP tu cac nhan da duyet; mau tranh chap khong co doi tuong.\n"
                         + "File anh khong nam trong zip — images.txt: sampleId <TAB> khoa file trong kho.\n"
-                        + (boQua > 0 ? "Bo qua " + boQua + " anh khong co kich thuoc trong metadata.\n" : string.Empty));
+                        + (boQua > 0 ? "Bỏ qua " + boQua + " ảnh không có kích thước trong metadata.\n" : string.Empty));
                 }
 
                 return ms.ToArray();

@@ -47,7 +47,7 @@ namespace Crowd.Gate.Domain
 
             if (modality != Modalities.Image && modality != Modalities.Text && modality != Modalities.Pair)
             {
-                return "Loai du lieu " + modality + " khong phu hop trang vuot link (chi anh, van ban, cap).";
+                return "Loại dữ liệu " + modality + " không phù hợp trang vượt link (chỉ ảnh, văn bản, cặp).";
             }
 
             foreach (ToolDefinition t in tapNhan.Tools)

@@ -58,7 +58,7 @@ namespace Crowd.Payment.Domain.Payouts
         {
             if (netVnd <= 0)
             {
-                throw new InvalidValueException("so_tien_khong_hop_le", "So tien chuyen phai lon hon 0.");
+                throw new InvalidValueException("so_tien_khong_hop_le", "Số tiền chuyển phải lớn hơn 0.");
             }
 
             Payout p = new Payout();
@@ -75,7 +75,7 @@ namespace Crowd.Payment.Domain.Payouts
         {
             if (Status != PayoutStatus.Requested)
             {
-                throw new RuleViolationException("khong_the_gui", "Lenh chuyen dang o trang thai " + Status + ".");
+                throw new RuleViolationException("khong_the_gui", "Lệnh chuyển đang ở trạng thái " + Status + ".");
             }
 
             Status = PayoutStatus.Sending;
@@ -116,7 +116,7 @@ namespace Crowd.Payment.Domain.Payouts
         {
             if (Status != PayoutStatus.Sending)
             {
-                throw new RuleViolationException("khong_dang_gui", "Lenh chuyen khong o trang thai dang gui (" + Status + ").");
+                throw new RuleViolationException("khong_dang_gui", "Lệnh chuyển không ở trạng thái đang gửi (" + Status + ").");
             }
         }
     }

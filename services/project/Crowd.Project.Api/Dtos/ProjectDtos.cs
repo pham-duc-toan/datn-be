@@ -278,7 +278,7 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>Ma nhung muc con thieu (chan publish), vd "chua_co_huong_dan".</summary>
         public required IReadOnlyList<string> Missing { get; init; }
 
-        /// <summary>Canh bao KHONG chan publish, vd "khong_co_cau_vang_kiem_tra".</summary>
+        /// <summary>Canh bao KHONG chan publish, vd "cham_cau_tra_loi_mo_lau".</summary>
         public required IReadOnlyList<string> Warnings { get; init; }
 
         public required int SampleCount { get; init; }
@@ -321,6 +321,9 @@ namespace Crowd.Project.Api.Dtos
         public required int MinSlots { get; init; }
 
         public required int MaxSlots { get; init; }
+
+        /// <summary>He so tran nguoi lam: toi da Slots x he so nguoi lam bai (project.participant_multiplier).</summary>
+        public required int ParticipantMultiplier { get; init; }
 
         public required int MaxQuestions { get; init; }
 

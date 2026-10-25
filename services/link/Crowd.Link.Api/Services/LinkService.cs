@@ -85,7 +85,7 @@ namespace Crowd.Link.Api.Services
         {
             if (body == null)
             {
-                throw new LinkException(400, "thieu_du_lieu", "Thieu du lieu.");
+                throw new LinkException(400, "thieu_du_lieu", "Thiếu dữ liệu.");
             }
 
             ShortLink l = await DungLinkAsync(body.Url, body.Alias, body.Password, body.ExpiresAt, body.CampaignId, ownerId, ipHash, ct);
@@ -98,13 +98,13 @@ namespace Crowd.Link.Api.Services
         {
             if (body == null || body.Urls == null || body.Urls.Count == 0)
             {
-                throw new LinkException(400, "thieu_url", "Can it nhat mot URL trong \"urls\".");
+                throw new LinkException(400, "thieu_url", "Cần ít nhất một URL trong \"urls\".");
             }
 
             int toiDa = _settings.SoNguyen(SettingKeys.LinkBulkMax);
             if (body.Urls.Count > toiDa)
             {
-                throw new LinkException(400, "qua_nhieu_url", "Toi da " + toiDa + " URL moi lan.");
+                throw new LinkException(400, "qua_nhieu_url", "Tối đa " + toiDa + " URL mỗi lần.");
             }
 
             List<BulkLinkResult> kq = new List<BulkLinkResult>();
@@ -137,7 +137,7 @@ namespace Crowd.Link.Api.Services
             BlockedDomain? chan = await _db.BlockedDomains.AsNoTracking().FirstOrDefaultAsync(d => cha.Contains(d.Domain), ct);
             if (chan != null)
             {
-                throw new LinkException(400, "ten_mien_bi_chan", "Ten mien " + chan.Domain + " bi chan: " + chan.Reason);
+                throw new LinkException(400, "ten_mien_bi_chan", "Tên miền " + chan.Domain + " bị chặn: " + chan.Reason);
             }
 
             if (campaignId.HasValue)
@@ -146,7 +146,7 @@ namespace Crowd.Link.Api.Services
                 bool cuaToi = await _db.Campaigns.AnyAsync(x => x.Id == c && x.OwnerId == ownerId, ct);
                 if (!cuaToi)
                 {
-                    throw new LinkException(404, "khong_tim_thay_chien_dich", "Khong tim thay chien dich.");
+                    throw new LinkException(404, "khong_tim_thay_chien_dich", "Không tìm thấy chiến dịch.");
                 }
             }
 
@@ -180,7 +180,7 @@ namespace Crowd.Link.Api.Services
                     _db.ChangeTracker.Clear();
                     if (!maNgauNhien)
                     {
-                        throw new LinkException(409, "alias_da_ton_tai", "Alias '" + l.Code + "' da co nguoi dung.");
+                        throw new LinkException(409, "alias_da_ton_tai", "Alias '" + l.Code + "' đã có người dùng.");
                     }
 
                     if (lan >= SoLanThuSinhMa)
@@ -204,7 +204,7 @@ namespace Crowd.Link.Api.Services
 
             if (matKhau.Length < 4 || matKhau.Length > 100)
             {
-                throw new LinkException(400, "mat_khau_khong_hop_le", "Mat khau link phai tu 4 den 100 ky tu.");
+                throw new LinkException(400, "mat_khau_khong_hop_le", "Mật khẩu link phải từ 4 đến 100 ký tự.");
             }
 
             return MatKhauLink.Bam(matKhau);
@@ -255,7 +255,7 @@ namespace Crowd.Link.Api.Services
         {
             if (body == null)
             {
-                throw new LinkException(400, "thieu_du_lieu", "Thieu du lieu.");
+                throw new LinkException(400, "thieu_du_lieu", "Thiếu dữ liệu.");
             }
 
             ShortLink l = await LayCuaToiAsync(id, caller.LayUserId(), ct);
@@ -266,7 +266,7 @@ namespace Crowd.Link.Api.Services
                 Guid owner = l.OwnerId;
                 if (!await _db.Campaigns.AnyAsync(x => x.Id == c && x.OwnerId == owner, ct))
                 {
-                    throw new LinkException(404, "khong_tim_thay_chien_dich", "Khong tim thay chien dich.");
+                    throw new LinkException(404, "khong_tim_thay_chien_dich", "Không tìm thấy chiến dịch.");
                 }
             }
 
@@ -302,7 +302,7 @@ namespace Crowd.Link.Api.Services
             // Link cua nguoi khac → 404 (BOLA).
             if (l == null || l.OwnerId != ownerId)
             {
-                throw new LinkException(404, "khong_tim_thay", "Khong tim thay link.");
+                throw new LinkException(404, "khong_tim_thay", "Không tìm thấy link.");
             }
 
             return l;
@@ -317,7 +317,7 @@ namespace Crowd.Link.Api.Services
             string ten = body == null || body.Name == null ? string.Empty : body.Name.Trim();
             if (ten.Length == 0 || ten.Length > Campaign.CotTen)
             {
-                throw new LinkException(400, "ten_chien_dich_khong_hop_le", "Ten chien dich 1-" + Campaign.CotTen + " ky tu.");
+                throw new LinkException(400, "ten_chien_dich_khong_hop_le", "Tên chiến dịch 1–" + Campaign.CotTen + " ký tự.");
             }
 
             Campaign c = Campaign.Tao(ownerId, ten, _clock.GetUtcNow());
@@ -328,7 +328,7 @@ namespace Crowd.Link.Api.Services
             }
             catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "ux_campaigns_owner_name"))
             {
-                throw new LinkException(409, "chien_dich_da_ton_tai", "Ban da co chien dich ten nay.");
+                throw new LinkException(409, "chien_dich_da_ton_tai", "Bạn đã có chiến dịch tên này.");
             }
 
             return new CampaignResponse { Id = c.Id, Name = c.Name, LinkCount = 0, CreatedAt = c.CreatedAt };

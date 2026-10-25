@@ -29,7 +29,7 @@ async def _kiem_chu_du_an(project_id: uuid.UUID, ng: NguoiGoi) -> None:
     async with session_factory()() as s:
         dong = (await s.execute(text("SELECT owner_id FROM projects WHERE project_id = :p"), {"p": project_id})).first()
     if dong is None or (not ng.la_admin and dong.owner_id != ng.user_id):
-        raise LoiApi(404, "khong_tim_thay", "Khong tim thay du an.")
+        raise LoiApi(404, "khong_tim_thay", "Không tìm thấy dự án.")
 
 
 @router.get("/projects/{project_id}/summary")
@@ -126,7 +126,7 @@ async def chi_tiet_ho_so(case_id: uuid.UUID, ng: NguoiGoi = Depends(can_vai_tro(
     async with session_factory()() as s:
         r = (await s.execute(text("SELECT * FROM fraud_cases WHERE id = :id"), {"id": case_id})).first()
         if r is None:
-            raise LoiApi(404, "khong_tim_thay", "Khong tim thay ho so.")
+            raise LoiApi(404, "khong_tim_thay", "Không tìm thấy hồ sơ.")
         # Lich su gan day cua tung nguoi trong ho so (giup admin quyet dinh).
         luot = (await s.execute(text(
             "SELECT labeler_id, COUNT(*) AS so_luot, percentile_cont(0.5) WITHIN GROUP (ORDER BY work_seconds) AS trung_vi "
@@ -156,15 +156,15 @@ async def xu_ly_ho_so(case_id: uuid.UUID, body: XuLyHoSo, ng: NguoiGoi = Depends
         raise LoiApi(400, "hanh_dong_khong_hop_le", "action: dismiss | confirm.")
     ghi_chu = (body.note or "").strip()
     if not ghi_chu or len(ghi_chu) > 1000:
-        raise LoiApi(400, "thieu_ghi_chu", "Phai ghi ly do (toi da 1000 ky tu).")
+        raise LoiApi(400, "thieu_ghi_chu", "Phải ghi lý do (tối đa 1000 ký tự).")
     khoa = body.action == "confirm" and body.blockAccounts
 
     async with session_factory()() as s, s.begin():
         r = (await s.execute(text("SELECT * FROM fraud_cases WHERE id = :id FOR UPDATE"), {"id": case_id})).first()
         if r is None:
-            raise LoiApi(404, "khong_tim_thay", "Khong tim thay ho so.")
+            raise LoiApi(404, "khong_tim_thay", "Không tìm thấy hồ sơ.")
         if r.status != "open":
-            raise LoiApi(409, "ho_so_da_xu_ly", "Ho so da duoc xu ly.")
+            raise LoiApi(409, "ho_so_da_xu_ly", "Hồ sơ đã được xử lý.")
         await s.execute(text(
             "UPDATE fraud_cases SET status = :st, resolved_at = :at, resolved_by = :by, note = :n, blocked = :b WHERE id = :id"),
             {"st": "confirmed" if body.action == "confirm" else "dismissed", "at": datetime.now(timezone.utc),

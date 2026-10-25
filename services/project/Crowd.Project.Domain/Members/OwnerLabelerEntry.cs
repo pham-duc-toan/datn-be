@@ -41,12 +41,12 @@ namespace Crowd.Project.Domain.Members
         {
             if (ownerId == Guid.Empty || labelerId == Guid.Empty)
             {
-                throw new InvalidValueException("id_rong", "Thieu doanh nghiep hoac labeler.");
+                throw new InvalidValueException("id_rong", "Thiếu doanh nghiệp hoặc labeler.");
             }
 
             if (ownerId == labelerId)
             {
-                throw new InvalidValueException("khong_tu_them", "Khong them chinh minh vao danh sach.");
+                throw new InvalidValueException("khong_tu_them", "Không thêm chính mình vào danh sách.");
             }
 
             OwnerLabelerEntry e = new OwnerLabelerEntry();
@@ -62,7 +62,7 @@ namespace Crowd.Project.Domain.Members
             string? g = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
             if (g != null && g.Length > DoDaiGhiChuToiDa)
             {
-                throw new InvalidValueException("ghi_chu_qua_dai", "Ghi chu toi da " + DoDaiGhiChuToiDa + " ky tu.");
+                throw new InvalidValueException("ghi_chu_qua_dai", "Ghi chú tối đa " + DoDaiGhiChuToiDa + " ký tự.");
             }
 
             Kind = kind;
@@ -113,13 +113,13 @@ namespace Crowd.Project.Domain.Members
         {
             if (stars < 1 || stars > 5)
             {
-                throw new InvalidValueException("so_sao_khong_hop_le", "Danh gia tu 1 den 5 sao.");
+                throw new InvalidValueException("so_sao_khong_hop_le", "Đánh giá từ 1 đến 5 sao.");
             }
 
             string? c = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
             if (c != null && c.Length > DoDaiNhanXetToiDa)
             {
-                throw new InvalidValueException("nhan_xet_qua_dai", "Nhan xet toi da " + DoDaiNhanXetToiDa + " ky tu.");
+                throw new InvalidValueException("nhan_xet_qua_dai", "Nhận xét tối đa " + DoDaiNhanXetToiDa + " ký tự.");
             }
 
             Stars = stars;

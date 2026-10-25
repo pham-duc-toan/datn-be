@@ -36,7 +36,7 @@ namespace Crowd.Ledger.Domain.Journal
             return JournalEntry.Tao(
                 JournalEntryType.EscrowReserve,
                 "escrow:" + projectId,
-                "Ky quy du an",
+                "Ký quỹ dự án",
                 luc,
                 new List<JournalLine>
                 {
@@ -54,7 +54,7 @@ namespace Crowd.Ledger.Domain.Journal
             BatBuocDuong(reward);
             if (fee < 0)
             {
-                throw new InvalidValueException("phi_am", "Phi khong duoc am.");
+                throw new InvalidValueException("phi_am", "Phí không được âm.");
             }
 
             List<JournalLine> dong = new List<JournalLine>
@@ -68,7 +68,7 @@ namespace Crowd.Ledger.Domain.Journal
                 dong.Add(new JournalLine(AccountCodes.PlatformFee, fee));
             }
 
-            return JournalEntry.Tao(JournalEntryType.RewardPayout, "attempt:" + attemptId, "Thuong bai dat cua du an", luc, dong);
+            return JournalEntry.Tao(JournalEntryType.RewardPayout, "attempt:" + attemptId, "Thưởng bài đạt của dự án", luc, dong);
         }
 
         /// <summary>
@@ -80,7 +80,7 @@ namespace Crowd.Ledger.Domain.Journal
             BatBuocDuong(sharerAmount);
             if (platformAmount < 0)
             {
-                throw new InvalidValueException("phi_am", "Phan nen tang khong duoc am.");
+                throw new InvalidValueException("phi_am", "Phần nền tảng không được âm.");
             }
 
             List<JournalLine> dong = new List<JournalLine>
@@ -107,7 +107,7 @@ namespace Crowd.Ledger.Domain.Journal
         {
             if (sharer == null || sharer.Count == 0)
             {
-                throw new InvalidValueException("lo_rong", "Lo chi tra rong.");
+                throw new InvalidValueException("lo_rong", "Lô chi trả rỗng.");
             }
 
             long tong = platformAmount;
@@ -183,7 +183,7 @@ namespace Crowd.Ledger.Domain.Journal
             return JournalEntry.Tao(
                 laHuy ? JournalEntryType.Refund : JournalEntryType.EscrowRelease,
                 (laHuy ? "refund:" : "release:") + projectId,
-                laHuy ? "Hoan ky quy du an bi huy" : "Tra ky quy con du khi hoan thanh",
+                laHuy ? "Hoàn ký quỹ dự án bị huỷ" : "Trả ký quỹ còn dư khi hoàn thành",
                 luc,
                 new List<JournalLine>
                 {
@@ -261,7 +261,7 @@ namespace Crowd.Ledger.Domain.Journal
         {
             if (amount <= 0)
             {
-                throw new InvalidValueException("so_tien_khong_hop_le", "So tien phai lon hon 0.");
+                throw new InvalidValueException("so_tien_khong_hop_le", "Số tiền phải lớn hơn 0.");
             }
         }
     }

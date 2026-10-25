@@ -160,13 +160,13 @@ namespace Crowd.Link.Api.Services
             string ly = lyDo == null ? string.Empty : lyDo.Trim();
             if (ly.Length == 0 || ly.Length > LinkReport.CotLyDo)
             {
-                throw new LinkException(400, "thieu_ly_do", "Ly do bao cao 1-" + LinkReport.CotLyDo + " ky tu.");
+                throw new LinkException(400, "thieu_ly_do", "Lý do báo cáo 1–" + LinkReport.CotLyDo + " ký tự.");
             }
 
             ShortLink? l = await _db.Links.FirstOrDefaultAsync(x => x.Code == code, ct);
             if (l == null)
             {
-                throw new LinkException(404, "khong_tim_thay", "Khong tim thay link.");
+                throw new LinkException(404, "khong_tim_thay", "Không tìm thấy link.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -243,7 +243,7 @@ namespace Crowd.Link.Api.Services
             string ly = body == null || body.Reason == null ? string.Empty : body.Reason.Trim();
             if (ly.Length == 0)
             {
-                throw new LinkException(400, "thieu_ly_do", "Vo hieu hoa link phai ghi ly do.");
+                throw new LinkException(400, "thieu_ly_do", "Vô hiệu hoá link phải ghi lý do.");
             }
 
             bool giu = body == null || body.WithholdRevenue == null || body.WithholdRevenue.Value;
@@ -251,12 +251,12 @@ namespace Crowd.Link.Api.Services
             ShortLink? l = await _db.Links.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (l == null)
             {
-                throw new LinkException(404, "khong_tim_thay", "Khong tim thay link.");
+                throw new LinkException(404, "khong_tim_thay", "Không tìm thấy link.");
             }
 
             if (!l.VoHieuHoa("Admin: " + ly, _clock.GetUtcNow()))
             {
-                throw new LinkException(409, "link_da_ngung", "Link da ngung phuc vu tu truoc.");
+                throw new LinkException(409, "link_da_ngung", "Link đã ngừng phục vụ từ trước.");
             }
 
             _events.PhatVoHieu(l, giu, caller);
@@ -269,7 +269,7 @@ namespace Crowd.Link.Api.Services
             ShortLink? l = await _db.Links.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (l == null)
             {
-                throw new LinkException(404, "khong_tim_thay", "Khong tim thay link.");
+                throw new LinkException(404, "khong_tim_thay", "Không tìm thấy link.");
             }
 
             l.BoQuaBaoCao(_clock.GetUtcNow());
@@ -294,7 +294,7 @@ namespace Crowd.Link.Api.Services
             string ly = body == null || body.Reason == null ? string.Empty : body.Reason.Trim();
             if (ly.Length == 0 || ly.Length > 500)
             {
-                throw new LinkException(400, "thieu_ly_do", "Ly do chan 1-500 ky tu.");
+                throw new LinkException(400, "thieu_ly_do", "Lý do chặn 1–500 ký tự.");
             }
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -323,7 +323,7 @@ namespace Crowd.Link.Api.Services
             }
             catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, "PK_blocked_domains"))
             {
-                throw new LinkException(409, "ten_mien_da_chan", "Ten mien da nam trong danh sach chan.");
+                throw new LinkException(409, "ten_mien_da_chan", "Tên miền đã nằm trong danh sách chặn.");
             }
 
             return new BlockedDomainResponse { Domain = d.Domain, Reason = d.Reason, CreatedAt = d.CreatedAt, DisabledLinkCount = anhHuong.Count };
@@ -336,7 +336,7 @@ namespace Crowd.Link.Api.Services
             BlockedDomain? d = await _db.BlockedDomains.FirstOrDefaultAsync(x => x.Domain == tenMien, ct);
             if (d == null)
             {
-                throw new LinkException(404, "khong_tim_thay", "Ten mien khong nam trong danh sach chan.");
+                throw new LinkException(404, "khong_tim_thay", "Tên miền không nằm trong danh sách chặn.");
             }
 
             _db.BlockedDomains.Remove(d);

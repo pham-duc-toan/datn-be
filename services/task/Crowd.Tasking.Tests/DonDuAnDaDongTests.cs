@@ -17,7 +17,7 @@ namespace Crowd.Tasking.Tests
         private static ProjectSnapshot DuAnDangChay()
         {
             ProjectSnapshot s = ProjectSnapshot.TaoChuaPublish(Guid.NewGuid(), Luc);
-            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 100000, 3, 80, 5, Luc.AddDays(10), true, false, null, null, false, Luc);
+            s.ApDungPublished(Guid.NewGuid(), OutOfOrderEventTests.TapNhanAnh("a", "b"), 100000, 3, 3, 80, 5, Luc.AddDays(10), true, false, null, null, false, Luc);
             return s;
         }
 
