@@ -141,6 +141,23 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
+        public void San_lap_suat_trong_tu_0_den_nguong_dat()
+        {
+            LabelingProject p = DuAnMoi();
+
+            InvalidValueException vuot = Assert.Throws<InvalidValueException>(() =>
+                p.DatCauHinhGia(100000, 5, 80, 81, Luc.AddDays(30), Luc, QuyDinhMau.DuAn));
+            Assert.Equal("san_lap_suat_khong_hop_le", vuot.Code);
+            Assert.Throws<InvalidValueException>(() => p.DatCauHinhGia(100000, 5, 80, -1, Luc.AddDays(30), Luc, QuyDinhMau.DuAn));
+
+            p.DatCauHinhGia(100000, 5, 80, 50, Luc.AddDays(30), Luc, QuyDinhMau.DuAn);
+            Assert.Equal(50, p.FillSlotsMinPercent);
+
+            p.DatCauHinhGia(100000, 5, 80, Luc.AddDays(30), Luc, QuyDinhMau.DuAn);
+            Assert.Null(p.FillSlotsMinPercent);
+        }
+
+        [Fact]
         public void Admin_thu_hep_khoang_sau_khi_cau_hinh_thi_chan_publish()
         {
             LabelingProject p = DuAnSanSang();

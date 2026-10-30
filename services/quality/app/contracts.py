@@ -38,6 +38,8 @@ class ProjectPublished(Payload):
     platform_fee_vnd: int
     slots: int
     pass_threshold_percent: int
+    # Lap suat trong — khong bat buoc (ban tin cu / null = khong lap).
+    fill_slots_min_percent: int | None = None
     question_count: int
     deadline: datetime
     allow_professional: bool

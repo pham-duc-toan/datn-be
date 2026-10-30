@@ -803,6 +803,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("files_purged_at");
 
+                    b.Property<int?>("FillSlotsMinPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("fill_slots_min_percent");
+
                     b.Property<DateTimeOffset?>("FinishRequestedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("finish_requested_at");

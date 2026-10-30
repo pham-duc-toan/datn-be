@@ -2895,4 +2895,5 @@ Công cụ `freeText` (payload `{"text": "..."}`) giờ được **chấm**: lú
 - `GET /admin/settings` thêm `name` (tên hiển thị có dấu); mô tả, nhóm, đơn vị đều có dấu.
 - Khoá công cụ của tập nhãn và tên lô dữ liệu do FE tự sinh (tên dự án không dấu + loại công cụ; tên dự án + ngày giờ nạp) — không còn ô nhập. Trình soạn tập nhãn có popup “Hướng dẫn các loại công cụ” kèm ví dụ và giải thích từng trường.
 - Thông báo lỗi backend trả cho người dùng là tiếng Việt có dấu; FE ưu tiên hiện nguyên văn câu của backend khi câu đó có dấu (giữ chi tiết như “Mật khẩu link phải từ 4 đến 100 ký tự.”).
-- Link xem giấy phép KYB / giấy tờ xác minh danh tính tự lấy lại mỗi 4 phút (hết hạn sau 5 phút) và khi ảnh tải lỗi.
+- Link xem giấy phép KYB / giấy tờ xác minh danh tính tự lấy lại mỗi 4 phút (hết hạn sau 5 phút) và khi ảnh tải lỗi. Không có nút bấm.
+- Danh sách labeler ưu tiên / chặn thêm theo username: `PUT /projects/labeler-lists/by-username/{username} { kind, note }` (404 khi không có tài khoản, 400 khi là chính mình). Đường cũ theo `{labelerId}` vẫn dùng được.

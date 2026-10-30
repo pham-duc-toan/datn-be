@@ -93,7 +93,15 @@ namespace Crowd.Identity.Api.Services
         public async Task<IdentityVerificationResponse> CuaToiAsync(Guid userId, CancellationToken ct)
         {
             XacMinhDanhTinh? x = await _db.XacMinhDanhTinhs.AsNoTracking().FirstOrDefaultAsync(v => v.UserId == userId, ct);
-            return TaoResponse(x == null ? XacMinhDanhTinh.Tao(userId, _clock.GetUtcNow()) : x);
+            if (x == null)
+            {
+                return TaoResponse(XacMinhDanhTinh.Tao(userId, _clock.GetUtcNow()));
+            }
+
+            // Chinh chu xem lai anh minh da tai len (xem truoc truoc khi nop) — khong phai luot xem cua admin (S-07).
+            string? truoc = x.FrontKey == null ? null : await _storage.TaoLinkXemAsync(x.FrontKey);
+            string? sau = x.BackKey == null ? null : await _storage.TaoLinkXemAsync(x.BackKey);
+            return TaoResponse(x, truoc, sau);
         }
 
         public async Task<IdentityVerificationResponse> CapNhatAsync(Guid userId, UpdateIdentityVerificationRequest body, CancellationToken ct)
@@ -331,6 +339,11 @@ namespace Crowd.Identity.Api.Services
 
         private IdentityVerificationResponse TaoResponse(XacMinhDanhTinh x)
         {
+            return TaoResponse(x, null, null);
+        }
+
+        private IdentityVerificationResponse TaoResponse(XacMinhDanhTinh x, string? linkTruoc, string? linkSau)
+        {
             return new IdentityVerificationResponse
             {
                 UserId = x.UserId,
@@ -340,6 +353,8 @@ namespace Crowd.Identity.Api.Services
                 IdNumberLast4 = x.IdNumberLast4.Length == 0 ? null : x.IdNumberLast4,
                 HasFront = x.FrontKey != null,
                 HasBack = x.BackKey != null,
+                FrontUrl = linkTruoc,
+                BackUrl = linkSau,
                 Adult = x.DuTuoi(_settings.SoNguyen(SettingKeys.IdentityAdultAge), HomNayVietNam(_clock.GetUtcNow())),
                 RejectReason = x.RejectReason,
                 SubmittedAt = x.SubmittedAt,

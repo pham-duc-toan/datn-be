@@ -82,7 +82,7 @@ namespace Crowd.Labeling
             // 2. Ngu nghia.
             if (segment.HasValue && !Modalities.CoThoiGian(modality))
             {
-                throw Loi("segmentSeconds chi dung cho audio / video.");
+                throw Loi("Cắt file thành đoạn chỉ dùng cho dữ liệu âm thanh / video.");
             }
 
             List<ToolDefinition> tools = new List<ToolDefinition>();
@@ -91,32 +91,34 @@ namespace Crowd.Labeling
             foreach (JsonNode? n in (JsonArray)o["tools"]!)
             {
                 ToolDefinition t = ToolDefinition.Doc((JsonObject)n!);
+                string viTri = ViTri(tools.Count, t);
 
                 if (!tenDaCo.Add(t.Name))
                 {
-                    throw Loi("Ten cong cu '" + t.Name + "' bi trung.");
+                    throw Loi(viTri + ": tên khoá “" + t.Name + "” bị trùng với công cụ khác.");
                 }
 
                 if (!ToolKinds.HopVoi(t.Kind, modality))
                 {
-                    throw Loi("Cong cu " + t.Kind + " khong dung duoc cho du lieu " + modality + ".");
+                    throw Loi(viTri + ": không dùng được cho dữ liệu " + TenHienThi.CuaLoaiDuLieu(modality) + ".");
                 }
 
-                KiemLop(t);
+                KiemLop(t, viTri);
 
                 if (ToolKinds.LaDanhSach(t.Kind) && t.MinItems > t.MaxItems)
                 {
-                    throw Loi("Cong cu '" + t.Name + "': minItems lon hon maxItems.");
+                    throw Loi(viTri + ": số đối tượng tối thiểu lớn hơn tối đa.");
                 }
 
-                KiemThuocTinh(t);
-                KiemSo(t);
+                KiemThuocTinh(t, viTri);
+                KiemSo(t, viTri);
                 tools.Add(t);
             }
 
             // Quan he tro toi mot cong cu span CUNG tap nhan (khai truoc hay sau deu duoc).
-            foreach (ToolDefinition t in tools)
+            for (int i = 0; i < tools.Count; i++)
             {
+                ToolDefinition t = tools[i];
                 if (t.Kind != ToolKinds.Relation)
                 {
                     continue;
@@ -133,7 +135,7 @@ namespace Crowd.Labeling
 
                 if (dich == null || dich.Kind != ToolKinds.Span)
                 {
-                    throw Loi("Cong cu '" + t.Name + "': spanTool '" + t.SpanTool + "' phai la mot cong cu span trong tap nhan.");
+                    throw Loi(ViTri(i, t) + ": cần chọn một công cụ " + TenHienThi.CuaCongCu(ToolKinds.Span) + " trong tập nhãn làm đoạn gốc.");
                 }
             }
 
@@ -192,32 +194,32 @@ namespace Crowd.Labeling
             return ToRawJson().Json;
         }
 
-        private static void KiemLop(ToolDefinition t)
+        private static void KiemLop(ToolDefinition t, string viTri)
         {
             HashSet<string> daGap = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (string lop in t.Classes)
             {
                 if (lop.Length == 0)
                 {
-                    throw Loi("Cong cu '" + t.Name + "' co ten lop rong.");
+                    throw Loi(viTri + ": có lớp để trống tên.");
                 }
 
                 // "Meo" va "meo" la mot lop — chong nham lan khi gan.
                 if (!daGap.Add(lop))
                 {
-                    throw Loi("Cong cu '" + t.Name + "': lop '" + lop + "' bi trung.");
+                    throw Loi(viTri + ": lớp “" + lop + "” bị trùng (không phân biệt hoa thường).");
                 }
             }
         }
 
-        private static void KiemThuocTinh(ToolDefinition t)
+        private static void KiemThuocTinh(ToolDefinition t, string viTri)
         {
             HashSet<string> tenDaCo = new HashSet<string>(StringComparer.Ordinal);
             foreach (AttributeDefinition a in t.Attributes)
             {
                 if (!tenDaCo.Add(a.Name))
                 {
-                    throw Loi("Cong cu '" + t.Name + "': thuoc tinh '" + a.Name + "' bi trung.");
+                    throw Loi(viTri + ": thuộc tính “" + a.Name + "” bị trùng.");
                 }
 
                 HashSet<string> luaChon = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -225,13 +227,13 @@ namespace Crowd.Labeling
                 {
                     if (l.Length == 0 || !luaChon.Add(l))
                     {
-                        throw Loi("Cong cu '" + t.Name + "', thuoc tinh '" + a.Name + "': lua chon rong hoac trung.");
+                        throw Loi(viTri + ", thuộc tính “" + a.Name + "”: có lựa chọn để trống hoặc bị trùng.");
                     }
                 }
             }
         }
 
-        private static void KiemSo(ToolDefinition t)
+        private static void KiemSo(ToolDefinition t, string viTri)
         {
             if (t.Kind != ToolKinds.Number)
             {
@@ -240,13 +242,19 @@ namespace Crowd.Labeling
 
             if (t.Min.HasValue && t.Max.HasValue && t.Min.Value > t.Max.Value)
             {
-                throw Loi("Cong cu '" + t.Name + "': min lon hon max.");
+                throw Loi(viTri + ": giá trị nhỏ nhất lớn hơn giá trị lớn nhất.");
             }
 
             if (t.IntegerOnly && ((t.Min.HasValue && t.Min.Value != Math.Floor(t.Min.Value)) || (t.Max.HasValue && t.Max.Value != Math.Floor(t.Max.Value))))
             {
-                throw Loi("Cong cu '" + t.Name + "': so nguyen thi min / max cung phai nguyen.");
+                throw Loi(viTri + ": đã chọn số nguyên thì giá trị nhỏ nhất / lớn nhất cũng phải là số nguyên.");
             }
+        }
+
+        /// <summary>"Công cụ thứ 2 (Phân loại)" — doanh nghiep khong dat ten cong cu (khoa tu sinh), nen chi theo vi tri.</summary>
+        private static string ViTri(int chiSo, ToolDefinition t)
+        {
+            return "Công cụ thứ " + (chiSo + 1) + " (" + TenHienThi.CuaCongCu(t.Kind) + ")";
         }
 
         private static LabelFormatException Loi(string thongBao)
@@ -258,7 +266,7 @@ namespace Crowd.Labeling
         {
             if (string.IsNullOrWhiteSpace(json))
             {
-                throw new LabelFormatException("tap_nhan_sai_dinh_dang", "Tap nhan rong.");
+                throw new LabelFormatException("tap_nhan_sai_dinh_dang", "Tập nhãn trống.");
             }
 
             try
@@ -267,7 +275,7 @@ namespace Crowd.Labeling
             }
             catch (JsonException ex)
             {
-                throw new LabelFormatException("Tap nhan khong phai JSON hop le.", ex);
+                throw new LabelFormatException("Tập nhãn không phải JSON hợp lệ.", ex);
             }
         }
     }

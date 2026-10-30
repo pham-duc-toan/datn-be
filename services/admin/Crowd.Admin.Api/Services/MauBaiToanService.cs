@@ -120,37 +120,44 @@ namespace Crowd.Admin.Api.Services
             return TaoResponse(m);
         }
 
-        /// <summary>Mau co san cho moi truong dev (seed): them mau con thieu theo code, khong ghi de mau admin da sua.</summary>
+        /// <summary>
+        /// Mau co san cho moi truong dev (seed): them mau con thieu theo code, khong ghi de mau admin da sua.
+        /// Mau seed ban cu (ten khong dau, chua ai sua: Version 1, nguoi sua la admin seed) duoc nang len ban co dau.
+        /// </summary>
         public async Task<int> SeedAsync(Guid adminId, CancellationToken ct)
         {
+            // { ma, ten cu (ban khong dau), ten, mo ta, tap nhan, huong dan }
             string[][] ds = new string[][]
             {
-                new string[] { "phan-loai-anh", "Phan loai anh", "Moi anh chon mot lop.",
-                    "{\"modality\":\"image\",\"tools\":[{\"name\":\"lop\",\"kind\":\"classification\",\"classes\":[\"lop_a\",\"lop_b\"]}]}",
-                    "# Huong dan\n\nChon dung MOT lop cho moi anh." },
-                new string[] { "ner-tieng-viet", "Gan the thuc the tieng Viet", "Danh dau ten nguoi, dia diem, to chuc trong van ban.",
-                    "{\"modality\":\"text\",\"tools\":[{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"TEN_NGUOI\",\"DIA_DIEM\",\"TO_CHUC\"]}]}",
-                    "# Huong dan\n\nBoi den tron cum tu cua thuc the, khong lay dau cau." },
-                new string[] { "chep-loi-am-thanh", "Chep loi am thanh", "Nghe va chep lai loi noi, danh dau doan co tieng noi.",
-                    "{\"modality\":\"audio\",\"tools\":[{\"name\":\"loi_noi\",\"kind\":\"transcription\"},{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"giong_noi\",\"im_lang\"]}]}",
-                    "# Huong dan\n\nChep dung tung tu, khong sua ngu phap." },
-                new string[] { "phat-hien-vat-the-xoay", "Phat hien vat the (khung xoay)", "Ve khung xoay theo huong vat the — xuat YOLO-OBB.",
-                    "{\"modality\":\"image\",\"tools\":[{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"vat_the\"],\"rotatable\":true}]}",
-                    "# Huong dan\n\nKhung om sat vat the, xoay theo canh dai." },
+                new string[] { "phan-loai-anh", "Phan loai anh", "Phân loại ảnh", "Mỗi ảnh chọn một lớp.",
+                    "{\"modality\":\"image\",\"tools\":[{\"name\":\"lop\",\"kind\":\"classification\",\"classes\":[\"Lớp A\",\"Lớp B\"]}]}",
+                    "# Hướng dẫn\n\nChọn đúng MỘT lớp cho mỗi ảnh." },
+                new string[] { "ner-tieng-viet", "Gan the thuc the tieng Viet", "Gán thẻ thực thể tiếng Việt", "Đánh dấu tên người, địa điểm, tổ chức trong văn bản.",
+                    "{\"modality\":\"text\",\"tools\":[{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"Tên người\",\"Địa điểm\",\"Tổ chức\"]}]}",
+                    "# Hướng dẫn\n\nBôi đen trọn cụm từ của thực thể, không lấy dấu câu." },
+                new string[] { "chep-loi-am-thanh", "Chep loi am thanh", "Chép lời âm thanh", "Nghe và chép lại lời nói, đánh dấu đoạn có tiếng nói.",
+                    "{\"modality\":\"audio\",\"tools\":[{\"name\":\"loi_noi\",\"kind\":\"transcription\"},{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"Giọng nói\",\"Im lặng\"]}]}",
+                    "# Hướng dẫn\n\nChép đúng từng từ, không sửa ngữ pháp." },
+                new string[] { "phat-hien-vat-the-xoay", "Phat hien vat the (khung xoay)", "Phát hiện vật thể (khung xoay)", "Vẽ khung xoay theo hướng vật thể — xuất YOLO-OBB.",
+                    "{\"modality\":\"image\",\"tools\":[{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"Vật thể\"],\"rotatable\":true}]}",
+                    "# Hướng dẫn\n\nKhung ôm sát vật thể, xoay theo cạnh dài." },
             };
 
             int moi = 0;
             foreach (string[] m in ds)
             {
                 string ma = m[0];
-                if (await _db.MauBaiToans.AnyAsync(x => x.Code == ma, ct))
+                LabelSchema tapNhan = LabelSchema.Doc(m[4]);
+                MauBaiToan? co = await _db.MauBaiToans.FirstOrDefaultAsync(x => x.Code == ma, ct);
+                if (co == null)
                 {
-                    continue;
+                    _db.MauBaiToans.Add(MauBaiToan.Tao(ma, m[2], m[3], tapNhan.Modality, tapNhan.ToRawJson().Json, m[5], null, null, adminId, _clock.GetUtcNow()));
+                    moi++;
                 }
-
-                LabelSchema tapNhan = LabelSchema.Doc(m[3]);
-                _db.MauBaiToans.Add(MauBaiToan.Tao(ma, m[1], m[2], tapNhan.Modality, tapNhan.ToRawJson().Json, m[4], null, null, adminId, _clock.GetUtcNow()));
-                moi++;
+                else if (co.Version == 1 && co.UpdatedBy == adminId && co.Name == m[1])
+                {
+                    co.Sua(m[2], m[3], tapNhan.Modality, tapNhan.ToRawJson().Json, m[5], co.SuggestedUnitPriceVnd, co.SuggestedRedundancy, adminId, _clock.GetUtcNow());
+                }
             }
 
             await _db.SaveChangesAsync(ct);

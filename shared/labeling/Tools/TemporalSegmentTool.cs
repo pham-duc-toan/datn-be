@@ -29,12 +29,12 @@ namespace Crowd.Labeling.Tools
 
             if (start >= end)
             {
-                throw Sai(tool, "doan [" + start + ", " + end + "] rong hoac nguoc.");
+                throw Sai(tool, "đoạn [" + start + ", " + end + "] trống hoặc ngược.");
             }
 
             if (mau.DurationSec.HasValue && end > mau.DurationSec.Value + HinhHoc.SaiSo)
             {
-                throw Sai(tool, "doan ket thuc o " + end + "s, vuot qua do dai mau " + mau.DurationSec.Value + "s.");
+                throw Sai(tool, "đoạn kết thúc ở " + end + "s, vượt quá độ dài mẫu " + mau.DurationSec.Value + "s.");
             }
         }
 

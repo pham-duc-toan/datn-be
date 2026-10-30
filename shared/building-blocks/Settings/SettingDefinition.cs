@@ -74,6 +74,28 @@ namespace Crowd.BuildingBlocks.Settings
             SettingEffect effect,
             string description,
             IReadOnlyList<string>? choices)
+            : this(key, group, type, defaultValue, min, max, unit, effect, description, choices, false)
+        {
+        }
+
+        /// <param name="choices">
+        /// Chi voi kieu Chuoi. chonNhieu = false: tap gia tri hop le cua ca chuoi ("chon mot").
+        /// chonNhieu = true: tap gia tri hop le cua TUNG phan tu trong chuoi "a,b,c" ("chon nhieu");
+        /// null = danh sach do service cung cap luc hien thi, khong kiem tung phan tu.
+        /// </param>
+        /// <param name="chonNhieu">Gia tri la danh sach ngan cach dau phay — man hinh admin hien o tick thay vi o chu.</param>
+        public SettingDefinition(
+            string key,
+            string group,
+            SettingType type,
+            JsonNode defaultValue,
+            double? min,
+            double? max,
+            string unit,
+            SettingEffect effect,
+            string description,
+            IReadOnlyList<string>? choices,
+            bool chonNhieu)
         {
             if (string.IsNullOrWhiteSpace(key))
             {
@@ -96,12 +118,13 @@ namespace Crowd.BuildingBlocks.Settings
             Effect = effect;
             Description = description;
 
-            if (choices != null && type != SettingType.Chuoi)
+            if ((choices != null || chonNhieu) && type != SettingType.Chuoi)
             {
                 throw new ArgumentException("Chi setting kieu chuoi moi co danh sach lua chon: " + key, nameof(choices));
             }
 
             Choices = choices;
+            ChonNhieu = chonNhieu;
 
             string? loi = KiemGiaTri(DefaultValue);
             if (loi != null)
@@ -140,6 +163,26 @@ namespace Crowd.BuildingBlocks.Settings
         /// <summary>Gia tri hop le cua setting "chon mot" (vd quality.redundancy_policy). null = khong gioi han.</summary>
         public IReadOnlyList<string>? Choices { get; }
 
+        /// <summary>Setting "chon nhieu": gia tri la chuoi "a,b,c", moi phan tu thuoc Choices (neu co).</summary>
+        public bool ChonNhieu { get; }
+
+        /// <summary>Tach gia tri "a, b,c" cua setting chon nhieu thanh danh sach (bo khoang trang, bo phan tu rong).</summary>
+        public static List<string> TachDanhSach(string giaTri)
+        {
+            List<string> ds = new List<string>();
+            if (giaTri == null)
+            {
+                return ds;
+            }
+
+            foreach (string phan in giaTri.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                ds.Add(phan);
+            }
+
+            return ds;
+        }
+
         /// <summary>Ten kieu tren API / catalog.json: bool, int, long, double, durationSeconds, text.</summary>
         public string TypeName
         {
@@ -175,13 +218,13 @@ namespace Crowd.BuildingBlocks.Settings
             JsonValue? v = giaTri as JsonValue;
             if (v == null)
             {
-                return "phai la mot gia tri don (so, true/false hoac chuoi).";
+                return "phải là một giá trị đơn (số, bật / tắt hoặc chữ).";
             }
 
             if (Type == SettingType.DungSai)
             {
                 bool b;
-                return v.TryGetValue(out b) ? null : "phai la true hoac false.";
+                return v.TryGetValue(out b) ? null : "phải là bật hoặc tắt.";
             }
 
             if (Type == SettingType.Chuoi)
@@ -189,17 +232,36 @@ namespace Crowd.BuildingBlocks.Settings
                 string? s;
                 if (!v.TryGetValue(out s) || s == null)
                 {
-                    return "phai la chuoi.";
+                    return "phải là chữ.";
                 }
 
                 if (Max.HasValue && s.Length > Max.Value)
                 {
-                    return "toi da " + Max.Value.ToString(CultureInfo.InvariantCulture) + " ky tu.";
+                    return "tối đa " + Max.Value.ToString(CultureInfo.InvariantCulture) + " ký tự.";
+                }
+
+                if (ChonNhieu)
+                {
+                    HashSet<string> daCo = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (string phan in TachDanhSach(s))
+                    {
+                        if (Choices != null && !Choices.Contains(phan))
+                        {
+                            return "“" + phan + "” không nằm trong danh sách cho phép (" + string.Join(", ", Choices) + ").";
+                        }
+
+                        if (!daCo.Add(phan))
+                        {
+                            return "“" + phan + "” bị chọn trùng.";
+                        }
+                    }
+
+                    return null;
                 }
 
                 if (Choices != null && !Choices.Contains(s))
                 {
-                    return "phai la mot trong: " + string.Join(", ", Choices) + ".";
+                    return "phải là một trong: " + string.Join(", ", Choices) + ".";
                 }
 
                 return null;
@@ -209,29 +271,29 @@ namespace Crowd.BuildingBlocks.Settings
             // doc qua chuoi JSON cho moi kieu so.
             if (v.GetValueKind() != JsonValueKind.Number)
             {
-                return "phai la so.";
+                return "phải là số.";
             }
 
             double so = double.Parse(v.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture);
 
             if ((Type == SettingType.SoNguyen || Type == SettingType.SoLon) && Math.Floor(so) != so)
             {
-                return "phai la so nguyen.";
+                return "phải là số nguyên.";
             }
 
             if (Type == SettingType.SoNguyen && (so < int.MinValue || so > int.MaxValue))
             {
-                return "vuot gioi han so nguyen.";
+                return "vượt giới hạn số nguyên.";
             }
 
             if (Min.HasValue && so < Min.Value)
             {
-                return "nho nhat la " + Min.Value.ToString(CultureInfo.InvariantCulture) + " " + Unit + ".";
+                return "nhỏ nhất là " + Min.Value.ToString(CultureInfo.InvariantCulture) + " " + Unit + ".";
             }
 
             if (Max.HasValue && so > Max.Value)
             {
-                return "lon nhat la " + Max.Value.ToString(CultureInfo.InvariantCulture) + " " + Unit + ".";
+                return "lớn nhất là " + Max.Value.ToString(CultureInfo.InvariantCulture) + " " + Unit + ".";
             }
 
             return null;

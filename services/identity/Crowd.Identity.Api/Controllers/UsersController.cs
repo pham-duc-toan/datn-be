@@ -67,6 +67,13 @@ namespace Crowd.Identity.Api.Controllers
             return Ok(await _hoSo.CongKhaiAsync(ds, ct));
         }
 
+        /// <summary>GET /users/suggest?q=an&amp;limit=8 — goi y username labeler khi go (bat dau bang q).</summary>
+        [HttpGet("suggest")]
+        public async Task<IActionResult> GoiY([FromQuery] string? q, [FromQuery] int limit, CancellationToken ct)
+        {
+            return Ok(await _hoSo.GoiYUsernameAsync(q, limit, ct));
+        }
+
         /// <summary>GET /users/leaderboard?period=all|month|week&amp;limit=20</summary>
         [HttpGet("leaderboard")]
         public async Task<IActionResult> XepHang([FromQuery] string? period, [FromQuery] int limit, CancellationToken ct)

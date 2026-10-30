@@ -26,22 +26,22 @@ namespace Crowd.Labeling.Tools
 
             if (double.IsNaN(v) || double.IsInfinity(v))
             {
-                throw Sai(tool, "gia tri khong phai so hop le.");
+                throw Sai(tool, "giá trị không phải số hợp lệ.");
             }
 
             if (tool.IntegerOnly && v != Math.Floor(v))
             {
-                throw Sai(tool, "phai la so nguyen.");
+                throw Sai(tool, "phải là số nguyên.");
             }
 
             if (tool.Min.HasValue && v < tool.Min.Value)
             {
-                throw Sai(tool, "gia tri " + v + " nho hon muc toi thieu " + tool.Min.Value + ".");
+                throw Sai(tool, "giá trị " + v + " nhỏ hơn mức tối thiểu " + tool.Min.Value + ".");
             }
 
             if (tool.Max.HasValue && v > tool.Max.Value)
             {
-                throw Sai(tool, "gia tri " + v + " lon hon muc toi da " + tool.Max.Value + ".");
+                throw Sai(tool, "giá trị " + v + " lớn hơn mức tối đa " + tool.Max.Value + ".");
             }
 
             return TaoKetQua(v, tool);
@@ -107,7 +107,7 @@ namespace Crowd.Labeling.Tools
 
         private static LabelFormatException Sai(ToolDefinition tool, string loi)
         {
-            return new LabelFormatException("nhan_khong_hop_le", "Cong cu '" + tool.Name + "': " + loi);
+            return new LabelFormatException("nhan_khong_hop_le", TenHienThi.TienToNhan(tool) + loi);
         }
     }
 }

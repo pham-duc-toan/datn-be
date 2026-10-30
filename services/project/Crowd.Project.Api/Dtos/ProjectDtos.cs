@@ -60,6 +60,9 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>t — % cau giong da so toi thieu de dat, trong [x, y] admin dat.</summary>
         public int PassThresholdPercent { get; init; }
 
+        /// <summary>Lap suat trong bang bai giong da so nhieu nhat (tu muc % nay). null = khong lap.</summary>
+        public int? FillSlotsMinPercent { get; init; }
+
         public DateTimeOffset? Deadline { get; init; }
     }
 
@@ -137,6 +140,9 @@ namespace Crowd.Project.Api.Dtos
 
         /// <summary>t — % cau giong da so toi thieu de dat (kem: khong sai cau vang nao).</summary>
         public required int PassThresholdPercent { get; init; }
+
+        /// <summary>Lap suat trong: muc giong da so toi thieu; null = khong lap.</summary>
+        public int? FillSlotsMinPercent { get; init; }
 
         /// <summary>So cau that cua de (chot luc publish; nhap thi la so mau hien co tru cau vang).</summary>
         public required int QuestionCount { get; init; }
@@ -328,6 +334,12 @@ namespace Crowd.Project.Api.Dtos
         public required int MaxQuestions { get; init; }
 
         public required long MinRewardVnd { get; init; }
+
+        /// <summary>
+        /// Nguong khop mac dinh theo loai cong cu (setting labeling.threshold.*) — frontend dien san vao o
+        /// "Ngưỡng khớp" de doanh nghiep thay gia tri that thay vi o trong.
+        /// </summary>
+        public required IReadOnlyDictionary<string, double> MatchThresholds { get; init; }
     }
 
 }

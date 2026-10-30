@@ -64,6 +64,12 @@ namespace Crowd.Identity.Api.Dtos
 
         public required bool HasBack { get; init; }
 
+        /// <summary>Link xem anh mat truoc (song ngan) — chi tra cho CHINH CHU o GET /me/identity-verification.</summary>
+        public string? FrontUrl { get; init; }
+
+        /// <summary>Link xem anh mat sau, nhu FrontUrl.</summary>
+        public string? BackUrl { get; init; }
+
         /// <summary>Da xac minh va du tuoi (identity.adult_age) tinh toi hom nay.</summary>
         public required bool Adult { get; init; }
 

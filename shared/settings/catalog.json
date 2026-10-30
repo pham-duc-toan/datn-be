@@ -93,7 +93,13 @@
     "max": 100,
     "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Cổng nạp tiền đang mở (sandbox, vnpay, momo — ngăn cách dấu phẩy). Cổng phải CÓ cấu hình khoá mới dùng được; tắt một cổng khi cổng đó sự cố."
+    "description": "Cổng nạp tiền đang mở. Cổng phải CÓ cấu hình khoá mới dùng được; tắt một cổng khi cổng đó sự cố.",
+    "multiChoices": [
+      "sandbox",
+      "vnpay",
+      "momo"
+    ],
+    "multiple": true
   },
   {
     "key": "payment.deposit_lookup_after",
@@ -1693,7 +1699,8 @@
     "max": 1000,
     "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Loại event KHÔNG lưu chi tiết vào nhật ký audit (tần suất cao, do hệ thống / luồng gán nhãn sinh ra — vẫn được ĐẾM cho báo cáo tổng quan), ngăn cách bằng dấu phẩy."
+    "description": "Loại event KHÔNG lưu chi tiết vào nhật ký audit (tần suất cao, do hệ thống / luồng gán nhãn sinh ra — vẫn được ĐẾM cho báo cáo tổng quan).",
+    "multiple": true
   },
   {
     "key": "admin.audit_retention_days",
@@ -2065,7 +2072,25 @@
     "max": 200,
     "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Loại công cụ khách vãng lai làm được ở trang vượt link (vài giây, không uy tín). Dự án bật cổng link mà có công cụ ngoài danh sách thì KHÔNG publish được."
+    "description": "Loại công cụ khách vãng lai làm được ở trang vượt link (vài giây, không uy tín). Dự án bật cổng link mà có công cụ ngoài danh sách thì KHÔNG publish được.",
+    "multiChoices": [
+      "classification",
+      "freeText",
+      "number",
+      "bbox",
+      "polygon",
+      "keypoint",
+      "polyline",
+      "mask",
+      "span",
+      "relation",
+      "transcription",
+      "temporalSegment",
+      "track",
+      "pairwise",
+      "ranking"
+    ],
+    "multiple": true
   },
   {
     "key": "gate.countdown",

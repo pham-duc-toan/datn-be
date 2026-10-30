@@ -903,7 +903,7 @@ namespace Crowd.Tasking.Api.Services
         private static AttemptSummary TaoTomTat(Attempt a, ProjectSnapshot p, int daLam, DateTimeOffset bayGio)
         {
             bool daCham = a.GradedAt.HasValue;
-            bool coTheKhieuNai = daCham && a.Passed == false && a.AppealState == AppealState.None
+            bool coTheKhieuNai = daCham && a.Passed == false && !a.DuocThuong && a.AppealState == AppealState.None
                                  && p.AppealDeadline.HasValue && bayGio <= p.AppealDeadline.Value && !p.SettledAt.HasValue;
 
             return new AttemptSummary

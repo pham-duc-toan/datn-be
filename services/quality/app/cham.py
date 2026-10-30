@@ -11,6 +11,8 @@ Sau khi task-svc dong thu bai (project.collection_finished), moi bai da nop duoc
      Cau tra loi mo (freeText) so THEO NGHIA khi co ThamSoCham.mo (3.19 — app/cau_mo.py).
      Ti le = floor(100 x giong / so duoc); khong co cau nao so duoc → 100.
   3. Dat = ti le >= nguong t cua du an VA dung het cau vang.
+  4. n suat thuong (chon_duoc_thuong): n bai DAT nop som nhat. Du an bat "lap suat trong" thi suat con lai
+     trao cho bai chua dat nhung dung het cau vang va giong da so >= san, % cao truoc, cung % thi nop som truoc.
 
 It hon SO_BAI_TOI_THIEU bai nop thi khong co "da so" dang tin: chi xet cau vang (majority_used = False).
 """
@@ -47,14 +49,28 @@ class KetQuaBai:
     da_tra_loi: int
 
 
-def chon_duoc_thuong(bai: list[KetQuaBai], so_suat: int) -> set[str]:
-    """n suat thuong cho n bai DAT nop som nhat. `bai` da xep theo luc nop (som truoc) — thu tu cua cham_du_an."""
+def chon_duoc_thuong(bai: list[KetQuaBai], so_suat: int, san_lap_suat: int | None = None) -> set[str]:
+    """n suat thuong cho n bai DAT nop som nhat. `bai` da xep theo luc nop (som truoc) — thu tu cua cham_du_an.
+
+    san_lap_suat (lap suat trong): it bai dat hon so suat thi lap phan con lai bang bai CHUA dat ma van dung het
+    cau vang va giong da so >= san — % cao truoc, cung % thi bai nop som hon. None = khong lap."""
     ra: set[str] = set()
     for b in bai:
         if len(ra) >= so_suat:
             break
         if b.dat:
             ra.add(b.attempt_id)
+    if san_lap_suat is None or len(ra) >= so_suat:
+        return ra
+
+    # sorted on dinh: cung % giu thu tu nop cua `bai`.
+    ung_vien = sorted(
+        (b for b in bai if not b.dat and dung_het_vang(b.gold_correct, b.gold_total) and b.phan_tram >= san_lap_suat),
+        key=lambda b: -b.phan_tram)
+    for b in ung_vien:
+        if len(ra) >= so_suat:
+            break
+        ra.add(b.attempt_id)
     return ra
 
 

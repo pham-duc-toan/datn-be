@@ -47,6 +47,9 @@ namespace Crowd.Identity.Api.Dtos
 
         public string? LicenseFileName { get; init; }
 
+        /// <summary>Link xem giay phep (song ngan) — chi tra cho CHINH CHU o GET /kyb/me (admin dung KybAdminResponse.LicenseUrl).</summary>
+        public string? LicenseUrl { get; init; }
+
         public string? RejectReason { get; init; }
 
         public DateTimeOffset? SubmittedAt { get; init; }

@@ -7,6 +7,7 @@ using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.Contracts.Project;
 using Crowd.Project.Api.Dtos;
 using Crowd.Project.Api.Exceptions;
+using Crowd.Project.Api.Helpers;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Members;
 using Crowd.Project.Domain.Projects;
@@ -30,6 +31,7 @@ namespace Crowd.Project.Api.Services
         private readonly ProjectAccessService _access;
         private readonly ProjectEventPublisher _events;
         private readonly MemberService _members;
+        private readonly IdentityClient _identity;
         private readonly TimeProvider _clock;
 
         public QuanHeLabelerService(
@@ -37,6 +39,7 @@ namespace Crowd.Project.Api.Services
             ProjectAccessService access,
             ProjectEventPublisher events,
             MemberService members,
+            IdentityClient identity,
             TimeProvider clock)
         {
             if (db == null)
@@ -59,6 +62,11 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(members));
             }
 
+            if (identity == null)
+            {
+                throw new ArgumentNullException(nameof(identity));
+            }
+
             if (clock == null)
             {
                 throw new ArgumentNullException(nameof(clock));
@@ -68,6 +76,7 @@ namespace Crowd.Project.Api.Services
             _access = access;
             _events = events;
             _members = members;
+            _identity = identity;
             _clock = clock;
         }
 
@@ -124,6 +133,33 @@ namespace Crowd.Project.Api.Services
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(e, anhHuong);
+        }
+
+        /// <summary>
+        /// PUT /projects/labeler-lists/by-username/{username} { kind, note } — doanh nghiep chi biet username
+        /// cua labeler (userId la ma noi bo), tra identity ra userId roi them nhu DatAsync.
+        /// </summary>
+        public async Task<OwnerListEntryResponse> DatTheoUsernameAsync(string username, OwnerListRequest body, Caller caller, CancellationToken ct)
+        {
+            string ten = (username ?? string.Empty).Trim().TrimStart('@').ToLowerInvariant();
+            if (ten.Length == 0)
+            {
+                throw new InvalidValueException("thieu_thong_tin", "Cần username của labeler.");
+            }
+
+            IReadOnlyList<NguoiDungTraCuu> tim = await _identity.TraCuuAsync(new List<Guid>(), new List<string>(), new List<string> { ten }, ct);
+            NguoiDungTraCuu? n = tim.FirstOrDefault(x => string.Equals(x.Username, ten, StringComparison.Ordinal));
+            if (n == null)
+            {
+                throw new NotFoundException("Không có tài khoản @" + ten + ".");
+            }
+
+            if (n.UserId == caller.LayUserId())
+            {
+                throw new InvalidValueException("khong_hop_le", "Không thêm chính mình vào danh sách được.");
+            }
+
+            return await DatAsync(n.UserId, body, caller, ct);
         }
 
         /// <summary>DELETE /projects/labeler-lists/{labelerId} — bo khoi danh sach (dang chan thi mo lai).</summary>

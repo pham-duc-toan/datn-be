@@ -13,7 +13,7 @@ namespace Crowd.Labeling.Tools
             IToolKind? k;
             if (!TatCa.TryGetValue(kind, out k))
             {
-                throw new LabelFormatException("cong_cu_chua_ho_tro", "Chua ho tro cong cu '" + kind + "'.");
+                throw new LabelFormatException("cong_cu_chua_ho_tro", "Chưa hỗ trợ công cụ “" + kind + "”.");
             }
 
             return k;

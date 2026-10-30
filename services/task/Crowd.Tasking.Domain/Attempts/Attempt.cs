@@ -98,7 +98,8 @@ namespace Crowd.Tasking.Domain.Attempts
 
         /// <summary>
         /// Duoc tra thuong (10/2026): so suat n = so nguoi DUOC THUONG — n bai DAT nop som nhat (quality-svc chon).
-        /// Bai dat nop muon hon van "dat" (nhan vao ket qua) nhung het suat thuong. null = chua cham.
+        /// Bai dat nop muon hon van "dat" (nhan vao ket qua) nhung het suat thuong. Du an bat lap suat trong thi
+        /// bai CHUA dat cung co the duoc thuong (suat con trong, quality-svc chon). null = chua cham.
         /// </summary>
         public bool? Rewarded { get; private set; }
 
@@ -247,13 +248,9 @@ namespace Crowd.Tasking.Domain.Attempts
         }
 
         /// <summary>project.graded: ghi ket qua. Giao lai cung ket qua → khong doi.</summary>
+        /// <param name="duocThuong">Bai chua dat van co the duoc thuong khi du an bat lap suat trong.</param>
         public void GhiKetQua(int soSoDuoc, int soGiong, int phanTram, bool dat, bool duocThuong, DateTimeOffset luc)
         {
-            if (duocThuong && !dat)
-            {
-                throw new InvalidValueException("thuong_bai_truot", "Bài trượt không thể được thưởng.");
-            }
-
             if (State != AttemptState.Submitted)
             {
                 throw new RuleViolationException("bai_chua_nop", "Chỉ chấm bài đã nộp.");
@@ -283,6 +280,11 @@ namespace Crowd.Tasking.Domain.Attempts
             if (Passed == true)
             {
                 throw new RuleViolationException("bai_da_dat", "Bài đã đạt, không cần khiếu nại.");
+            }
+
+            if (Rewarded == true)
+            {
+                throw new RuleViolationException("bai_da_duoc_thuong", "Bài đã được thưởng (lấp suất còn trống), không cần khiếu nại.");
             }
 
             if (AppealState != AppealState.None)

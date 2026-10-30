@@ -7,6 +7,7 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.Contracts.Admin;
 using Crowd.Contracts.Tasking;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
@@ -115,6 +116,7 @@ namespace Crowd.Identity.Api
             builder.Services.AddEventConsumer<IdentityDbContext, AttemptAppealResolved, AttemptAppealResolvedProcessor>(cfg, "identity-svc.attempt-appeal-resolved");
             builder.Services.AddEventConsumer<IdentityDbContext, ReputationChanged, ReputationChangedProcessor>(cfg, "identity-svc.reputation-changed");
             builder.Services.AddEventConsumer<IdentityDbContext, FraudCaseConfirmed, FraudCaseConfirmedProcessor>(cfg, "identity-svc.fraud-case-confirmed");
+            builder.Services.AddEventConsumer<IdentityDbContext, TagMerged, TagMergedProcessor>(cfg, "identity-svc.tag-merged");
             builder.Services.AddScoped<IdentitySeeder>();
 
             // Controller nam o thu muc Controllers/, tu duoc tim thay qua

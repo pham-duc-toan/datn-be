@@ -26,13 +26,13 @@ namespace Crowd.Labeling.Tools
             {
                 if (!tool.CoLop(l))
                 {
-                    throw Sai(tool, "lop '" + l + "' khong co trong tap nhan.");
+                    throw Sai(tool, "lớp “" + l + "” không có trong tập nhãn.");
                 }
             }
 
             if (!tool.AllowMultiple && lop.Count != 1)
             {
-                throw Sai(tool, "phai chon DUNG MOT lop.");
+                throw Sai(tool, "phải chọn đúng một lớp.");
             }
 
             lop.Sort(StringComparer.Ordinal);
@@ -110,7 +110,7 @@ namespace Crowd.Labeling.Tools
 
         private static LabelFormatException Sai(ToolDefinition tool, string loi)
         {
-            return new LabelFormatException("nhan_khong_hop_le", "Cong cu '" + tool.Name + "': " + loi);
+            return new LabelFormatException("nhan_khong_hop_le", TenHienThi.TienToNhan(tool) + loi);
         }
     }
 }

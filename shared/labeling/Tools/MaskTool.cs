@@ -36,20 +36,20 @@ namespace Crowd.Labeling.Tools
 
             if (mau.Height.HasValue && mau.Width.HasValue && (m.Cao != mau.Height.Value || m.Rong != mau.Width.Value))
             {
-                throw Sai(tool, "mat na " + m.Rong + "x" + m.Cao + " khac kich thuoc anh " + mau.Width.Value + "x" + mau.Height.Value + ".");
+                throw Sai(tool, "mặt nạ " + m.Rong + "x" + m.Cao + " khác kích thước ảnh " + mau.Width.Value + "x" + mau.Height.Value + ".");
             }
 
             for (int i = 1; i < m.Doan.Length; i++)
             {
                 if (m.Doan[i] == 0)
                 {
-                    throw Sai(tool, "counts khong o dang chuan: chi doan dau tien duoc dai 0.");
+                    throw Sai(tool, "dữ liệu mặt nạ không ở dạng chuẩn (chỉ đoạn đầu tiên được dài 0).");
                 }
             }
 
             if (Rle.TongPixel(m.Doan) != (long)m.Cao * m.Rong)
             {
-                throw Sai(tool, "tong counts phai bang so pixel cua anh (" + ((long)m.Cao * m.Rong) + ").");
+                throw Sai(tool, "tổng độ dài các đoạn phải bằng số điểm ảnh (" + ((long)m.Cao * m.Rong) + ").");
             }
 
             // Ghi lai dang so nguyen (8.0 va 8 la mot do dai) — ban chuan phai ra cung mot chuoi.
@@ -66,7 +66,7 @@ namespace Crowd.Labeling.Tools
 
             if (tong > TongDoanToiDa)
             {
-                throw Sai(tool, "mat na qua chi tiet: tong so doan " + tong + " vuot " + TongDoanToiDa + ".");
+                throw Sai(tool, "mặt nạ quá chi tiết: " + tong + " đoạn, vượt mức " + TongDoanToiDa + ".");
             }
         }
 

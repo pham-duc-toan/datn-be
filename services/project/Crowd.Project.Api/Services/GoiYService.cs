@@ -18,7 +18,8 @@ namespace Crowd.Project.Api.Services
     /// Goi y du an phu hop nang luc (FL-02). Ung vien: du an DANG CHAY, khong rieng tu, mo kenh chuyen
     /// nghiep, chua la thanh vien, khong bi doanh nghiep chan, DU DIEU KIEN (cap do / uy tin / xac minh /
     /// du tuoi — cung luat voi luc vao, de khong goi y du an bam vao bi tu choi). Xep hang:
-    ///   diem = 3 (trung loai du lieu) + 2 x so linh vuc trung + 2 x so ngon ngu trung
+    ///   diem = 3 (trung loai du lieu) + 2 x so the linh vuc trung + 2 x so the ngon ngu trung
+    /// (the = ma trong danh muc admin — ho so va du an cung chon tu mot danh muc nen khop chinh xac theo ma).
     /// roi don gia cao truoc, moi truoc. Ho so ky nang (FL-01) va dieu kien lay tu identity luc goi.
     /// Ho so ky nang rong thi van goi y theo don gia (diem 0).
     /// </summary>

@@ -164,9 +164,14 @@ namespace Crowd.Tasking.Tests
             Assert.True(hetSuat.DatCuoiCung);
             Assert.False(hetSuat.DuocThuong);
 
-            Attempt truot = BaiMoi();
-            truot.Nop(1, 0, null, null, Luc.AddHours(1));
-            Assert.Throws<InvalidValueException>(() => truot.GhiKetQua(10, 5, 50, false, true, Luc.AddDays(1)));
+            // Lap suat trong: bai chua dat van duoc thuong, khong khieu nai nua.
+            Attempt lapSuat = BaiMoi();
+            lapSuat.Nop(1, 1, null, null, Luc.AddHours(1));
+            lapSuat.GhiKetQua(10, 7, 70, false, true, Luc.AddDays(1));
+            Assert.False(lapSuat.DatCuoiCung);
+            Assert.True(lapSuat.DuocThuong);
+            Assert.Equal("bai_da_duoc_thuong",
+                Assert.Throws<RuleViolationException>(() => lapSuat.KhieuNai("Xem lai", Luc.AddDays(4), Luc.AddDays(2))).Code);
 
             Attempt a = BaiDaCham(false);
             a.KhieuNai("Xem lai", Luc.AddDays(4), Luc.AddDays(2));

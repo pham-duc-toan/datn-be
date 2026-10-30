@@ -119,7 +119,13 @@ namespace Crowd.BuildingBlocks.Tests.Settings
                         lc.Add(c);
                     }
 
-                    o["choices"] = lc;
+                    // Chon nhieu: khoa rieng — Python kiem "choices" nhu chon mot.
+                    o[d.ChonNhieu ? "multiChoices" : "choices"] = lc;
+                }
+
+                if (d.ChonNhieu)
+                {
+                    o["multiple"] = true;
                 }
                 ds.Add(o);
             }

@@ -28,6 +28,8 @@ namespace Crowd.Admin.Api.Persistence
 
         public DbSet<MauBaiToan> MauBaiToans => Set<MauBaiToan>();
 
+        public DbSet<TheChuDe> TheChuDes => Set<TheChuDe>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -141,6 +143,22 @@ namespace Crowd.Admin.Api.Persistence
                 b.Property(x => x.LastEventAt).HasColumnName("last_event_at").IsRequired();
                 b.HasIndex(x => new { x.Kind, x.SubjectId }).IsUnique().HasDatabaseName("ux_approval_requests_don");
                 b.HasIndex(x => new { x.Status, x.OpenedAt }).HasDatabaseName("ix_approval_requests_hang_doi");
+            });
+
+            modelBuilder.Entity<TheChuDe>(b =>
+            {
+                b.ToTable("tags");
+                b.HasKey(x => x.Id);
+                b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+                b.Property(x => x.Kind).HasColumnName("kind").HasMaxLength(20).IsRequired();
+                b.Property(x => x.Code).HasColumnName("code").HasMaxLength(Crowd.BuildingBlocks.Tags.MaThe.DoDaiToiDa).IsRequired();
+                b.Property(x => x.Name).HasColumnName("name").HasMaxLength(TheChuDe.DoDaiTenToiDa).IsRequired();
+                b.Property(x => x.Hidden).HasColumnName("hidden").IsRequired();
+                b.Property(x => x.MergedInto).HasColumnName("merged_into").HasMaxLength(Crowd.BuildingBlocks.Tags.MaThe.DoDaiToiDa);
+                b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+                b.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+                b.Property(x => x.UpdatedBy).HasColumnName("updated_by");
+                b.HasIndex(x => new { x.Kind, x.Code }).IsUnique().HasDatabaseName("ux_tags_kind_code");
             });
 
             modelBuilder.Entity<MauBaiToan>(b =>

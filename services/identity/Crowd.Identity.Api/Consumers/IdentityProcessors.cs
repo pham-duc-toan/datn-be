@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Consumers;
+using Crowd.Contracts.Admin;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Quality;
 using Crowd.Contracts.Tasking;
@@ -110,6 +111,33 @@ namespace Crowd.Identity.Api.Consumers
 
             ReputationChanged p = envelope.Payload;
             return _capDo.GhiUyTinAsync(p.UserId, p.Reputation, envelope.OccurredAt, ProjectGradedProcessor.HeThong(envelope), ct);
+        }
+    }
+
+    /// <summary>tag.merged (admin-svc) → doi ma the trong ho so ky nang (goi y du an van khop).</summary>
+    public sealed class TagMergedProcessor : IEventProcessor<TagMerged>
+    {
+        private readonly HoSoService _hoSo;
+
+        public TagMergedProcessor(HoSoService hoSo)
+        {
+            if (hoSo == null)
+            {
+                throw new ArgumentNullException(nameof(hoSo));
+            }
+
+            _hoSo = hoSo;
+        }
+
+        public Task XuLyAsync(EventEnvelope<TagMerged> envelope, CancellationToken ct)
+        {
+            if (envelope == null)
+            {
+                throw new ArgumentNullException(nameof(envelope));
+            }
+
+            TagMerged p = envelope.Payload;
+            return _hoSo.GopTheAsync(p.Kind, p.FromCode, p.ToCode, ct);
         }
     }
 

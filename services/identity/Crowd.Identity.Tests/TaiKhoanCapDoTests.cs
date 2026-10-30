@@ -68,11 +68,11 @@ namespace Crowd.Identity.Tests
     public sealed class TaiKhoanEntityTests
     {
         private static readonly DateTimeOffset T = new DateTimeOffset(2026, 10, 12, 8, 0, 0, TimeSpan.Zero);
-        private static readonly string[] LinhVucNhap = new string[] { "Y te", "y te", " Giao thong " };
+        private static readonly string[] LinhVucNhap = new string[] { "Y tế", "y-te", " Giao thông " };
         private static readonly string[] NgonNguNhap = new string[] { "vi" };
         private static readonly string[] LoaiNhap = new string[] { "IMAGE", "text" };
         private static readonly string[] LoaiSai = new string[] { "3d" };
-        private static readonly string[] LinhVucMongDoi = new string[] { "Y te", "Giao thong" };
+        private static readonly string[] LinhVucMongDoi = new string[] { "y-te", "giao-thong" };
         private static readonly string[] LoaiMongDoi = new string[] { "image", "text" };
 
         [Fact]
@@ -95,6 +95,11 @@ namespace Crowd.Identity.Tests
 
             Assert.Equal(LinhVucMongDoi, u.Domains);
             Assert.Equal(LoaiMongDoi, u.Modalities);
+
+            // Gop the "giao-thong" vao "y-te": bo trung.
+            Assert.True(u.DoiMaThe("domain", "giao-thong", "y-te"));
+            Assert.Equal("y-te", Assert.Single(u.Domains));
+            Assert.False(u.DoiMaThe("language", "en", "vi"));
             Assert.Equal("loai_du_lieu_khong_hop_le",
                 Assert.Throws<InvalidValueException>(() => u.CapNhatKyNang(null!, null!, LoaiSai)).Code);
         }

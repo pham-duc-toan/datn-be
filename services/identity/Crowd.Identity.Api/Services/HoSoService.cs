@@ -216,6 +216,58 @@ namespace Crowd.Identity.Api.Services
             return kq;
         }
 
+        /// <summary>
+        /// tag.merged: doi ma the cu sang ma moi trong ho so ky nang cua moi nguoi dang gan. KHONG SaveChanges —
+        /// consumer (IdempotencyGuard) luu mot lan. Tra so tai khoan da doi.
+        /// </summary>
+        public async Task<int> GopTheAsync(string loai, string maCu, string maMoi, CancellationToken ct)
+        {
+            List<User> ds = loai == Crowd.BuildingBlocks.Tags.MaThe.NgonNgu
+                ? await _db.Users.Where(u => EF.Property<List<string>>(u, "_languages").Contains(maCu)).ToListAsync(ct)
+                : await _db.Users.Where(u => EF.Property<List<string>>(u, "_domains").Contains(maCu)).ToListAsync(ct);
+            int doi = 0;
+            foreach (User u in ds)
+            {
+                if (u.DoiMaThe(loai, maCu, maMoi))
+                {
+                    doi++;
+                }
+            }
+
+            return doi;
+        }
+
+        /// <summary>
+        /// Goi y username khi go (o moi labeler, danh sach uu tien / chan): username BAT DAU bang q, tai khoan dang
+        /// hoat dong, co vai tro labeler. Chi tra thong tin cong khai (nhu /users/public), toi da 10 dong.
+        /// </summary>
+        public async Task<IReadOnlyList<PublicProfileResponse>> GoiYUsernameAsync(string? q, int limit, CancellationToken ct)
+        {
+            string dau = (q ?? "").Trim().TrimStart('@').ToLowerInvariant();
+            if (dau.Length == 0)
+            {
+                return new List<PublicProfileResponse>();
+            }
+
+            if (dau.Length > 30)
+            {
+                throw new InvalidValueException("gia_tri_khong_hop_le", "Từ khoá tìm username tối đa 30 ký tự.");
+            }
+
+            int soDong = limit <= 0 ? 8 : Math.Min(limit, 10);
+            List<Guid> ids = await _db.Users.AsNoTracking()
+                .Where(u => u.Status == UserStatus.Active
+                    && u.Username.StartsWith(dau)
+                    && EF.Property<List<string>>(u, "_roles").Contains("labeler"))
+                .OrderBy(u => u.Username)
+                .Take(soDong)
+                .Select(u => u.Id)
+                .ToListAsync(ct);
+
+            IReadOnlyList<PublicProfileResponse> hoSo = await CongKhaiAsync(ids, ct);
+            return hoSo.OrderBy(h => h.Username, StringComparer.Ordinal).ToList();
+        }
+
         public async Task<string?> LinkAvatarAsync(string? key)
         {
             if (key == null)

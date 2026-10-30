@@ -27,7 +27,7 @@ namespace Crowd.Labeling.Tools
                     AttributeDefinition? khai = tool.ThuocTinh(kv.Key);
                     if (khai == null)
                     {
-                        throw Sai(tool, "thuoc tinh '" + kv.Key + "' khong co trong tap nhan.");
+                        throw Sai(tool, "thuộc tính “" + kv.Key + "” không có trong tập nhãn.");
                     }
 
                     KiemGiaTri(khai, kv.Value, tool);
@@ -44,12 +44,12 @@ namespace Crowd.Labeling.Tools
                 JsonNode? v = tt == null ? null : tt[khai.Name];
                 if (v == null)
                 {
-                    throw Sai(tool, "doi tuong thieu thuoc tinh bat buoc '" + khai.Name + "'.");
+                    throw Sai(tool, "đối tượng thiếu thuộc tính bắt buộc “" + khai.Name + "”.");
                 }
 
                 if (khai.Type == AttributeDefinition.Text && v.GetValue<string>().Trim().Length == 0)
                 {
-                    throw Sai(tool, "thuoc tinh bat buoc '" + khai.Name + "' khong duoc rong.");
+                    throw Sai(tool, "thuộc tính bắt buộc “" + khai.Name + "” không được để trống.");
                 }
             }
 
@@ -222,39 +222,39 @@ namespace Crowd.Labeling.Tools
             {
                 if (loai != JsonValueKind.True && loai != JsonValueKind.False)
                 {
-                    throw Sai(tool, "thuoc tinh '" + khai.Name + "' phai la true / false.");
+                    throw Sai(tool, "thuộc tính “" + khai.Name + "” phải là có / không.");
                 }
             }
             else if (khai.Type == AttributeDefinition.Number)
             {
                 if (loai != JsonValueKind.Number)
                 {
-                    throw Sai(tool, "thuoc tinh '" + khai.Name + "' phai la so.");
+                    throw Sai(tool, "thuộc tính “" + khai.Name + "” phải là số.");
                 }
             }
             else
             {
                 if (loai != JsonValueKind.String)
                 {
-                    throw Sai(tool, "thuoc tinh '" + khai.Name + "' phai la chuoi.");
+                    throw Sai(tool, "thuộc tính “" + khai.Name + "” phải là chữ.");
                 }
 
                 string chu = v!.GetValue<string>();
                 if (khai.Type == AttributeDefinition.Choice && !khai.CoLuaChon(chu))
                 {
-                    throw Sai(tool, "thuoc tinh '" + khai.Name + "': '" + chu + "' khong nam trong cac lua chon.");
+                    throw Sai(tool, "thuộc tính “" + khai.Name + "”: “" + chu + "” không nằm trong các lựa chọn.");
                 }
 
                 if (khai.Type == AttributeDefinition.Text && chu.Length > khai.MaxLength)
                 {
-                    throw Sai(tool, "thuoc tinh '" + khai.Name + "' toi da " + khai.MaxLength + " ky tu.");
+                    throw Sai(tool, "thuộc tính “" + khai.Name + "” tối đa " + khai.MaxLength + " ký tự.");
                 }
             }
         }
 
         private static LabelFormatException Sai(ToolDefinition tool, string loi)
         {
-            return new LabelFormatException("nhan_khong_hop_le", "Cong cu '" + tool.Name + "': " + loi);
+            return new LabelFormatException("nhan_khong_hop_le", TenHienThi.TienToNhan(tool) + loi);
         }
     }
 }

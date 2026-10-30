@@ -38,7 +38,7 @@ namespace Crowd.Labeling.Tools
 
             if (p["angle"] != null && !tool.Rotatable)
             {
-                throw Sai(tool, "cong cu khong cho xoay khung (khai \"rotatable\": true trong tap nhan).");
+                throw Sai(tool, "công cụ này không cho xoay khung.");
             }
 
             if (Math.Abs(goc) > HinhHoc.SaiSo)
@@ -49,7 +49,7 @@ namespace Crowd.Labeling.Tools
                         || (mau.Width.HasValue && d[0] > mau.Width.Value + HinhHoc.SaiSo)
                         || (mau.Height.HasValue && d[1] > mau.Height.Value + HinhHoc.SaiSo))
                     {
-                        throw Sai(tool, "khung xoay co dinh nam ngoai anh.");
+                        throw Sai(tool, "khung xoay có đỉnh nằm ngoài ảnh.");
                     }
                 }
 
@@ -58,12 +58,12 @@ namespace Crowd.Labeling.Tools
 
             if (mau.Width.HasValue && x + w > mau.Width.Value + HinhHoc.SaiSo)
             {
-                throw Sai(tool, "khung vuot qua chieu rong anh (" + mau.Width.Value + "px).");
+                throw Sai(tool, "khung vượt quá chiều rộng ảnh (" + mau.Width.Value + "px).");
             }
 
             if (mau.Height.HasValue && y + h > mau.Height.Value + HinhHoc.SaiSo)
             {
-                throw Sai(tool, "khung vuot qua chieu cao anh (" + mau.Height.Value + "px).");
+                throw Sai(tool, "khung vượt quá chiều cao ảnh (" + mau.Height.Value + "px).");
             }
         }
 

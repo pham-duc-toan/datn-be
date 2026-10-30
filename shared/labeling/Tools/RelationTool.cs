@@ -42,7 +42,7 @@ namespace Crowd.Labeling.Tools
 
             if (KhoaDau(p, "from") == KhoaDau(p, "to"))
             {
-                throw Sai(tool, "quan he phai noi HAI doan khac nhau.");
+                throw Sai(tool, "quan hệ phải nối hai đoạn khác nhau.");
             }
         }
 
@@ -53,7 +53,7 @@ namespace Crowd.Labeling.Tools
             {
                 if (!daCo.Add(Khoa(p)))
                 {
-                    throw Sai(tool, "quan he bi ghi trung.");
+                    throw Sai(tool, "quan hệ bị ghi trùng.");
                 }
             }
         }
@@ -109,7 +109,7 @@ namespace Crowd.Labeling.Tools
                     if (!doan.Contains(KhoaDau(p, dau)))
                     {
                         throw Sai(tool, "dau '" + dau + "' [" + p[dau]!["start"] + ", " + p[dau]!["end"]
-                                        + ") khong phai mot doan trong cong cu '" + tool.SpanTool + "'.");
+                                        + ") không phải một đoạn đã đánh dấu.");
                     }
                 }
             }
@@ -125,12 +125,12 @@ namespace Crowd.Labeling.Tools
 
             if (start >= end)
             {
-                throw Sai(tool, "dau '" + dau + "' [" + start + ", " + end + ") rong hoac nguoc.");
+                throw Sai(tool, "đầu “" + dau + "” [" + start + ", " + end + ") trống hoặc ngược.");
             }
 
             if (mau.Length.HasValue && end > mau.Length.Value)
             {
-                throw Sai(tool, "dau '" + dau + "' [" + start + ", " + end + ") vuot qua do dai van ban (" + mau.Length.Value + ").");
+                throw Sai(tool, "đầu “" + dau + "” [" + start + ", " + end + ") vượt quá độ dài văn bản (" + mau.Length.Value + ").");
             }
         }
 

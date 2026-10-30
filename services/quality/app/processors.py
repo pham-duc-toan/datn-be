@@ -47,11 +47,12 @@ async def _ghi_ban_sao(s: AsyncSession, p: ProjectPublished, luc) -> None:
     # Dieu khoan bat bien sau publish: da co thi thoi.
     await s.execute(
         text(
-            "INSERT INTO projects (project_id, owner_id, modality, label_schema, pass_threshold_percent, slots, question_count, published_at) "
-            "VALUES (:id, :owner, :modality, CAST(:schema AS jsonb), :t, :slots, :q, :at) ON CONFLICT (project_id) DO NOTHING"
+            "INSERT INTO projects (project_id, owner_id, modality, label_schema, pass_threshold_percent, slots, "
+            "fill_slots_min_percent, question_count, published_at) "
+            "VALUES (:id, :owner, :modality, CAST(:schema AS jsonb), :t, :slots, :lap, :q, :at) ON CONFLICT (project_id) DO NOTHING"
         ),
         {"id": p.project_id, "owner": p.owner_id, "modality": p.modality, "schema": json.dumps(p.label_schema),
-         "t": p.pass_threshold_percent, "slots": p.slots, "q": p.question_count, "at": luc},
+         "t": p.pass_threshold_percent, "slots": p.slots, "lap": p.fill_slots_min_percent, "q": p.question_count, "at": luc},
     )
 
 
@@ -70,7 +71,8 @@ async def _bu_ban_sao(s: AsyncSession, project_id: uuid.UUID):
 
 async def _du_an(s: AsyncSession, project_id: uuid.UUID):
     return (await s.execute(
-        text("SELECT label_schema, pass_threshold_percent, slots FROM projects WHERE project_id = :p"), {"p": project_id})).first()
+        text("SELECT label_schema, pass_threshold_percent, slots, fill_slots_min_percent FROM projects WHERE project_id = :p"),
+        {"p": project_id})).first()
 
 
 async def project_dong(s: AsyncSession, env: Envelope) -> None:
@@ -195,8 +197,9 @@ async def thu_cham(s: AsyncSession, project_id: uuid.UUID, env: Envelope) -> Non
          for b in bai],
         nhan, metadata, {str(x) for x in dot.excluded_sample_ids}, du_an.pass_threshold_percent, tham_so, mo or None)
 
-    # So suat = so nguoi DUOC THUONG: n bai dat nop som nhat (kq.bai giu thu tu luc nop cua `bai`).
-    thuong = cham.chon_duoc_thuong(kq.bai, du_an.slots if du_an.slots is not None else len(kq.bai))
+    # So suat = so nguoi DUOC THUONG: n bai dat nop som nhat (kq.bai giu thu tu luc nop cua `bai`); du an bat
+    # lap suat trong thi suat con lai trao cho bai giong da so nhieu nhat.
+    thuong = cham.chon_duoc_thuong(kq.bai, du_an.slots if du_an.slots is not None else len(kq.bai), du_an.fill_slots_min_percent)
 
     luc = datetime.now(timezone.utc)
     for c in kq.cau:

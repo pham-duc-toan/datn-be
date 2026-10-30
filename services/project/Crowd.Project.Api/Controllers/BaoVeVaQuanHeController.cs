@@ -186,6 +186,14 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.DatAsync(labelerId, body, DoanhNghiep(), ct));
         }
 
+        /// <summary>PUT /projects/labeler-lists/by-username/{username} { kind, note }</summary>
+        [HttpPut("labeler-lists/by-username/{username}")]
+        [Authorize(Roles = CrowdRoles.Business)]
+        public async Task<IActionResult> DatTheoUsername(string username, [FromBody] OwnerListRequest body, CancellationToken ct)
+        {
+            return Ok(await _service.DatTheoUsernameAsync(username, body, DoanhNghiep(), ct));
+        }
+
         /// <summary>DELETE /projects/labeler-lists/{labelerId}</summary>
         [HttpDelete("labeler-lists/{labelerId:guid}")]
         [Authorize(Roles = CrowdRoles.Business)]

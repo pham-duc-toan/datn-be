@@ -75,12 +75,12 @@ namespace Crowd.Labeling.Tools
 
             if (tool.Required && text.Trim().Length == 0)
             {
-                throw new LabelFormatException("nhan_khong_hop_le", "Cong cu '" + tool.Name + "': van ban khong duoc rong.");
+                throw new LabelFormatException("nhan_khong_hop_le", TenHienThi.TienToNhan(tool) + "nội dung không được để trống.");
             }
 
             if (text.Length > tool.MaxLength)
             {
-                throw new LabelFormatException("nhan_khong_hop_le", "Cong cu '" + tool.Name + "': toi da " + tool.MaxLength + " ky tu.");
+                throw new LabelFormatException("nhan_khong_hop_le", TenHienThi.TienToNhan(tool) + "tối đa " + tool.MaxLength + " ký tự.");
             }
 
             return new JsonObject { ["text"] = text };

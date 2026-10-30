@@ -31,7 +31,7 @@ namespace Crowd.Labeling.Tools
         {
             if (n == null)
             {
-                throw new LabelFormatException("nhan_khong_hop_le", "Thieu so.");
+                throw new LabelFormatException("nhan_khong_hop_le", "Thiếu giá trị số.");
             }
 
             // Duong nhanh: doc thang so trong JsonValue (khong viet ra chuoi roi doc lai) — cung ket qua.
@@ -55,7 +55,7 @@ namespace Crowd.Labeling.Tools
             double v = So(n);
             if (double.IsNaN(v) || v != Math.Floor(v) || Math.Abs(v) > 9007199254740992.0)
             {
-                throw new LabelFormatException(maLoi, "Gia tri " + (n == null ? "null" : n.ToJsonString()) + " khong phai so nguyen hop le.");
+                throw new LabelFormatException(maLoi, "Giá trị " + (n == null ? "trống" : n.ToJsonString()) + " không phải số nguyên hợp lệ.");
             }
 
             return (long)v;
@@ -66,7 +66,7 @@ namespace Crowd.Labeling.Tools
             long v = SoNguyenDai(n, maLoi);
             if (v > int.MaxValue || v < int.MinValue)
             {
-                throw new LabelFormatException(maLoi, "Gia tri " + n!.ToJsonString() + " qua lon.");
+                throw new LabelFormatException(maLoi, "Giá trị " + n!.ToJsonString() + " quá lớn.");
             }
 
             return (int)v;

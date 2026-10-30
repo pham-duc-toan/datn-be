@@ -39,12 +39,12 @@ namespace Crowd.Labeling.Tools
 
             if (start >= end)
             {
-                throw Sai(tool, "doan [" + start + ", " + end + ") rong hoac nguoc.");
+                throw Sai(tool, "đoạn [" + start + ", " + end + ") trống hoặc ngược.");
             }
 
             if (mau.Length.HasValue && end > mau.Length.Value)
             {
-                throw Sai(tool, "doan [" + start + ", " + end + ") vuot qua do dai van ban (" + mau.Length.Value + ").");
+                throw Sai(tool, "đoạn [" + start + ", " + end + ") vượt quá độ dài văn bản (" + mau.Length.Value + ").");
             }
         }
 
@@ -55,7 +55,7 @@ namespace Crowd.Labeling.Tools
             {
                 if (HinhHoc.SoNguyen(theoViTri[i]["start"]) < HinhHoc.SoNguyen(theoViTri[i - 1]["end"]))
                 {
-                    throw Sai(tool, "hai doan chong len nhau.");
+                    throw Sai(tool, "hai đoạn chồng lên nhau.");
                 }
             }
         }

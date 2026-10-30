@@ -87,6 +87,13 @@ namespace Crowd.Project.Domain.Projects
         /// </summary>
         public int PassThresholdPercent { get; private set; }
 
+        /// <summary>
+        /// Lap suat trong: cham xong ma so bai DAT it hon so suat thi cac suat con lai trao cho bai giong da so
+        /// nhieu nhat (cung % thi nop som hon), bai phai dung het cau vang va giong da so tu muc nay tro len.
+        /// null = khong lap (bai khong dat thi khong duoc thuong).
+        /// </summary>
+        public int? FillSlotsMinPercent { get; private set; }
+
         public DateTimeOffset? Deadline { get; private set; }
 
         /// <summary>So cau that (mau khong phai cau vang) CHOT luc bam publish — hien o cho du an.</summary>
@@ -317,7 +324,27 @@ namespace Crowd.Project.Domain.Projects
             DateTimeOffset luc,
             QuyDinhDuAn quyDinh)
         {
+            DatCauHinhGia(rewardVnd, slots, passThresholdPercent, null, deadline, luc, quyDinh);
+        }
+
+        /// <param name="fillSlotsMinPercent">Lap suat trong (xem FillSlotsMinPercent): null = khong lap; 0..t.</param>
+        public void DatCauHinhGia(
+            long rewardVnd,
+            int slots,
+            int passThresholdPercent,
+            int? fillSlotsMinPercent,
+            DateTimeOffset deadline,
+            DateTimeOffset luc,
+            QuyDinhDuAn quyDinh)
+        {
             ChiKhiNhap("đổi cấu hình giá");
+
+            if (fillSlotsMinPercent.HasValue && (fillSlotsMinPercent.Value < 0 || fillSlotsMinPercent.Value > passThresholdPercent))
+            {
+                throw new InvalidValueException(
+                    "san_lap_suat_khong_hop_le",
+                    "Mức giống đa số tối thiểu để lấp suất trống phải từ 0% đến ngưỡng đạt (" + passThresholdPercent + "%).");
+            }
 
             if (rewardVnd <= 0)
             {
@@ -353,6 +380,7 @@ namespace Crowd.Project.Domain.Projects
             RewardVnd = rewardVnd;
             Slots = slots;
             PassThresholdPercent = passThresholdPercent;
+            FillSlotsMinPercent = fillSlotsMinPercent;
             Deadline = deadline;
             UpdatedAt = luc;
         }
@@ -534,6 +562,42 @@ namespace Crowd.Project.Domain.Projects
             _domains = ChuanHoaNhan(linhVuc, "Lĩnh vực");
             _languages = ChuanHoaNhan(ngonNgu, "Ngôn ngữ");
             UpdatedAt = luc;
+        }
+
+        /// <summary>
+        /// Admin gop the chu de (tag.merged): thay ma cu bang ma moi, bo trung. Ap ca du an da ket thuc (lich su
+        /// van hien dung the). true = co doi.
+        /// </summary>
+        public bool DoiMaThe(string loai, string maCu, string maMoi)
+        {
+            if (loai == "domain" && _domains.Contains(maCu))
+            {
+                _domains = ThayMa(_domains, maCu, maMoi);
+                return true;
+            }
+
+            if (loai == "language" && _languages.Contains(maCu))
+            {
+                _languages = ThayMa(_languages, maCu, maMoi);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static List<string> ThayMa(List<string> ds, string maCu, string maMoi)
+        {
+            List<string> kq = new List<string>();
+            foreach (string ma in ds)
+            {
+                string v = ma == maCu ? maMoi : ma;
+                if (!kq.Contains(v))
+                {
+                    kq.Add(v);
+                }
+            }
+
+            return kq;
         }
 
         private static List<string> ChuanHoaNhan(IReadOnlyList<string>? ds, string ten)

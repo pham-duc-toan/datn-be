@@ -9,7 +9,7 @@ namespace Crowd.Labeling
     public sealed class LabelFormatException : Exception
     {
         public LabelFormatException()
-            : base("Nhan sai dinh dang.")
+            : base("Nhãn sai định dạng.")
         {
             Code = "nhan_sai_dinh_dang";
         }

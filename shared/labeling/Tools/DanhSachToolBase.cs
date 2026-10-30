@@ -114,7 +114,7 @@ namespace Crowd.Labeling.Tools
 
             if (ds.Count < tool.MinItems || ds.Count > tool.MaxItems)
             {
-                throw Sai(tool, "so doi tuong phai tu " + tool.MinItems + " den " + tool.MaxItems + " (dang co " + ds.Count + ").");
+                throw Sai(tool, "số đối tượng phải từ " + tool.MinItems + " đến " + tool.MaxItems + " (đang có " + ds.Count + ").");
             }
 
             List<JsonObject> chuanHoa = new List<JsonObject>();
@@ -124,7 +124,7 @@ namespace Crowd.Labeling.Tools
                 string lop = p["labelId"]!.GetValue<string>();
                 if (!tool.CoLop(lop))
                 {
-                    throw Sai(tool, "lop '" + lop + "' khong co trong tap nhan.");
+                    throw Sai(tool, "lớp “" + lop + "” không có trong tập nhãn.");
                 }
 
                 KiemPhanTu(p, tool, mau);
@@ -402,7 +402,7 @@ namespace Crowd.Labeling.Tools
 
         protected static LabelFormatException Sai(ToolDefinition tool, string loi)
         {
-            return new LabelFormatException("nhan_khong_hop_le", "Cong cu '" + tool.Name + "': " + loi);
+            return new LabelFormatException("nhan_khong_hop_le", TenHienThi.TienToNhan(tool) + loi);
         }
 
         /// <summary>So dang chuoi co dinh do dai — de sap xep theo so ma van so sanh chuoi.</summary>

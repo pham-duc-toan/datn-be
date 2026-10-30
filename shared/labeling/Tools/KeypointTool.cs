@@ -31,12 +31,12 @@ namespace Crowd.Labeling.Tools
 
             if (mau.Width.HasValue && x > mau.Width.Value + HinhHoc.SaiSo)
             {
-                throw Sai(tool, "diem (" + x + ", " + y + ") nam ngoai chieu rong anh.");
+                throw Sai(tool, "điểm (" + x + ", " + y + ") nằm ngoài chiều rộng ảnh.");
             }
 
             if (mau.Height.HasValue && y > mau.Height.Value + HinhHoc.SaiSo)
             {
-                throw Sai(tool, "diem (" + x + ", " + y + ") nam ngoai chieu cao anh.");
+                throw Sai(tool, "điểm (" + x + ", " + y + ") nằm ngoài chiều cao ảnh.");
             }
         }
 

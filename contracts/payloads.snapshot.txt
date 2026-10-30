@@ -255,6 +255,7 @@ project.published v2  (ProjectPublished)
     AllowLinkGateway         Boolean              required
     AllowProfessional        Boolean              required
     Deadline                 DateTimeOffset       required
+    FillSlotsMinPercent      Int32?               nullable
     GateBudgetVnd            Int64?               nullable
     GatePlatformFeeVnd       Int64?               nullable
     GateUnitPriceVnd         Int64?               nullable
@@ -329,6 +330,11 @@ system.announcement v1  (SystemAnnouncement)
     Body                     String               required
     SendEmail                Boolean              required
     Title                    String               required
+
+tag.merged v1  (TagMerged)
+    FromCode                 String               required
+    Kind                     String               required
+    ToCode                   String               required
 
 user.blocked v1  (UserBlocked)
     Reason                   String?              nullable

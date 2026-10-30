@@ -197,6 +197,17 @@ namespace Crowd.Notification.Api.Services
                 .En("Attempt passed", lyEn + " The project reward has been paid to your wallet.");
         }
 
+        /// <summary>Bai chua dat nguong nhung duoc thuong vi du an lap suat con trong (giong da so nhieu nhat).</summary>
+        public static NoiDung BaiLapSuat(Guid attemptId, int phanTram, int nguong)
+        {
+            return new NoiDung(
+                    "Bài làm được thưởng (lấp suất còn trống)",
+                    "Bạn giống đa số " + phanTram + "%, chưa tới ngưỡng " + nguong + "%, nhưng dự án còn suất trống và bạn nằm trong nhóm giống đa số nhất (đúng hết câu kiểm tra). Tiền thưởng của dự án đã được trả vào ví.",
+                    "/attempts/" + attemptId)
+                .En("Rewarded (unfilled slot)",
+                    "You matched the majority on " + phanTram + "%, below the " + nguong + "% threshold, but the project had unfilled slots and you were among the closest to the majority (all check questions correct). The project reward has been paid to your wallet.");
+        }
+
         public static NoiDung BaiTruot(Guid attemptId, int phanTram, int nguong, int vangDung, int vangTong, bool dungDaSo)
         {
             List<string> ly = new List<string>();

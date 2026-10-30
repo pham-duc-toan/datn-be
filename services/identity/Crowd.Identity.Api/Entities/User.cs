@@ -207,9 +207,34 @@ namespace Crowd.Identity.Api.Entities
 
         public void CapNhatKyNang(IReadOnlyList<string> linhVuc, IReadOnlyList<string> ngonNgu, IReadOnlyList<string> loaiDuLieu)
         {
-            _domains = KyNang.ChuanHoa(linhVuc, "linh_vuc_khong_hop_le", "Linh vuc");
-            _languages = KyNang.ChuanHoa(ngonNgu, "ngon_ngu_khong_hop_le", "Ngon ngu");
+            _domains = KyNang.ChuanHoaThe(linhVuc, "linh_vuc_khong_hop_le", "Lĩnh vực");
+            _languages = KyNang.ChuanHoaThe(ngonNgu, "ngon_ngu_khong_hop_le", "Ngôn ngữ");
             _modalities = KyNang.ChuanHoaLoaiDuLieu(loaiDuLieu);
+        }
+
+        /// <summary>Admin gop the (tag.merged): doi ma cu sang ma moi trong ho so ky nang. true = co doi.</summary>
+        public bool DoiMaThe(string loai, string maCu, string maMoi)
+        {
+            if (loai == Crowd.BuildingBlocks.Tags.MaThe.LinhVuc)
+            {
+                List<string>? moi = KyNang.ThayMa(_domains, maCu, maMoi);
+                if (moi != null)
+                {
+                    _domains = moi;
+                    return true;
+                }
+            }
+            else if (loai == Crowd.BuildingBlocks.Tags.MaThe.NgonNgu)
+            {
+                List<string>? moi = KyNang.ThayMa(_languages, maCu, maMoi);
+                if (moi != null)
+                {
+                    _languages = moi;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public void DatAvatar(string? key)

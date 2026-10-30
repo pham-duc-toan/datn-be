@@ -52,6 +52,7 @@ builder.Services.AddHostedService<SnapshotWorker>();
 // Hang doi duyet chung (read model tu event), mau bai toan (FM-03), canh bao do sau DLQ (VD-D-06/12).
 builder.Services.AddScoped<HangDoiDuyet>();
 builder.Services.AddScoped<MauBaiToanService>();
+builder.Services.AddScoped<TheChuDeService>();
 builder.Services.AddSingleton<TrangThaiDlq>();
 builder.Services.AddHttpClient("rabbitmq-management", c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddHostedService<DlqMonitorWorker>();
@@ -83,6 +84,10 @@ using (IServiceScope scope = app.Services.CreateScope())
     await service.PhatSnapshotAsync(Guid.CreateVersion7(), null, true, CancellationToken.None);
 
     app.Logger.LogInformation("Setting: khoi tao {Moi} khoa moi, {Tong} khoa trong danh muc", moi, SettingCatalog.TatCa.Count);
+
+    // Danh muc the chu de mac dinh (linh vuc / ngon ngu) — du lieu tham chieu, moi moi truong.
+    int soThe = await scope.ServiceProvider.GetRequiredService<TheChuDeService>().SeedAsync(CancellationToken.None);
+    app.Logger.LogInformation("Danh muc the: them {So}", soThe);
 
     // Mau bai toan co san (FM-03) cho moi truong dev.
     if (SeedSwitch.DuocChay(app.Environment, app.Configuration))

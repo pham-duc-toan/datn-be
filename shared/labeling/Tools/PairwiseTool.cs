@@ -20,7 +20,7 @@ namespace Crowd.Labeling.Tools
             string chon = DocChon(ketQua);
             if (chon == "tie" && !tool.AllowTie)
             {
-                throw new LabelFormatException("nhan_khong_hop_le", "Cong cu '" + tool.Name + "' khong cho chon hoa.");
+                throw new LabelFormatException("nhan_khong_hop_le", TenHienThi.TienToNhan(tool) + "không cho chọn “ngang nhau”.");
             }
 
             return new JsonObject { ["choice"] = chon };

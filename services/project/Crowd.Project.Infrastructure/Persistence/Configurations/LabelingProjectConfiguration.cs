@@ -56,6 +56,7 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.RewardVnd).HasColumnName("reward_vnd").IsRequired();
             builder.Property(x => x.Slots).HasColumnName("slots").IsRequired();
             builder.Property(x => x.PassThresholdPercent).HasColumnName("pass_threshold_percent").IsRequired();
+            builder.Property(x => x.FillSlotsMinPercent).HasColumnName("fill_slots_min_percent");
             builder.Property(x => x.QuestionCount).HasColumnName("question_count").IsRequired();
             builder.Property(x => x.Deadline).HasColumnName("deadline");
             builder.Property(x => x.GateUnitPriceVnd).HasColumnName("gate_unit_price_vnd").IsRequired();

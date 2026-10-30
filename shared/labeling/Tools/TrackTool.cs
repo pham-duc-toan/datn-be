@@ -34,12 +34,12 @@ namespace Crowd.Labeling.Tools
             List<double[]> moc = Moc(p);
             if (moc.Count < 2)
             {
-                throw Sai(tool, "chuoi khung can it nhat hai moc thoi gian.");
+                throw Sai(tool, "chuỗi khung cần ít nhất hai mốc thời gian.");
             }
 
             if (moc[0][5] < 0.5)
             {
-                throw Sai(tool, "moc dau tien cua chuoi phai hien (visible).");
+                throw Sai(tool, "mốc đầu tiên của chuỗi phải đang hiện.");
             }
 
             for (int i = 0; i < moc.Count; i++)
@@ -48,22 +48,22 @@ namespace Crowd.Labeling.Tools
 
                 if (i > 0 && k[0] <= moc[i - 1][0])
                 {
-                    throw Sai(tool, "moc thoi gian phai tang dan (moc " + k[0] + "s dung sau " + moc[i - 1][0] + "s).");
+                    throw Sai(tool, "mốc thời gian phải tăng dần (mốc " + k[0] + "s đứng sau " + moc[i - 1][0] + "s).");
                 }
 
                 if (mau.DurationSec.HasValue && k[0] > mau.DurationSec.Value + HinhHoc.SaiSo)
                 {
-                    throw Sai(tool, "moc " + k[0] + "s vuot qua do dai mau " + mau.DurationSec.Value + "s.");
+                    throw Sai(tool, "mốc " + k[0] + "s vượt quá độ dài mẫu " + mau.DurationSec.Value + "s.");
                 }
 
                 if (mau.Width.HasValue && k[1] + k[3] > mau.Width.Value + HinhHoc.SaiSo)
                 {
-                    throw Sai(tool, "khung o moc " + k[0] + "s vuot qua chieu rong video (" + mau.Width.Value + "px).");
+                    throw Sai(tool, "khung ở mốc " + k[0] + "s vượt quá chiều rộng video (" + mau.Width.Value + "px).");
                 }
 
                 if (mau.Height.HasValue && k[2] + k[4] > mau.Height.Value + HinhHoc.SaiSo)
                 {
-                    throw Sai(tool, "khung o moc " + k[0] + "s vuot qua chieu cao video (" + mau.Height.Value + "px).");
+                    throw Sai(tool, "khung ở mốc " + k[0] + "s vượt quá chiều cao video (" + mau.Height.Value + "px).");
                 }
             }
         }

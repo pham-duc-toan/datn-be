@@ -34,18 +34,18 @@ namespace Crowd.Labeling.Tools
             {
                 if (mau.Width.HasValue && d[0] > mau.Width.Value + HinhHoc.SaiSo)
                 {
-                    throw Sai(tool, "diem (" + d[0] + ", " + d[1] + ") nam ngoai chieu rong anh.");
+                    throw Sai(tool, "điểm (" + d[0] + ", " + d[1] + ") nằm ngoài chiều rộng ảnh.");
                 }
 
                 if (mau.Height.HasValue && d[1] > mau.Height.Value + HinhHoc.SaiSo)
                 {
-                    throw Sai(tool, "diem (" + d[0] + ", " + d[1] + ") nam ngoai chieu cao anh.");
+                    throw Sai(tool, "điểm (" + d[0] + ", " + d[1] + ") nằm ngoài chiều cao ảnh.");
                 }
             }
 
             if (HinhHoc.DoDaiDuong(diem) <= 0)
             {
-                throw Sai(tool, "duong co do dai bang 0 (cac diem trung nhau).");
+                throw Sai(tool, "đường có độ dài bằng 0 (các điểm trùng nhau).");
             }
         }
 

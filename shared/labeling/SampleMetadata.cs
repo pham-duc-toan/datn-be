@@ -108,7 +108,7 @@ namespace Crowd.Labeling
             JsonObject? o = json.Node() as JsonObject;
             if (o == null)
             {
-                throw new LabelFormatException("Metadata mau phai la object.");
+                throw new LabelFormatException("Thông tin mẫu (metadata) phải là một đối tượng JSON.");
             }
 
             return new SampleMetadata

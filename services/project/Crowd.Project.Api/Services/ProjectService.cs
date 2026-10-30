@@ -8,6 +8,7 @@ using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.BuildingBlocks.Tags;
 using Crowd.Contracts.Project;
 using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
@@ -20,6 +21,7 @@ using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
 using Crowd.Project.Domain.Projects;
 using Crowd.Project.Infrastructure.Persistence;
+using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -260,6 +262,7 @@ namespace Crowd.Project.Api.Services
                 body.RewardVnd,
                 body.Slots,
                 body.PassThresholdPercent,
+                body.FillSlotsMinPercent,
                 body.Deadline.Value,
                 _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
 
@@ -375,9 +378,55 @@ namespace Crowd.Project.Api.Services
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.DatNhan(body.Domains, body.Languages, _clock.GetUtcNow());
+            duAn.DatNhan(VeMaThe(body.Domains, "Lĩnh vực"), VeMaThe(body.Languages, "Ngôn ngữ"), _clock.GetUtcNow());
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
+        }
+
+        /// <summary>
+        /// Nhan du an la MA THE cua danh muc admin (MaThe) — goi y khop theo ma voi ho so ky nang. Chu tu do cung doi
+        /// ve ma ("Y tế" → "y-te") de client cu van gui duoc.
+        /// </summary>
+        private static List<string>? VeMaThe(IReadOnlyList<string>? ds, string ten)
+        {
+            if (ds == null)
+            {
+                return null;
+            }
+
+            List<string> kq = new List<string>();
+            foreach (string? muc in ds)
+            {
+                string ma = MaThe.TuChu(muc);
+                if (ma.Length == 0)
+                {
+                    throw new InvalidValueException("nhan_khong_hop_le", ten + ": “" + muc + "” không phải thẻ hợp lệ.");
+                }
+
+                kq.Add(ma);
+            }
+
+            return kq;
+        }
+
+        /// <summary>
+        /// tag.merged: doi ma the cu sang ma moi o moi du an dang gan. KHONG SaveChanges — consumer luu mot lan.
+        /// </summary>
+        public async Task<int> GopTheAsync(string loai, string maCu, string maMoi, CancellationToken ct)
+        {
+            List<LabelingProject> ds = loai == MaThe.NgonNgu
+                ? await _db.Projects.Where(p => EF.Property<List<string>>(p, "_languages").Contains(maCu)).ToListAsync(ct)
+                : await _db.Projects.Where(p => EF.Property<List<string>>(p, "_domains").Contains(maCu)).ToListAsync(ct);
+            int doi = 0;
+            foreach (LabelingProject p in ds)
+            {
+                if (p.DoiMaThe(loai, maCu, maMoi))
+                {
+                    doi++;
+                }
+            }
+
+            return doi;
         }
 
         public async Task<ProjectResponse> ChiTietAsync(Guid id, Caller caller, CancellationToken ct)
@@ -504,8 +553,26 @@ namespace Crowd.Project.Api.Services
                     ParticipantMultiplier = _settings.SoNguyen(SettingKeys.ProjectParticipantMultiplier),
                     MaxQuestions = quyDinh.SoCauToiDa,
                     MinRewardVnd = quyDinh.ThuongToiThieu,
+                    MatchThresholds = NguongKhopMacDinh(),
                 },
             };
+        }
+
+        /// <summary>Nguong khop mac dinh cua moi loai cong cu co nguong (labeling.threshold.*).</summary>
+        private Dictionary<string, double> NguongKhopMacDinh()
+        {
+            NguongKhop nguong = NguongKhopTuSetting.Doc(_settings);
+            Dictionary<string, double> kq = new Dictionary<string, double>(StringComparer.Ordinal);
+            foreach (string kind in ToolKinds.TatCa)
+            {
+                double? v = nguong.Lay(kind);
+                if (v.HasValue)
+                {
+                    kq[kind] = v.Value;
+                }
+            }
+
+            return kq;
         }
 
         // =====================================================================
@@ -840,6 +907,7 @@ namespace Crowd.Project.Api.Services
                 PlatformFeeVnd = LabelingProject.TinhPhiVnd(duAn.RewardVnd, duAn.PlatformFeePercent),
                 Slots = duAn.Slots,
                 PassThresholdPercent = duAn.PassThresholdPercent,
+                FillSlotsMinPercent = duAn.FillSlotsMinPercent,
                 QuestionCount = duAn.QuestionCount,
                 Deadline = duAn.Deadline.Value,
                 AllowProfessional = duAn.AllowProfessional,
@@ -1004,6 +1072,7 @@ namespace Crowd.Project.Api.Services
                 RewardVnd = p.RewardVnd,
                 Slots = p.Slots,
                 PassThresholdPercent = p.PassThresholdPercent,
+                FillSlotsMinPercent = p.FillSlotsMinPercent,
                 QuestionCount = p.QuestionCount,
                 ToolKinds = LoaiCongCu(p),
                 GateUnitPriceVnd = p.GateUnitPriceVnd,

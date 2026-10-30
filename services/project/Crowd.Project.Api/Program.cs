@@ -6,6 +6,7 @@ using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.Contracts.Admin;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
 using Crowd.Contracts.Media;
@@ -62,6 +63,10 @@ builder.Services.AddEventConsumer<ProjectDbContext, UserEmailVerified, UserEmail
 // media-svc chuan bi xong video vua nap → ghi trang thai mau; con video dang chuan bi thi chua publish / duyet.
 builder.Services.AddEventConsumer<ProjectDbContext, VideoPrepared, VideoPreparedProcessor>(
     builder.Configuration, "project-svc.video-prepared");
+
+// Admin gop the chu de → doi ma the trong nhan du an.
+builder.Services.AddEventConsumer<ProjectDbContext, TagMerged, TagMergedProcessor>(
+    builder.Configuration, "project-svc.tag-merged");
 // ---- Kho anh MinIO ----
 builder.Services.Configure<ObjectStorageOptions>(builder.Configuration.GetSection(ObjectStorageOptions.SectionName));
 builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();

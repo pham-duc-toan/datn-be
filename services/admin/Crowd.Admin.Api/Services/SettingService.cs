@@ -162,7 +162,7 @@ namespace Crowd.Admin.Api.Services
             string? loi = d.KiemGiaTri(moi);
             if (loi != null)
             {
-                throw new AdminException(400, "gia_tri_khong_hop_le", "Setting '" + key + "': " + loi);
+                throw new AdminException(400, "gia_tri_khong_hop_le", "“" + d.Name + "”: " + loi);
             }
 
             string json = moi!.ToJsonString();
@@ -335,7 +335,8 @@ namespace Crowd.Admin.Api.Services
                 Max = d.Max,
                 Effect = d.EffectName,
                 Description = d.Description,
-                Choices = d.Choices,
+                Choices = d.Choices == null && d.Key == SettingKeys.AdminAuditExcludedTypes ? LoaiEventHeThong.TatCa : d.Choices,
+                Multiple = d.ChonNhieu,
                 DefaultValue = d.DefaultValue.DeepClone(),
                 Value = s == null ? d.DefaultValue.DeepClone() : JsonNode.Parse(s.ValueJson),
                 Version = s == null ? 0 : s.Version,

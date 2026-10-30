@@ -31,14 +31,14 @@ namespace Crowd.Labeling.Tools
             {
                 if (thuTu.Count != mau.ItemCount.Value)
                 {
-                    throw Sai(tool, "phai xep du " + mau.ItemCount.Value + " muc (dang co " + thuTu.Count + ").");
+                    throw Sai(tool, "phải xếp đủ " + mau.ItemCount.Value + " mục (đang có " + thuTu.Count + ").");
                 }
 
                 foreach (int muc in thuTu)
                 {
                     if (muc >= mau.ItemCount.Value)
                     {
-                        throw Sai(tool, "muc " + muc + " khong ton tai (mau co " + mau.ItemCount.Value + " muc, danh so tu 0).");
+                        throw Sai(tool, "mục " + muc + " không tồn tại (mẫu có " + mau.ItemCount.Value + " mục, đánh số từ 0).");
                     }
                 }
             }
@@ -125,7 +125,7 @@ namespace Crowd.Labeling.Tools
 
         private static LabelFormatException Sai(ToolDefinition tool, string loi)
         {
-            return new LabelFormatException("nhan_khong_hop_le", "Cong cu '" + tool.Name + "': " + loi);
+            return new LabelFormatException("nhan_khong_hop_le", TenHienThi.TienToNhan(tool) + loi);
         }
     }
 }

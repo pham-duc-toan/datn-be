@@ -115,14 +115,14 @@ namespace Crowd.Labeling
         {
             if (!Modalities.HopLe(taskType))
             {
-                throw new LabelFormatException("loai_nhan_chua_ho_tro", "Loai du lieu '" + taskType + "' khong hop le.");
+                throw new LabelFormatException("loai_nhan_chua_ho_tro", "Loại dữ liệu “" + taskType + "” không hợp lệ.");
             }
 
             if (schemaVersion != PhienBanHienTai)
             {
                 throw new LabelFormatException(
                     "loai_nhan_chua_ho_tro",
-                    "Chua ho tro dinh dang nhan phien ban " + schemaVersion + ".");
+                    "Chưa hỗ trợ định dạng nhãn phiên bản " + schemaVersion + ".");
             }
 
             JsonObject? o;
@@ -132,12 +132,12 @@ namespace Crowd.Labeling
             }
             catch (JsonException ex)
             {
-                throw new LabelFormatException("Du lieu nhan khong phai JSON hop le.", ex);
+                throw new LabelFormatException("Dữ liệu nhãn không phải JSON hợp lệ.", ex);
             }
 
             if (o == null)
             {
-                throw new LabelFormatException("Du lieu nhan phai la mot object.");
+                throw new LabelFormatException("Dữ liệu nhãn phải là một đối tượng JSON.");
             }
 
             return new LabelPayload(taskType, schemaVersion, JsonCanonical.Viet(o));
@@ -268,7 +268,7 @@ namespace Crowd.Labeling
         {
             if (string.IsNullOrWhiteSpace(json))
             {
-                throw new LabelFormatException("nhan_sai_dinh_dang", "Du lieu nhan rong.");
+                throw new LabelFormatException("nhan_sai_dinh_dang", "Dữ liệu nhãn trống.");
             }
 
             try
@@ -277,7 +277,7 @@ namespace Crowd.Labeling
             }
             catch (JsonException ex)
             {
-                throw new LabelFormatException("Du lieu nhan khong phai JSON hop le.", ex);
+                throw new LabelFormatException("Dữ liệu nhãn không phải JSON hợp lệ.", ex);
             }
         }
     }

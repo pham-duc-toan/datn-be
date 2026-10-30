@@ -248,6 +248,16 @@ namespace Crowd.BuildingBlocks.Settings
 
 
         private static readonly string[] CheDoChiCongLink = new string[] { "perClick", "batched" };
+
+        /// <summary>Cong nap tien co adapter (payment-svc PaymentProviders).</summary>
+        private static readonly string[] CongNap = new string[] { "sandbox", "vnpay", "momo" };
+
+        /// <summary>Moi loai cong cu gan nhan — giu khop Crowd.Labeling.ToolKinds.</summary>
+        private static readonly string[] CongCuGanNhan = new string[]
+        {
+            "classification", "freeText", "number", "bbox", "polygon", "keypoint", "polyline", "mask",
+            "span", "relation", "transcription", "temporalSegment", "track", "pairwise", "ranking",
+        };
         private const string NhomKyThuat = "Kỹ thuật";
         private const string NhomBaoVeDuLieu = "Bảo vệ dữ liệu";
 
@@ -330,8 +340,8 @@ namespace Crowd.BuildingBlocks.Settings
                 "Chu kỳ worker gửi lệnh chi tiền ra cổng thanh toán."));
             ds.Add(Seconds(SettingKeys.PaymentPayoutLookupAfter, NhomKyThuat, 15 * 60, 60, Ngay,
                 "Lệnh chi treo quá lâu thì hỏi ngược cổng về trạng thái (đối soát)."));
-            ds.Add(Text(SettingKeys.PaymentEnabledProviders, NhomTien, "sandbox,vnpay,momo", 100,
-                "Cổng nạp tiền đang mở (sandbox, vnpay, momo — ngăn cách dấu phẩy). Cổng phải CÓ cấu hình khoá mới dùng được; tắt một cổng khi cổng đó sự cố."));
+            ds.Add(Many(SettingKeys.PaymentEnabledProviders, NhomTien, "sandbox,vnpay,momo", 100, CongNap,
+                "Cổng nạp tiền đang mở. Cổng phải CÓ cấu hình khoá mới dùng được; tắt một cổng khi cổng đó sự cố."));
             ds.Add(Seconds(SettingKeys.PaymentDepositLookupAfter, NhomKyThuat, 15 * 60, 60, Ngay,
                 "Lệnh nạp qua cổng chưa có kết quả sau bấy nhiêu thì hỏi ngược cổng (đối soát, VD-M-09) — phòng khi IPN bị lạc."));
             ds.Add(Seconds(SettingKeys.PaymentDepositExpireAfter, NhomTien, Ngay, 15 * 60, 30 * Ngay,
@@ -612,8 +622,9 @@ namespace Crowd.BuildingBlocks.Settings
                 "Tuổi tối thiểu để xem dự án nội dung nhạy cảm (mục 2.9, VD-P-04). Tính từ ngày sinh trên giấy tờ đã được admin xác minh."));
 
             // ================= ADMIN =================
-            ds.Add(Text(SettingKeys.AdminAuditExcludedTypes, NhomKyThuat, AuditLoaiTruMacDinh, 1000,
-                "Loại event KHÔNG lưu chi tiết vào nhật ký audit (tần suất cao, do hệ thống / luồng gán nhãn sinh ra — vẫn được ĐẾM cho báo cáo tổng quan), ngăn cách bằng dấu phẩy."));
+            // Danh sach loai event nam o Crowd.Contracts (building-blocks khong tham chieu) — admin-svc dien luc hien thi.
+            ds.Add(Many(SettingKeys.AdminAuditExcludedTypes, NhomKyThuat, AuditLoaiTruMacDinh, 1000, null,
+                "Loại event KHÔNG lưu chi tiết vào nhật ký audit (tần suất cao, do hệ thống / luồng gán nhãn sinh ra — vẫn được ĐẾM cho báo cáo tổng quan)."));
             ds.Add(Int(SettingKeys.AdminAuditRetentionDays, NhomKyThuat, 365, 7, 3650, "ngày",
                 "Giữ nhật ký audit bao nhiêu ngày."));
             ds.Add(Int(SettingKeys.OpsDlqAlertThreshold, NhomKyThuat, 1, 1, 1000000, "message",
@@ -685,7 +696,7 @@ namespace Crowd.BuildingBlocks.Settings
             // ================= CONG LINK (P2) =================
             ds.Add(Bool(SettingKeys.GateEnabled, NhomCongLink, true,
                 "Tắt = trang vượt link chỉ chuyển thẳng tới đích, không phát câu hỏi, không trả tiền sharer."));
-            ds.Add(Text(SettingKeys.GateAllowedTools, NhomCongLink, "classification,pairwise,number,bbox,keypoint,span", 200,
+            ds.Add(Many(SettingKeys.GateAllowedTools, NhomCongLink, "classification,pairwise,number,bbox,keypoint,span", 200, CongCuGanNhan,
                 "Loại công cụ khách vãng lai làm được ở trang vượt link (vài giây, không uy tín). Dự án bật cổng link mà có công cụ ngoài danh sách thì KHÔNG publish được."));
             ds.Add(Seconds(SettingKeys.GateCountdown, NhomCongLink, 8, 0, 120,
                 "Đếm ngược tối thiểu trước khi khách nộp bài (server kiểm, không chỉ là giao diện)."));
@@ -757,6 +768,12 @@ namespace Crowd.BuildingBlocks.Settings
         private static SettingDefinition Choice(string key, string group, string def, string[] choices, string description)
         {
             return new SettingDefinition(key, group, SettingType.Chuoi, JsonValue.Create(def), null, 50, "", SettingEffect.NewOperations, description, choices);
+        }
+
+        /// <summary>Setting "chon nhieu": chuoi "a,b,c", moi phan tu thuoc choices (null = khong kiem tung phan tu).</summary>
+        private static SettingDefinition Many(string key, string group, string def, int maxLength, string[]? choices, string description)
+        {
+            return new SettingDefinition(key, group, SettingType.Chuoi, JsonValue.Create(def), null, maxLength, "ký tự", SettingEffect.NewOperations, description, choices, true);
         }
 
         private static SettingDefinition Text(string key, string group, string def, int maxLength, string description)

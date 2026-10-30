@@ -140,6 +140,15 @@
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {
+      // admin-svc: danh mục thẻ lĩnh vực / ngôn ngữ — ô chọn của hồ sơ kỹ năng và dự án.
+      "UpstreamPathTemplate": "/tags",
+      "UpstreamHttpMethod": ["Get"],
+      "DownstreamPathTemplate": "/tags",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8111 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
       "UpstreamPathTemplate": "/templates/{everything}",
       "UpstreamHttpMethod": ["Get"],
       "DownstreamPathTemplate": "/templates/{everything}",

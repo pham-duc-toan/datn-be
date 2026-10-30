@@ -292,9 +292,20 @@ namespace Crowd.Notification.Api.Consumers
         {
             foreach (GradedAttempt a in p.Attempts)
             {
-                NoiDung n = a.Passed
-                    ? NoiDungThongBao.BaiDat(a.AttemptId, a.AgreementPercent, p.PassThresholdPercent, p.MajorityUsed, a.Rewarded)
-                    : NoiDungThongBao.BaiTruot(a.AttemptId, a.AgreementPercent, p.PassThresholdPercent, a.GoldCorrect, a.GoldTotal, p.MajorityUsed);
+                NoiDung n;
+                if (a.Passed)
+                {
+                    n = NoiDungThongBao.BaiDat(a.AttemptId, a.AgreementPercent, p.PassThresholdPercent, p.MajorityUsed, a.Rewarded);
+                }
+                else if (a.Rewarded)
+                {
+                    n = NoiDungThongBao.BaiLapSuat(a.AttemptId, a.AgreementPercent, p.PassThresholdPercent);
+                }
+                else
+                {
+                    n = NoiDungThongBao.BaiTruot(a.AttemptId, a.AgreementPercent, p.PassThresholdPercent, a.GoldCorrect, a.GoldTotal, p.MajorityUsed);
+                }
+
                 await Writer.GhiAsync(a.LabelerId, LoaiThongBao.KetQuaBai, n, ct);
             }
 

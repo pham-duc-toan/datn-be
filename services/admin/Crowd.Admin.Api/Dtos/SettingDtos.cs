@@ -30,8 +30,14 @@ namespace Crowd.Admin.Api.Dtos
 
         public required string Description { get; init; }
 
-        /// <summary>Setting "chon mot": cac gia tri hop le (ve thanh danh sach chon). null = nhap tu do.</summary>
+        /// <summary>
+        /// Setting "chon mot": cac gia tri hop le (ve thanh danh sach chon). Setting "chon nhieu" (Multiple):
+        /// cac phan tu duoc tick. null = nhap tu do.
+        /// </summary>
         public IReadOnlyList<string>? Choices { get; init; }
+
+        /// <summary>true = gia tri la chuoi "a,b,c" gom cac phan tu cua Choices (ve thanh o tick).</summary>
+        public required bool Multiple { get; init; }
 
         public required JsonNode DefaultValue { get; init; }
 

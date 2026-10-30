@@ -31,7 +31,7 @@ namespace Crowd.Labeling
         {
             if (string.IsNullOrWhiteSpace(json))
             {
-                throw new LabelFormatException("JSON rong.");
+                throw new LabelFormatException("JSON trống.");
             }
 
             JsonNode? node;
@@ -41,7 +41,7 @@ namespace Crowd.Labeling
             }
             catch (JsonException ex)
             {
-                throw new LabelFormatException("Khong phai JSON hop le.", ex);
+                throw new LabelFormatException("Không phải JSON hợp lệ.", ex);
             }
 
             return Tu(node);
@@ -56,7 +56,7 @@ namespace Crowd.Labeling
         {
             if (node == null)
             {
-                throw new LabelFormatException("JSON null.");
+                throw new LabelFormatException("JSON không được là null.");
             }
 
             return new RawJson(JsonCanonical.Viet(node));

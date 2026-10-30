@@ -90,6 +90,13 @@ namespace Crowd.Contracts.Project
         /// <summary>t — ti le % cau giong da so toi thieu de dat (admin dat khoang [x, y]).</summary>
         public required int PassThresholdPercent { get; init; }
 
+        /// <summary>
+        /// Lap suat trong (quality-svc): so bai dat it hon so suat thi suat con lai trao cho bai giong da so nhieu
+        /// nhat (cung % thi nop som hon), dung het cau vang va giong da so &gt;= muc nay. KHONG bat buoc —
+        /// null / ban tin cu = khong lap.
+        /// </summary>
+        public int? FillSlotsMinPercent { get; init; }
+
         /// <summary>So cau that cua de (khong tinh cau vang) luc publish.</summary>
         public required int QuestionCount { get; init; }
 

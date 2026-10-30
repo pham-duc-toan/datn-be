@@ -78,7 +78,14 @@ namespace Crowd.Identity.Api.Services
         {
             Guid uid = caller.LayUserId();
             BusinessProfile? p = await _db.BusinessProfiles.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == uid, ct);
-            return TaoResponse(p == null ? BusinessProfile.Tao(uid, _clock.GetUtcNow()) : p);
+            if (p == null)
+            {
+                return TaoResponse(BusinessProfile.Tao(uid, _clock.GetUtcNow()));
+            }
+
+            // Chinh chu xem lai giay phep da tai len — khong phai luot xem cua admin (S-07).
+            string? link = p.LicenseKey == null ? null : await _storage.TaoLinkXemAsync(p.LicenseKey);
+            return TaoResponse(p, link);
         }
 
         public async Task<KybResponse> CapNhatAsync(UpdateKybRequest body, Caller caller, CancellationToken ct)
@@ -277,6 +284,11 @@ namespace Crowd.Identity.Api.Services
 
         internal static KybResponse TaoResponse(BusinessProfile p)
         {
+            return TaoResponse(p, null);
+        }
+
+        internal static KybResponse TaoResponse(BusinessProfile p, string? linkGiayPhep)
+        {
             return new KybResponse
             {
                 BusinessId = p.UserId,
@@ -286,6 +298,7 @@ namespace Crowd.Identity.Api.Services
                 Address = p.Address,
                 HasLicense = p.LicenseKey != null,
                 LicenseFileName = p.LicenseFileName,
+                LicenseUrl = linkGiayPhep,
                 RejectReason = p.RejectReason,
                 SubmittedAt = p.SubmittedAt,
                 ReviewedAt = p.ReviewedAt,

@@ -107,7 +107,8 @@ async def tinh_labelers(s: AsyncSession, project_id: uuid.UUID) -> list[dict[str
             "agreementSampleCount": d.comparable_count,
             "matchedCount": d.matched_count,
             "passed": d.passed,
-            # Trong n suat thuong (n bai dat nop som nhat). passed ma rewarded false = dat nhung het suat.
+            # Trong n suat thuong (n bai dat nop som nhat). passed ma rewarded false = dat nhung het suat;
+            # rewarded ma passed false = duoc lap suat trong.
             "rewarded": d.rewarded,
             "goldAnswers": d.gold_total,
             "goldAccuracyPercent": phan_tram(d.gold_correct, d.gold_total),
