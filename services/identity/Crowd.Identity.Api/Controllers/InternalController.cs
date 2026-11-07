@@ -8,6 +8,7 @@ using Crowd.BuildingBlocks.Settings;
 using Crowd.Identity.Api.Dtos;
 using Crowd.Identity.Api.Entities;
 using Crowd.Identity.Api.Persistence;
+using Crowd.Identity.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,7 @@ namespace Crowd.Identity.Api.Controllers
     /// <summary>
     /// API NOI BO (khoa X-Internal-Key, gateway khong dinh tuyen /internal).
     /// Gateway goi luc khoi dong de nap lai cac moc thu hoi phien con tac dung — sau do theo doi
-    /// qua event user.sessions_revoked. project-svc goi users/lookup khi moi / nhan nguoi vao du an.
+    /// qua event user.sessions_revoked. ledger-svc / link-svc goi users/lookup.
     /// </summary>
     [ApiController]
     [Route("internal")]
@@ -26,8 +27,9 @@ namespace Crowd.Identity.Api.Controllers
         private readonly IdentityDbContext _db;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
+        private readonly TraCuuNguoiDungService _traCuu;
 
-        public InternalController(IdentityDbContext db, ISettings settings, TimeProvider clock)
+        public InternalController(IdentityDbContext db, ISettings settings, TimeProvider clock, TraCuuNguoiDungService traCuu)
         {
             if (db == null)
             {
@@ -44,9 +46,15 @@ namespace Crowd.Identity.Api.Controllers
                 throw new ArgumentNullException(nameof(clock));
             }
 
+            if (traCuu == null)
+            {
+                throw new ArgumentNullException(nameof(traCuu));
+            }
+
             _db = db;
             _settings = settings;
             _clock = clock;
+            _traCuu = traCuu;
         }
 
         /// <summary>
@@ -65,9 +73,9 @@ namespace Crowd.Identity.Api.Controllers
         }
 
         /// <summary>
-        /// POST /internal/users/lookup — project-svc tra cuu nguoi duoc moi (theo email / id) va
-        /// kiem dieu kien tham gia du an (vai tro, khoa, cap do, uy tin). Khong co trong ket qua =
-        /// khong ton tai. Email tra ve nam trong mang noi bo, khong di qua gateway.
+        /// POST /internal/users/lookup — ledger-svc kiem khoa luc rut tien; link-svc kiem luc dang ky luc
+        /// nhap ma gioi thieu (project-svc hoi cung du lieu qua gRPC IdentityData). Khong co trong ket qua =
+        /// khong ton tai; qua 1000 id + email + username → 400. Email tra ve nam trong mang noi bo.
         /// </summary>
         [HttpPost("users/lookup")]
         public async Task<IActionResult> TraCuu([FromBody] UserLookupRequest body, CancellationToken ct)
@@ -77,70 +85,8 @@ namespace Crowd.Identity.Api.Controllers
                 return BadRequest();
             }
 
-            List<Guid> ids = body.UserIds == null ? new List<Guid>() : body.UserIds.Distinct().ToList();
-            List<string> emails = new List<string>();
-            if (body.Emails != null)
-            {
-                foreach (string e in body.Emails)
-                {
-                    if (!string.IsNullOrWhiteSpace(e))
-                    {
-                        emails.Add(Crowd.Identity.Api.Entities.User.ChuanHoaEmail(e));
-                    }
-                }
-            }
-
-            emails = emails.Distinct(StringComparer.Ordinal).ToList();
-            List<string> usernames = body.Usernames == null
-                ? new List<string>()
-                : body.Usernames.Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Select(x => Crowd.Identity.Api.Entities.User.ChuanHoaUsername(x)).Distinct(StringComparer.Ordinal).ToList();
-            if (ids.Count + emails.Count + usernames.Count > TraCuuToiDa)
-            {
-                return BadRequest();
-            }
-
-            List<Crowd.Identity.Api.Entities.User> users = await _db.Users.AsNoTracking()
-                .Where(u => ids.Contains(u.Id) || emails.Contains(u.Email) || usernames.Contains(u.Username))
-                .ToListAsync(ct);
-
-            List<Guid> tim = users.Select(u => u.Id).ToList();
-            Dictionary<Guid, ThongKeLabeler> thongKe = await _db.ThongKeLabelers.AsNoTracking()
-                .Where(t => tim.Contains(t.UserId))
-                .ToDictionaryAsync(t => t.UserId, ct);
-
-            // Xac minh danh tinh / du tuoi (FP-05, muc 2.9): project kiem khi moi vao du an rieng tu / nhay cam.
-            Dictionary<Guid, XacMinhDanhTinh> xacMinh = await _db.XacMinhDanhTinhs.AsNoTracking()
-                .Where(x => tim.Contains(x.UserId) && x.Status == KybStatus.Verified)
-                .ToDictionaryAsync(x => x.UserId, ct);
-            int tuoi = _settings.SoNguyen(SettingKeys.IdentityAdultAge);
-            DateOnly homNay = Crowd.Identity.Api.Services.XacMinhDanhTinhService.HomNayVietNam(_clock.GetUtcNow());
-
-            List<UserLookupDto> ds = new List<UserLookupDto>();
-            foreach (Crowd.Identity.Api.Entities.User u in users)
-            {
-                ThongKeLabeler? tk;
-                thongKe.TryGetValue(u.Id, out tk);
-                XacMinhDanhTinh? xm;
-                xacMinh.TryGetValue(u.Id, out xm);
-                ds.Add(new UserLookupDto
-                {
-                    UserId = u.Id,
-                    Email = u.Email,
-                    Username = u.Username,
-                    DisplayName = u.DisplayName,
-                    Roles = u.Roles,
-                    Locked = u.Status == UserStatus.Blocked,
-                    Level = tk == null ? 1 : tk.Level,
-                    Reputation = tk == null ? null : tk.Reputation,
-                    IdentityVerified = xm != null,
-                    Adult = xm != null && xm.DuTuoi(tuoi, homNay),
-                    Domains = u.Domains,
-                    Languages = u.Languages,
-                    Modalities = u.Modalities,
-                });
-            }
-
+            List<UserLookupDto> ds = await _traCuu.TraCuuAsync(
+                body.UserIds ?? new List<Guid>(), body.Emails ?? new List<string>(), body.Usernames ?? new List<string>(), ct);
             return Ok(ds);
         }
 
@@ -168,8 +114,5 @@ namespace Crowd.Identity.Api.Controllers
                 Email = u.Email,
             });
         }
-
-        /// <summary>Tran so id + email moi lan tra cuu (project-svc chia lo theo setting moi nhieu nguoi).</summary>
-        private const int TraCuuToiDa = 1000;
     }
 }

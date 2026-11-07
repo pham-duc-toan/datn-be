@@ -12,8 +12,6 @@ namespace Crowd.Labeling.Tools
     /// Cac mat na duoc phep chong nhau (hai vat che nhau).
     ///
     /// Cham dap an: IoU tung cap &gt;= nguong (mac dinh 0.5).
-    /// Gop nhieu nguoi: ghep cum theo IoU, mat na dai dien = bo phieu TUNG PIXEL trong cum (pixel
-    /// duoc bat khi hon mot nua so mat na cua cum bat no).
     /// </summary>
     internal sealed class MaskTool : DanhSachToolBase
     {
@@ -84,26 +82,6 @@ namespace Crowd.Labeling.Tools
         {
             return Rle.Iou(Rle.Doc(a), Rle.Doc(b));
         }
-
-        protected override JsonObject DaiDien(IReadOnlyList<JsonObject> thanhVien, BoSoSanh so)
-        {
-            RleMask dau = Rle.Doc(thanhVien[0]);
-            List<long[]> ds = new List<long[]>();
-            foreach (JsonObject m in thanhVien)
-            {
-                ds.Add(Rle.Doc(m).Doan);
-            }
-
-            List<long> daSo = Rle.DaSo(ds);
-            if (daSo.Count < 2)
-            {
-                // Khong pixel nao qua ban (chi xay ra khi nguong ghep rat thap) — lay mat na "o giua".
-                return base.DaiDien(thanhVien, so);
-            }
-
-            return new JsonObject { ["rle"] = Rle.ToJson(dau.Cao, dau.Rong, daSo) };
-        }
-
         protected override string KhoaSapXep(JsonObject p)
         {
             JsonArray doan = (JsonArray)p["rle"]!["counts"]!;

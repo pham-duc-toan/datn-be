@@ -139,7 +139,7 @@ namespace Crowd.Ledger.Api.Services
 
             Dictionary<string, long> tong = theoLoai.ToDictionary(x => x.Loai, x => x.Tong, StringComparer.Ordinal);
             List<FundsHold> treo = await _db.Holds.AsNoTracking()
-                .Where(h => h.ProjectId == projectId && (h.Kind == HoldKind.ProjectReward || h.Kind == HoldKind.Annotation))
+                .Where(h => h.ProjectId == projectId && h.Kind == HoldKind.ProjectReward)
                 .ToListAsync(ct);
 
             return new ProjectCostResponse
@@ -148,9 +148,7 @@ namespace Crowd.Ledger.Api.Services
                 EscrowState = char.ToLowerInvariant(escrow.State.ToString()[0]) + escrow.State.ToString().Substring(1),
                 ReservedVnd = Lay(tong, JournalEntryType.EscrowReserve),
                 BalanceVnd = tong.Values.Sum(),
-                // Du lieu cu (chi theo nhan) cong chung vao tien thuong.
-                SpentRewardsVnd = -(Lay(tong, JournalEntryType.RewardPayout) + Lay(tong, JournalEntryType.AnnotationPayout)
-                                    + Lay(tong, JournalEntryType.DisputeRefund)),
+                SpentRewardsVnd = -Lay(tong, JournalEntryType.RewardPayout),
                 SpentGateVnd = -Lay(tong, JournalEntryType.GateClickPayout),
                 ReturnedVnd = -(Lay(tong, JournalEntryType.Refund) + Lay(tong, JournalEntryType.EscrowRelease)),
                 Slots = escrow.Slots,

@@ -159,11 +159,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("gate_spent_vnd");
 
-                    b.Property<string>("Name")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("name");
-
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
@@ -212,20 +207,14 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("amount_vnd");
 
-                    b.Property<Guid>("AnnotationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("annotation_id");
-
                     b.Property<DateTimeOffset>("HeldAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("held_at");
 
                     b.Property<string>("Kind")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
-                        .HasDefaultValue("Annotation")
                         .HasColumnName("kind");
 
                     b.Property<Guid>("LabelerId")
@@ -248,15 +237,15 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("released_at");
 
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_id");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("state");
-
-                    b.Property<Guid>("TaskId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("task_id");
 
                     b.HasKey("Id");
 
@@ -268,15 +257,12 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_holds_den_han")
                         .HasFilter("state = 'Held'");
 
-                    b.HasIndex("TaskId")
-                        .HasDatabaseName("ix_holds_task");
-
-                    b.HasIndex("AnnotationId", "Kind")
-                        .IsUnique()
-                        .HasDatabaseName("ux_holds_source");
-
                     b.HasIndex("LabelerId", "HeldAt")
                         .HasDatabaseName("ix_holds_thu_nhap");
+
+                    b.HasIndex("SourceId", "Kind")
+                        .IsUnique()
+                        .HasDatabaseName("ux_holds_source");
 
                     b.ToTable("holds", (string)null);
                 });
@@ -634,25 +620,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ux_withdrawals_idempotency");
 
                     b.ToTable("withdrawals", (string)null);
-                });
-
-            modelBuilder.Entity("Crowd.Ledger.Infrastructure.Persistence.BlockedUser", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<bool>("Blocked")
-                        .HasColumnType("boolean")
-                        .HasColumnName("blocked");
-
-                    b.Property<DateTimeOffset>("ChangedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("changed_at");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("blocked_users", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>

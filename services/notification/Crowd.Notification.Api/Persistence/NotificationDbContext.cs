@@ -25,11 +25,9 @@ namespace Crowd.Notification.Api.Persistence
 
         public DbSet<TuyChonEmail> TuyChonEmails => Set<TuyChonEmail>();
 
-        public DbSet<ChuDuAn> ChuDuAns => Set<ChuDuAn>();
 
         public DbSet<EmailGiaoDich> EmailGiaoDichs => Set<EmailGiaoDich>();
 
-        public DbSet<ChuLenhRut> ChuLenhRuts => Set<ChuLenhRut>();
 
         public DbSet<NgonNguNguoiDung> NgonNgus => Set<NgonNguNguoiDung>();
 
@@ -133,23 +131,6 @@ namespace Crowd.Notification.Api.Persistence
                 b.Property(x => x.Type).HasColumnName("type").HasMaxLength(40);
                 b.HasKey(x => new { x.UserId, x.Type });
                 b.Property(x => x.EmailEnabled).HasColumnName("email_enabled").IsRequired();
-            });
-
-            modelBuilder.Entity<ChuDuAn>(b =>
-            {
-                b.ToTable("project_owners");
-                b.Property(x => x.ProjectId).HasColumnName("project_id").ValueGeneratedNever();
-                b.HasKey(x => x.ProjectId);
-                b.Property(x => x.OwnerId).HasColumnName("owner_id").IsRequired();
-            });
-
-            modelBuilder.Entity<ChuLenhRut>(b =>
-            {
-                b.ToTable("withdrawal_owners");
-                b.Property(x => x.WithdrawalId).HasColumnName("withdrawal_id").ValueGeneratedNever();
-                b.HasKey(x => x.WithdrawalId);
-                b.Property(x => x.LabelerId).HasColumnName("labeler_id").IsRequired();
-                b.Property(x => x.NetAmountVnd).HasColumnName("net_amount_vnd").IsRequired();
             });
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());

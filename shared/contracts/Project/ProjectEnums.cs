@@ -12,14 +12,4 @@ namespace Crowd.Contracts.Project
         /// <summary>Nguoi duyet nhan thay mat doanh nghiep.</summary>
         Reviewer,
     }
-
-    /// <summary>Muc dich cua mot cau hoi vang.</summary>
-    public enum GoldPurpose
-    {
-        /// <summary>Dung trong bai test dau vao (FB-16, FL-03).</summary>
-        EntranceTest,
-
-        /// <summary>Tron vao task that de giam sat lien tuc (FQ-04).</summary>
-        QualityCheck,
-    }
 }

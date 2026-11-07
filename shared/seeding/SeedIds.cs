@@ -10,7 +10,7 @@ namespace Crowd.Seeding
     /// service, moi lan chay.
     ///
     /// Vi sao can: moi service seed database RIENG va KHONG noi chuyen voi nhau
-    /// luc seed. project-svc tao du an P1, task-svc tao task cho P1, ledger-svc
+    /// luc seed. project-svc tao du an P1 va bai lam, quality-svc cham, ledger-svc
     /// giu ky quy cho P1 — ca ba phai dung chung mot ProjectId. Guid.NewGuid()
     /// moi noi mot kieu thi du lieu khong khop nhau.
     /// </summary>

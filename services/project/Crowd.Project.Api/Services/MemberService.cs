@@ -35,6 +35,7 @@ namespace Crowd.Project.Api.Services
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly BaoVeService _baoVe;
+        private readonly BaiLamRevoker _revoker;
 
         public MemberService(
             ProjectDbContext db,
@@ -43,14 +44,21 @@ namespace Crowd.Project.Api.Services
             IdentityClient identity,
             ISettings settings,
             TimeProvider clock,
-            BaoVeService baoVe)
+            BaoVeService baoVe,
+            BaiLamRevoker revoker)
         {
             if (baoVe == null)
             {
                 throw new ArgumentNullException(nameof(baoVe));
             }
 
+            if (revoker == null)
+            {
+                throw new ArgumentNullException(nameof(revoker));
+            }
+
             _baoVe = baoVe;
+            _revoker = revoker;
 
             if (db == null)
             {
@@ -265,7 +273,7 @@ namespace Crowd.Project.Api.Services
 
         /// <summary>
         /// POST /projects/{id}/leave — labeler / reviewer tu roi du an bat ky luc nao (muc 2.9: khong bi
-        /// phat — uy tin chi tinh tu nhan da nop). Luot giu task dang do bi task-svc thu hoi qua member.removed.
+        /// phat — uy tin chi tinh tu nhan da nop). Bai dang lam do bi huy NGAY trong cung transaction.
         /// </summary>
         public async Task RoiAsync(Guid projectId, Caller caller, CancellationToken ct)
         {
@@ -273,6 +281,7 @@ namespace Crowd.Project.Api.Services
             ProjectMember m = await LayThanhVienAsync(projectId, uid, ct);
             m.KiemTraTuRoiDuoc();
             _db.ProjectMembers.Remove(m);
+            await _revoker.ThuHoiAsync(projectId, uid, _clock.GetUtcNow(), ct);
             _events.Phat(caller, new MemberRemoved { ProjectId = projectId, UserId = uid });
             await _db.SaveChangesAsync(ct);
         }
@@ -283,6 +292,9 @@ namespace Crowd.Project.Api.Services
             ProjectMember m = await LayThanhVienAsync(projectId, userId, ct);
 
             m.Chan(_clock.GetUtcNow());
+            // Chan co hieu luc NGAY: bai dang lam bi huy trong cung transaction (truoc day task-svc lam khi nhan
+            // member.blocked — event ket trong DLQ thi labeler bi chan van lam tiep duoc).
+            await _revoker.ThuHoiAsync(projectId, userId, _clock.GetUtcNow(), ct);
             _events.Phat(caller, new MemberBlocked { ProjectId = projectId, UserId = userId });
 
             await _db.SaveChangesAsync(ct);
@@ -308,6 +320,7 @@ namespace Crowd.Project.Api.Services
 
             m.KiemTraCoTheXoa();
             _db.ProjectMembers.Remove(m);
+            await _revoker.ThuHoiAsync(projectId, userId, _clock.GetUtcNow(), ct);
             _events.Phat(caller, new MemberRemoved { ProjectId = projectId, UserId = userId });
 
             await _db.SaveChangesAsync(ct);

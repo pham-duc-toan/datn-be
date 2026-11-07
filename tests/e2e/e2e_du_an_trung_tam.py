@@ -104,8 +104,8 @@ def trang_thai(chu, pid):
 
 try:
     # Han khieu nai + chu ky worker task ngan de chot du an trong luc test.
-    dat_va_cho("task.appeal_window", 15, ["task"])
-    dat_va_cho("task.reaper_interval", 2, ["task"])
+    dat_va_cho("task.appeal_window", 15, ["project"])
+    dat_va_cho("task.reaper_interval", 2, ["project"])
     dat_va_cho("ledger.reward_hold", 0, ["ledger"])
 
     biz = dang_ky(["business"], "biz")
@@ -275,7 +275,7 @@ try:
 
     def huy():
         x = requests.post(G + f"/projects/{C}/cancel", headers=biz["h"], json={"reason": "e2e"})
-        # chua_dong_bo_tam_dung: task-svc chua nhan project.paused — thu lai (thiet ke, docs 3.18).
+        # Huy ngay sau tam dung: thu lai vai lan cho chac (tam dung nay ghi dong bo trong project-svc).
         return x if x.status_code in (200, 202) or "chua_dong_bo_tam_dung" not in x.text else None
     r = cho(huy, 30, 1) or requests.post(G + f"/projects/{C}/cancel", headers=biz["h"], json={"reason": "e2e"})
     kiem("huy du an chua co bai nop (sau khi tam dung dong bo)", r.status_code in (200, 202), r.text)
@@ -285,7 +285,7 @@ try:
     print("\n[8] Kiem tra tong")
     rec = requests.get(G + "/ledger/admin/reconciliation", headers=admin).json()
     kiem("doi soat so cai lanh", rec.get("healthy") is True, rec)
-    for db in ("task", "annotation", "quality", "ledger", "project"):
+    for db in ("quality", "ledger", "project"):
         kiem(f"{db}: outbox da gui het", cho(lambda: sql(db, "select count(*) from outbox where published_at is null") == "0", 30))
 finally:
     print("\n[9] Tra setting ve gia tri ban dau")

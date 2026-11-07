@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # Giong ASPNETCORE_ENVIRONMENT: production PHAI dat QUALITY_ENVIRONMENT=Production.
     environment: str = "Development"
-    # Seed ban sao du an cua kich ban dev — chi chay khi environment = Development.
+    # Seed ket qua cham cua kich ban dev — chi chay khi environment = Development.
     seed_enabled: bool = True
 
     # Postgres rieng cua quality (docker-compose.infra.yml, profile p3).
@@ -43,10 +43,13 @@ class Settings(BaseSettings):
     # Chu ky DS, trong so uy tin, outbox, prefetch... la SETTING DONG (admin-svc) — xem settings_store.py.
     settings_catalog_path: str | None = None
 
-    # project-svc noi bo: bu ban sao du an khi thieu (du an publish truoc khi quality-svc ton tai).
-    # Trong = khong bu (bo qua dong thuan kem canh bao nhu truoc).
-    project_url: str | None = None
+    # project-svc gRPC noi bo (kien truc 3.22, host:cong HTTP/2): de bai, bai nop, nhan — quality KHONG giu
+    # ban sao. Khoa noi bo di trong metadata x-internal-key (cung khoa InternalApi:Key cua cac service C#).
+    project_grpc: str = "localhost:9102"
     internal_api_key: str | None = None
+    # Cong gRPC quality PHUC VU (HTTP/2): project-svc nho gop nhan cho ket qua giao doanh nghiep (3.24). Cung khoa
+    # noi bo. 0 = khong mo (test).
+    grpc_port: int = 9201
 
     # ml-svc noi bo: nhung cau tra loi mo de cham theo nghia (3.19). Trong = cham cau tra loi mo bang so chu.
     ml_url: str | None = None

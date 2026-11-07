@@ -349,7 +349,7 @@ namespace Crowd.Project.Tests
             Assert.Equal(ProjectStatus.Paused, p.Status);
             p.TiepTuc(Luc);
 
-            // Hoan thanh chi den tu project.settled, sau Dang cham.
+            // Hoan thanh chi den sau khi chot (het han khieu nai), sau Dang cham.
             Assert.Throws<RuleViolationException>(() => p.HoanThanh(Luc));
 
             Assert.True(p.BatDauCham(Luc.AddDays(1)));

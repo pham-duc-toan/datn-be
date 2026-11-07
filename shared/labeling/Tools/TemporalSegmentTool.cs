@@ -8,7 +8,6 @@ namespace Crowd.Labeling.Tools
     /// Doan thoi gian trong audio / video: [{"labelId":"noi","start":1.5,"end":4.0}],
     /// don vi GIAY, tinh tu DAU MAU (doan cat), 0 &lt;= start &lt; end &lt;= durationSec.
     /// Cham dap an: IoU thoi gian tung cap &gt;= nguong (mac dinh 0.5).
-    /// Gop nhieu nguoi: ghep cum theo IoU thoi gian, doan dai dien = TRUNG VI diem dau / diem cuoi.
     /// </summary>
     internal sealed class TemporalSegmentTool : DanhSachToolBase
     {
@@ -54,16 +53,6 @@ namespace Crowd.Labeling.Tools
         {
             return DoGiongDaPhanTich(PhanTich(a), PhanTich(b), tyLe);
         }
-
-        protected override JsonObject DaiDien(IReadOnlyList<JsonObject> thanhVien, BoSoSanh so)
-        {
-            return new JsonObject
-            {
-                ["start"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => HinhHoc.So(m["start"])))),
-                ["end"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => HinhHoc.So(m["end"])))),
-            };
-        }
-
         protected override string KhoaSapXep(JsonObject p)
         {
             return SoDeSapXep(HinhHoc.So(p["start"])) + "|" + p["labelId"]!.GetValue<string>() + "|" + SoDeSapXep(HinhHoc.So(p["end"]));

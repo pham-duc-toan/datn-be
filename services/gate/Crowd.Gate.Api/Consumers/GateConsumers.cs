@@ -18,7 +18,11 @@ namespace Crowd.Gate.Api.Consumers
     // GIAO KEO: KHONG SaveChanges — IdempotencyGuard luu + ghi processed_events + commit
     // MOT lan. Moi processor bao GateCatalog nap lai de duong nong thay thay doi som.
 
-    /// <summary>project.published: chep du an BAT kenh cong link (tap nhan, don gia, phi da chot).</summary>
+    /// <summary>
+    /// project.published: chep du an BAT kenh cong link (tap nhan, don gia, phi da chot). Mau + cau vang KHONG
+    /// keo o day (consumer khong goi gRPC — project-svc sap thi message khong roi vao DLQ): dong moi co
+    /// content_loaded_at NULL, ContentLoadWorker keo qua gRPC roi moi phuc vu.
+    /// </summary>
     public sealed class ProjectPublishedProcessor : IEventProcessor<ProjectPublished>
     {
         private readonly GateDbContext _db;
@@ -50,9 +54,7 @@ namespace Crowd.Gate.Api.Consumers
             ProjectPublished p = envelope.Payload;
             if (!p.AllowLinkGateway)
             {
-                // Du an KHONG bat cong link: gate khong bao gio phat mau cua no. Mau da chep tu
-                // dataset.ingested (luc do chua biet du an co bat cong link khong) → xoa.
-                await GateDonDep.XoaMauCuaDuAnAsync(_db, p.ProjectId, ct);
+                // Du an KHONG bat cong link: gate khong giu gi cua no.
                 return;
             }
 
@@ -132,96 +134,6 @@ namespace Crowd.Gate.Api.Consumers
             }
 
             d.DatTrangThai(moi, luc);
-            _catalog.YeuCauNapLai();
-        }
-    }
-
-    /// <summary>dataset.ingested: chep mau (moi du an — luc nap chua biet du an co bat cong link khong).</summary>
-    public sealed class DatasetIngestedProcessor : IEventProcessor<DatasetIngested>
-    {
-        private readonly GateDbContext _db;
-        private readonly GateCatalog _catalog;
-
-        public DatasetIngestedProcessor(GateDbContext db, GateCatalog catalog)
-        {
-            if (db == null)
-            {
-                throw new ArgumentNullException(nameof(db));
-            }
-
-            if (catalog == null)
-            {
-                throw new ArgumentNullException(nameof(catalog));
-            }
-
-            _db = db;
-            _catalog = catalog;
-        }
-
-        public async Task XuLyAsync(EventEnvelope<DatasetIngested> envelope, CancellationToken ct)
-        {
-            if (envelope == null)
-            {
-                throw new ArgumentNullException(nameof(envelope));
-            }
-
-            DatasetIngested p = envelope.Payload;
-            List<Guid> ids = p.Samples.Select(s => s.SampleId).ToList();
-            HashSet<Guid> daCo = (await _db.Samples.Where(s => ids.Contains(s.SampleId)).Select(s => s.SampleId).ToListAsync(ct)).ToHashSet();
-
-            foreach (IngestedSample s in p.Samples)
-            {
-                if (!daCo.Contains(s.SampleId))
-                {
-                    _db.Samples.Add(MauCong.Tao(s.SampleId, p.ProjectId, s.Modality, s.StorageKey, s.Content, s.Metadata));
-                }
-            }
-
-            _catalog.YeuCauNapLai();
-        }
-    }
-
-    /// <summary>gold_set.updated: thay TOAN BO cau vang kiem tra cua du an (chi QualityCheck).</summary>
-    public sealed class GoldSetUpdatedProcessor : IEventProcessor<GoldSetUpdated>
-    {
-        private readonly GateDbContext _db;
-        private readonly GateCatalog _catalog;
-
-        public GoldSetUpdatedProcessor(GateDbContext db, GateCatalog catalog)
-        {
-            if (db == null)
-            {
-                throw new ArgumentNullException(nameof(db));
-            }
-
-            if (catalog == null)
-            {
-                throw new ArgumentNullException(nameof(catalog));
-            }
-
-            _db = db;
-            _catalog = catalog;
-        }
-
-        public async Task XuLyAsync(EventEnvelope<GoldSetUpdated> envelope, CancellationToken ct)
-        {
-            if (envelope == null)
-            {
-                throw new ArgumentNullException(nameof(envelope));
-            }
-
-            GoldSetUpdated p = envelope.Payload;
-            List<CauVangCong> cu = await _db.GoldItems.Where(g => g.ProjectId == p.ProjectId).ToListAsync(ct);
-            _db.GoldItems.RemoveRange(cu);
-
-            foreach (GoldSetItem g in p.Items)
-            {
-                if (g.Purpose == GoldPurpose.QualityCheck)
-                {
-                    _db.GoldItems.Add(CauVangCong.Tao(g.SampleId, p.ProjectId, g.ExpectedPayload));
-                }
-            }
-
             _catalog.YeuCauNapLai();
         }
     }
@@ -335,8 +247,8 @@ namespace Crowd.Gate.Api.Consumers
     }
 
     /// <summary>
-    /// gate chi can mau cua du an DANG phuc vu qua cong link. Du an publish khong bat cong link, hoac da
-    /// dong / huy → xoa ban sao mau + cau vang cua no (chay trong transaction cua consumer).
+    /// gate chi can mau cua du an DANG phuc vu qua cong link. Du an da dong / huy → xoa ban sao mau + cau vang
+    /// cua no (chay trong transaction cua consumer).
     /// </summary>
     public static class GateDonDep
     {

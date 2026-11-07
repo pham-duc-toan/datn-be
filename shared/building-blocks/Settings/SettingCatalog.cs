@@ -122,7 +122,6 @@ namespace Crowd.BuildingBlocks.Settings
         public const string QualityFraudSharedWindow = "quality.fraud_shared_window";
         public const string QualityFraudIgnorePrivateIps = "quality.fraud_ignore_private_ips";
         public const string QualityFraudReopenCooldown = "quality.fraud_reopen_cooldown";
-        public const string QualityFraudSubmissionRetention = "quality.fraud_submission_retention";
         public const string QualityDsMinLabels = "quality.ds_min_labels";
         public const string QualityReputationGoldWeight = "quality.reputation_gold_weight";
         public const string QualityReputationPrior = "quality.reputation_prior";
@@ -143,6 +142,7 @@ namespace Crowd.BuildingBlocks.Settings
         public const string QualityFreeTextLexicalSimilarity = "quality.freetext_lexical_similarity";
         public const string QualityFreeTextAnalysisTimeout = "quality.freetext_analysis_timeout";
         public const string QualityFreeTextAnalysisInterval = "quality.freetext_analysis_interval";
+        public const string QualityPendingWorkInterval = "quality.pending_work_interval";
 
         // ---- Tai khoan ----
         public const string IdentityAccessTokenLifetime = "identity.access_token_lifetime";
@@ -160,6 +160,8 @@ namespace Crowd.BuildingBlocks.Settings
         public const string IdentityTwoFactorChallengeTtl = "identity.two_factor_challenge_ttl";
         public const string IdentityTwoFactorMaxAttempts = "identity.two_factor_max_attempts";
         public const string IdentityAdultAge = "identity.adult_age";
+        public const string IdentityLevelRecalcInterval = "identity.level_recalc_interval";
+        public const string IdentityStatsCacheTtl = "identity.stats_cache_ttl";
 
         // ---- Admin: nhat ky audit (FP-06 / VD-S-10), thong ke (FM-09) ----
         public const string AdminAuditExcludedTypes = "admin.audit_excluded_types";
@@ -203,6 +205,7 @@ namespace Crowd.BuildingBlocks.Settings
         public const string GateCacheRefreshInterval = "gate.cache_refresh_interval";
         public const string GateEventFlushInterval = "gate.event_flush_interval";
         public const string GateEventBatchSize = "gate.event_batch_size";
+        public const string GateContentLoadInterval = "gate.content_load_interval";
         public const string LinkCodeLength = "link.code_length";
         public const string LinkBulkMax = "link.bulk_max";
         public const string LinkReportReviewThreshold = "link.report_review_threshold";
@@ -429,7 +432,7 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Seconds(SettingKeys.AnnotationHistoryCleanupInterval, NhomKyThuat, 3600, 10, Ngay,
                 "Chu kỳ worker dọn annotation_history."));
             ds.Add(Seconds(SettingKeys.ProjectClosedDataRetention, NhomDuAn, 90 * Ngay, 0, 3650 * Ngay,
-                "Dự án đã đóng (hoàn thành / huỷ) bao lâu thì xoá dữ liệu VẬN HÀNH của nó: task, lượt giữ, báo lỗi (task-svc); nhãn thô và vòng đồng thuận (quality-svc). Trước khi xoá, tiến độ và báo cáo chất lượng được chụp lại nên vẫn xem được. Nhãn đã nộp / đã duyệt, kết quả, sổ cái, mẫu dữ liệu và uy tín labeler KHÔNG bị xoá. 0 = không bao giờ xoá."));
+                "Dự án đã đóng (hoàn thành / huỷ) bao lâu thì xoá dữ liệu VẬN HÀNH của nó: nháp còn sót, báo lỗi (project-svc); nhãn thô và vòng đồng thuận (quality-svc). Trước khi xoá, tiến độ và báo cáo chất lượng được chụp lại nên vẫn xem được. Nhãn đã nộp / đã duyệt, kết quả, sổ cái, mẫu dữ liệu và uy tín labeler KHÔNG bị xoá. 0 = không bao giờ xoá."));
             ds.Add(Int(SettingKeys.ProjectEntranceQuestionDefault, NhomDuAn, 10, 1, 500, "câu",
                 "Số câu bài test đầu vào mặc định của dự án mới tạo."));
             ds.Add(Int(SettingKeys.ProjectEntrancePassPercentDefault, NhomDuAn, 80, 1, 100, "%",
@@ -546,8 +549,6 @@ namespace Crowd.BuildingBlocks.Settings
                 "Bỏ qua IP nội bộ / loopback khi xét chung IP (môi trường dev, mạng công ty dùng chung NAT)."));
             ds.Add(Seconds(SettingKeys.QualityFraudReopenCooldown, NhomChatLuong, 7 * Ngay, 0, 365 * Ngay,
                 "Hồ sơ đã xử lý (bỏ qua / xác nhận) thì không mở lại cùng khoá trong khoảng này."));
-            ds.Add(Seconds(SettingKeys.QualityFraudSubmissionRetention, NhomChatLuong, 7 * Ngay, Ngay, 365 * Ngay,
-                "Giữ dữ liệu lượt nộp dùng để xét gian lận (tốc độ, IP, thiết bị) bao lâu. Thuật toán chỉ cần vài chục lượt gần nhất và cửa sổ chung IP — không cần giữ mãi."));
             ds.Add(Int(SettingKeys.QualityDsMinLabels, NhomChatLuong, 5, 1, 10000, "nhãn",
                 "Labeler cần tối thiểu bao nhiêu nhãn trong dự án thì mới chấm độ tin cậy Dawid-Skene."));
             ds.Add(Double(SettingKeys.QualityReputationGoldWeight, NhomChatLuong, 0.6, 0, 1, "",
@@ -587,7 +588,9 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Seconds(SettingKeys.QualityFreeTextAnalysisTimeout, NhomChatLuong, 3600, 10, 7 * Ngay,
                 "Sau khi dự án đóng thu bài, chờ ml-svc phân tích hết câu trả lời mở tối đa bao lâu; quá hạn thì chấm bằng so chữ để không giữ tiền của labeler."));
             ds.Add(Seconds(SettingKeys.QualityFreeTextAnalysisInterval, NhomKyThuat, 5, 1, 3600,
-                "Chu kỳ quality-svc gửi câu trả lời mở mới sang ml-svc và thử chấm lại dự án đang chờ phân tích."));
+                "Chu kỳ quality-svc gửi câu trả lời mở mới sang ml-svc để nhúng."));
+            ds.Add(Seconds(SettingKeys.QualityPendingWorkInterval, NhomKyThuat, 5, 1, 3600,
+                "Chu kỳ quality-svc xét gian lận bài vừa nộp, chấm lại dự án chưa chấm xong (project-svc tạm không trả lời qua gRPC, hoặc đang chờ phân tích câu trả lời mở) và tính lại uy tín labeler sau khi project-svc ghi xong kết quả chấm."));
 
             // ================= TAI KHOAN =================
             ds.Add(Seconds(SettingKeys.IdentityAccessTokenLifetime, NhomTaiKhoan, 15 * 60, 60, Ngay,
@@ -620,6 +623,10 @@ namespace Crowd.BuildingBlocks.Settings
                 "Số lần nhập sai mã 2FA tối đa cho MỘT lần đăng nhập; hết lượt phải đăng nhập lại bằng mật khẩu (chống dò mã 6 số)."));
             ds.Add(Int(SettingKeys.IdentityAdultAge, NhomTaiKhoan, 18, 16, 21, "tuổi",
                 "Tuổi tối thiểu để xem dự án nội dung nhạy cảm (mục 2.9, VD-P-04). Tính từ ngày sinh trên giấy tờ đã được admin xác minh."));
+            ds.Add(Seconds(SettingKeys.IdentityLevelRecalcInterval, NhomKyThuat, 5, 1, 3600,
+                "Identity tính lại cấp / huy hiệu cho labeler vừa có bài được chấp nhận hoặc vừa đổi uy tín sau mỗi khoảng này (số câu được chấp nhận đọc qua gRPC từ project-svc; project-svc không trả lời thì vòng sau thử lại)."));
+            ds.Add(Seconds(SettingKeys.IdentityStatsCacheTtl, NhomKyThuat, 60, 0, 3600,
+                "Bảng xếp hạng và số câu được chấp nhận (đọc qua gRPC từ project-svc) được giữ trong bộ nhớ của identity bấy lâu. 0 = luôn hỏi lại."));
 
             // ================= ADMIN =================
             // Danh sach loai event nam o Crowd.Contracts (building-blocks khong tham chieu) — admin-svc dien luc hien thi.
@@ -718,6 +725,8 @@ namespace Crowd.BuildingBlocks.Settings
                 "Gate chuyển lượt vượt từ Redis Stream sang outbox + ClickHouse sau mỗi khoảng này."));
             ds.Add(Int(SettingKeys.GateEventBatchSize, NhomKyThuat, 200, 1, 5000, "lượt",
                 "Số lượt vượt gate chuyển mỗi lô."));
+            ds.Add(Seconds(SettingKeys.GateContentLoadInterval, NhomKyThuat, 5, 1, 3600,
+                "Gate kéo mẫu + câu vàng của dự án vừa publish bật cổng link từ project-svc (gRPC) sau mỗi khoảng này; project-svc không trả lời thì vòng sau thử lại."));
             ds.Add(Int(SettingKeys.LinkCodeLength, NhomCongLink, 7, 5, 12, "ký tự",
                 "Độ dài mã link ngẫu nhiên."));
             ds.Add(Int(SettingKeys.LinkBulkMax, NhomCongLink, 100, 1, 1000, "link",

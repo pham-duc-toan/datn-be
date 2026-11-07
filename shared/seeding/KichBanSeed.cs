@@ -73,12 +73,6 @@ namespace Crowd.Seeding
             throw new InvalidOperationException("Kich ban khong co du an '" + key + "'.");
         }
 
-        /// <summary>Moi mau la MOT cau hoi — QuestionId tinh tu SampleId de task-svc va cac service khac khop nhau.</summary>
-        public static Guid TaskIdCua(Guid sampleId)
-        {
-            return SeedIds.Tu("task:" + sampleId);
-        }
-
         // =====================================================================
         // TAI KHOAN
         // =====================================================================

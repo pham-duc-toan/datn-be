@@ -209,6 +209,25 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                     b.ToTable("two_factor", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Identity.Api.Entities.HangChoTinhCap", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid?>("CorrelationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTimeOffset>("DirtyAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("dirty_at");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("level_dirty", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Identity.Api.Entities.HuyHieuDaDat", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -355,10 +374,6 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
-                    b.Property<int>("ApprovedCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("approved_count");
-
                     b.Property<int>("Level")
                         .HasColumnType("integer")
                         .HasColumnName("level");
@@ -377,32 +392,7 @@ namespace Crowd.Identity.Api.Persistence.Migrations
 
                     b.HasKey("UserId");
 
-                    b.HasIndex("ApprovedCount")
-                        .HasDatabaseName("ix_labeler_stats_xep_hang");
-
                     b.ToTable("labeler_stats", (string)null);
-                });
-
-            modelBuilder.Entity("Crowd.Identity.Api.Entities.ThongKeNgay", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<DateOnly>("Ngay")
-                        .HasColumnType("date")
-                        .HasColumnName("day");
-
-                    b.Property<int>("ApprovedCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("approved_count");
-
-                    b.HasKey("UserId", "Ngay");
-
-                    b.HasIndex("Ngay")
-                        .HasDatabaseName("ix_labeler_daily_stats_ngay");
-
-                    b.ToTable("labeler_daily_stats", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Identity.Api.Entities.User", b =>

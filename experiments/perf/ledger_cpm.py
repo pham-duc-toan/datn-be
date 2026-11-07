@@ -217,7 +217,7 @@ async def chay_muc(conn, phat, du_an, sharer, link, toc_do: int, giay: int, mode
     t_phat = time.time() - t0
 
     bang = "holds" if mode == "perClick" else "gate_clicks"
-    cot_id = "annotation_id" if mode == "perClick" else "click_id"
+    cot_id = "source_id" if mode == "perClick" else "click_id"
     cot_luc = "held_at" if mode == "perClick" else "settled_at"
     dieu_kien = "kind='GateClick'" if mode == "perClick" else "state='Paid'"
     def da_chi() -> int:
@@ -236,8 +236,8 @@ async def chay_muc(conn, phat, du_an, sharer, link, toc_do: int, giay: int, mode
     if mode == "perClick":
         # holds khong luu validated_at: lay tu thoi diem phat (eventId = uuid7 theo thoi gian ≈ validatedAt).
         rows = conn.execute(
-            "SELECT EXTRACT(EPOCH FROM (h.held_at - to_timestamp(((('x' || substr(replace(h.annotation_id::text,'-',''),1,12))::bit(48)::bigint) / 1000.0)))) "
-            "FROM holds h JOIN (SELECT unnest(%s::uuid[]) AS id) x ON x.id = h.annotation_id", (ids,)).fetchall()
+            "SELECT EXTRACT(EPOCH FROM (h.held_at - to_timestamp(((('x' || substr(replace(h.source_id::text,'-',''),1,12))::bit(48)::bigint) / 1000.0)))) "
+            "FROM holds h JOIN (SELECT unnest(%s::uuid[]) AS id) x ON x.id = h.source_id", (ids,)).fetchall()
     tre = sorted(float(r[0]) for r in rows if r[0] is not None)
 
     def pct(p: float) -> float | None:

@@ -44,7 +44,7 @@ namespace Crowd.Contracts.Quality
     /// <summary>
     /// Du an DA CHAM (sau project.collection_finished, khi du attempt.submitted cua moi bai):
     /// moi cau lay dap an da so cua cac bai da nop, moi bai co ti le cau giong da so. ledger tra
-    /// thuong cho bai dat; task-svc mo han khieu nai; annotation-svc chot nhan vao ket qua;
+    /// thuong cho bai dat; project-svc mo han khieu nai va chot nhan vao ket qua;
     /// identity cong cap do; notification bao tung labeler.
     ///
     /// Duoi 3 bai nop thi khong co "da so": chi xet cau vang (MajorityUsed = false).
@@ -56,12 +56,15 @@ namespace Crowd.Contracts.Quality
             get { return "project.graded"; }
         }
 
+        /// <summary>v2: them OwnerId — notification bao tong ket cho chu du an ma khong can ban sao.</summary>
         public static int Version
         {
-            get { return 1; }
+            get { return 2; }
         }
 
         public required Guid ProjectId { get; init; }
+
+        public required Guid OwnerId { get; init; }
 
         public required int PassThresholdPercent { get; init; }
 

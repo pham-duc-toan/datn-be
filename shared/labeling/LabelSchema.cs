@@ -23,8 +23,8 @@ namespace Crowd.Labeling
     /// roi NGU NGHIA trong code (ten cong cu khong trung, cong cu hop voi loai du
     /// lieu, ten lop khong trung, minItems &lt;= maxItems...).
     ///
-    /// Bat bien. Luu (project_db), chep sang task-svc / annotation-svc qua
-    /// project.published — o dang CHUAN (ToRawJson) nen ba noi y het nhau.
+    /// Bat bien. Luu (project_db), chep sang quality-svc / gate-svc qua
+    /// project.published — o dang CHUAN (ToRawJson) nen moi noi y het nhau.
     /// </summary>
     public sealed class LabelSchema
     {

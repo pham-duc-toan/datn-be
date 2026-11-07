@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Crowd.BuildingBlocks.Messaging;
-using Crowd.Contracts.Tasking;
+using Crowd.Contracts.Gate;
 using Crowd.Labeling;
 
 namespace Crowd.Contracts.Tests;
@@ -14,44 +14,39 @@ public sealed class LabelPayloadRoundTripTests
     private static readonly LabelSchema TapNhan = LabelSchema.Doc(
         "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"do\",\"xanh\"]}]}");
 
+    /// <summary>
+    /// gate.solved la event con mang nhan (attempt.submitted v2 chi con la tin hieu — quality-svc doc nhan qua
+    /// gRPC, kien truc 3.22).
+    /// </summary>
     [Fact]
-    public void Attempt_submitted_di_qua_bus_khong_doi()
+    public void Gate_solved_di_qua_bus_khong_doi()
     {
-        AttemptAnswer cau = new AttemptAnswer
+        GateLabel cau = new GateLabel
         {
             SampleId = Guid.NewGuid(),
             StorageKey = "p/s.png",
             SampleMetadata = new SampleMetadata { Width = 64, Height = 48 }.ToRawJson(),
             LabelPayload = LabelPayload.Tao(TapNhan, "{\"label\":{\"labelIds\":[\"do\"]}}", null),
         };
-        AttemptAnswer boTrong = new AttemptAnswer
+        GateSolved goc = new GateSolved
         {
-            SampleId = Guid.NewGuid(),
-            SampleMetadata = new SampleMetadata { Width = 10, Height = 10 }.ToRawJson(),
-        };
-        AttemptSubmitted goc = new AttemptSubmitted
-        {
-            AttemptId = Guid.NewGuid(),
+            SessionId = Guid.NewGuid(),
+            LinkId = Guid.NewGuid(),
             ProjectId = Guid.NewGuid(),
-            LabelerId = Guid.NewGuid(),
-            Answers = new[] { cau, boTrong },
-            GoldTotal = 2,
-            GoldCorrect = 2,
-            StartedAt = DateTimeOffset.UtcNow.AddMinutes(-20),
-            SubmittedAt = DateTimeOffset.UtcNow,
+            Labels = new[] { cau },
+            SolvedAt = DateTimeOffset.UtcNow,
         };
 
-        EventEnvelope<AttemptSubmitted> e = EventEnvelope.Create("task-svc", Guid.NewGuid(), goc);
+        EventEnvelope<GateSolved> e = EventEnvelope.Create("gate-svc", Guid.NewGuid(), goc);
         string json = JsonSerializer.Serialize(e, CrowdJson.Options);
 
         // "data" va metadata la JSON long nhau that, khong phai chuoi chua JSON.
         Assert.Contains("\"labelPayload\":{\"taskType\":\"image\",\"schemaVersion\":1,\"data\":{\"label\":{\"labelIds\":[\"do\"]}}}", json);
         Assert.Contains("\"sampleMetadata\":{\"height\":48,\"width\":64}", json);
 
-        EventEnvelope<AttemptSubmitted> doc = EventEnvelope.Deserialize<AttemptSubmitted>(json);
+        EventEnvelope<GateSolved> doc = EventEnvelope.Deserialize<GateSolved>(json);
         // Record chua danh sach so sanh danh sach theo tham chieu → so tung cau.
-        Assert.Equal(goc.AttemptId, doc.Payload.AttemptId);
-        Assert.Equal(goc.Answers, doc.Payload.Answers);
-        Assert.Null(doc.Payload.Answers[1].LabelPayload);
+        Assert.Equal(goc.SessionId, doc.Payload.SessionId);
+        Assert.Equal(goc.Labels, doc.Payload.Labels);
     }
 }

@@ -4,7 +4,7 @@ import json, os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_ANNOTATION, URL_GATE, URL_LINK, URL_TASK, rabbit_container, sql_container  # noqa: E402,F401
+from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
 SO_KHOA = len(json.load(open(os.path.join(GOC_REPO, "shared", "settings", "catalog.json"), encoding="utf-8")))
 
 PW = "Matkhau@123"

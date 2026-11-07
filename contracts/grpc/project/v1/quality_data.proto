@@ -1,0 +1,156 @@
+// project-svc phuc vu quality-svc qua gRPC (noi bo, cong rieng HTTP/2, metadata x-internal-key).
+//
+// VI SAO GRPC THAY BAN SAO (kien truc 3.22): de bai, bai nop va nhan la du lieu cua project-svc. quality-svc
+// chi CHAM / tinh DS / xet gian lan tren du lieu do — truoc day no chep lai ca ba (projects, attempts,
+// labels: bang lon nhat he thong nam hai noi). Nay quality doc thang tu nguon khi can, chi giu KET QUA cua
+// chinh no (diem, da so, chi so, uy tin, ho so gian lan). Khong phai duong nong: moi lan cham / lo DS / xet
+// mot bai nop goi vai RPC; nhan di theo STREAM nen du an lon khong phai nap mot cuc vao bo nho.
+//
+// Sua file nay → sinh lai stub Python (services/quality/sinh_grpc.py); C# tu sinh luc build (Grpc.Tools).
+
+syntax = "proto3";
+
+package crowd.project.v1;
+
+option csharp_namespace = "Crowd.Project.Api.Grpc";
+
+import "google/protobuf/timestamp.proto";
+
+service QualityData {
+  // Dieu khoan cham cua du an da publish + trang thai dot thu bai. Chua publish → NOT_FOUND.
+  rpc GetProject(ProjectRequest) returns (ProjectInfo);
+
+  // Moi bai DA NOP cua du an (thu tu nop), kem ket qua cham ma project-svc dang giu (sau khieu nai).
+  rpc ListSubmittedAttempts(ProjectRequest) returns (AttemptList);
+
+  // Nhan cua labeler (khong gom nhan khach vang lai o cong link) trong bai da nop, theo thu tu nop.
+  rpc StreamLabels(LabelsRequest) returns (stream LabelRow);
+
+  // Chong gian lan (FM-07): cac labeler nop bai tu cung IP / ma thiet bi tu `since` (moi du an).
+  rpc FindSharedSubmitters(SharedSubmittersRequest) returns (SharedSubmittersResponse);
+
+  // Ho so gian lan cho admin: so bai nop + trung vi so giay moi cau cua tung labeler (moi du an).
+  rpc GetLabelerSubmissionStats(LabelerStatsRequest) returns (LabelerStatsResponse);
+
+  // Bang chung uy tin cua tung labeler, cong don MOI du an: cac bai project-svc DA ghi ket qua cham
+  // (project.graded da ap dung). Labeler chua co bai nao duoc cham → khong co trong ket qua.
+  rpc GetLabelerEvidence(LabelerEvidenceRequest) returns (LabelerEvidenceResponse);
+}
+
+message ProjectRequest {
+  string project_id = 1;
+}
+
+message ProjectInfo {
+  string project_id = 1;
+  string owner_id = 2;
+  string modality = 3;
+  // Tap nhan (JSON) — bat bien sau publish nen quality cache duoc.
+  string label_schema_json = 4;
+  int32 pass_threshold_percent = 5;
+  int32 slots = 6;
+  // Lap suat trong (khong bat buoc).
+  optional int32 fill_slots_min_percent = 7;
+  int32 question_count = 8;
+  // Trang thai du an (Running, Paused, Grading, Completed, Cancelled...).
+  string status = 9;
+  google.protobuf.Timestamp published_at = 10;
+  // Dot thu bai: rong = con nhan bai; du_suat | het_han | ket_thuc_som.
+  string finish_reason = 11;
+  // Luc dong thu bai (chua dong → khong co).
+  google.protobuf.Timestamp collection_finished_at = 12;
+  // Mau bi loai giua chung (bao loi duoc chap nhan) — khong cham cau nay.
+  repeated string excluded_sample_ids = 13;
+}
+
+message AttemptInfo {
+  string attempt_id = 1;
+  string labeler_id = 2;
+  // Cau THAT theo thu tu cua bai (khong co cau vang — khong lo cau nao la vang).
+  repeated string sample_ids = 3;
+  // So cau that da tra loi (= so nhan cua bai).
+  int32 label_count = 4;
+  // So cau da tra loi ca cau that lan cau vang — mau so cua "giay moi cau".
+  int32 answered_total = 5;
+  int32 gold_total = 6;
+  int32 gold_correct = 7;
+  google.protobuf.Timestamp started_at = 8;
+  google.protobuf.Timestamp submitted_at = 9;
+  // Ket qua cham project-svc dang giu (project.graded + phan xu khieu nai). graded = false → chua cham.
+  bool graded = 10;
+  int32 comparable_count = 11;
+  int32 matched_count = 12;
+  int32 agreement_percent = 13;
+  bool passed = 14;
+  bool rewarded = 15;
+  // None | Open | Accepted | Rejected
+  string appeal_state = 16;
+  // Chong gian lan (FM-07): IP gateway chuyen qua X-Forwarded-For, ma thiet bi frontend gui. Rong = khong co.
+  string client_ip = 17;
+  string device_id = 18;
+}
+
+message AttemptList {
+  repeated AttemptInfo attempts = 1;
+}
+
+message LabelsRequest {
+  string project_id = 1;
+  // Rong = moi bai da nop cua du an.
+  repeated string attempt_ids = 2;
+}
+
+message LabelRow {
+  string attempt_id = 1;
+  string sample_id = 2;
+  string labeler_id = 3;
+  // Noi dung nhan theo ten cong cu (dinh dang chung Crowd.Labeling).
+  string data_json = 4;
+  // Thong tin mau (kich thuoc anh, moc thoi gian...) — cham hinh hoc can.
+  string sample_metadata_json = 5;
+  google.protobuf.Timestamp submitted_at = 6;
+}
+
+message SharedSubmittersRequest {
+  // Dien DUNG MOT trong hai.
+  string client_ip = 1;
+  string device_id = 2;
+  google.protobuf.Timestamp since = 3;
+}
+
+message SharedSubmittersResponse {
+  repeated string labeler_ids = 1;
+}
+
+message LabelerStatsRequest {
+  repeated string labeler_ids = 1;
+}
+
+message LabelerStats {
+  string labeler_id = 1;
+  int32 submissions = 2;
+  // Trung vi (giay nop - giay bat dau) / so cau da tra loi.
+  double median_seconds_per_question = 3;
+}
+
+message LabelerStatsResponse {
+  repeated LabelerStats labelers = 1;
+}
+
+message LabelerEvidenceRequest {
+  repeated string labeler_ids = 1;
+}
+
+message LabelerEvidence {
+  string labeler_id = 1;
+  int32 graded_attempts = 2;
+  int64 gold_total = 3;
+  int64 gold_correct = 4;
+  // Tong so cau so duoc / so cau giong da so tren moi bai da cham.
+  int64 comparable_total = 5;
+  int64 matched_total = 6;
+}
+
+message LabelerEvidenceResponse {
+  repeated LabelerEvidence labelers = 1;
+}

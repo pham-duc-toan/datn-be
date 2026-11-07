@@ -1,11 +1,15 @@
 using System;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.Project.Domain.Annotations;
+using Crowd.Project.Domain.Attempts;
+using Crowd.Project.Domain.Collections;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.EntranceTests;
 using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
 using Crowd.Project.Domain.Projects;
+using Crowd.Project.Domain.Reports;
 using Crowd.Project.Infrastructure.Persistence.Configurations;
 using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
@@ -44,6 +48,23 @@ namespace Crowd.Project.Infrastructure.Persistence
 
         public DbSet<LabelerRating> LabelerRatings => Set<LabelerRating>();
 
+        // ---- Lam bai va nhan (truoc la task-svc, annotation-svc) ----
+
+        public DbSet<CollectionRound> CollectionRounds => Set<CollectionRound>();
+
+        public DbSet<Attempt> Attempts => Set<Attempt>();
+
+        public DbSet<AttemptDraft> AttemptDrafts => Set<AttemptDraft>();
+
+        public DbSet<AttemptHistoryEntry> AttemptHistory => Set<AttemptHistoryEntry>();
+
+        public DbSet<SampleReport> SampleReports => Set<SampleReport>();
+
+
+        public DbSet<LabelAnnotation> Annotations => Set<LabelAnnotation>();
+
+        public DbSet<KetQuaMauDem> SampleResults => Set<KetQuaMauDem>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -69,6 +90,13 @@ namespace Crowd.Project.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new ProjectInvitationConfiguration());
             modelBuilder.ApplyConfiguration(new OwnerLabelerEntryConfiguration());
             modelBuilder.ApplyConfiguration(new LabelerRatingConfiguration());
+            modelBuilder.ApplyConfiguration(new CollectionRoundConfiguration());
+            modelBuilder.ApplyConfiguration(new AttemptConfiguration());
+            modelBuilder.ApplyConfiguration(new AttemptDraftConfiguration());
+            modelBuilder.ApplyConfiguration(new AttemptHistoryConfiguration());
+            modelBuilder.ApplyConfiguration(new SampleReportConfiguration());
+            modelBuilder.ApplyConfiguration(new LabelAnnotationConfiguration());
+            modelBuilder.ApplyConfiguration(new SampleResultCacheConfiguration());
             modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
 
             // Ha tang dung chung: outbox (gui event) + processed_events (nhan event).

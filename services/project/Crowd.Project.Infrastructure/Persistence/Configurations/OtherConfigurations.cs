@@ -165,8 +165,11 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
 
             builder.ToTable("samples");
 
+            // PHAN VUNG HASH(project_id) 64 phan (migration GopLamBaiVaNhan, SQL tay): moi truy van mau deu theo
+            // du an (dung de, nop bai, xuat file) nen chi cham MOT phan vung. Bang phan vung bat buoc khoa chinh
+            // chua cot phan vung → (project_id, id).
             builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
-            builder.HasKey(x => x.Id);
+            builder.HasKey(x => new { x.ProjectId, x.Id });
 
             builder.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
             builder.Property(x => x.DatasetId).HasColumnName("dataset_id").IsRequired();
@@ -183,6 +186,8 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
             builder.Property(x => x.MediaState).HasColumnName("media_state").HasMaxLength(20);
             builder.Property(x => x.MediaError).HasColumnName("media_error").HasMaxLength(CotDb.LoiMedia);
+            builder.Property(x => x.ExcludedAt).HasColumnName("excluded_at");
+            builder.Property(x => x.ExcludedReason).HasColumnName("excluded_reason").HasMaxLength(20);
 
             builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             builder.HasOne<Dataset>().WithMany().HasForeignKey(x => x.DatasetId).OnDelete(DeleteBehavior.Cascade);
@@ -225,7 +230,8 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property<string>("_expectedPayloadJson").HasColumnName("expected_payload").HasColumnType("jsonb").IsRequired();
 
             builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
-            builder.HasOne<Sample>().WithMany().HasForeignKey(x => x.SampleId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne<Sample>().WithMany().HasForeignKey(x => new { x.ProjectId, x.SampleId })
+                .HasPrincipalKey(s => new { s.ProjectId, s.Id }).OnDelete(DeleteBehavior.Cascade);
 
             // Mot mau chi lam cau hoi vang mot lan trong du an.
             builder.HasIndex(x => new { x.ProjectId, x.SampleId }).IsUnique().HasDatabaseName("ux_gold_items_project_sample");

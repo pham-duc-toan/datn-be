@@ -8,13 +8,17 @@ using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Admin;
+using Crowd.Contracts.Grpc.Project;
 using Crowd.Contracts.Tasking;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
+using Crowd.Contracts.Project;
 using Crowd.Contracts.Quality;
 using Crowd.Identity.Api.Consumers;
 using Crowd.Identity.Api.Entities;
 using Crowd.Identity.Api.Exceptions;
+using Crowd.Identity.Api.Grpc;
+using Crowd.Identity.Api.Helpers;
 using Crowd.Identity.Api.Persistence;
 using Crowd.Identity.Api.Seeding;
 using Crowd.Identity.Api.Services;
@@ -108,11 +112,35 @@ namespace Crowd.Identity.Api
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<ApiExceptionHandler>();
             builder.Services.AddCrowdInternalApi(builder.Configuration);
+            ConfigurationManager cfg = builder.Configuration;
 
-            // Event identity nghe: so lieu cap do (project.graded, attempt.appeal_resolved, reputation.changed),
+            // ---- gRPC noi bo (kien truc 3.24) ----
+            // Phuc vu (cong 9101, HTTP/2): project-svc tra cuu nguoi dung luc moi / tham gia du an / mo bai.
+            // Goi: project-svc LabelerStatsData — so cau duoc chap nhan, bang xep hang (co bo nho dem trong identity).
+            InternalApiOptions noiBo = new InternalApiOptions();
+            cfg.GetSection(InternalApiOptions.Section).Bind(noiBo);
+            if (string.IsNullOrWhiteSpace(noiBo.Key) || string.IsNullOrWhiteSpace(noiBo.ProjectGrpcUrl))
+            {
+                throw new InvalidOperationException("Thieu InternalApi:Key / InternalApi:ProjectGrpcUrl trong appsettings.");
+            }
+
+            builder.Services.AddSingleton<InternalKeyInterceptor>();
+            builder.Services.AddGrpc(options =>
+            {
+                options.Interceptors.Add<InternalKeyInterceptor>();
+            });
+            builder.Services.AddScoped<TraCuuNguoiDungService>();
+            builder.Services.AddGrpcClient<LabelerStatsData.LabelerStatsDataClient>(o =>
+            {
+                o.Address = new Uri(noiBo.ProjectGrpcUrl);
+            });
+            builder.Services.AddMemoryCache();
+            builder.Services.AddScoped<SoCauDuyetClient>();
+            builder.Services.AddHostedService<CapDoWorker>();
+
+            // Event identity nghe: tinh lai cap (project.grading_applied, attempt.appeal_resolved, reputation.changed),
             // khoa tai khoan khi admin xac nhan gian lan (fraud.case_confirmed).
-            IConfiguration cfg = builder.Configuration;
-            builder.Services.AddEventConsumer<IdentityDbContext, ProjectGraded, ProjectGradedProcessor>(cfg, "identity-svc.project-graded");
+            builder.Services.AddEventConsumer<IdentityDbContext, ProjectGradingApplied, ProjectGradingAppliedProcessor>(cfg, "identity-svc.project-grading-applied");
             builder.Services.AddEventConsumer<IdentityDbContext, AttemptAppealResolved, AttemptAppealResolvedProcessor>(cfg, "identity-svc.attempt-appeal-resolved");
             builder.Services.AddEventConsumer<IdentityDbContext, ReputationChanged, ReputationChangedProcessor>(cfg, "identity-svc.reputation-changed");
             builder.Services.AddEventConsumer<IdentityDbContext, FraudCaseConfirmed, FraudCaseConfirmedProcessor>(cfg, "identity-svc.fraud-case-confirmed");
@@ -149,6 +177,7 @@ namespace Crowd.Identity.Api
             app.UseAuthorization();
 
             app.MapControllers();
+            app.MapGrpcService<IdentityDataService>();
 
             await app.RunAsync();
         }

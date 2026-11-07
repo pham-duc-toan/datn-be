@@ -2,10 +2,10 @@
 #   [1] Phien dang nhap: MOT dong moi phien du lam moi bao nhieu lan; dung lai token cu → thu hoi ca phien.
 #   [2] Claim email_verified / kyb_verified nam trong access token (khong con ban sao o ledger / project).
 #   [3] Event tan suat cao: audit KHONG luu chi tiet attempt.submitted (ca bai) nhung bao cao van dem.
-#   [4] Thong tin mau luu MOT lan (annotation_samples), nhan chi tro sample_id.
+#   [4] Thong tin mau luu MOT lan (samples cua project-svc), nhan chi tro sample_id.
 #   [5] gate-svc chi giu mau cua du an BAT cong link.
 #   [6] Don outbox da gui qua han o MOI service.
-#   [7] Du an da dong: don cau hoi / cau tra loi nhap (task-svc) va nhan tho, bai nop (quality-svc) — tien do,
+#   [7] Du an da dong: don nhap / bao loi (project-svc) va nhan tho, bai nop (quality-svc) — tien do,
 #       bao cao chat luong, bai lam, nhan va uy tin labeler GIU NGUYEN.
 # Tu tao tai khoan + du an moi. Chay: python e2e_luu_tru.py   (stack demo: E2E_PROFILE=demo)
 import base64, json, os, sys, time, uuid
@@ -16,7 +16,7 @@ from tro_giup import *  # noqa: E402,F401,F403
 
 GIA = 10000
 # Moi database co bang outbox (media-svc khong co database).
-DB_CO_OUTBOX = ("admin", "annotation", "gate", "identity", "ledger", "link", "notification", "payment", "project", "quality", "task")
+DB_CO_OUTBOX = ("admin", "gate", "identity", "ledger", "link", "notification", "payment", "project", "quality")
 
 
 def code(r):
@@ -126,8 +126,8 @@ try:
     nhan = cho(lambda: (lambda x: x if len(x) == 9 else None)(ds_nhan(biz, P)), 40)
     kiem("3 bai x 3 cau → 9 nhan (cho cham)", nhan is not None and all(x["status"] == "submitted" for x in nhan), len(ds_nhan(biz, P)))
 
-    kiem("task-svc phat MOT attempt.submitted moi bai (3)",
-         sql("task", f"select count(*) from outbox where event_type='attempt.submitted' and envelope_json->'payload'->>'projectId'='{P}'") == "3")
+    kiem("project-svc phat MOT attempt.submitted moi bai (3)",
+         sql("project", f"select count(*) from outbox where event_type='attempt.submitted' and envelope_json->'payload'->>'projectId'='{P}'") == "3")
     kiem("bao cao van DEM du 3 bai da nop",
          cho(lambda: thong_ke()["attemptsSubmitted"] >= tk_truoc["attemptsSubmitted"] + 3, 30),
          (tk_truoc["attemptsSubmitted"], thong_ke()["attemptsSubmitted"]))
@@ -140,12 +140,12 @@ try:
 
     # =================================================================================
     print("\n[4] Thong tin mau luu MOT lan, nhan tro sample_id")
-    kiem("3 mau → 3 dong annotation_samples (9 nhan)",
-         sql("annotation", f"select count(*) from annotation_samples where project_id='{P}'") == "3"
-         and sql("annotation", f"select count(*) from annotations where project_id='{P}'") == "9",
-         sql("annotation", f"select count(*) from annotation_samples where project_id='{P}'"))
+    kiem("3 mau → 3 dong samples (9 nhan)",
+         sql("project", f"select count(*) from samples where project_id='{P}'") == "3"
+         and sql("project", f"select count(*) from annotations where project_id='{P}'") == "9",
+         sql("project", f"select count(*) from samples where project_id='{P}'"))
     kiem("bang annotations khong con cot noi dung mau",
-         sql("annotation", "select count(*) from information_schema.columns where table_name='annotations' "
+         sql("project", "select count(*) from information_schema.columns where table_name='annotations' "
                            "and column_name in ('storage_key','sample_content','sample_metadata')") == "0")
     noi_dung = {m: t for m, t in (("s1", "Mau mot"), ("s2", "Mau hai"), ("s3", "Mau ba"))}
     dung = all((a.get("sampleContent") or {}).get("text") == noi_dung[next(k for k, v in ids.items() if v == a["sampleId"])] for a in nhan)
@@ -157,6 +157,7 @@ try:
 
     # =================================================================================
     print("\n[5] gate-svc chi giu mau cua du an bat cong link")
+    # Gate khong nghe dataset.ingested nua (3.23): chi keo mau qua gRPC khi du an publish CO bat cong link.
     kiem("du an KHONG bat cong link → gate khong giu mau nao",
          cho(lambda: sql("gate", f"select count(*) from gate_samples where project_id='{P}'") == "0", 20),
          sql("gate", f"select count(*) from gate_samples where project_id='{P}'"))
@@ -166,7 +167,7 @@ try:
     dieu_kien = "published_at is not null and published_at < now() - interval '65 minutes'"
     truoc = {db: int(sql(db, f"select count(*) from outbox where {dieu_kien}") or 0) for db in DB_CO_OUTBOX}
     print("     event da gui > 65 phut truoc khi don:", {k: v for k, v in truoc.items() if v})
-    # admin-svc la chu bang settings (khong co settings_replica) — cho 10 service con lai nhan gia tri moi.
+    # admin-svc la chu bang settings (khong co settings_replica) — cho 8 service con lai nhan gia tri moi.
     co_ban_sao = tuple(db for db in DB_CO_OUTBOX if db != "admin")
     dat_va_cho("outbox.retention", 3600, co_ban_sao)
     dat_va_cho("outbox.cleanup_interval", 10, co_ban_sao)
@@ -174,9 +175,9 @@ try:
     def con_lai():
         return {db: n for db, n in ((db, int(sql(db, f"select count(*) from outbox where {dieu_kien}") or 0)) for db in DB_CO_OUTBOX) if n}
 
-    kiem("ca 11 service xoa het event da gui qua han (giu 1 gio)", cho(lambda: not con_lai(), 180, 3), con_lai())
+    kiem("ca 9 service xoa het event da gui qua han (giu 1 gio)", cho(lambda: not con_lai(), 180, 3), con_lai())
     kiem("dau vet chong trung cua luot vua lam van con (khong xoa som)",
-         int(sql("annotation", "select count(*) from processed_events where processed_at > now() - interval '10 minutes'")) > 0)
+         int(sql("project", "select count(*) from processed_events where processed_at > now() - interval '10 minutes'")) > 0)
 
     # =================================================================================
     print("\n[7] Du an da dong: don du lieu van hanh, giu bao cao + nhan + uy tin")
@@ -190,14 +191,14 @@ try:
     kiem("du an khong ton tai → 404", r.status_code == 404, r.text)
 
     # Han khieu nai ngan de du an tu chot; ket thuc som → cham (3 bai, dung da so) → het han → completed.
-    dat_va_cho("task.appeal_window", 5, ("task",))
-    dat_va_cho("task.reaper_interval", 2, ("task",))
+    dat_va_cho("task.appeal_window", 5, ("project",))
+    dat_va_cho("task.reaper_interval", 2, ("project",))
     ket_thuc_som(biz, P)
     xong = cho(lambda: requests.get(G + f"/projects/{P}", headers=biz["h"]).json()["status"] == "completed", 60)
     kiem("ket thuc som → cham → het han khieu nai → completed", xong, requests.get(G + f"/projects/{P}", headers=biz["h"]).json()["status"])
-    kiem("task-svc + quality-svc da ghi nhan du an dong",
-         cho(lambda: sql("task", f"select status from project_snapshots where project_id='{P}'") == "Closed"
-             and sql("quality", f"select closed_at is not null from projects where project_id='{P}'") == "t", 30))
+    kiem("project-svc + quality-svc da ghi nhan du an dong",
+         cho(lambda: sql("project", f"select settled_at is not null from project_collections where project_id='{P}'") == "t"
+             and sql("quality", f"select closed_at is not null from project_archives where project_id='{P}'") == "t", 30))
 
     td_truoc = requests.get(G + f"/tasks/projects/{P}/progress", headers=biz["h"]).json()
     # Cho lo Dawid-Skene / uy tin on dinh roi moi chup so lieu "truoc".
@@ -209,7 +210,8 @@ try:
     uy_tin = "select string_agg(labeler_id||':'||reputation||':'||agree_total||':'||agree_count, ',' order by labeler_id) " \
              f"from reputations where labeler_id in ('{ids_lab}')"
     ut_truoc = sql("quality", uy_tin)
-    cham_truoc = sql("quality", f"select count(*) from attempt_grades where project_id='{P}'")
+    # Bang chung uy tin (so cau so duoc / giong / cau vang) nam tren project.attempts — quality doc qua gRPC.
+    cham_truoc = sql("project", f"select count(*) from attempts where project_id='{P}' and graded_at is not null")
     kiem("truoc khi don: 3 bai nop, bao cao 9 nhan / 3 bai cham / 3 cau co da so",
          td_truoc["submitted"] == 3 and td_truoc["phase"] == "settled" and td_truoc.get("frozenAt") is None
          and tq_truoc["labelCount"] == 9 and tq_truoc["attemptsGraded"] == 3 and tq_truoc["agreed"] == 3
@@ -218,11 +220,14 @@ try:
 
     r = requests.post(G + f"/tasks/admin/projects/{P}/purge", headers=admin)
     j = r.json() if r.status_code == 200 else {}
-    kiem("admin don du an da dong → 200, xoa 3 cau hoi + 9 cau tra loi nhap",
-         r.status_code == 200 and j["purgedNow"] is True and j["deletedTasks"] == 3 and j["deletedAnswers"] == 9, r.text)
-    kiem("task-svc khong con cau hoi / cau tra loi cua du an, bai lam van giu",
-         sql("task", f"select (select count(*) from tasks where project_id='{P}') + (select count(*) from attempt_answers x join attempts a on a.id = x.attempt_id where a.project_id='{P}')") == "0"
-         and sql("task", f"select count(*) from attempts where project_id='{P}'") == "3")
+    # Nhap da xoa luc nop bai → khong con gi de don; mau / nhan / bai lam la du lieu cua du an → GIU.
+    kiem("admin don du an da dong → 200 (nhap da xoa luc nop → 0)",
+         r.status_code == 200 and j["purgedNow"] is True and j["deletedDrafts"] == 0 and j["deletedReports"] == 0, r.text)
+    kiem("khong con nhap cua du an; mau, nhan, bai lam van giu",
+         sql("project", f"select count(*) from attempt_drafts x join attempts a on a.id = x.attempt_id where a.project_id='{P}'") == "0"
+         and sql("project", f"select count(*) from attempts where project_id='{P}'") == "3"
+         and sql("project", f"select count(*) from samples where project_id='{P}'") == "3"
+         and sql("project", f"select count(*) from annotations where project_id='{P}'") == "9")
     td_sau = requests.get(G + f"/tasks/projects/{P}/progress", headers=biz["h"]).json()
     kiem("tien do van xem duoc, dung so cu (ban chup, frozenAt co gia tri)",
          td_sau.get("frozenAt") is not None
@@ -235,12 +240,13 @@ try:
 
     r = requests.post(G + f"/quality/admin/projects/{P}/archive", headers=admin)
     j = r.json() if r.status_code == 200 else {}
-    kiem("admin luu tru chat luong → 200, xoa 9 nhan tho + 3 bai nop + 3 ket qua gop tung cau",
-         r.status_code == 200 and j["purgedNow"] is True and j["deleted"].get("labels") == 9
-         and j["deleted"].get("attempts") == 3 and j["deleted"].get("sample_majorities") == 3, r.text)
-    kiem("quality-svc khong con nhan tho / bai nop cua du an",
-         sql("quality", f"select (select count(*) from labels where project_id='{P}') + (select count(*) from attempts where project_id='{P}') "
-                        f"+ (select count(*) from sample_majorities where project_id='{P}')") == "0")
+    # Nhan / bai nop khong nam o quality (doc qua gRPC, 3.22) → chi con ket qua trung gian de xoa.
+    kiem("admin luu tru chat luong → 200, xoa 3 ket qua gop tung cau + trang thai DS",
+         r.status_code == 200 and j["purgedNow"] is True and "labels" not in j["deleted"]
+         and j["deleted"].get("sample_majorities") == 3 and j["deleted"].get("ds_state") == 1, r.text)
+    kiem("quality-svc khong con ket qua trung gian cua du an",
+         sql("quality", f"select (select count(*) from sample_majorities where project_id='{P}') "
+                        f"+ (select count(*) from ds_state where project_id='{P}')") == "0")
     tq_sau = requests.get(G + f"/quality/projects/{P}/summary", headers=biz["h"]).json()
     lb_sau = requests.get(G + f"/quality/projects/{P}/labelers", headers=biz["h"]).json()
     kiem("bao cao chat luong van xem duoc, dung so cu (archivedAt co gia tri)",
@@ -249,8 +255,9 @@ try:
     r = requests.post(G + f"/quality/admin/projects/{P}/archive", headers=admin)
     kiem("luu tru lan hai → 200 purgedNow = false", r.status_code == 200 and r.json()["purgedNow"] is False, r.text)
 
-    kiem("du lieu tinh uy tin (attempt_grades) KHONG bi xoa",
-         sql("quality", f"select count(*) from attempt_grades where project_id='{P}'") == cham_truoc and int(cham_truoc) == 3, cham_truoc)
+    kiem("du lieu tinh uy tin (bai da cham o project.attempts) KHONG bi xoa",
+         sql("project", f"select count(*) from attempts where project_id='{P}' and graded_at is not null") == cham_truoc
+         and int(cham_truoc) == 3, cham_truoc)
     kiem("uy tin 3 labeler KHONG doi ngay sau khi don", sql("quality", uy_tin) == ut_truoc, (ut_truoc, sql("quality", uy_tin)))
 
     # Ep quality-svc TINH LAI uy tin bang mot du an moi: so cau so duoc phai CONG DON (3 cua du an da don + 1

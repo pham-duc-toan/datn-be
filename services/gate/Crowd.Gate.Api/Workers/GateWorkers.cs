@@ -10,6 +10,7 @@ using Crowd.Gate.Api.Services;
 using Crowd.Gate.Infrastructure.ClickHouse;
 using Crowd.Gate.Infrastructure.Persistence;
 using Crowd.Gate.Infrastructure.Redis;
+using Grpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -232,9 +233,88 @@ namespace Crowd.Gate.Api.Workers
                 {
                     await _catalog.ChoAsync(_settings.ThoiGian(SettingKeys.GateCacheRefreshInterval), stoppingToken);
 
-                    // Gom cac thay doi lien tiep (vd mot lo dataset.ingested nhieu event) va
-                    // doi consumer commit xong.
+                    // Gom cac thay doi lien tiep (vd nhieu event link / ngan sach) va doi consumer commit xong.
                     await Task.Delay(TimeSpan.FromMilliseconds(300), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Keo mau + cau vang cua du an vua publish bat cong link tu project-svc (gRPC, GateContentLoader) theo
+    /// gate.content_load_interval. project-svc khong tra loi thi giu nguyen, vong sau thu lai — khach chua thay du an
+    /// do cho toi khi nap xong, cac du an khac van chay tu ban sao.
+    /// </summary>
+    public sealed class ContentLoadWorker : BackgroundService
+    {
+        private readonly IServiceScopeFactory _scopeFactory;
+        private readonly GateCatalog _catalog;
+        private readonly ISettings _settings;
+        private readonly ILogger<ContentLoadWorker> _logger;
+
+        public ContentLoadWorker(IServiceScopeFactory scopeFactory, GateCatalog catalog, ISettings settings, ILogger<ContentLoadWorker> logger)
+        {
+            if (scopeFactory == null)
+            {
+                throw new ArgumentNullException(nameof(scopeFactory));
+            }
+
+            if (catalog == null)
+            {
+                throw new ArgumentNullException(nameof(catalog));
+            }
+
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (logger == null)
+            {
+                throw new ArgumentNullException(nameof(logger));
+            }
+
+            _scopeFactory = scopeFactory;
+            _catalog = catalog;
+            _settings = settings;
+            _logger = logger;
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    using (IServiceScope scope = _scopeFactory.CreateScope())
+                    {
+                        int so = await scope.ServiceProvider.GetRequiredService<GateContentLoader>().NapCacDuAnChoAsync(stoppingToken);
+                        if (so > 0)
+                        {
+                            _catalog.YeuCauNapLai();
+                        }
+                    }
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (RpcException ex) when (ex.StatusCode == StatusCode.Unavailable || ex.StatusCode == StatusCode.DeadlineExceeded)
+                {
+                    _logger.LogWarning("Keo mau cong link: project-svc chua tra loi ({Status}) — vong sau thu lai", ex.StatusCode);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Keo mau cong link loi — vong sau thu lai");
+                }
+
+                try
+                {
+                    await ChoTheoSetting.ChoAsync(_settings, SettingKeys.GateContentLoadInterval, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {

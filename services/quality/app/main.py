@@ -1,6 +1,7 @@
-"""Diem vao quality-svc: FastAPI + consumer RabbitMQ + outbox + lo Dawid-Skene.
+"""Diem vao quality-svc: FastAPI + consumer RabbitMQ + outbox + lo Dawid-Skene + worker viec cho (gRPC project-svc)
++ gRPC LabelAggregation (project-svc nho gop nhan, 3.24).
 
-Chay dev:  .venv/Scripts/python -m app.main     (cong 8201)
+Chay dev:  .venv/Scripts/python -m app.main     (cong 8201 REST, 9201 gRPC)
 """
 
 import asyncio
@@ -11,27 +12,29 @@ import aio_pika
 import uvicorn
 from fastapi import FastAPI
 
-from app import cleanup, db, ds_batch, phan_tich_mo, processors, seeding, settings_store, settings_sync
+from app import (
+    cleanup, db, ds_batch, grpc_server, phan_tich_mo, processors, project_client, seeding, settings_store, settings_sync,
+    viec_cho,
+)
 from app.api import router
 from app.config import settings
 from app.contracts import (
-    AttemptSubmitted, ProjectCancelled, ProjectCollectionFinished, ProjectCompleted, ProjectPublished, SettingChanged,
-    SettingsSnapshot,
+    AttemptSubmitted, ProjectCancelled, ProjectCollectionFinished, ProjectCompleted, SettingChanged, SettingsSnapshot,
 )
-from app.errors import LoiApi, xu_ly_loi_api
+from app.errors import LoiApi, xu_ly_khong_goi_duoc, xu_ly_loi_api
 from app.messaging.consumer import Consumer
 from app.messaging.outbox import Dispatcher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("quality-svc")
 
-# Ten queue theo quy uoc "<service>.<event>" giong cac service C#.
+# Ten queue theo quy uoc "<service>.<event>" giong cac service C#. Khong nghe project.published nua: de bai
+# doc qua gRPC tu project-svc luc can (3.22) — queue cu quality-svc.project-published phai xoa tren broker.
 CONSUMERS = [
-    Consumer("quality-svc.project-published", ProjectPublished, processors.project_published),
-    # Moc dong du an — sau project.closed_data_retention thi chup bao cao roi xoa nhan tho (archive.py).
+    # Moc dong du an — sau project.closed_data_retention thi chup bao cao roi xoa ket qua trung gian (archive.py).
     Consumer("quality-svc.project-completed", ProjectCompleted, processors.project_dong),
     Consumer("quality-svc.project-cancelled", ProjectCancelled, processors.project_dong),
-    # Du an lam trung tam (docs 3.18): luu bai nop (kem xet gian lan FM-07), dong thu bai → cham ca du an.
+    # Du an lam trung tam (docs 3.18): bai nop → hang cho (xet gian lan FM-07, cau mo), dong thu bai → cham.
     Consumer("quality-svc.attempt-submitted", AttemptSubmitted, processors.attempt_submitted),
     Consumer("quality-svc.collection-finished", ProjectCollectionFinished, processors.collection_finished),
 ]
@@ -80,21 +83,28 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(ds_batch.vong_lap(dung), name="dawid-skene"),
         asyncio.create_task(settings_sync.vong_lap_nap_lai(dung), name="settings-reload"),
         asyncio.create_task(cleanup.vong_lap(dung), name="don-du-lieu-qua-han"),
-        # Cau tra loi mo (3.19): nhung cau qua ml-svc, cham lai du an dang cho phan tich.
+        # Cau tra loi mo (3.19): nhung cau qua ml-svc.
         asyncio.create_task(phan_tich_mo.vong_lap(dung), name="phan-tich-cau-mo"),
+        # Viec can doc project-svc qua gRPC (3.22): xet gian lan, cham lai du an chua cham xong.
+        asyncio.create_task(viec_cho.vong_lap(dung), name="viec-cho"),
     ]
+    may_grpc = await grpc_server.bat_dau()
     log.info("quality-svc san sang tren cong %s", cfg.port)
     try:
         yield
     finally:
+        if may_grpc is not None:
+            await may_grpc.stop(grace=5)
         dung.set()
         await asyncio.gather(*viec_nen, return_exceptions=True)
         await ket_noi.close()
+        await project_client.dong()
         await db.dong()
 
 
 app = FastAPI(title="quality-svc", lifespan=lifespan)
 app.add_exception_handler(LoiApi, xu_ly_loi_api)
+app.add_exception_handler(project_client.KhongGoiDuoc, xu_ly_khong_goi_duoc)
 app.include_router(router)
 
 

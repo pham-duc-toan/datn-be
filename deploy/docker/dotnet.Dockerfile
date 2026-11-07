@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Mot Dockerfile cho MOI service .NET. Ngu canh build = goc repo (can shared/, contracts/,
 # Directory.*.props). docker compose truyen:
-#   APP     = ten project Api (vd Crowd.Tasking.Api) — vua la thu muc publish vua la ten dll
+#   APP     = ten project Api (vd Crowd.Project.Api) — vua la thu muc publish vua la ten dll
 #   FFMPEG  = true neu service can ffprobe (project-svc do thoi luong audio / video)
 #
 # Stage build KHONG phu thuoc APP: publish MOI service mot lan. Compose build 10 image song

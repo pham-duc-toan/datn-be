@@ -11,7 +11,6 @@ namespace Crowd.Labeling.Tools
     /// chu khong bang so thu tu: danh sach doan duoc sap xep lai khi chuan hoa, so thu tu se lech.
     ///
     /// Cham dap an: F1 tren cac quan he TRUNG HET (cung lop, cung hai dau) &gt;= nguong (mac dinh 1.0).
-    /// Gop nhieu nguoi: giu quan he duoc hon mot nua so nguoi ghi y het.
     /// </summary>
     internal sealed class RelationTool : DanhSachToolBase
     {
@@ -24,17 +23,6 @@ namespace Crowd.Labeling.Tools
         {
             get { return 1.0; }
         }
-
-        protected override string CachGop
-        {
-            get { return "majority"; }
-        }
-
-        protected override double NguongGhep(ToolDefinition tool, double? nguongMacDinh)
-        {
-            return 1.0;
-        }
-
         protected override void KiemPhanTu(JsonObject p, ToolDefinition tool, SampleMetadata mau)
         {
             KiemDau(p, "from", tool, mau);

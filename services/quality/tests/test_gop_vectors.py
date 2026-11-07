@@ -1,7 +1,8 @@
-"""Bo vi du gop nhan CHUNG voi C#: contracts/labeling/testdata/gop.vectors.json.
+"""Bo vi du gop nhan: contracts/labeling/testdata/gop.vectors.json — test hoi quy cua app/gop.py.
 
-"expected" trong file do Crowd.Labeling (C#) sinh ra (GopVectorTests.cs, UPDATE_GOP_VECTORS=1).
-app/gop.py phai ra dung ket qua do — lech la thuat toan hai ben da troi khoi nhau.
+"expected" ban dau do ban C# cu (Crowd.Labeling, nay da bo — kien truc 3.24) sinh ra; app/gop.py la noi DUY
+NHAT gop nhan nen "expected" chinh la ket qua giao doanh nghiep (project-svc nhan qua gRPC). Doi thuat toan
+co chu dich thi sua ca "expected" (xem lai bang mat, cung commit).
 """
 
 import json
@@ -51,12 +52,34 @@ def test_gop_tung_cong_cu_khop_ket_qua_cua_csharp(vi_du):
 
 
 @pytest.mark.parametrize("vi_du", VI_DU, ids=[v["name"] for v in VI_DU])
+def test_gop_mau_ra_dung_hinh_dang_giao_doanh_nghiep(vi_du):
+    """gop_mau (gRPC LabelAggregation) ra DUNG object "expected": ca method / votes / kind, cung thu tu khoa."""
+    thuc = gop.gop_mau(vi_du["schema"], vi_du["labels"], vi_du["metadata"], None, vi_du["minF1"])
+    for tool in vi_du["schema"]["tools"]:
+        ten = tool["name"]
+        mong = vi_du["expected"][ten]
+        assert list(thuc[ten].keys()) == list(mong.keys()), f"{ten}: khoa {list(thuc[ten].keys())} != {list(mong.keys())}"
+        assert giong_nhau(thuc[ten], mong), f"{ten}: thuc {thuc[ten]} != mong {mong}"
+        # So nguyen ghi khong co ".0" — giong JSON ban C# cu, bo xuat file doc GetValue<int> duoc. (Thu tu khoa
+        # trong object long nhau khong mang nghia: file vi du ghi khoa da sap xep.)
+        assert json.dumps(thuc[ten], sort_keys=True) == json.dumps(_so_nguyen_gon(mong), sort_keys=True), ten
+
+
+def _so_nguyen_gon(v: Any) -> Any:
+    if isinstance(v, float) and v.is_integer():
+        return int(v)
+    if isinstance(v, dict):
+        return {k: _so_nguyen_gon(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_so_nguyen_gon(x) for x in v]
+    return v
+
+
+@pytest.mark.parametrize("vi_du", VI_DU, ids=[v["name"] for v in VI_DU])
 def test_dong_thuan_ca_task_nhat_quan_voi_tung_cong_cu(vi_du):
     """danh_gia (ca task) phai chot dung ket qua tung cong cu va cham khop tung nhan theo do."""
     nhan = [Nhan(f"a{i}", f"l{i}", du_lieu) for i, du_lieu in enumerate(vi_du["labels"])]
-    so_nguoi = len(nhan)
-    kq = danh_gia(vi_du["schema"], nhan, target=so_nguoi, max_redundancy=so_nguoi,
-                  tham_so=ThamSoGop(mau=vi_du["metadata"], f1_toi_thieu=vi_du["minF1"]))
+    kq = danh_gia(vi_du["schema"], nhan, tham_so=ThamSoGop(mau=vi_du["metadata"], f1_toi_thieu=vi_du["minF1"]))
 
     co_gop = {t["name"]: vi_du["expected"][t["name"]] for t in vi_du["schema"]["tools"]
               if vi_du["expected"][t["name"]]["method"] != "none"}

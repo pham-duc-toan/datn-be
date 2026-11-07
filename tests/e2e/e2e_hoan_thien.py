@@ -141,8 +141,8 @@ try:
     r = requests.put(G + "/me/profile", headers=hs["h"], json={"displayName": " "})
     kiem("ten rong → 400 ten_khong_hop_le", r.status_code == 400 and code(r) == "ten_khong_hop_le", r.text)
     r = requests.put(G + "/me/skills", headers=hs["h"], json={"domains": ["Y te", "y te"], "languages": ["vi"], "modalities": ["IMAGE", "text"]})
-    kiem("ky nang: bo trung, chuan hoa loai du lieu",
-         r.status_code == 200 and r.json()["skills"]["domains"] == ["Y te"] and r.json()["skills"]["modalities"] == ["image", "text"], r.text)
+    kiem("ky nang: bo trung, doi ve ma the (\"Y te\" → y-te), chuan hoa loai du lieu",
+         r.status_code == 200 and r.json()["skills"]["domains"] == ["y-te"] and r.json()["skills"]["modalities"] == ["image", "text"], r.text)
     r = requests.put(G + "/me/skills", headers=hs["h"], json={"modalities": ["3d"]})
     kiem("loai du lieu la → 400", r.status_code == 400 and code(r) == "loai_du_lieu_khong_hop_le", r.text)
     r = requests.post(G + "/me/avatar/upload-url", headers=hs["h"], json={"fileName": "a.exe", "sizeBytes": 10})
@@ -192,15 +192,15 @@ try:
     PL, _ = tao_du_an(biz, "MINLV", {"m1": "Min 1"}, thuong=THUONG, suat=3, dieu_kien={"minLevel": 3, "minReputation": None,
               "requireEntranceTest": False, "entranceQuestionCount": 10, "entrancePassPercent": 80})
     publish_va_duyet(biz, PL)
-    # project-svc kiem cap do NGAY LUC VAO du an (cung luat task-svc ap khi mo bai).
+    # project-svc kiem cap do NGAY LUC VAO du an (cung luat ap khi mo bai).
     r = requests.post(G + f"/projects/{PL}/join", headers=moi_vao["h"])
     kiem("labeler cap 1 join du an minLevel 3 → 409 chua_du_cap_do", r.status_code == 409 and code(r) == "chua_du_cap_do", r.text)
     tham_gia(l1, PL)
-    kiem("labeler cap 3 mo duoc bai (level.changed toi task-svc)", isinstance(bat_dau(l1, PL, 20), dict))
+    kiem("labeler cap 3 mo duoc bai (level.changed toi project-svc)", isinstance(bat_dau(l1, PL, 20), dict))
 
     # =================================================================================
     print("\n[5] Tu luu cau tra loi, bao loi cau (FL-05, FL-07); tien do (FB-20)")
-    dat_va_cho("task.report_auto_exclude", 2, ("task",))
+    dat_va_cho("task.report_auto_exclude", 2, ("project",))
     PN, ids_n = tao_du_an(biz, "NHAP", {"n1": "Nhap 1", "n2": "Nhap 2", "n3": "Nhap 3"}, thuong=THUONG, suat=3)
     publish_va_duyet(biz, PN)
     tham_gia(l2, PN)
@@ -219,7 +219,7 @@ try:
     r = requests.post(G + f"/tasks/attempts/{aid}/reports", headers=l2["h"], json={"sampleId": q1, "reason": "other"})
     kiem("bao loi 'other' khong ghi chu → 400", r.status_code == 400 and code(r) == "thieu_ghi_chu", r.text)
     r = requests.post(G + f"/tasks/attempts/{aid}/reports", headers=l2["h"], json={"sampleId": q1, "reason": "broken", "note": "khong doc duoc"})
-    kiem("bao loi cau → 200 (bai van mo)", r.status_code == 200 and r.json()["reportsOnTask"] == 1, r.text)
+    kiem("bao loi cau → 200 (bai van mo)", r.status_code == 200 and r.json()["reportsOnSample"] == 1, r.text)
     r = requests.post(G + f"/tasks/attempts/{aid}/reports", headers=l2["h"], json={"sampleId": q1, "reason": "broken", "note": "lan hai"})
     kiem("bao lai cung cau → 409 da_bao_loi", r.status_code == 409 and code(r) == "da_bao_loi", r.text)
     kiem("nop bai (cau bao loi bo trong) → 200", nop_bai(l2, aid).status_code == 200)
@@ -259,7 +259,7 @@ try:
          and cp["paidAttempts"] == 3 and cp["heldVnd"] == 0
          and cp["spentRewardsVnd"] == 3 * (THUONG + cp["platformFeePerAttemptVnd"]) and cp["reservedVnd"] == cp["spentRewardsVnd"], cp)
     kiem("doanh nghiep khac xem chi phi → 404", requests.get(G + f"/ledger/projects/{P1}/cost", headers=biz2["h"]).status_code == 404)
-    dat_va_cho("annotation.imbalance_min_labels", 2, ("annotation",))
+    dat_va_cho("annotation.imbalance_min_labels", 2, ("project",))
     pb = cho(lambda: (lambda j: j if j["imbalanceWarnings"] else None)(
         requests.get(G + f"/annotations/projects/{P1}/distribution", headers=biz["h"]).json()), 30) or {}
     kiem("canh bao lech: 'a' ap dao, 'b' chua co nhan",
@@ -297,7 +297,8 @@ try:
         bai, _ = lam_bai(u, PF, tra_loi, nop=False)
         requests.post(G + f"/tasks/attempts/{bai['attemptId']}/submit", headers=dict(u["h"], **{"X-Device-Id": thiet_bi})).raise_for_status()
     nop_tu_thiet_bi(lx, xen_ke)
-    cho(lambda: sql("quality", f"select count(*) from labels where project_id = '{PF}' and labeler_id = '{lx['id']}'") == "4", 30)
+    # Bai cua lx da duoc xet (quality doc nhan qua gRPC) truoc khi lf nop — lf so voi dap an da dang cua lx.
+    cho(lambda: sql("quality", f"select count(*) from pending_attempts where project_id = '{PF}' and fraud_checked_at is null") == "0", 30)
     nop_tu_thiet_bi(lf, lambda _: "a")
 
     def ho_so(loai, uid):
@@ -330,7 +331,7 @@ try:
     PU, _ = tao_du_an(biz, "MOKHOA", {"u1": "Mo khoa"}, thuong=THUONG, suat=3)
     publish_va_duyet(biz, PU)
     tham_gia(lf2, PU)
-    kiem("mo khoa → mo bai lai duoc (task-svc nghe user.unblocked)",
+    kiem("mo khoa → mo bai lai duoc (project-svc nghe user.unblocked)",
          cho(lambda: isinstance(bat_dau(lf2, PU, 1), dict), 20))
     r = rut(lf2, 50000)
     kiem("mo khoa → ledger het chan rut tien (con loi khac)", cho(lambda: code(rut(lf2, 50000)) != "tai_khoan_bi_khoa", 20), r.text)

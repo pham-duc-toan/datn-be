@@ -168,8 +168,9 @@ namespace Crowd.Gate.Api.Services
                 throw new ArgumentNullException(nameof(db));
             }
 
+            // Chi du an da keo xong mau + cau vang (GateContentLoader, mot transaction — khong co du an nua chung).
             List<DuAnCong> duAn = await db.Projects.AsNoTracking()
-                .Where(p => p.Status == TrangThaiDuAnCong.Running)
+                .Where(p => p.Status == TrangThaiDuAnCong.Running && p.ContentLoadedAt != null)
                 .ToListAsync(ct);
             List<Guid> ids = duAn.Select(p => p.ProjectId).ToList();
 

@@ -219,24 +219,4 @@ namespace Crowd.Link.Api.Entities
         public const string Flagged = "flagged";
         public const string Rejected = "rejected";
     }
-
-    /// <summary>Ban sao toi thieu tu user.registered: de biet tai khoan con trong cua so nhap ma gioi thieu.</summary>
-    public sealed class KnownUser
-    {
-        private KnownUser()
-        {
-        }
-
-        public Guid UserId { get; private set; }
-
-        public DateTimeOffset RegisteredAt { get; private set; }
-
-        public static KnownUser Tao(Guid userId, DateTimeOffset registeredAt)
-        {
-            KnownUser u = new KnownUser();
-            u.UserId = userId;
-            u.RegisteredAt = registeredAt;
-            return u;
-        }
-    }
 }

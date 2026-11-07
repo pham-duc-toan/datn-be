@@ -17,7 +17,7 @@ namespace Crowd.Project.Domain.Projects
     ///
     /// Ten la LabelingProject chu khong phai Project: trong namespace
     /// Crowd.Project.*, chu "Project" bi hieu la namespace Crowd.Project truoc
-    /// khi toi kieu — cung loi da khien task-svc phai doi thanh Crowd.Tasking.
+    /// khi toi kieu — cung loi da khien namespace contract phai la Crowd.Contracts.Tasking.
     ///
     /// Thanh vien, dataset, cau hoi vang KHONG nam trong aggregate nay: moi thu
     /// co the len toi hang nghin dong, nap het vao bo nho chi de them mot
@@ -118,8 +118,8 @@ namespace Crowd.Project.Domain.Projects
         // ---- Dieu kien tham gia (FB-15) ----
 
         /// <summary>
-        /// null = khong gioi han. project-svc chi LUU va PHAT di; task-svc moi la
-        /// noi loc theo cap do/uy tin, vi no giu ban sao labeler_cache.
+        /// null = khong gioi han. Loc theo cap do / uy tin cua identity-svc (hoi qua gRPC) luc vao du an va
+        /// luc mo bai (LyDoLabelerKhongDuDieuKien).
         /// </summary>
         public int? MinLevel { get; private set; }
 
@@ -138,7 +138,7 @@ namespace Crowd.Project.Domain.Projects
 
         /// <summary>
         /// Noi dung nhay cam (kiem duyet noi dung bao luc, kinh di...): chi labeler DA XAC MINH DU TUOI
-        /// vao duoc, phai dong y canh bao truoc khi vao, frontend lam mo mac dinh, task-svc ep nghi giua phien.
+        /// vao duoc, phai dong y canh bao truoc khi vao, frontend lam mo mac dinh, ep nghi giua phien luc lam bai.
         /// </summary>
         public bool SensitiveContent { get; private set; }
 
@@ -205,7 +205,7 @@ namespace Crowd.Project.Domain.Projects
 
         public DateTimeOffset? ClosedAt { get; private set; }
 
-        /// <summary>Doanh nghiep da bam "Ket thuc som" (cho task-svc dong thu bai). null = chua.</summary>
+        /// <summary>Doanh nghiep da bam "Ket thuc som" (dong thu bai ngay, sang cham). null = chua.</summary>
         public DateTimeOffset? FinishRequestedAt { get; private set; }
 
         /// <summary>Luc dong thu bai, bat dau cham (project.collection_finished).</summary>
@@ -964,7 +964,7 @@ namespace Crowd.Project.Domain.Projects
         }
 
         /// <summary>
-        /// Doanh nghiep bam "Ket thuc som" (Dang chay / Tam dung): task-svc dong thu bai NGAY, bai dang lam
+        /// Doanh nghiep bam "Ket thuc som" (Dang chay / Tam dung): dong thu bai NGAY, bai dang lam
         /// do bi huy, roi cham voi so bai da nop. Bam lai khi da yeu cau → 409.
         /// </summary>
         public void YeuCauKetThucSom(DateTimeOffset luc)
@@ -984,7 +984,7 @@ namespace Crowd.Project.Domain.Projects
         }
 
         /// <summary>
-        /// task-svc dong thu bai (project.collection_finished: du suat / het han / ket thuc som):
+        /// Dong thu bai (du suat / het han / ket thuc som — ThuBaiService, cung transaction):
         /// Dang chay / Tam dung → Dang cham. Event den lai (da cham / da xong) → false, khong lam gi.
         /// </summary>
         public bool BatDauCham(DateTimeOffset luc)
@@ -1005,7 +1005,7 @@ namespace Crowd.Project.Domain.Projects
         }
 
         /// <summary>
-        /// Da cham, het han khieu nai, khong con khieu nai mo (project.settled): Dang cham → Hoan thanh.
+        /// Da cham, het han khieu nai, khong con khieu nai mo (ThuBaiService chot): Dang cham → Hoan thanh.
         /// Event den lai → false.
         /// </summary>
         public bool HoanThanh(DateTimeOffset luc)
@@ -1022,8 +1022,8 @@ namespace Crowd.Project.Domain.Projects
         }
 
         /// <summary>
-        /// Doanh nghiep huy du an. Du an da chay phai TAM DUNG truoc va CHUA CO BAI NAO NOP (service hoi
-        /// task-svc) — co bai nop thi phai "ket thuc som" de cham, khong de ai lam khong cong.
+        /// Doanh nghiep huy du an. Du an da chay phai TAM DUNG truoc va CHUA CO BAI NAO NOP (service dem
+        /// attempts cung transaction) — co bai nop thi phai "ket thuc som" de cham, khong de ai lam khong cong.
         ///
         /// KHONG cho huy luc Cho ky quy: yeu cau giu tien dang tren duong toi
         /// ledger. Huy luc nay thi escrow.reserved toi SAU se giu tien cho mot du
@@ -1121,8 +1121,8 @@ namespace Crowd.Project.Domain.Projects
         }
 
         /// <summary>
-        /// Labeler nay du dieu kien cua du an khong — CUNG luat va CUNG ma loi voi task-svc khi
-        /// cap task (EligibilityPolicy), de nguoi khong du dieu kien bi chan ngay luc vao chu
+        /// Labeler nay du dieu kien cua du an khong — CUNG luat va CUNG ma loi voi luc
+        /// mo bai (EligibilityPolicy), de nguoi khong du dieu kien bi chan ngay luc vao chu
         /// khong phai vao roi moi bi tu choi o moi lan nhan task. null = du dieu kien.
         /// </summary>
         public string? LyDoLabelerKhongDuDieuKien(HoSoNguoiDung hoSo)

@@ -1,0 +1,31 @@
+// project-svc phuc vu ledger-svc qua gRPC (noi bo, cong 9102 HTTP/2, metadata x-internal-key).
+//
+// VI SAO (kien truc 3.24): ledger truoc day chep ten du an vao project_escrows.name chi de in len hoa don VAT.
+// Ten la du lieu cua project-svc; hoa don xuat mot lan moi thang (worker) nen hoi luc xuat la du. Ten in
+// len hoa don duoc CHUP vao dong hoa don (jsonb) — hoa don da xuat khong doi theo du an.
+//
+// C# sinh luc build (Grpc.Tools): project-svc GrpcServices="Server", ledger-svc GrpcServices="Client".
+
+syntax = "proto3";
+
+package crowd.project.v1;
+
+option csharp_namespace = "Crowd.Contracts.Grpc.Project";
+
+service LedgerData {
+  // Ten cac du an; id khong ton tai thi khong co trong ket qua.
+  rpc GetProjectNames(ProjectNamesRequest) returns (ProjectNamesResponse);
+}
+
+message ProjectNamesRequest {
+  repeated string project_ids = 1;
+}
+
+message ProjectName {
+  string project_id = 1;
+  string name = 2;
+}
+
+message ProjectNamesResponse {
+  repeated ProjectName projects = 1;
+}

@@ -1,0 +1,53 @@
+// project-svc phuc vu identity-svc qua gRPC (noi bo, cong 9102 HTTP/2, metadata x-internal-key).
+//
+// VI SAO (kien truc 3.24): "so cau duoc chap nhan" cua labeler = tong answered_count tren cac bai DAT (ke ca
+// khieu nai duoc chap nhan) — du lieu nam tren project.attempts. identity truoc day giu bo dem cong don
+// (labeler_stats.approved_count, labeler_daily_stats) tu project.graded / attempt.appeal_resolved: lech mot
+// event la lech mai, khong co gi doi soat. Nay identity hoi tong qua RPC nay khi tinh cap / huy hieu, va lay
+// bang xep hang (co bo nho dem trong identity — doc nhieu, doi it).
+//
+// Mot bai "duoc chap nhan" tai:
+//   graded_at            neu passed = true (cham dat);
+//   appeal_resolved_at   neu khieu nai duoc chap nhan (bai truot thanh dat).
+//
+// C# sinh luc build (Grpc.Tools): project-svc GrpcServices="Server", identity-svc GrpcServices="Client".
+
+syntax = "proto3";
+
+package crowd.project.v1;
+
+option csharp_namespace = "Crowd.Contracts.Grpc.Project";
+
+import "google/protobuf/timestamp.proto";
+
+service LabelerStatsData {
+  // Tong so cau duoc chap nhan cua tung labeler (moi du an). Labeler chua co bai dat → approved_count = 0.
+  rpc GetApprovedCounts(ApprovedCountsRequest) returns (ApprovedCountsResponse);
+
+  // Labeler xep theo so cau duoc chap nhan giam dan (bang nhau: labeler_id tang dan), chi tinh bai duoc
+  // chap nhan tu `since` (khong co = moi luc). Bo labeler co tong 0.
+  rpc GetLeaderboard(LeaderboardRequest) returns (LeaderboardResponse);
+}
+
+message ApprovedCountsRequest {
+  repeated string labeler_ids = 1;
+}
+
+message LabelerApproved {
+  string labeler_id = 1;
+  int64 approved_count = 2;
+}
+
+message ApprovedCountsResponse {
+  repeated LabelerApproved labelers = 1;
+}
+
+message LeaderboardRequest {
+  optional google.protobuf.Timestamp since = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message LeaderboardResponse {
+  repeated LabelerApproved labelers = 1;
+}

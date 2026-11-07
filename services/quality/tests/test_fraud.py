@@ -1,9 +1,5 @@
 """Luat chong gian lan (FM-07) — ham thuan, khong can DB."""
 
-import uuid
-from datetime import datetime, timezone
-
-from app.contracts import AttemptSubmitted
 from app.fraud import chuoi_dai_nhat, chuoi_mot_nhan, dap_an_phan_loai, ip_de_xet, la_qua_nhanh, nguong_qua_nhanh
 
 TAP_NHAN = {
@@ -53,17 +49,3 @@ def test_chuoi_dai_nhat_cung_dap_an_bo_qua_cau_trong():
     assert chuoi_dai_nhat([None, None]) == (None, 0)
     assert chuoi_dai_nhat(["cho", None, "cho"]) == ("cho", 1)
     assert chuoi_dai_nhat([]) == (None, 0)
-
-
-def test_hop_dong_attempt_submitted_doc_dung_camel_case():
-    luc = datetime(2026, 10, 12, 8, 0, tzinfo=timezone.utc)
-    p = AttemptSubmitted.model_validate({
-        "attemptId": str(uuid.uuid4()), "projectId": str(uuid.uuid4()), "labelerId": str(uuid.uuid4()),
-        "answers": [{"sampleId": str(uuid.uuid4()), "storageKey": None, "sampleContent": {"text": "a"},
-                     "sampleMetadata": {"length": 1},
-                     "labelPayload": {"taskType": "text", "schemaVersion": 1, "data": {"loai": {"labelIds": ["cho"]}}}}],
-        "goldTotal": 0, "goldCorrect": 0,
-        "startedAt": luc.isoformat(), "submittedAt": luc.isoformat(), "clientIp": "203.113.5.9", "deviceId": None,
-    })
-    assert p.client_ip == "203.113.5.9"
-    assert p.answers[0].label_payload is not None

@@ -15,6 +15,13 @@ from moi_truong import MAILPIT as MAILPIT_URL  # noqa: E402
 WS = G.replace("http://", "ws://").replace("https://", "wss://")
 
 
+def nap(u, so):
+    k = uuid.uuid4().hex
+    d = requests.post(G + "/payments/deposits", headers=dict(u["h"], **{"Idempotency-Key": k}), json={"amountVnd": so}).json()
+    requests.post(G + f"/payments/sandbox/checkout/{d['intentId']}/pay?amount={so}")
+    assert cho(lambda: vi(u)["businessAvailableVnd"] >= so, 30), vi(u)
+
+
 def totp(secret_b32):
     key = base64.b32decode(secret_b32 + "=" * (-len(secret_b32) % 8))
     h = hmac.new(key, struct.pack(">Q", int(time.time()) // 30), hashlib.sha1).digest()
@@ -73,7 +80,11 @@ try:
     # =================================================================================
     print("\n[3] Loi moi email chua co tai khoan → email kem link dang ky")
     biz = dang_ky(["business"], "tbrt-biz")
+    nap(biz, 100_000)
     P, _ = tao_du_an(biz, "loi moi email", {"c0": "cau 0"}, 1, 1, 1000)
+    kiem("du an chua duyet: moi → 409 du_an_chua_duoc_duyet",
+         requests.post(G + f"/projects/{P}/members", headers=biz["h"], json={"email": f"e2e-{TAG}-som@crowd.local", "role": "labeler"}).status_code == 409)
+    publish_va_duyet(biz, P)
     moi = f"e2e-{TAG}-moi-moi@crowd.local"
     r = requests.post(G + f"/projects/{P}/members", headers=biz["h"], json={"email": moi, "role": "labeler"})
     kiem("moi email chua co tai khoan → 202", r.status_code == 202, r.text)

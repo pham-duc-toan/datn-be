@@ -37,8 +37,8 @@ def nap(u, so):
 def dat_cap(u, cap, uy_tin=None):
     """Ghi cap do / uy tin vao identity_db (nhu sau khi duoc duyet nhan va duoc cham)."""
     ut = "null" if uy_tin is None else str(uy_tin)
-    sql("identity", "insert into labeler_stats(user_id, approved_count, reputation, reputation_at, level, updated_at) "
-                    f"values ('{u['id']}', 0, {ut}, now(), {cap}, now()) "
+    sql("identity", "insert into labeler_stats(user_id, reputation, reputation_at, level, updated_at) "
+                    f"values ('{u['id']}', {ut}, now(), {cap}, now()) "
                     f"on conflict (user_id) do update set level = {cap}, reputation = {ut}, reputation_at = now()")
 
 
@@ -160,7 +160,7 @@ try:
     r = requests.post(G + f"/projects/{P1}/join", headers=L["l5"]["h"])
     kiem("nguoi ngoai join du an rieng tu → 404 (khong lo du an)", r.status_code == 404, r.text)
     t = nhan_task(L["l3"], P1, 20)
-    kiem("nguoi duoc moi theo lo nhan duoc task (member.added toi task-svc)", t is not None, t)
+    kiem("nguoi duoc moi theo lo nhan duoc task (thanh vien moi mo bai duoc)", t is not None, t)
 
     # =================================================================================
     print("\n[2] Ma moi: tao, vao bang ma, het luot, thu hoi, dong thoi")
@@ -221,7 +221,7 @@ try:
          and len([m for m in thanh_vien(biz, P2).values() if m["role"] == "labeler"]) == 3)
 
     # =================================================================================
-    print("\n[3] Kiem cap do / uy tin ngay luc vao du an (cung ma loi task-svc)")
+    print("\n[3] Kiem cap do / uy tin ngay luc vao du an (cung ma loi luc mo bai)")
     DK = {"minLevel": 2, "minReputation": 50, "requireEntranceTest": False, "entranceQuestionCount": 1, "entrancePassPercent": 80}
     P3, _ = du_an(biz, "DIEUKIEN", "public", dieu_kien=DK)
     publish_va_duyet(biz, P3)

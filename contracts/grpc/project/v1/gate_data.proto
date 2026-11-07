@@ -1,0 +1,54 @@
+// project-svc phuc vu gate-svc qua gRPC (noi bo, cung cong 9102 HTTP/2, metadata x-internal-key).
+//
+// VI SAO (kien truc 3.23): gate van GIU ban sao mau + cau vang cua du an bat cong link — duong nong cua gate
+// (traffic gap ~100 lan) khong duoc goi sang project-svc, va gate phai song khi project-svc sap. Nhung ban sao
+// do chi can sau khi du an publish CO bat cong link. Truoc day gate chep mau cua MOI du an tu dataset.ingested
+// (luc nap chua biet du an co bat cong khong) va cau vang tu gold_set.updated, roi moi xoa luc publish khong bat
+// cong — du an nhap / khong bao gio publish nam mai trong gate. Nay gate keo MOT lan qua RPC nay khi nhan
+// project.published bat cong link (viec nen, worker thu lai), roi phuc vu tu ban sao nhu cu.
+//
+// C# sinh luc build (Grpc.Tools): project-svc GrpcServices="Server", gate-svc GrpcServices="Client".
+
+syntax = "proto3";
+
+package crowd.project.v1;
+
+option csharp_namespace = "Crowd.Contracts.Grpc.Project";
+
+service GateData {
+  // Moi mau cua du an + cau vang KIEM TRA (khong gom cau cua bai test dau vao — khach vang lai nhin mai se
+  // thuoc de). Du an chua publish hoac khong bat cong link → NOT_FOUND.
+  rpc StreamGateContent(GateContentRequest) returns (stream GateContentItem);
+}
+
+message GateContentRequest {
+  string project_id = 1;
+}
+
+message GateSample {
+  string sample_id = 1;
+  // image | text | audio | video | pair.
+  string modality = 2;
+  // Khoa trong bucket "datasets" cua MinIO; khong co voi du lieu khong phai file (text, pair).
+  optional string storage_key = 3;
+  // Noi dung khi du lieu khong phai file: {"text"} hoac {"prompt","a","b"}.
+  optional string content_json = 4;
+  // Thong tin mau (Crowd.Labeling.SampleMetadata).
+  string metadata_json = 5;
+}
+
+message GateGoldItem {
+  string sample_id = 1;
+  // Dap an dung (Crowd.Labeling.LabelPayload): loai du lieu, phien ban, noi dung theo ten cong cu.
+  // CHI dung de cham o gate — khong bao gio ra client.
+  string task_type = 2;
+  int32 schema_version = 3;
+  string data_json = 4;
+}
+
+message GateContentItem {
+  oneof item {
+    GateSample sample = 1;
+    GateGoldItem gold = 2;
+  }
+}

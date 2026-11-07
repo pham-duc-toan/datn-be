@@ -37,8 +37,8 @@ L.cho(lambda: L.vi(biz)["businessAvailableVnd"] == 2000000, 30)
 
 try:
     L.dat_va_cho("ledger.reward_hold", 0, ("ledger",))
-    L.dat_va_cho("task.appeal_window", 5, ("task",))
-    L.dat_va_cho("task.reaper_interval", 2, ("task",))
+    L.dat_va_cho("task.appeal_window", 5, ("project",))
+    L.dat_va_cho("task.reaper_interval", 2, ("project",))
     for vong in range(1, SO_VONG + 1):
         lab = L.dang_ky(["labeler"], f"dcc{vong}")
         # 3 suat x (10.000 + phi 3.000) = ky quy 39.000; mot bai dat → tra 13.000, hoan 26.000.
@@ -58,7 +58,7 @@ try:
         finally:
             docker("start", LEDGER)
 
-        tra = L.cho(lambda: L.sql("ledger", f"select count(*) from holds where annotation_id='{b['attemptId']}' and kind='ProjectReward'") == "1", 90)
+        tra = L.cho(lambda: L.sql("ledger", f"select count(*) from holds where source_id='{b['attemptId']}' and kind='ProjectReward'") == "1", 90)
         L.kiem(f"vong {vong}: bai dat DUOC TRA du ledger xu ly hai event theo thu tu nao", tra,
                L.sql("ledger", f"select state, expected_paid_attempts from project_escrows where project_id='{P}'"))
         dong = L.cho(lambda: L.sql("ledger", f"select state from project_escrows where project_id='{P}'") == "Closed", 60)

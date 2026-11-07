@@ -124,7 +124,7 @@ try:
     r = tai(t1["fileUrl"].rsplit("/", 1)[0] + "/" + sua)
     kiem("sua mot ky tu token → 403 link_khong_hop_le", r.status_code == 403 and code(r) == "link_khong_hop_le", r.text)
     kiem("token rac → 403", tai(G + "/media/v/abc").status_code == 403)
-    dat_va_cho("storage.view_link_ttl", 10, ("task",))
+    dat_va_cho("storage.view_link_ttl", 10, ("project",))
     try:
         # Mo lai bai (GET) → link moi theo han moi.
         tt = requests.get(G + f"/tasks/attempts/{b1['attemptId']}", headers=lab1["h"]).json()["questions"][0]
@@ -133,7 +133,7 @@ try:
         r = tai(tt["fileUrl"])
         kiem("qua 10 giay → 410 link_het_han", r.status_code == 410 and code(r) == "link_het_han", r.text)
     finally:
-        dat_va_cho("storage.view_link_ttl", 300, ("task",))
+        dat_va_cho("storage.view_link_ttl", 300, ("project",))
 
     # =================================================================================
     print("\n[4] Ket qua: chu du an xem nhan cua bai da nop → anh BAN GOC")

@@ -9,7 +9,7 @@
 #       gateway   http://localhost:18080        (API, Swagger cua tung service khong mo ra ngoai)
 #       MinIO     http://localhost:19000 / console http://localhost:19001
 #       Mailpit   http://localhost:18025        RabbitMQ http://localhost:25672
-#       task / annotation / link / gate: 18103 / 18104 / 18107 / 18108 (de E2E goi thang)
+#       link / gate: 18107 / 18108 (de E2E goi thang); lam bai / nhan nam trong project-svc (qua gateway)
 #   - lan dau tu migrate + seed du lieu mau (tai khoan @crowd.local, mat khau Matkhau@123).
 #
 # Xoa sach du lieu demo: docker compose -f docker-compose.demo.yml down -v
@@ -129,22 +129,6 @@ services:
     volumes: [pgdata-project:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U project_user -d project_db"], interval: 5s, timeout: 3s, retries: 30 }
 
-  db-task:
-    <<: *postgres
-    container_name: datn-demo-db-task
-    command: ["postgres", "-c", "max_connections=60", "-c", "shared_buffers=128MB"]
-    environment: { POSTGRES_USER: task_user, POSTGRES_PASSWORD: "${DB_TASK_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: task_db }
-    volumes: [pgdata-task:/var/lib/postgresql/data]
-    healthcheck: { test: ["CMD-SHELL", "pg_isready -U task_user -d task_db"], interval: 5s, timeout: 3s, retries: 30 }
-
-  db-annotation:
-    <<: *postgres
-    container_name: datn-demo-db-annotation
-    command: ["postgres", "-c", "max_connections=60", "-c", "shared_buffers=128MB"]
-    environment: { POSTGRES_USER: annotation_user, POSTGRES_PASSWORD: "${DB_ANNOTATION_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: annotation_db }
-    volumes: [pgdata-annotation:/var/lib/postgresql/data]
-    healthcheck: { test: ["CMD-SHELL", "pg_isready -U annotation_user -d annotation_db"], interval: 5s, timeout: 3s, retries: 30 }
-
   db-ledger:
     <<: *postgres
     container_name: datn-demo-db-ledger
@@ -232,7 +216,13 @@ services:
     volumes: [identity-keys:/app/secrets]
     environment:
       <<: *dotnet-env
-      ASPNETCORE_URLS: http://+:8101
+      # Hai cong (Kestrel:Endpoints trong appsettings.json): 8101 REST, 9101 gRPC noi bo — project-svc tra cuu
+      # nguoi dung luc moi / tham gia du an / mo bai (3.24). HTTP/2 khong TLS, chi trong mang compose.
+      Kestrel__Endpoints__Http__Url: http://+:8101
+      Kestrel__Endpoints__Grpc__Url: http://+:9101
+      # So cau duoc chap nhan / bang xep hang doc tu project-svc qua gRPC (3.24). Khong depends_on: identity
+      # chay duoc khi project-svc sap — worker tinh cap thu lai, bang xep hang tra 503 khi het bo nho dem.
+      InternalApi__ProjectGrpcUrl: http://project:9102
       ConnectionStrings__IdentityDb: Host=db-identity;Port=5432;Database=identity_db;Username=identity_user;Password=${DB_IDENTITY_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       # Ma hoa bi mat 2FA (FC-04), bam co khoa so giay to tuy than (xac minh danh tinh).
       IdentityData__Key: ${IDENTITY_DATA_KEY:?chay python deploy/tao_env.py}
@@ -265,45 +255,20 @@ services:
       db-project: { condition: service_healthy }
     environment:
       <<: *dotnet-env
-      ASPNETCORE_URLS: http://+:8102
+      # Hai cong (Kestrel:Endpoints trong appsettings.json): 8102 REST (HTTP/1.1, gateway goi), 9102 gRPC noi bo
+      # (quality, gate, identity, ledger goi — 3.22 / 3.23 / 3.24). HTTP/2 khong TLS, chi trong mang compose —
+      # khong publish ra may host.
+      Kestrel__Endpoints__Http__Url: http://+:8102
+      Kestrel__Endpoints__Grpc__Url: http://+:9102
       ConnectionStrings__ProjectDb: Host=db-project;Port=5432;Database=project_db;Username=project_user;Password=${DB_PROJECT_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       # FB-11: cho thu nhap tu S3 bang chinh MinIO cua stack (moi dia chi noi bo khac van bi chan — SSRF).
       DatasetImport__AllowedPrivateHosts__0: minio
-      InternalApi__TaskUrl: http://task:8103
-      InternalApi__AnnotationUrl: http://annotation:8104
-      InternalApi__IdentityUrl: http://identity:8101
-
-  task:
-    <<: *dotnet-service
-    image: datn/task:demo
-    container_name: datn-demo-task
-    build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Tasking.Api } }
-    depends_on:
-      rabbitmq: { condition: service_healthy }
-      minio-init: { condition: service_completed_successfully }
-      db-task: { condition: service_healthy }
-    ports: ["127.0.0.1:18103:8103"]
-    environment:
-      <<: *dotnet-env
-      ASPNETCORE_URLS: http://+:8103
-      ConnectionStrings__TaskDb: Host=db-task;Port=5432;Database=task_db;Username=task_user;Password=${DB_TASK_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=20
+      # gRPC noi bo ben goi (3.24): identity (tra cuu nguoi dung, dieu kien mo bai), quality (gop nhan cho
+      # ket qua giao doanh nghiep).
+      InternalApi__IdentityGrpcUrl: http://identity:9101
+      InternalApi__QualityGrpcUrl: http://quality:9201
       # IP that cua labeler qua gateway (chong gian lan: nhieu tai khoan chung IP).
       ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
-
-  annotation:
-    <<: *dotnet-service
-    image: datn/annotation:demo
-    container_name: datn-demo-annotation
-    build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Annotation.Api } }
-    depends_on:
-      rabbitmq: { condition: service_healthy }
-      minio-init: { condition: service_completed_successfully }
-      db-annotation: { condition: service_healthy }
-    ports: ["127.0.0.1:18104:8104"]
-    environment:
-      <<: *dotnet-env
-      ASPNETCORE_URLS: http://+:8104
-      ConnectionStrings__AnnotationDb: Host=db-annotation;Port=5432;Database=annotation_db;Username=annotation_user;Password=${DB_ANNOTATION_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
 
   ledger:
     <<: *dotnet-service
@@ -317,6 +282,8 @@ services:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8105
       InternalApi__IdentityUrl: http://identity:8101
+      # Ten du an in len hoa don VAT: hoi project-svc qua gRPC luc xuat (3.24).
+      InternalApi__ProjectGrpcUrl: http://project:9102
       ConnectionStrings__LedgerDb: Host=db-ledger;Port=5432;Database=ledger_db;Username=ledger_user;Password=${DB_LEDGER_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=20
 
   payment:
@@ -353,6 +320,7 @@ services:
     environment:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8107
+      InternalApi__IdentityUrl: http://identity:8101
       ConnectionStrings__LinkDb: Host=db-link;Port=5432;Database=link_db;Username=link_user;Password=${DB_LINK_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       Links__ShortBaseUrl: http://localhost:5173/g/
       ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
@@ -376,6 +344,9 @@ services:
       Gate__Redis: redis-gate:6379
       Gate__ClickHouse: Host=ch-gate;Port=8123;Username=gate_user;Password=${DB_GATE_PASSWORD:?chay python deploy/tao_env.py};Database=gate_db
       ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
+      # Mau + cau vang cua du an bat cong link keo qua gRPC tu project-svc luc publish (3.23). Khong depends_on:
+      # gate phai chay duoc khi project-svc sap — worker thu lai.
+      InternalApi__ProjectGrpcUrl: http://project:9102
 
   quality:
     image: datn/quality:demo
@@ -390,8 +361,11 @@ services:
       QUALITY_RABBIT_PASSWORD: ${RABBIT_PASSWORD:?chay python deploy/tao_env.py}
       QUALITY_RABBIT_HOST: rabbitmq
       QUALITY_JWKS_URL: http://identity:8101/.well-known/jwks.json
-      QUALITY_PROJECT_URL: http://project:8102
+      # De bai / bai nop / nhan doc thang tu project-svc qua gRPC (3.22) — quality khong giu ban sao.
+      QUALITY_PROJECT_GRPC: project:9102
       QUALITY_INTERNAL_API_KEY: ${INTERNAL_API_KEY:?chay python deploy/tao_env.py}
+      # quality PHUC VU gRPC LabelAggregation (3.24): project-svc nho gop nhan — thuat toan gop chi con o day.
+      QUALITY_GRPC_PORT: "9201"
       # Cham cau tra loi mo theo nghia (3.19). ml-svc sap → quality-svc cho roi ha xuong so chu.
       QUALITY_ML_URL: http://ml:8202
 
@@ -446,8 +420,6 @@ services:
       ConnectionStrings__GatewayRedis: redis-gateway:6379
       DownstreamHosts__8101: identity
       DownstreamHosts__8102: project
-      DownstreamHosts__8103: task
-      DownstreamHosts__8104: annotation
       DownstreamHosts__8105: ledger
       DownstreamHosts__8106: payment
       DownstreamHosts__8107: link
@@ -466,8 +438,6 @@ volumes:
   ch-gate-data:
   pgdata-identity:
   pgdata-project:
-  pgdata-task:
-  pgdata-annotation:
   pgdata-ledger:
   pgdata-payment:
   pgdata-link:

@@ -41,6 +41,15 @@ namespace Crowd.Identity.Api.Exceptions
         }
     }
 
+    /// <summary>Service khac (project-svc qua gRPC) tam thoi khong tra loi → 503, client thu lai sau.</summary>
+    public sealed class DichVuKhongSanSangException : Exception
+    {
+        public DichVuKhongSanSangException(string message, Exception? inner)
+            : base(message, inner)
+        {
+        }
+    }
+
     /// <summary>
     /// Doi ngoai le da biet thanh ProblemDetails co truong "code" on dinh (FC-08), giong moi
     /// service khac. Luong dang ky / dang nhap cu van tra ket qua qua doi tuong (AuthKetQua).
@@ -88,6 +97,11 @@ namespace Crowd.Identity.Api.Exceptions
             {
                 status = StatusCodes.Status404NotFound;
                 code = "khong_tim_thay";
+            }
+            else if (exception is DichVuKhongSanSangException)
+            {
+                status = StatusCodes.Status503ServiceUnavailable;
+                code = "dich_vu_khong_san_sang";
             }
             else
             {

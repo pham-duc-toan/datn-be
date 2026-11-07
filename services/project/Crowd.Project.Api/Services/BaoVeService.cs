@@ -17,7 +17,7 @@ namespace Crowd.Project.Api.Services
     /// <summary>
     /// Bao ve nguoi gan nhan va du lieu cua mot du an:
     ///   - muc 2.9 noi dung nhay cam: canh bao + dong y, chi nguoi DA XAC MINH du tuoi, nghi giua phien
-    ///     (task-svc ep), frontend lam mo mac dinh (co sensitiveContent trong task);
+    ///     (ep luc lam bai), frontend lam mo mac dinh (co sensitiveContent trong task);
     ///   - FP-01 NDA dien tu: ky (ho ten tu go + bam van ban + IP + trinh duyet) truoc khi vao;
     ///   - FP-05: chi labeler da xac minh danh tinh.
     /// Kiem tra dieu kien nam o MemberService.KiemDieuKienLabelerAsync — moi duong vao deu qua do.

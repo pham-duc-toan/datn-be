@@ -11,4 +11,18 @@
     <ProjectReference Include="..\..\..\shared\seeding\Crowd.Seeding.csproj" />
   </ItemGroup>
 
+  <!-- gRPC noi bo (kien truc 3.24): ten du an in len hoa don VAT, hoi project-svc. -->
+  <ItemGroup>
+    <Protobuf Include="..\..\..\contracts\grpc\project\v1\ledger_data.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Client" Link="Grpc\ledger_data.proto" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Net.ClientFactory" />
+    <PackageReference Include="Grpc.Tools">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
 </Project>

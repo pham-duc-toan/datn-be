@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -87,6 +89,51 @@ namespace Crowd.Ledger.Api.Helpers
                 }
             }
         }
+
+        /// <summary>
+        /// Tai khoan dang bi khoa? Hoi CHU du lieu luc RUT tien (thao tac hiem) thay vi giu ban sao
+        /// user.blocked / user.unblocked. Khong ton tai cung coi la khoa. Loi / het gio →
+        /// DichVuKhongSanSangException (503): khong kiem duoc thi KHONG cho rut (fail closed).
+        /// </summary>
+        public async Task<bool> DaKhoaAsync(Guid userId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(_options.IdentityUrl))
+            {
+                throw new DichVuKhongSanSangException("Chua cau hinh InternalApi:IdentityUrl.");
+            }
+
+            using (HttpRequestMessage req = new HttpRequestMessage(HttpMethod.Post, _options.IdentityUrl.TrimEnd('/') + "/internal/users/lookup"))
+            {
+                req.Headers.Add(InternalApiHeaders.Key, _options.Key);
+                req.Content = JsonContent.Create(new { userIds = new[] { userId } });
+                try
+                {
+                    using (HttpResponseMessage r = await _http.SendAsync(req, ct))
+                    {
+                        if (!r.IsSuccessStatusCode)
+                        {
+                            throw new DichVuKhongSanSangException("identity-svc tra " + (int)r.StatusCode + ".");
+                        }
+
+                        List<TrangThaiNguoiDung>? ds = await r.Content.ReadFromJsonAsync<List<TrangThaiNguoiDung>>(ct);
+                        TrangThaiNguoiDung? u = ds == null ? null : ds.FirstOrDefault(x => x.UserId == userId);
+                        return u == null || u.Locked;
+                    }
+                }
+                catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)
+                {
+                    throw new DichVuKhongSanSangException("Khong goi duoc identity-svc: " + ex.Message);
+                }
+            }
+        }
+    }
+
+    /// <summary>Phan can dung trong tra loi POST /internal/users/lookup cua identity-svc.</summary>
+    public sealed class TrangThaiNguoiDung
+    {
+        public Guid UserId { get; init; }
+
+        public bool Locked { get; init; }
     }
 
     /// <summary>Dich vu phu thuoc khong tra loi → 503.</summary>

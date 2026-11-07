@@ -129,6 +129,7 @@ namespace Crowd.Ledger.Api.Services
                 _events.Phat(caller, new EscrowRejected
                 {
                     ProjectId = p.ProjectId,
+                    OwnerId = p.OwnerId,
                     Reason = "So du kha dung " + kheDung + "d, can ky quy " + p.EscrowAmountVnd + "d. Hay nap them tien.",
                 });
                 return;
@@ -137,7 +138,6 @@ namespace Crowd.Ledger.Api.Services
             DateTimeOffset bayGio = _clock.GetUtcNow();
             await _writer.GhiAsync(Postings.DatKyQuy(p.ProjectId, p.OwnerId, p.EscrowAmountVnd, bayGio), ct);
             ProjectEscrow kyQuy = ProjectEscrow.Tao(p.ProjectId, p.OwnerId, p.EscrowAmountVnd, bayGio);
-            kyQuy.DatTen(p.ProjectName);
             _db.Escrows.Add(kyQuy);
 
             _events.Phat(caller, new EscrowReserved { ProjectId = p.ProjectId, AmountVnd = p.EscrowAmountVnd });
@@ -181,7 +181,7 @@ namespace Crowd.Ledger.Api.Services
 
             await _writer.KhoaAsync(ct);
 
-            if (await _db.Holds.AnyAsync(h => h.AnnotationId == c.ClickId && h.Kind == HoldKind.GateClick, ct))
+            if (await _db.Holds.AnyAsync(h => h.SourceId == c.ClickId && h.Kind == HoldKind.GateClick, ct))
             {
                 _logger.LogInformation("Luot {ClickId} da chi tu truoc — bo qua", c.ClickId);
                 return;
@@ -231,7 +231,7 @@ namespace Crowd.Ledger.Api.Services
         private async Task XepHangCongLinkAsync(ClickValidated c, CancellationToken ct)
         {
             if (await _db.GateClicks.AnyAsync(x => x.ClickId == c.ClickId, ct)
-                || await _db.Holds.AnyAsync(h => h.AnnotationId == c.ClickId && h.Kind == HoldKind.GateClick, ct))
+                || await _db.Holds.AnyAsync(h => h.SourceId == c.ClickId && h.Kind == HoldKind.GateClick, ct))
             {
                 return;
             }
@@ -465,7 +465,7 @@ namespace Crowd.Ledger.Api.Services
         }
 
         /// <summary>
-        /// attempt.appeal_resolved: khieu nai ca bai duoc chap nhan VA con suat (task-svc xet duoi khoa du an —
+        /// attempt.appeal_resolved: khieu nai ca bai duoc chap nhan VA con suat (project-svc xet duoi khoa du an —
         /// Rewarded) → tra thuong. Chap nhan ma het suat: bai thanh dat nhung khong co tien.
         /// </summary>
         public async Task ChiThuongKhieuNaiAsync(AttemptAppealResolved p, Caller caller, CancellationToken ct)
@@ -508,7 +508,7 @@ namespace Crowd.Ledger.Api.Services
         /// <summary>Tra thuong MOT bai. false = bai da duoc tra tu truoc (event giao lai, VD-M-02).</summary>
         private async Task<bool> ChiMotBaiAsync(ProjectEscrow escrow, Guid attemptId, Guid labelerId, int daTra, Caller caller, CancellationToken ct)
         {
-            if (await _db.Holds.AnyAsync(h => h.AnnotationId == attemptId && h.Kind == HoldKind.ProjectReward, ct))
+            if (await _db.Holds.AnyAsync(h => h.SourceId == attemptId && h.Kind == HoldKind.ProjectReward, ct))
             {
                 _logger.LogInformation("Bai {AttemptId} da tra thuong tu truoc — bo qua (VD-M-02)", attemptId);
                 return false;

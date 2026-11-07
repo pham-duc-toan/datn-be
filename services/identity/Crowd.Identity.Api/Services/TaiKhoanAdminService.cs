@@ -20,7 +20,7 @@ namespace Crowd.Identity.Api.Services
     ///   - dang nhap bi tu choi (AuthService da kiem UserStatus.Blocked);
     ///   - THU HOI moi refresh token → khong lam moi duoc phien; access token con song toi
     ///     het han (15 phut) — cac service khac chan som hon qua user.blocked;
-    ///   - phat user.blocked: task-svc thu hoi lease + chan nhan task, ledger chan rut, notification bao.
+    ///   - phat user.blocked: project-svc huy bai dang lam + chan mo bai, notification bao (ledger hoi truc tiep luc rut).
     /// Khong cho khoa admin (tranh tu khoa het quyen quan tri).
     /// </summary>
     public sealed class TaiKhoanAdminService

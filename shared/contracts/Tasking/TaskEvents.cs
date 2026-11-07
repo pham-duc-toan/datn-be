@@ -6,32 +6,14 @@ using Crowd.Labeling;
 namespace Crowd.Contracts.Tasking
 {
     /// <summary>
-    /// Mot cau tra loi trong bai nop (chi cau THAT — cau vang da duoc task-svc cham va chi mang
-    /// so dung / tong). Kem du thong tin mau de annotation-svc luu va xuat ma khong phai hoi ai.
-    /// </summary>
-    public sealed record AttemptAnswer
-    {
-        public required Guid SampleId { get; init; }
-
-        /// <summary>Khoa file trong MinIO. null voi text / pair / list.</summary>
-        public string? StorageKey { get; init; }
-
-        /// <summary>Noi dung mau khi khong phai file (text, pair, list).</summary>
-        public RawJson? SampleContent { get; init; }
-
-        /// <summary>Thong tin mau — xuat COCO can kich thuoc anh, doan cat can moc thoi gian.</summary>
-        public required RawJson SampleMetadata { get; init; }
-
-        /// <summary>Cau tra loi da kiem dinh dang. null = labeler bo trong cau nay (tinh la khong giong da so).</summary>
-        public LabelPayload? LabelPayload { get; init; }
-    }
-
-    /// <summary>
-    /// Labeler NOP CA BAI (docs 3.18): moi cau that cua de + ket qua cau vang. annotation-svc luu
-    /// nhan (chua co gia tri tien), quality-svc giu de cham khi du an ket thuc.
+    /// Labeler NOP CA BAI (docs 3.18). project-svc da luu nhan cung transaction (chua co gia tri tien).
     ///
-    /// Vi sao nop o task-svc: kiem "bai con hieu luc, chua nop" va "danh dau da nop" phai NGUYEN TU
-    /// tren CUNG mot dong (VD-T-01) — bai lam la du lieu cua task-svc.
+    /// v2 (kien truc 3.22): KHONG con mang cau tra loi + thong tin mau. quality-svc doc de bai, bai nop va
+    /// nhan thang tu project-svc qua gRPC (contracts/grpc/project/v1/quality_data.proto) luc can — event chi
+    /// la TIN HIEU "co bai moi" (xet gian lan, danh dau du an can tinh lai DS, xep hang nhung cau tra loi mo).
+    ///
+    /// Vi sao nop o project-svc: kiem "bai con hieu luc, chua nop" va "danh dau da nop" phai NGUYEN TU
+    /// tren CUNG mot dong (VD-T-01) — bai lam la du lieu cua project-svc (truoc la task-svc).
     ///
     /// Namespace la Crowd.Contracts.Tasking chu khong phai ".Task": chu "Task" se
     /// che System.Threading.Tasks.Task — cung ly do voi assembly Crowd.Tasking.
@@ -45,7 +27,7 @@ namespace Crowd.Contracts.Tasking
 
         public static int Version
         {
-            get { return 1; }
+            get { return 2; }
         }
 
         /// <summary>Khoa idempotency cua moi consumer: moi bai nop xu ly DUNG MOT lan.</summary>
@@ -55,12 +37,13 @@ namespace Crowd.Contracts.Tasking
 
         public required Guid LabelerId { get; init; }
 
-        public required IReadOnlyList<AttemptAnswer> Answers { get; init; }
+        /// <summary>So cau THAT da tra loi (= so nhan cua bai). Chong gian lan chi xet bai du dai.</summary>
+        public required int AnsweredCount { get; init; }
 
         /// <summary>So cau vang trong de cua labeler nay.</summary>
         public required int GoldTotal { get; init; }
 
-        /// <summary>So cau vang tra loi dung (task-svc cham bang Crowd.Labeling, nguong theo setting).</summary>
+        /// <summary>So cau vang tra loi dung (project-svc cham bang Crowd.Labeling, nguong theo setting).</summary>
         public required int GoldCorrect { get; init; }
 
         public required DateTimeOffset StartedAt { get; init; }
@@ -87,9 +70,9 @@ namespace Crowd.Contracts.Tasking
     }
 
     /// <summary>
-    /// Du an DONG THU BAI: du suat, het han chot, hoac doanh nghiep ket thuc som. quality-svc cham
-    /// khi da nhan du attempt.submitted cua MOI bai liet ke (hai event di hai queue khac nhau, bai
-    /// nop co the toi sau). project-svc chuyen du an sang "Dang cham".
+    /// Du an DONG THU BAI: du suat, het han chot, hoac doanh nghiep ket thuc som. project-svc chuyen du an
+    /// sang "Dang cham" cung transaction; quality-svc cham ngay (doc bai + nhan qua gRPC — moi bai trong danh
+    /// sach da commit truoc event nay, khong con phai doi attempt.submitted).
     /// </summary>
     public sealed record ProjectCollectionFinished : IEventPayload
     {
@@ -146,7 +129,7 @@ namespace Crowd.Contracts.Tasking
     }
 
     /// <summary>
-    /// Admin phan xu khieu nai ca bai. Accepted = doi thanh DAT: ledger tra thuong, annotation-svc
+    /// Admin phan xu khieu nai ca bai. Accepted = doi thanh DAT: ledger tra thuong, project-svc
     /// nhan cac nhan cua bai vao ket qua, identity cong cap do.
     /// </summary>
     public sealed record AttemptAppealResolved : IEventPayload
@@ -176,26 +159,5 @@ namespace Crowd.Contracts.Tasking
 
         /// <summary>So cau that cua bai (identity cong vao so nhan dat khi Accepted).</summary>
         public required int AnsweredCount { get; init; }
-    }
-
-    /// <summary>
-    /// Het han khieu nai va khong con khieu nai mo: so nguoi dat da CHOT. project-svc chuyen du an
-    /// sang Hoan thanh va phat project.completed {PassedAttemptCount} cho ledger hoan ky quy.
-    /// </summary>
-    public sealed record ProjectSettled : IEventPayload
-    {
-        public static string EventType
-        {
-            get { return "project.settled"; }
-        }
-
-        public static int Version
-        {
-            get { return 1; }
-        }
-
-        public required Guid ProjectId { get; init; }
-
-        public required int PassedAttemptCount { get; init; }
     }
 }

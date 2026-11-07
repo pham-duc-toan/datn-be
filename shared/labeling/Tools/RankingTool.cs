@@ -11,8 +11,6 @@ namespace Crowd.Labeling.Tools
     ///
     /// Do giong hai thu tu = ti le cap muc duoc xep cung chieu (Kendall). Cham dap an: &gt;= nguong
     /// (mac dinh 0.8 — voi 3 muc la phai dung het, voi 5 muc cho lech toi da 2 trong 10 cap).
-    /// Gop nhieu nguoi: DIEM BORDA — muc dung thu k (tu 0) trong m muc duoc m−1−k diem, cong diem
-    /// cua moi nguoi, xep giam dan (hoa thi muc co chi so nho dung truoc).
     /// </summary>
     internal sealed class RankingTool : IToolKind
     {
@@ -51,56 +49,6 @@ namespace Crowd.Labeling.Tools
             double nguong = tool.MatchThreshold ?? nguongMacDinh ?? NguongMacDinh;
             return HinhHoc.Kendall(DocThuTu(nop), DocThuTu(dapAn)) >= nguong - HinhHoc.SaiSoNguong;
         }
-
-        public JsonObject Gop(IReadOnlyList<JsonNode> ketQua, ToolDefinition tool, ThamSoGop thamSo)
-        {
-            List<List<int>> ds = new List<List<int>>();
-            SortedDictionary<int, int> diem = new SortedDictionary<int, int>();
-
-            foreach (JsonNode k in ketQua)
-            {
-                List<int> thuTu = DocThuTu(k);
-                ds.Add(thuTu);
-                for (int viTri = 0; viTri < thuTu.Count; viTri++)
-                {
-                    int cu;
-                    diem.TryGetValue(thuTu[viTri], out cu);
-                    diem[thuTu[viTri]] = cu + (thuTu.Count - 1 - viTri);
-                }
-            }
-
-            List<int> chot = diem.OrderByDescending(d => d.Value).ThenBy(d => d.Key).Select(d => d.Key).ToList();
-
-            double nguong = tool.MatchThreshold ?? thamSo.NguongMacDinh ?? NguongMacDinh;
-            JsonArray dongY = new JsonArray();
-            int soDongY = 0;
-            foreach (List<int> thuTu in ds)
-            {
-                bool khop = HinhHoc.Kendall(thuTu, chot) >= nguong - HinhHoc.SaiSoNguong;
-                dongY.Add(khop);
-                if (khop)
-                {
-                    soDongY++;
-                }
-            }
-
-            JsonObject diemTheoMuc = new JsonObject();
-            foreach (KeyValuePair<int, int> d in diem)
-            {
-                diemTheoMuc[d.Key.ToString(System.Globalization.CultureInfo.InvariantCulture)] = d.Value;
-            }
-
-            bool tranhChap = soDongY * 2 <= ds.Count;
-            return new JsonObject
-            {
-                ["method"] = "borda",
-                ["final"] = tranhChap ? null : TaoKetQua(chot),
-                ["scores"] = diemTheoMuc,
-                ["agrees"] = dongY,
-                ["disputed"] = tranhChap,
-            };
-        }
-
         internal static List<int> DocThuTu(JsonNode ketQua)
         {
             List<int> ds = new List<int>();

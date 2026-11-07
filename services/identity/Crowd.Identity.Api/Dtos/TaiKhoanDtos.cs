@@ -192,7 +192,7 @@ namespace Crowd.Identity.Api.Dtos
 
     /// <summary>
     /// Thong tin du de project-svc quyet "nguoi nay vao du an duoc khong": vai tro, khoa,
-    /// cap do, uy tin (cung nguon task-svc dung khi cap task).
+    /// cap do, uy tin (cung nguon voi labeler_cache dung luc mo bai).
     /// </summary>
     public sealed class UserLookupDto
     {
@@ -207,6 +207,9 @@ namespace Crowd.Identity.Api.Dtos
         public required IReadOnlyList<string> Roles { get; init; }
 
         public required bool Locked { get; init; }
+
+        /// <summary>Luc dang ky — link-svc kiem han nhap ma gioi thieu ("chi tai khoan moi").</summary>
+        public required DateTimeOffset RegisteredAt { get; init; }
 
         /// <summary>Chua co thong ke (chua tung co nhan duoc duyet) = cap 1, nhu GET /me/level.</summary>
         public required int Level { get; init; }

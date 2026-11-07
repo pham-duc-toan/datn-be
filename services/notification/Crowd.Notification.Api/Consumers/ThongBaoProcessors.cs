@@ -54,17 +54,6 @@ namespace Crowd.Notification.Api.Consumers
         }
 
         protected abstract Task XuLyPayloadAsync(TPayload p, CancellationToken ct);
-
-        protected async Task<Guid?> ChuDuAnAsync(Guid projectId, CancellationToken ct)
-        {
-            ChuDuAn? c = await Db.ChuDuAns.AsNoTracking().FirstOrDefaultAsync(x => x.ProjectId == projectId, ct);
-            if (c == null)
-            {
-                return null;
-            }
-
-            return c.OwnerId;
-        }
     }
 
     // ===================================================================== ban sao
@@ -87,38 +76,6 @@ namespace Crowd.Notification.Api.Consumers
             else
             {
                 lh.DatVaiTro(p.Roles);
-            }
-        }
-    }
-
-    public sealed class PublishRequestedProcessor : ThongBaoProcessor<ProjectPublishRequested>
-    {
-        public PublishRequestedProcessor(ThongBaoWriter writer, NotificationDbContext db)
-            : base(writer, db)
-        {
-        }
-
-        protected override async Task XuLyPayloadAsync(ProjectPublishRequested p, CancellationToken ct)
-        {
-            if (!await Db.ChuDuAns.AnyAsync(x => x.ProjectId == p.ProjectId, ct))
-            {
-                Db.ChuDuAns.Add(ChuDuAn.Tao(p.ProjectId, p.OwnerId));
-            }
-        }
-    }
-
-    public sealed class PayoutRequestedProcessor : ThongBaoProcessor<PayoutRequested>
-    {
-        public PayoutRequestedProcessor(ThongBaoWriter writer, NotificationDbContext db)
-            : base(writer, db)
-        {
-        }
-
-        protected override async Task XuLyPayloadAsync(PayoutRequested p, CancellationToken ct)
-        {
-            if (!await Db.ChuLenhRuts.AnyAsync(x => x.WithdrawalId == p.WithdrawalId, ct))
-            {
-                Db.ChuLenhRuts.Add(ChuLenhRut.Tao(p.WithdrawalId, p.LabelerId, p.NetAmountVnd));
             }
         }
     }
@@ -212,17 +169,9 @@ namespace Crowd.Notification.Api.Consumers
         {
         }
 
-        protected override async Task XuLyPayloadAsync(EscrowRejected p, CancellationToken ct)
+        protected override Task XuLyPayloadAsync(EscrowRejected p, CancellationToken ct)
         {
-            // escrow.rejected chi mang ProjectId; chu du an tu project.publish_requested (di TRUOC no).
-            // Chua co (queue khac cham) → nem loi de broker giao lai sau.
-            Guid? chu = await ChuDuAnAsync(p.ProjectId, ct);
-            if (!chu.HasValue)
-            {
-                throw new InvalidOperationException("Chua biet chu du an " + p.ProjectId + " — cho project.publish_requested.");
-            }
-
-            await Writer.GhiAsync(chu.Value, LoaiThongBao.DuAn, NoiDungThongBao.DuAnThieuKyQuy(p.ProjectId, p.Reason), ct);
+            return Writer.GhiAsync(p.OwnerId, LoaiThongBao.DuAn, NoiDungThongBao.DuAnThieuKyQuy(p.ProjectId, p.Reason), ct);
         }
     }
 
@@ -309,26 +258,22 @@ namespace Crowd.Notification.Api.Consumers
                 await Writer.GhiAsync(a.LabelerId, LoaiThongBao.KetQuaBai, n, ct);
             }
 
-            Guid? chu = await ChuDuAnAsync(p.ProjectId, ct);
-            if (chu.HasValue)
+            int dat = 0;
+            int thuong = 0;
+            foreach (GradedAttempt a in p.Attempts)
             {
-                int dat = 0;
-                int thuong = 0;
-                foreach (GradedAttempt a in p.Attempts)
+                if (a.Passed)
                 {
-                    if (a.Passed)
-                    {
-                        dat++;
-                    }
-
-                    if (a.Rewarded)
-                    {
-                        thuong++;
-                    }
+                    dat++;
                 }
 
-                await Writer.GhiAsync(chu.Value, LoaiThongBao.DuAn, NoiDungThongBao.DuAnDaCham(p.ProjectId, dat, thuong, p.Attempts.Count), ct);
+                if (a.Rewarded)
+                {
+                    thuong++;
+                }
             }
+
+            await Writer.GhiAsync(p.OwnerId, LoaiThongBao.DuAn, NoiDungThongBao.DuAnDaCham(p.ProjectId, dat, thuong, p.Attempts.Count), ct);
         }
     }
 
@@ -366,22 +311,9 @@ namespace Crowd.Notification.Api.Consumers
         {
         }
 
-        protected override async Task XuLyPayloadAsync(PayoutCompleted p, CancellationToken ct)
+        protected override Task XuLyPayloadAsync(PayoutCompleted p, CancellationToken ct)
         {
-            ChuLenhRut c = await LenhRutAsync(Db, p.WithdrawalId, ct);
-            await Writer.GhiAsync(c.LabelerId, LoaiThongBao.RutTien, NoiDungThongBao.RutThanhCong(c.NetAmountVnd), ct);
-        }
-
-        internal static async Task<ChuLenhRut> LenhRutAsync(NotificationDbContext db, Guid withdrawalId, CancellationToken ct)
-        {
-            // payout.requested (ledger → payment) luon di TRUOC; chua toi → giao lai sau.
-            ChuLenhRut? c = await db.ChuLenhRuts.AsNoTracking().FirstOrDefaultAsync(x => x.WithdrawalId == withdrawalId, ct);
-            if (c == null)
-            {
-                throw new InvalidOperationException("Chua biet chu lenh rut " + withdrawalId + " — cho payout.requested.");
-            }
-
-            return c;
+            return Writer.GhiAsync(p.LabelerId, LoaiThongBao.RutTien, NoiDungThongBao.RutThanhCong(p.NetAmountVnd), ct);
         }
     }
 
@@ -392,10 +324,9 @@ namespace Crowd.Notification.Api.Consumers
         {
         }
 
-        protected override async Task XuLyPayloadAsync(PayoutFailed p, CancellationToken ct)
+        protected override Task XuLyPayloadAsync(PayoutFailed p, CancellationToken ct)
         {
-            ChuLenhRut c = await PayoutCompletedProcessor.LenhRutAsync(Db, p.WithdrawalId, ct);
-            await Writer.GhiAsync(c.LabelerId, LoaiThongBao.RutTien, NoiDungThongBao.RutThatBai(p.Reason), ct);
+            return Writer.GhiAsync(p.LabelerId, LoaiThongBao.RutTien, NoiDungThongBao.RutThatBai(p.Reason), ct);
         }
     }
 

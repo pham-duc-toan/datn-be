@@ -11,10 +11,6 @@ namespace Crowd.Labeling.Tools
     ///
     /// Cham dap an: F1 tren cac doan trung KHOP HOAN TOAN (cung lop, cung start,
     /// cung end) &gt;= nguong. Mac dinh 1.0 — phai dung het, dung chuan danh gia NER.
-    ///
-    /// Gop nhieu nguoi: giu doan duoc HON MOT NUA so nguoi danh dau y het (cung lop, cung vi tri).
-    /// Hai doan qua ban khong the chong nhau: phai co mot nguoi danh dau ca hai, ma nhan cua moi
-    /// nguoi da bi cam chong doan.
     /// </summary>
     internal sealed class SpanTool : DanhSachToolBase
     {
@@ -59,18 +55,6 @@ namespace Crowd.Labeling.Tools
                 }
             }
         }
-
-        protected override string CachGop
-        {
-            get { return "majority"; }
-        }
-
-        /// <summary>Ghep cap luon doi TRUNG HET; matchThreshold cua span la nguong F1 khi cham dap an.</summary>
-        protected override double NguongGhep(ToolDefinition tool, double? nguongMacDinh)
-        {
-            return 1.0;
-        }
-
         public override bool Khop(JsonNode nop, JsonNode dapAn, ToolDefinition tool, double? nguongMacDinh, SampleMetadata mau)
         {
             double nguong = tool.MatchThreshold ?? nguongMacDinh ?? NguongMacDinh;

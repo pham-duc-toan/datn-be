@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Settings;
+using Crowd.Ledger.Api.Helpers;
 using Crowd.Ledger.Api.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -63,6 +64,11 @@ namespace Crowd.Ledger.Api.Workers
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
                     break;
+                }
+                catch (DichVuKhongSanSangException ex)
+                {
+                    // identity (ho so KYB) / project-svc (ten du an, gRPC) tam tat — viec cho vong sau, khong phai loi.
+                    _logger.LogWarning("Chua xuat hoa don duoc: {Loi} — thu lai vong sau", ex.Message);
                 }
                 catch (Exception ex)
                 {

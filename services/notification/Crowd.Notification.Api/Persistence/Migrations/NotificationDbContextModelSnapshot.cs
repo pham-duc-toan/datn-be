@@ -106,40 +106,6 @@ namespace Crowd.Notification.Api.Persistence.Migrations
                     b.ToTable("outbox", (string)null);
                 });
 
-            modelBuilder.Entity("Crowd.Notification.Api.Entities.ChuDuAn", b =>
-                {
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("owner_id");
-
-                    b.HasKey("ProjectId");
-
-                    b.ToTable("project_owners", (string)null);
-                });
-
-            modelBuilder.Entity("Crowd.Notification.Api.Entities.ChuLenhRut", b =>
-                {
-                    b.Property<Guid>("WithdrawalId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("withdrawal_id");
-
-                    b.Property<Guid>("LabelerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("labeler_id");
-
-                    b.Property<long>("NetAmountVnd")
-                        .HasColumnType("bigint")
-                        .HasColumnName("net_amount_vnd");
-
-                    b.HasKey("WithdrawalId");
-
-                    b.ToTable("withdrawal_owners", (string)null);
-                });
-
             modelBuilder.Entity("Crowd.Notification.Api.Entities.EmailGiaoDich", b =>
                 {
                     b.Property<Guid>("Id")

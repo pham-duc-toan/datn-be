@@ -6,6 +6,7 @@ using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.Contracts.Admin;
 using Crowd.Contracts.Identity;
+using Crowd.Contracts.Project;
 using Crowd.Contracts.Quality;
 using Crowd.Contracts.Tasking;
 using Crowd.Identity.Api.Services;
@@ -15,14 +16,15 @@ namespace Crowd.Identity.Api.Consumers
     // Event identity-svc nghe. Processor KHONG SaveChanges — IdempotencyGuard luu mot lan cung dau vet.
 
     /// <summary>
-    /// project.graded (quality-svc): moi bai DAT → cong so cau da tra loi vao so nhan duoc chap nhan
-    /// (docs 3.18 — khong con duyet tung nhan), tinh lai cap / huy hieu. Bai truot khong cong.
+    /// project.grading_applied (project-svc da ghi ket qua cham vao bai lam): labeler co bai dat → hang cho tinh
+    /// lai cap. So cau duoc chap nhan doc qua gRPC luc tinh (kien truc 3.24) — khong nghe thang project.graded
+    /// cua quality-svc vi luc do project-svc co the chua ghi ket qua, tong se thieu dung du an vua cham.
     /// </summary>
-    public sealed class ProjectGradedProcessor : IEventProcessor<ProjectGraded>
+    public sealed class ProjectGradingAppliedProcessor : IEventProcessor<ProjectGradingApplied>
     {
         private readonly CapDoService _capDo;
 
-        public ProjectGradedProcessor(CapDoService capDo)
+        public ProjectGradingAppliedProcessor(CapDoService capDo)
         {
             if (capDo == null)
             {
@@ -32,20 +34,14 @@ namespace Crowd.Identity.Api.Consumers
             _capDo = capDo;
         }
 
-        public async Task XuLyAsync(EventEnvelope<ProjectGraded> envelope, CancellationToken ct)
+        public Task XuLyAsync(EventEnvelope<ProjectGradingApplied> envelope, CancellationToken ct)
         {
             if (envelope == null)
             {
                 throw new ArgumentNullException(nameof(envelope));
             }
 
-            foreach (GradedAttempt a in envelope.Payload.Attempts)
-            {
-                if (a.Passed && a.AnsweredCount > 0)
-                {
-                    await _capDo.GhiNhanDuyetAsync(a.LabelerId, a.AnsweredCount, envelope.OccurredAt, HeThong(envelope), ct);
-                }
-            }
+            return _capDo.XepTinhLaiAsync(envelope.Payload.ApprovedLabelerIds, envelope.CorrelationId, ct);
         }
 
         internal static Caller HeThong<T>(EventEnvelope<T> envelope)
@@ -55,7 +51,7 @@ namespace Crowd.Identity.Api.Consumers
         }
     }
 
-    /// <summary>attempt.appeal_resolved: khieu nai ca bai duoc chap nhan → bai thanh dat, cong nhu project.graded.</summary>
+    /// <summary>attempt.appeal_resolved: khieu nai ca bai duoc chap nhan → bai thanh dat, tinh lai cap nhu tren.</summary>
     public sealed class AttemptAppealResolvedProcessor : IEventProcessor<AttemptAppealResolved>
     {
         private readonly CapDoService _capDo;
@@ -83,11 +79,11 @@ namespace Crowd.Identity.Api.Consumers
                 return Task.CompletedTask;
             }
 
-            return _capDo.GhiNhanDuyetAsync(p.LabelerId, p.AnsweredCount, envelope.OccurredAt, ProjectGradedProcessor.HeThong(envelope), ct);
+            return _capDo.XepTinhLaiAsync(new[] { p.LabelerId }, envelope.CorrelationId, ct);
         }
     }
 
-    /// <summary>reputation.changed (quality-svc) → uy tin moi nhat; ban cu den tre bi bo qua.</summary>
+    /// <summary>reputation.changed (quality-svc) → uy tin moi nhat (ban cu den tre bi bo qua), tinh lai cap.</summary>
     public sealed class ReputationChangedProcessor : IEventProcessor<ReputationChanged>
     {
         private readonly CapDoService _capDo;
@@ -110,7 +106,7 @@ namespace Crowd.Identity.Api.Consumers
             }
 
             ReputationChanged p = envelope.Payload;
-            return _capDo.GhiUyTinAsync(p.UserId, p.Reputation, envelope.OccurredAt, ProjectGradedProcessor.HeThong(envelope), ct);
+            return _capDo.GhiUyTinAsync(p.UserId, p.Reputation, envelope.OccurredAt, envelope.CorrelationId, ct);
         }
     }
 
@@ -168,7 +164,7 @@ namespace Crowd.Identity.Api.Consumers
                 return;
             }
 
-            Caller heThong = ProjectGradedProcessor.HeThong(envelope);
+            Caller heThong = ProjectGradingAppliedProcessor.HeThong(envelope);
             foreach (Guid userId in p.UserIds)
             {
                 await _taiKhoan.KhoaTuHeThongAsync(userId, "Gian lan (ho so " + p.CaseId + "): " + p.Reason, heThong, ct);

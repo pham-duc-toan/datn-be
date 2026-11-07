@@ -8,8 +8,8 @@ namespace Crowd.Labeling.Tools
     /// <summary>
     /// THUOC TINH cua tung doi tuong trong cong cu dang danh sach:
     ///     {"labelId":"xe","x":1,"y":2,"w":3,"h":4,"attributes":{"che_khuat":true,"bien_so":"30A-123.45"}}
-    /// Khai trong tap nhan ("attributes" cua cong cu). Ba viec: kiem luc nop, so voi ban CHUAN
-    /// (dap an cau vang hoac ket qua gop), va gop gia tri cua nhieu nguoi cho cung mot doi tuong.
+    /// Khai trong tap nhan ("attributes" cua cong cu). Hai viec: kiem luc nop va so voi ban CHUAN (dap
+    /// an cau vang). Gop thuoc tinh cua nhieu nguoi nam o quality-svc (app/gop.py, kien truc 3.24).
     /// </summary>
     internal static class ThuocTinh
     {
@@ -88,115 +88,6 @@ namespace Crowd.Labeling.Tools
             }
 
             return true;
-        }
-
-        /// <summary>
-        /// Gop thuoc tinh cua cac doi tuong da duoc ghep thanh MOT (moi nguoi mot ban):
-        ///   choice / boolean → gia tri duoc hon mot nua so nguoi CO ghi chon; khong co thi bo;
-        ///   number           → trung vi;
-        ///   text             → ban "o giua" (tong do lech toi cac ban khac nho nhat).
-        /// Tra ve null neu khong thuoc tinh nao co gia tri.
-        /// </summary>
-        public static JsonObject? Gop(IReadOnlyList<JsonObject> thanhVien, ToolDefinition tool)
-        {
-            JsonObject ra = new JsonObject();
-
-            foreach (AttributeDefinition khai in tool.Attributes)
-            {
-                List<JsonNode> giaTri = new List<JsonNode>();
-                foreach (JsonObject m in thanhVien)
-                {
-                    JsonObject? tt = m[Khoa] as JsonObject;
-                    JsonNode? v = tt == null ? null : tt[khai.Name];
-                    if (v != null)
-                    {
-                        giaTri.Add(v);
-                    }
-                }
-
-                if (giaTri.Count == 0)
-                {
-                    continue;
-                }
-
-                if (khai.Type == AttributeDefinition.Number)
-                {
-                    List<double> so = new List<double>();
-                    foreach (JsonNode v in giaTri)
-                    {
-                        so.Add(HinhHoc.So(v));
-                    }
-
-                    ra[khai.Name] = HinhHoc.LamTron(HinhHoc.TrungVi(so));
-                }
-                else if (khai.Type == AttributeDefinition.Text)
-                {
-                    List<string> chu = new List<string>();
-                    foreach (JsonNode v in giaTri)
-                    {
-                        chu.Add(v.GetValue<string>());
-                    }
-
-                    ra[khai.Name] = chu[BanOGiua(chu)];
-                }
-                else
-                {
-                    // choice / boolean: dem theo dang chuoi, giu thu tu gap dau tien.
-                    List<string> khoa = new List<string>();
-                    Dictionary<string, int> phieu = new Dictionary<string, int>(StringComparer.Ordinal);
-                    Dictionary<string, JsonNode> mau = new Dictionary<string, JsonNode>(StringComparer.Ordinal);
-
-                    foreach (JsonNode v in giaTri)
-                    {
-                        string k = v.ToJsonString();
-                        int cu;
-                        if (!phieu.TryGetValue(k, out cu))
-                        {
-                            khoa.Add(k);
-                            mau[k] = v;
-                        }
-
-                        phieu[k] = cu + 1;
-                    }
-
-                    foreach (string k in khoa)
-                    {
-                        if (phieu[k] * 2 > giaTri.Count)
-                        {
-                            ra[khai.Name] = mau[k].DeepClone();
-                        }
-                    }
-                }
-            }
-
-            return ra.Count == 0 ? null : ra;
-        }
-
-        /// <summary>Vi tri ban "o giua": tong do lech toi cac ban khac nho nhat (hoa thi lay ban dau tien).</summary>
-        public static int BanOGiua(IReadOnlyList<string> chu)
-        {
-            int tot = 0;
-            double itNhat = double.MaxValue;
-
-            for (int i = 0; i < chu.Count; i++)
-            {
-                double tong = 0;
-                for (int j = 0; j < chu.Count; j++)
-                {
-                    if (i != j)
-                    {
-                        tong = tong + HinhHoc.DoLechChu(chu[i], chu[j]);
-                    }
-                }
-
-                if (tong < itNhat - HinhHoc.SaiSoNguong)
-                {
-                    itNhat = tong;
-                    tot = i;
-                }
-            }
-
-            return tot;
         }
 
         private static bool GiaTriKhop(AttributeDefinition khai, JsonNode chuan, JsonNode xet)

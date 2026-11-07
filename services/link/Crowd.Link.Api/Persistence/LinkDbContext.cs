@@ -29,7 +29,6 @@ namespace Crowd.Link.Api.Persistence
 
         public DbSet<Referral> Referrals => Set<Referral>();
 
-        public DbSet<KnownUser> KnownUsers => Set<KnownUser>();
 
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
@@ -140,14 +139,6 @@ namespace Crowd.Link.Api.Persistence
                 b.HasIndex(x => x.ReferrerId).HasDatabaseName("ix_referrals_referrer");
                 b.HasIndex(x => new { x.ReferrerId, x.CreatedAt }).HasDatabaseName("ix_referrals_referrer_thoi_gian");
                 b.HasIndex(x => x.Status).HasFilter("status = 'flagged'").HasDatabaseName("ix_referrals_nghi_ngo");
-            });
-
-            modelBuilder.Entity<KnownUser>(b =>
-            {
-                b.ToTable("known_users");
-                b.HasKey(x => x.UserId);
-                b.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
-                b.Property(x => x.RegisteredAt).HasColumnName("registered_at").IsRequired();
             });
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());

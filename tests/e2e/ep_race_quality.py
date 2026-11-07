@@ -1,11 +1,11 @@
-# Ep race cham CA DU AN (kien truc 3.18): bai cuoi lam du suat → task-svc phat CUNG LUC attempt.submitted
-# va project.collection_finished; quality-svc nhan hai event tren HAI queue, cai nao toi truoc cung duoc.
-# Hai transaction cung thu cham: khong khoa thi moi ben chi thay du lieu cua minh, ca hai thay thieu va
-# KHONG BEN NAO cham (du an ket o Grading) — hoac ca hai cung cham (tra thuong hai lan). Sua: khoa
-# advisory theo du an trong thu_cham, project_collections.graded_at chan cham lai.
+# Ep race cham CA DU AN (kien truc 3.18): bai cuoi lam du suat → project-svc phat CUNG LUC attempt.submitted
+# va project.collection_finished. Tu 3.22 quality doc bai nop qua gRPC nen khong con "doi du bai", nhung van co
+# HAI ben cung thu cham mot du an: consumer collection_finished va worker cham lai (viec_cho.py). Khong khoa thi
+# ca hai cung cham (tra thuong hai lan). Chan: khoa advisory theo du an trong thu_cham, project_gradings.graded_at.
 #
 # Lap N du an, moi du an 3 suat, 3 labeler nop CUNG LUC. Bat bien: moi du an duoc cham DUNG MOT lan
-# (graded_at co gia tri, 3 attempt_grades, mot project.graded trong outbox), va ledger tra thuong dung 3 bai.
+# (graded_at co gia tri, mot project.graded trong outbox, 3 bai co ket qua o project.attempts), va ledger tra
+# thuong dung 3 bai.
 import sys, threading, time, uuid
 sys.path.insert(0, __import__('os').path.dirname(__import__('os').path.abspath(__file__)))
 import requests
@@ -45,10 +45,12 @@ for P in du_an:
     [x.join() for x in th]
 
 ds = ",".join(f"'{p}'" for p in du_an)
-ok = L.cho(lambda: L.sql("quality", f"select count(*) from project_collections where project_id in ({ds}) and graded_at is not null") == str(N), 90)
+ok = L.cho(lambda: L.sql("quality", f"select count(*) from project_gradings where project_id in ({ds}) and graded_at is not null") == str(N), 90)
 time.sleep(2)
-cham = L.sql("quality", f"select count(*) from project_collections where project_id in ({ds}) and graded_at is not null")
-bai_cham = L.sql("quality", f"select count(*) from attempt_grades where project_id in ({ds})")
+cham = L.sql("quality", f"select count(*) from project_gradings where project_id in ({ds}) and graded_at is not null")
+# Ket qua tung bai nam o project.attempts (quality khong giu ban sao, 3.22).
+L.cho(lambda: L.sql("project", f"select count(*) from attempts where project_id in ({ds}) and graded_at is not null") == str(3 * N), 60)
+bai_cham = L.sql("project", f"select count(*) from attempts where project_id in ({ds}) and graded_at is not null")
 phat = L.sql("quality", f"select count(*) from outbox where event_type = 'project.graded' and envelope_json->'payload'->>'projectId' in ({ds})")
 tra = L.cho(lambda: L.sql("ledger", f"select count(*) from holds where kind = 'ProjectReward' and project_id in ({ds})") == str(3 * N), 60)
 print(f"du an da cham: {cham}/{N}, bai cham: {bai_cham}/{3 * N}, project.graded phat: {phat}/{N}")

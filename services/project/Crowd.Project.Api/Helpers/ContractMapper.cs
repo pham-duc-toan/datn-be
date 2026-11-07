@@ -25,18 +25,5 @@ namespace Crowd.Project.Api.Helpers
                 default: throw new ArgumentOutOfRangeException(nameof(r), r, "MemberRole chua map sang hop dong.");
             }
         }
-
-        public static Crowd.Contracts.Project.GoldPurpose ToContract(Crowd.Project.Domain.Gold.GoldPurpose p)
-        {
-            switch (p)
-            {
-                case Crowd.Project.Domain.Gold.GoldPurpose.EntranceTest:
-                    return Crowd.Contracts.Project.GoldPurpose.EntranceTest;
-                case Crowd.Project.Domain.Gold.GoldPurpose.QualityCheck:
-                    return Crowd.Contracts.Project.GoldPurpose.QualityCheck;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(p), p, "GoldPurpose chua map sang hop dong.");
-            }
-        }
     }
 }

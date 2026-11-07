@@ -26,7 +26,10 @@ namespace Crowd.Contracts.Ledger
         public required long AmountVnd { get; init; }
     }
 
-    /// <summary>SAGA BUOC 2 — nhanh that bai: khong du tien, du an ve Nhap.</summary>
+    /// <summary>
+    /// SAGA BUOC 2 — nhanh that bai: khong du tien, du an ve Nhap.
+    /// v2: them OwnerId — notification gui thong bao cho chu du an ma khong can ban sao chu du an.
+    /// </summary>
     public sealed record EscrowRejected : IEventPayload
     {
         public static string EventType
@@ -36,10 +39,12 @@ namespace Crowd.Contracts.Ledger
 
         public static int Version
         {
-            get { return 1; }
+            get { return 2; }
         }
 
         public required Guid ProjectId { get; init; }
+
+        public required Guid OwnerId { get; init; }
 
         /// <summary>Hien cho doanh nghiep, vd "So du kha dung 2.000.000d, can 5.000.000d".</summary>
         public required string Reason { get; init; }

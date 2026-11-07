@@ -42,9 +42,9 @@
                          │
   ┌──────────┬───────────┼───────────┬───────────┬───────────┬──────────┐
   ▼          ▼           ▼           ▼           ▼           ▼          ▼
-identity  project      task     annotation     link        gate      media
- :8101     :8102      :8103       :8104       :8107       :8108      :8109
-identity_db project_db task_db  annotation_db  link_db   ClickHouse  (không DB)
+identity  project    (làm bài)  (nhãn)       link        gate      media
+ :8101     :8102     /tasks   /annotations   :8107       :8108      :8109
+identity_db project_db ─── cùng project_db ── link_db   ClickHouse  (không DB)
   │          │           │           │           │           │          │
   └──────────┴───────────┴───────────┴───────────┴───────────┴──────────┤
                                                                         │
@@ -73,17 +73,15 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `api-gateway` | 8080 | redis-gateway | C# | — | Edge: authN, rate limit, Turnstile, correlationId |
 | `web-bff` | 8081 | — | C# | — | Gộp đa nguồn cho dashboard; nơi DUY NHẤT được biết nhiều service |
 | `identity-svc` | 8101 | identity_db | C# | users, credentials, sessions, roles, 2fa, profiles, reputation, badges | Bảo mật: DB chứa hash mật khẩu tách khỏi mọi thứ |
-| `project-svc` | 8102 | project_db | C# | projects, label_schemas, guidelines, datasets, samples, gold_sets, entrance_tests, **project_members** | State machine vòng đời dự án |
-| `task-svc` | 8103 | task_db + redis-task | C# | tasks, assignments, leases, redundancy_state, labeler_cache, project_members_cache | Đường nóng, gắn Redis, scale theo số labeler |
-| `annotation-svc` | 8104 | annotation_db | C# | annotations, versions, drafts, reviews, appeals, export_jobs, project_members_cache | Ghi nóng nhất, dữ liệu lớn nhất |
+| `project-svc` | 8102 | project_db | C# | projects, label_schemas, guidelines, datasets, samples, gold_items, entrance_tests, **project_members**; làm bài: project_collections, attempts, attempt_drafts, attempt_history, sample_reports; nhãn: annotations, sample_results — bảng đệm kết quả gộp, quality-svc gộp qua gRPC (mục 3.21, 3.24) | State machine vòng đời dự án — bài làm và nhãn cùng vòng đời nên cùng database (trước là task-svc :8103 và annotation-svc :8104) |
 | `ledger-svc` | 8105 | ledger_db | C# | accounts, journal_entries, holds, escrows | **Nhất quán tuyệt đối** |
 | `payment-svc` | 8106 | payment_db | C# | payment_intents, payouts, provider_txns, reconciliations | Tích hợp ngoài, webhook + retry, cô lập rủi ro |
 | `link-svc` | 8107 | link_db | C# | links, campaigns, api_keys, referral_codes, referrals, blocked_domains, link_reports | Bounded context của Sharer (**đã có**, mục 3.6) |
-| `gate-svc` | 8108 | **ClickHouse** + redis-gate + Postgres gate_db (bản sao + outbox) | C# | Redis: phiên, jti, chống trùng IP, stream; ClickHouse: click_events; Postgres: gate_projects, gate_samples, gate_gold_items, gate_links, gate_budgets | **Traffic ~100× phần còn lại**, sập độc lập (**đã có**, mục 3.6) |
+| `gate-svc` | 8108 | **ClickHouse** + redis-gate + Postgres gate_db (bản sao + outbox) | C# | Redis: phiên, jti, chống trùng IP, stream; ClickHouse: click_events; Postgres: gate_projects, gate_samples, gate_gold_items (chỉ dự án bật cổng link — kéo qua gRPC lúc publish, mục 3.23), gate_links, gate_budgets | **Traffic ~100× phần còn lại**, sập độc lập (**đã có**, mục 3.6) |
 | `media-svc` | 8109 | **không có** | **Python** | — (người xem nhúng thẳng vào ảnh, setting giữ trong bộ nhớ) (**đã có**, mục 3.13) | Phát file mẫu qua token + watermark chìm (CPU); Python vì OpenCV / numpy |
-| `notification-svc` | 8110 | notification_db | C# | notifications, email_preferences; bản sao contacts, project_owners, withdrawal_owners (**đã có**, mục 3.11) | Fan-out chậm không được chặn ai |
+| `notification-svc` | 8110 | notification_db | C# | notifications, email_preferences; bản sao contacts (**đã có**, mục 3.11; người nhận từng event đi trong payload — mục 3.21) | Fan-out chậm không được chặn ai |
 | `admin-svc` | 8111 | admin_db | C# | **settings, setting_history** (đã có); review_queues, disputes, audit_log, requests_readmodel (P6) | Chủ của setting hệ thống (mục 3.10). Quyền cao nhất — giới hạn blast radius |
-| `quality-svc` | 8201 | quality_db | Python | consensus_rounds, label_agreements, gold_answers, ds_skills, project_metrics, reputations | Ngôn ngữ khác + tính batch nặng |
+| `quality-svc` | 8201 | quality_db | Python | sample_majorities, ds_skills, project_metrics, reputations, fraud_cases; hàng chờ pending_attempts, project_gradings, reputation_dirty. Đề bài / bài nộp / nhãn / bằng chứng uy tín đọc qua gRPC từ project-svc (mục 3.22) | Ngôn ngữ khác + tính batch nặng |
 | `ml-svc` | 8202 | ml_db (pgvector) | Python | embedding_cache (**đã có**, mục 3.19: nhúng câu trả lời mở); models, predictions, uncertainty_scores (sau) | Nặng CPU / GPU, scale độc lập, sập vẫn chạy được hệ thống |
 | `fraud-svc` | 8203 | fraud_db | Python | signals, fingerprints, farm_clusters | Batch + ML |
 | `collab-svc` | 8301 | collab_db + redis-collab | Node | rooms, yjs_snapshots, op_log, contributions | **Stateful WebSocket**, sticky session, CRDT |
@@ -272,7 +270,7 @@ Compensation: [Chờ duyệt] quá 72h không ai duyệt → project.cancelled �
 
 ### 3.4.1. Đóng dự án: không để labeler làm không công
 
-> **Đã thay bằng mục 3.18** (dự án làm trung tâm): không còn duyệt từng nhãn nên không còn "đóng sổ annotation". Huỷ chỉ khi chưa có bài nộp; dừng sớm dùng `POST /finish`; ý chính của bước 4 (ký quỹ `Closing`, NC-B-01) giữ nguyên với đơn vị là **bài đạt**. Phần dưới giữ lại để đối chiếu thiết kế cũ.
+> **Đã thay bằng mục 3.18 và 3.21** (dự án làm trung tâm; task-svc / annotation-svc gộp vào project-svc nên không còn `close-check` qua HTTP — đếm bài nộp ngay trong transaction huỷ): không còn duyệt từng nhãn nên không còn "đóng sổ annotation". Huỷ chỉ khi chưa có bài nộp; dừng sớm dùng `POST /finish`; ý chính của bước 4 (ký quỹ `Closing`, NC-B-01) giữ nguyên với đơn vị là **bài đạt**. Phần dưới giữ lại để đối chiếu thiết kế cũ.
 
 Hoàn thành hoặc hủy dự án **đã chạy** là lúc ledger trả ký quỹ còn lại về doanh nghiệp. Sau đó nhãn nào được duyệt cũng không còn tiền trả. Vì vậy chỉ đóng được khi **không còn việc nào có thể sinh tiền cho labeler**:
 
@@ -335,7 +333,7 @@ Reaper (30s/lần): Leased quá hạn → Expired, trả chỗ về pool (SKIP L
 
 | # | Câu hỏi | Chọn | Lý do |
 |---|---|---|---|
-| G1 | Câu hỏi lấy từ đâu | **Bản sao riêng trong gate** (nghe `project.published`, `dataset.ingested`, `gold_set.updated`), nạp vào **bộ nhớ** (`GateCatalog`) | Đường nóng không gọi HTTP sang task-svc, không khoá dòng Postgres, khách bỏ ngang không để lại lease treo |
+| G1 | Câu hỏi lấy từ đâu | **Bản sao riêng trong gate** (dự án từ `project.published`; mẫu + câu vàng kéo **một lần** qua gRPC `GateData` sau publish — mục 3.23), nạp vào **bộ nhớ** (`GateCatalog`) | Đường nóng không gọi HTTP sang task-svc, không khoá dòng Postgres, khách bỏ ngang không để lại lease treo |
 | G2 | Nhãn của khách đi đâu | `gate.solved` → annotation-svc, nguồn `linkGateway`, **không** thuộc task, **không** tính vào redundancy / đồng thuận | Kênh nhãn rẻ, luôn qua câu vàng; doanh nghiệp vẫn duyệt / loại để chọn lọc dữ liệu |
 | G3 | Dự án nào lên cổng | Chỉ dự án **bật kênh cổng link**, dữ liệu ảnh / văn bản / cặp, mọi công cụ là **phân loại chọn một** hoặc **so sánh cặp**, có câu vàng **QualityCheck** | Khách có ~10 giây và không được huấn luyện (VD-L-08). Câu vàng của bài test đầu vào không đưa lên trang công khai |
 | G4 | Trả người chia sẻ khi nào | **Khi qua câu vàng**, tiền **treo** như labeler. Sharer = số nhãn thật × (đơn giá − phí/nhãn); ký quỹ trừ số nhãn × (đơn giá + phí) — đúng công thức đặc tả 2.4 | Không phải chờ ai duyệt; treo để kịp giữ lại khi link vi phạm |
@@ -420,9 +418,9 @@ Hai chính sách mới áp cho công cụ chọn một (phân loại một lớp
 
 Đồng thuận tính trên **mọi công cụ** của tập nhãn trừ `freeText` (câu trả lời mở): phân loại và so sánh cặp theo đa số tuyệt đối; khung, đa giác, điểm mốc, đường, mặt nạ, đoạn thời gian, chuỗi khung theo ghép cụm; đoạn văn bản và quan hệ theo phần tử trùng hệt; bản chép, số, xếp hạng theo bản ở giữa / trung vị / Borda — xem mục 3.15. Tập nhãn chỉ có `freeText` thì task ở trạng thái `notApplicable`.
 
-Dawid–Skene / Krippendorff alpha chạy **batch** (mặc định 15 phút, admin chạy tay được) trên các công cụ một giá trị (phân loại một lớp, so sánh cặp); labeler cần ≥ 5 nhãn trong dự án mới được chấm DS (VD-Q-07). Không chạy trong request. Mỗi lô **chỉ tính lại dự án có nhãn mới** (bảng `ds_state` giữ số nhãn đã dùng; `labels` chỉ INSERT nên số khác ⇔ có nhãn mới, kể cả nhãn đến trễ). Tính lại mọi dự án tốn ~1 giây / dự án (EM của crowd-kit): trên DB dev 107 dự án, lô đầy đủ mất 102 giây và nút "chạy ngay" của admin quá timeout gateway; lô tăng dần mất 0,04 giây. `?full=true` vẫn tính lại tất cả (sau khi đổi `quality.ds_min_labels`).
+Dawid–Skene / Krippendorff alpha chạy **batch** (mặc định 15 phút, admin chạy tay được) trên các công cụ một giá trị (phân loại một lớp, so sánh cặp); labeler cần ≥ 5 nhãn trong dự án mới được chấm DS (VD-Q-07). Không chạy trong request. Mỗi lô **chỉ tính lại dự án có bài nộp mới** (`attempt.submitted` đặt `ds_state.dirty_at`; lô ghi `computed_at` = lúc bắt đầu đọc nhãn qua gRPC, bài tới trong lúc tính thì lô sau tính lại). Tính lại mọi dự án tốn ~1 giây / dự án (EM của crowd-kit): trên DB dev 107 dự án, lô đầy đủ mất 102 giây và nút "chạy ngay" của admin quá timeout gateway; lô tăng dần mất 0,04 giây. `?full=true` vẫn tính lại tất cả (sau khi đổi `quality.ds_min_labels`).
 
-Dự án publish **trước khi** quality-svc chạy (hoặc mất `project.published`): lần đầu cần bản sao, quality-svc tự hỏi project-svc `GET /internal/projects/{id}/published-terms` (khoá nội bộ, cấu hình `QUALITY_PROJECT_URL` / `QUALITY_INTERNAL_API_KEY`) rồi ghi bản sao; project-svc không trả lời được thì consumer thử lại (không mất nhãn). Chưa cấu hình thì bỏ qua kèm cảnh báo như trước.
+Đề bài, bài nộp và nhãn quality-svc **không giữ bản sao**: đọc qua gRPC từ project-svc lúc chấm / chạy lô (mục 3.22), nên không còn trường hợp "dự án publish trước khi quality-svc chạy thì thiếu bản sao".
 
 ### 3.8. Phân quyền hai chiều — chống BOLA
 
@@ -573,7 +571,7 @@ admin-svc: nhận → phát settings.snapshot (toàn bộ); cũng phát lúc kh�
 | T3 | Đổi / đặt lại mật khẩu | Thu hồi **mọi phiên** (refresh token + mốc thu hồi access token, xem B1). Đổi mật khẩu trả cặp token mới cho chính thiết bị đang dùng; đặt lại mật khẩu qua email cũng xác thực luôn email | Chiếm tài khoản rồi giữ phiên cũ là kịch bản kinh điển |
 | T4 | Ảnh đại diện | Bucket riêng `avatars`, link ký `PUT` (≤ `identity.avatar_max_bytes`), xác nhận thì kiểm object có thật + kích thước + loại ảnh | Giống KYB (K4): file không đi qua service |
 | T5 | Kỹ năng (FL-01) | Ba mảng `text[]` trên `users` (lĩnh vực / ngôn ngữ / loại dữ liệu), giá trị trong danh sách đóng | Đủ cho lọc và hiển thị; chưa cần bảng quan hệ |
-| T6 | Cấp độ, huy hiệu, xếp hạng (FL-12) | identity đếm nhãn **đã duyệt kênh chuyên nghiệp** (`annotation.approved`) + uy tín (`reputation.changed`) vào `labeler_stats` + `labeler_daily_stats` (theo ngày giờ Việt Nam). Luật cấp là setting `identity.level_rules` (`2=50/50;3=200/65;...` = cấp=số nhãn/uy tín tối thiểu). Lên / xuống cấp → `level.changed`; huy hiệu mới → `badge.awarded` | Cấp chỉ là hàm thuần của (số nhãn, uy tín) nên test không cần DB, đổi luật không cần migration. Bảng xếp hạng all / month / week đọc thẳng bảng thống kê. Tranh chấp xử cho doanh nghiệp → trừ 1 nhãn đã duyệt |
+| T6 | Cấp độ, huy hiệu, xếp hạng (FL-12) | **Từ mục 3.24:** số câu được chấp nhận đọc qua gRPC từ `project.attempts` (không còn bộ đếm `approved_count` / `labeler_daily_stats`), uy tín từ `reputation.changed`; tính lại theo hàng chờ `level_dirty`. (Bản đầu: identity đếm nhãn **đã duyệt kênh chuyên nghiệp** (`annotation.approved`) + uy tín (`reputation.changed`) vào `labeler_stats` + `labeler_daily_stats` theo ngày giờ Việt Nam.) Luật cấp là setting `identity.level_rules` (`2=50/50;3=200/65;...` = cấp=số nhãn/uy tín tối thiểu). Lên / xuống cấp → `level.changed`; huy hiệu mới → `badge.awarded` | Cấp chỉ là hàm thuần của (số nhãn, uy tín) nên test không cần DB, đổi luật không cần migration. Bảng xếp hạng all / month / week đọc thẳng bảng thống kê. Tranh chấp xử cho doanh nghiệp → trừ 1 nhãn đã duyệt |
 
 **Bảo mật phiên và tần suất (gateway).**
 
@@ -600,7 +598,7 @@ admin-svc: nhận → phát settings.snapshot (toàn bộ); cũng phát lúc kh�
 
 Khoá `FOR UPDATE` trên khoản treo khi mở / phân xử: không chạy song song được với worker giải phóng.
 
-**Chống gian lận (FM-07) — gộp vào quality-svc** (không tách fraud-svc: cùng đọc luồng nộp bài). Nghe `assignment.submitted` (thêm `ClientIp` / `DeviceId`, ngoại lệ hợp đồng thứ năm), ghi `fraud_submissions`, xét 3 tín hiệu — làm quá nhanh so với trung vị dự án, một nhãn liên tục khi người khác chọn đa dạng, nhiều tài khoản chung IP công khai / mã thiết bị — ngưỡng là setting `quality.fraud_*`. **Hệ thống không tự khoá ai:** mở / cập nhật hồ sơ (mỗi khoá tối đa một hồ sơ đang mở; vừa xử lý thì chờ `fraud_reopen_cooldown` mới mở lại); admin xem bằng chứng rồi bỏ qua hoặc xác nhận — xác nhận kèm khoá → `fraud.case_confirmed` → identity khoá tài khoản (`user.blocked`). IP lấy từ `X-Forwarded-For` mà task-svc chỉ tin khi đến từ mạng proxy (`ForwardedHeaders:TrustedNetworks`).
+**Chống gian lận (FM-07) — gộp vào quality-svc** (không tách fraud-svc: cùng đọc luồng nộp bài). Nghe `assignment.submitted` (thêm `ClientIp` / `DeviceId`, ngoại lệ hợp đồng thứ năm), ghi `fraud_submissions` (nay: `attempt.submitted` v2 → hàng chờ, dấu vết bài nộp đọc qua gRPC từ project-svc — mục 3.22), xét 3 tín hiệu — làm quá nhanh so với trung vị dự án, một nhãn liên tục khi người khác chọn đa dạng, nhiều tài khoản chung IP công khai / mã thiết bị — ngưỡng là setting `quality.fraud_*`. **Hệ thống không tự khoá ai:** mở / cập nhật hồ sơ (mỗi khoá tối đa một hồ sơ đang mở; vừa xử lý thì chờ `fraud_reopen_cooldown` mới mở lại); admin xem bằng chứng rồi bỏ qua hoặc xác nhận — xác nhận kèm khoá → `fraud.case_confirmed` → identity khoá tài khoản (`user.blocked`). IP lấy từ `X-Forwarded-For` mà task-svc chỉ tin khi đến từ mạng proxy (`ForwardedHeaders:TrustedNetworks`).
 
 **Audit và báo cáo (FP-06 một phần, FM-09, admin-svc).** Queue quorum `admin-svc.audit` bind `#` nhận **mọi** event. Mỗi event được **đếm** vào `stats_daily(day, event_type, count, amount_vnd, fee_vnd)` (ngày theo giờ Việt Nam) — báo cáo tổng quan đọc bảng này, một dòng cho mỗi (ngày, loại) dù có bao nhiêu event. Chỉ event **không** nằm trong `admin.audit_excluded_types` mới lưu **chi tiết** vào `audit_events` (payload > 64 KB thì cắt, `ON CONFLICT DO NOTHING` theo `event_id`). Mặc định loại các event phát sinh theo từng lượt nộp / từng click (`assignment.submitted`, `annotation.submitted` / `approved` / `rejected`, `consensus.reached`, `gold.answered`, `funds.held`, `click.validated`…): chúng đã có lịch sử ở service chủ (annotation `annotation_history`, sổ cái ledger). Thao tác quản trị, tài khoản, dự án, nạp / rút, tranh chấp vẫn lưu đủ. Event bị loại ghi `audit_counted(event_id)` trong 1 giờ để RabbitMQ giao lại không đếm hai lần. Worker xoá bản ghi quá `admin.audit_retention_days`. Tra cứu theo loại / user / khoảng thời gian. Thông báo toàn hệ thống: admin tạo → `system.announcement` → notification ghi hàng loạt theo vai trò (bản sao `contacts.roles`). **Chưa có**: chống admin sửa bảng audit (append-only ở mức quyền DB).
 
@@ -644,9 +642,9 @@ Ba nguyên tắc:
 | L1 | `outbox` + `processed_events` (mọi service) | Giữ mãi | `EventStoreCleanupWorker<TDbContext>` (đăng ký sẵn trong `AddOutbox`; quality: `cleanup.py`) mỗi `outbox.cleanup_interval` (5 phút) xoá event **đã gửi** quá `outbox.retention` (7 ngày) và dấu vết chống trùng quá `consumers.processed_retention` (14 ngày), lô 2.000 × 25 | Event **chưa gửi** không bao giờ xoá. `processed_retention` phải dài hơn thời gian một message còn có thể bị giao lại: RabbitMQ giao lại trong vài giây, nhưng message nằm DLQ rồi được **đưa lại bằng tay sau hơn 14 ngày** có thể bị xử lý lần hai — vì vậy tối thiểu 1 ngày và mặc định gấp đôi `outbox.retention`. Mất khả năng soi lại event cũ trong outbox (audit giữ những event quan trọng) |
 | L2 | Event `task.leased` | Mỗi lần nhận task một event, **không service nào nghe** | Bỏ (record `TaskLeased` xoá khỏi hợp đồng). Chống gian lận đo tốc độ bằng `LeasedAt` trong `assignment.submitted` | — |
 | L3 | Nhật ký audit | Lưu chi tiết mọi event | Đếm mọi event vào `stats_daily`, chỉ lưu chi tiết event không bị loại (mục 3.12) | Không tra được từng lượt nộp / từng nhãn trong audit — tra ở service chủ |
-| L4 | gate `gate_samples` | Giữ mẫu của mọi dự án | `project.published` **không bật cổng link**, và `project.completed` / `cancelled` → xoá mẫu của dự án | `dataset.ingested` tới trước `project.published` nên mẫu vẫn được ghi tạm rồi mới xoá |
+| L4 | gate `gate_samples` | Giữ mẫu của mọi dự án | `project.completed` / `cancelled` → xoá mẫu của dự án. Từ mục 3.23 gate **chỉ** kéo mẫu của dự án publish bật cổng link (gRPC), không còn chép tạm mẫu mọi dự án từ `dataset.ingested` | — |
 | L5 | ClickHouse `click_events` | Giữ mãi | `TTL event_date + INTERVAL 13 MONTH` | Đủ so sánh cùng kỳ năm trước |
-| L6 | quality `fraud_submissions` | Giữ mãi | Xoá quá `quality.fraud_submission_retention` (7 ngày) | Thuật toán chỉ nhìn vài chục lượt gần nhất; bằng chứng đã tổng hợp nằm trong `fraud_cases` nên không mất |
+| L6 | quality `fraud_submissions` | Giữ mãi | ~~Xoá quá `quality.fraud_submission_retention`~~ — **bảng đã bỏ (mục 3.22)**: dấu vết bài nộp đọc từ `project.attempts` qua gRPC | Bằng chứng đã tổng hợp nằm trong `fraud_cases` nên không mất |
 | L7 | Refresh token | Mỗi lần làm mới thêm một dòng | `login_sessions`: một dòng mỗi phiên, xoay tại chỗ (mục 3.11, K4b) | Triển khai: bảng cũ bị bỏ → **mọi người đăng nhập lại một lần** |
 | L8 | Bản sao email / KYB | ledger `email_status`; project `email_status` + `verified_businesses` — mỗi user một dòng ở mỗi service, kèm 4 consumer | Claim `email_verified`, `kyb_verified` trong access token | Chỉ hợp với sự thật **một chiều** (đã xác thực thì không thu hồi) về **chính người gọi**. Thứ có thể đảo chiều (bị khoá) vẫn phải là bản sao + mốc thu hồi phiên (B1). Client làm mới token sau khi xác thực |
 | L9 | Nội dung mẫu trong từng nhãn | `annotations` chép `storage_key`, `sample_content`, `sample_metadata` cho mỗi nhãn | `annotation_samples(sample_id PK, project_id, storage_key, content, metadata)` ghi **một lần** (`ON CONFLICT DO NOTHING`); nhãn chỉ giữ `sample_id` | Dev: 68.317 nhãn → 29.181 mẫu. Event `assignment.submitted` **vẫn mang** nội dung mẫu (annotation không gọi ngược project-svc; nằm trong outbox ≤ 7 ngày) |
@@ -725,7 +723,9 @@ Sau thay đổi: 6 loại dữ liệu, 15 công cụ, mọi công cụ trừ câ
 | C9 | Khi nào một task tranh chấp | Công cụ dạng danh sách: một người **khớp** khi F1 giữa đối tượng của họ và đối tượng đã gộp ≥ `quality.consensus_min_f1` (0,8); công cụ tranh chấp khi **không quá một nửa** số người khớp. Một nhãn khớp khi khớp mọi công cụ đã có kết quả | Đòi "ai cũng vẽ đủ mọi vật" thì một khung thừa của một người làm cả mẫu tranh chấp; F1 cho phép sót / thừa một vài trong nhiều vật. Ngưỡng là setting vì tuỳ độ khó dữ liệu |
 | C10 | File xuất | COCO / YOLO / VOC / CSV ghi **đối tượng đã gộp** (kèm `support` = số người vẽ); COCO thêm `mask` | Dữ liệu huấn luyện cần một khung cho một vật. Mẫu tranh chấp không có đối tượng và được đánh dấu — cùng nguyên tắc với phân loại (FB-22) |
 
-**Thuật toán ghép cụm** (`DanhSachToolBase.Gop`, dùng cho mọi công cụ dạng danh sách):
+> **Từ mục 3.24:** thuật toán gộp chỉ còn ở quality-svc (`app/gop.py`); project-svc gọi gRPC `LabelAggregation`. Phần dưới mô tả thuật toán (bản C# `DanhSachToolBase.Gop` đã bỏ).
+
+**Thuật toán ghép cụm** (dùng cho mọi công cụ dạng danh sách):
 
 ```text
 1. GHÉP   Duyệt lần lượt từng người. Với mỗi người, ghép đối tượng của họ vào các cụm ĐÃ CÓ (do người trước
@@ -748,7 +748,7 @@ Công cụ cho cả mẫu: `transcription` lấy bản chép **ở giữa** (k�
 
 Thuật toán **tất định và không có trọng số**: cùng dữ liệu cùng thứ tự luôn ra cùng kết quả (mọi chỗ hoà đều có luật phá hoà), và giải thích được cho doanh nghiệp bằng một câu. Chưa dùng độ tin cậy từng labeler làm trọng số (kiểu WBF / Dawid–Skene cho khung): cần đủ dữ liệu mới ước lượng được, và sẽ làm kết quả của cùng một mẫu thay đổi theo thời gian.
 
-**Giữ hai bản không lệch nhau.** Ba lớp:
+**Giữ hai bản không lệch nhau** (trước mục 3.24 — nay chỉ còn bản Python, bộ ví dụ là test hồi quy của nó; phép đo độ giống vẫn hai bản cho việc chấm câu vàng). Ba lớp:
 
 1. Bộ ví dụ chung [contracts/labeling/testdata/gop.vectors.json](../contracts/labeling/testdata/gop.vectors.json) — 31 ví dụ phủ mọi công cụ, kèm ca tranh chấp, thuộc tính, ảnh không có kích thước, tiếng Việt có dấu. Phần `expected` do C# sinh (`UPDATE_GOP_VECTORS=1 dotnet test shared/test/labeling-tests`); `GopVectorTests.cs` và `tests/test_gop_vectors.py` cùng chạy bộ này, lệch là test của bên đó đỏ.
 2. Những chỗ hai ngôn ngữ dễ khác nhau được viết **cùng một công thức**: làm tròn (`floor(v × 1000 + 0,5) / 1000`), khoảng cách sửa trên **đơn vị UTF-16** (chuỗi Python được đổi sang UTF-16 trước khi đo), khoá sắp xếp so theo đơn vị UTF-16, thứ tự phá hoà khi ghép cặp.
@@ -802,7 +802,7 @@ Trước bản này chỉ có hai đường: dự án **công khai** thì labele
 | `POST /join`, bài test đầu vào | Labeler | Có, **trước khi** làm bài | `join`, `entrance_test` | — |
 | Duyệt đơn | Chủ dự án | Có, kiểm **lại** lúc duyệt (uy tín có thể đã tụt) | `join_request` | Labeler (duyệt / từ chối + lý do); chủ dự án khi có đơn mới |
 
-**Tra cứu người dùng: hỏi chủ dữ liệu, không giữ bản sao.** project-svc gọi `POST /internal/users/lookup` của identity-svc (khoá `X-Internal-Key`, gateway không định tuyến `/internal`) để đổi email → userId và lấy vai trò, khoá, cấp độ, uy tín. Đây là cùng kiểu với lúc đóng dự án (`DongSoClient`): thao tác hiếm, không nằm trên đường nóng, nên hỏi chủ dữ liệu tại chỗ, không nhân bản email sang project_db — trước đó hệ thống đã chủ động bỏ bản sao email KYB. identity không trả lời thì **từ chối** (503 `dich_vu_khong_san_sang`), giống task-svc "thiếu dữ liệu thì không cho qua". Riêng màn hàng đợi đơn vẫn hiện được khi identity tắt, chỉ thiếu tên / cấp độ / uy tín.
+**Tra cứu người dùng: hỏi chủ dữ liệu, không giữ bản sao.** (Từ mục 3.24 qua gRPC `IdentityData.LookupUsers`, dùng cả lúc mở bài.) project-svc gọi `POST /internal/users/lookup` của identity-svc (khoá `X-Internal-Key`, gateway không định tuyến `/internal`) để đổi email → userId và lấy vai trò, khoá, cấp độ, uy tín. Đây là cùng kiểu với lúc đóng dự án (`DongSoClient`): thao tác hiếm, không nằm trên đường nóng, nên hỏi chủ dữ liệu tại chỗ, không nhân bản email sang project_db — trước đó hệ thống đã chủ động bỏ bản sao email KYB. identity không trả lời thì **từ chối** (503 `dich_vu_khong_san_sang`), giống task-svc "thiếu dữ liệu thì không cho qua". Riêng màn hàng đợi đơn vẫn hiện được khi identity tắt, chỉ thiếu tên / cấp độ / uy tín.
 
 **Mời nhiều người.** `POST /members/batch` nhận `userIds` và `emails` (tổng tối đa `project.member_batch_max`, mặc định 100). Mỗi đầu vào trả một dòng kết quả theo đúng thứ tự gửi. Theo userId: `added`, `khong_tim_thay`, `trung_lap`, `da_la_thanh_vien`, `bi_chan` hoặc mã điều kiện — chủ dự án vốn đã biết người đó. Theo email: luôn `invited` (xem "Ô mời không dò được tài khoản" bên dưới). Người hợp lệ được thêm hết trong **một** transaction cùng các event `member.added`. Hai lần mời trùng người chạy cùng lúc thì khoá chính `(project_id, user_id)` chọn một, lần kia làm lại và thấy `da_la_thanh_vien`. `POST /members` (một người) dùng chung logic, nhận `userId` **hoặc** `email`, lỗi trả đúng mã như trên. Trước đây nó thêm cả `userId` không tồn tại; nay trả 404.
 
@@ -849,7 +849,7 @@ Trước bản này chỉ có hai đường: dự án **công khai** thì labele
 
 **Định dạng nhãn và xuất (FB-25) — annotation / labeling.** Khung xoay chỉ cho `bbox` có `rotatable`; IoU giữa hai khung xoay tính bằng giao đa giác (dùng chung với đa giác), gộp góc bằng trung vị. `track` thêm `visible` ở keyframe thay vì tách chuỗi. Kết quả gộp từng mẫu được **đệm** (`sample_results`) theo dấu vân tay = tập nhãn + mọi ngưỡng + danh sách nhãn đã duyệt: đổi bất cứ thứ gì thì dấu khác và tính lại, không cần xoá đệm thủ công. Vector gộp dùng chung C# / Python (`gop.vectors.json`) mở rộng cho hai dạng mới.
 
-**Chỉ số chất lượng (FQ-02) — quality.** Krippendorff alpha viết lại tổng quát theo hàm khoảng cách (đã khớp số liệu tham chiếu của Krippendorff và crowd-kit) thay vì chỉ dùng cho dữ liệu rời rạc; với công cụ dạng danh sách, khoảng cách = 1 − F1 giữa hai bộ đối tượng, **cùng phép ghép và ngưỡng** với gộp nhãn. STAPLE chạy trên cả ảnh nhưng gom pixel theo "kiểu phiếu" (tối đa 2ⁿ kiểu cho n người) nên nhanh như chỉ xét vùng tranh cãi mà vẫn tính đúng độ đặc hiệu — bản đầu chỉ xét vùng có người tô cho độ đặc hiệu sai bằng 0, E2E bắt được. STAPLE không vào uy tín: mặt nạ ít mẫu, ước lượng EM dao động. quality-svc thiếu bản sao dự án (publish trước khi nó tồn tại) thì **tự hỏi** project-svc qua `GET /internal/projects/{id}/published-terms` (khoá nội bộ) thay vì bỏ qua đồng thuận.
+**Chỉ số chất lượng (FQ-02) — quality.** Krippendorff alpha viết lại tổng quát theo hàm khoảng cách (đã khớp số liệu tham chiếu của Krippendorff và crowd-kit) thay vì chỉ dùng cho dữ liệu rời rạc; với công cụ dạng danh sách, khoảng cách = 1 − F1 giữa hai bộ đối tượng, **cùng phép ghép và ngưỡng** với gộp nhãn. STAPLE chạy trên cả ảnh nhưng gom pixel theo "kiểu phiếu" (tối đa 2ⁿ kiểu cho n người) nên nhanh như chỉ xét vùng tranh cãi mà vẫn tính đúng độ đặc hiệu — bản đầu chỉ xét vùng có người tô cho độ đặc hiệu sai bằng 0, E2E bắt được. STAPLE không vào uy tín: mặt nạ ít mẫu, ước lượng EM dao động. quality-svc đọc đề bài và nhãn qua gRPC từ project-svc (mục 3.22) nên không có trường hợp thiếu bản sao dự án.
 
 **Watermark âm thanh / video (FP-02) — media.** Âm thanh: QIM trên hệ số DCT khung 2048 mẫu, dải 1–5 kHz, cùng 168 bit + CRC-32 như ảnh, xuất FLAC (không mất thông tin). **Chỉ đoạn đầu và đoạn cuối** mang watermark (mỗi đoạn gấp đôi số khung tối thiểu cho 168 bit, ~1 giây ở 44,1 kHz); PCM chảy qua pipe từ bộ giải mã sang bộ mã hoá FLAC, phần giữa không xử lý và không nạp cả file vào RAM. Giải: đoạn đầu → đoạn cuối → cả file. Cắt bỏ cả hai đầu là mất watermark — cùng đánh đổi với video. Video (sửa 10/2026): **chỉ nhúng khung đầu tiên và khung cuối cùng**. Bản cũ nhúng mọi khung rồi mã hoá lại cả file cho từng người xem: đo trong container, 74 ms / khung 720p, video 10 giây mất 25 giây trước khi phát được byte đầu, video dài phải chờ hàng chục phút. Bản mới:
   1. **Bản chuẩn — một lần mỗi video, dùng chung mọi người xem**: H.264 CRF 18, không B-frame, keyframe mỗi giây, và **ép keyframe ngay sau khung đầu và ngay trước khung cuối**. Tạo **sẵn lúc nạp dữ liệu**: media-svc nghe `dataset.ingested` (queue `media-svc.dataset-ingested`), mỗi FILE video → một việc trong queue bền `media-svc.chuan-hoa` (`x-consumer-timeout` 4 giờ, khởi động lại không mất); worker làm lần lượt (prefetch 1): chuẩn hoá, ghi lên MinIO `<projectId>/_wm/chuan-v2/<phần còn lại>.mp4` (xoá dự án theo tiền tố `<projectId>/` là xoá luôn), rồi phát **`video.prepared`** (`succeeded`, `error` khi file hỏng). Lúc phát: bộ đệm đĩa → MinIO → chưa có (video nạp trước bản này) thì chuẩn hoá tại chỗ. Không có DB: việc giao lại thấy đã có trên MinIO thì chỉ phát lại `video.prepared`. Đo: video 8 phút 720p chuẩn hoá 32 s — trước đây người mở đầu tiên phải chờ chừng đó.
@@ -991,36 +991,152 @@ Kiểm thử: `services/quality/tests/test_cau_mo.py` (medoid, tranh chấp, câ
 - **Thông báo lỗi có dấu**: mọi câu lỗi trả cho người dùng (C# + Python, ~600 chỗ) chuyển sang tiếng Việt có dấu; log, comment và exception hệ thống giữ không dấu.
 - **Cổng thanh toán thử nghiệm**: `TrangGiaLap` sinh trang HTML cho GET `checkout/{id}`, `vnpay/pay` (khi trình duyệt gửi `Accept: text/html`), `momo/pay/{orderId}`.
 
+### 3.21. Gộp task-svc + annotation-svc vào project-svc, bỏ bản sao thừa (11/2026)
+
+**Vấn đề.** Sau mục 3.18, bài làm, câu hỏi, câu vàng, thành viên và nhãn có **cùng vòng đời với dự án**: mở thu bài lúc duyệt, đóng khi đủ suất / hết hạn / kết thúc sớm, chấm một lần, chốt khi hết hạn khiếu nại. Tách ba service khiến mỗi bước vòng đời phải đi qua event và bản sao:
+
+- task-svc giữ `project_snapshots`, `tasks` (bản sao `samples`), `gold_samples`, `project_members_cache`; annotation-svc giữ `project_terms`, `annotation_samples`, `project_members_cache` — cùng một dữ liệu nằm ba nơi.
+- Tạm dừng / chạy tiếp / kết thúc sớm là event (`project.paused`, `project.finish_requested`), nên huỷ dự án phải gọi HTTP `close-check` và trả 409 `chua_dong_bo_tam_dung` khi event chưa tới; chốt dự án cần thêm `project.settled` chạy ngược về project-svc.
+- Lỗi lộn thứ tự giữa các queue (mục 4.3 tài liệu CSDL) phải xử lý bằng advisory lock và cột `*_at` ở mọi bản sao.
+
+**Quyết định.** Gộp phần làm bài và phần nhãn vào **project-svc, cùng `project_db`** (giữ nguyên đường dẫn `/tasks/*`, `/annotations/*` — gateway trỏ về :8102, frontend không đổi URL). Bỏ cùng lúc các bản sao nhỏ ở đường lạnh:
+
+| Bản sao bỏ | Thay bằng |
+|---|---|
+| task / annotation: `project_snapshots`, `project_terms`, `tasks`, `gold_samples`, `annotation_samples`, `*_members_cache` | Đọc thẳng `projects`, `samples`, `gold_items`, `project_members` (cùng database) |
+| ledger `blocked_users` | `POST /internal/users/lookup` của identity **ngay lúc rút tiền** (quyết định tiền hỏi chủ dữ liệu; lỗi → 503) |
+| link `known_users` | Cùng endpoint, lấy `registeredAt` lúc nhận mã giới thiệu |
+| notification `project_owners`, `withdrawal_owners` | Người nhận đi trong payload: `escrow.rejected` v2 / `project.graded` v2 có `ownerId`, `payout.completed|failed` v2 có `labelerId`, `netAmountVnd` |
+| event `project.finish_requested`, `project.settled` | Kết thúc sớm / chốt ghi ngay trong project-svc, phát thẳng `project.collection_finished` / `project.completed` |
+
+Giữ lại có chủ đích: `labeler_cache` (dữ liệu của identity/quality, đọc ở đường nóng mở bài — **đã bỏ ở mục 3.24**), `notification.contacts` (lọc thông báo toàn hệ thống theo vai trò), (các bảng bản sao của quality — `projects`, `attempts`, `labels` — đã bỏ tiếp ở mục 3.22), `ledger.referrals` (đọc dưới khoá sổ cái), `member.*` vẫn phát để audit.
+
+**Thiết kế bảng cho tải lớn** (chi tiết cột ở `docs/co-so-du-lieu-va-api.md` mục 2.2):
+
+| Quyết định | Lý do |
+|---|---|
+| Nháp và nhãn **hai bảng**: `attempt_drafts` (sửa liên tục) và `annotations` (ghi một lần lúc nộp) | Đường nóng lưu nháp là `UPDATE` theo khoá chính trên bảng **nhỏ** (nháp bị xoá lúc nộp); `fillfactor = 70` để được HOT update, autovacuum sớm. Bảng lớn `annotations` gần như chỉ INSERT, không bị phình vì UPDATE |
+| Không ghi nháp qua RabbitMQ (write-behind) | Nháp phải đọc lại được ngay (mở lại bài trên máy khác) và không được mất; hàng đợi thêm độ trễ + một nơi mất dữ liệu mà không giảm ghi DB |
+| `annotations`, `samples` phân vùng **HASH(`project_id`) × 64** | Mọi truy vấn (nộp, chấm, kết quả, xuất) đều theo dự án → chỉ chạm một phân vùng (đã kiểm `EXPLAIN`); chỉ mục mỗi phân vùng nhỏ, VACUUM song song. Khoá chính `(project_id, id)` vì PK của bảng phân vùng phải chứa cột phân vùng |
+| jsonb nén **lz4**, **không GIN** trên `payload` | lz4 nén/giải nén nhanh hơn pglz nhiều lần; không truy vấn nào lọc bên trong JSON nên GIN chỉ tốn ghi và dung lượng |
+| `attempt_history` theo **bài**, không theo nhãn | Một bài 50 câu sinh 1 dòng lịch sử thay vì 50 |
+| "Nhãn của tôi" đi qua `attempts` | Lọc theo `labeler_id` trên `attempts` (nhỏ) rồi lấy nhãn theo `(project_id, attempt_id)` — không cần chỉ mục `labeler_id` trên bảng lớn nhất |
+| Khoá theo thứ tự cố định `project_collections → attempts → samples` | Nộp bài, tạm dừng, kết thúc sớm, huỷ, chấm, phân xử khiếu nại đều khoá dòng đợt thu bài trước → không deadlock, không cần event để đồng bộ |
+| `annotations` **không** dùng `xmin` làm khoá lạc quan | Postgres không cho `INSERT … RETURNING xmin` trên bảng phân vùng ("cannot retrieve a system column in this context"); mọi thay đổi trạng thái nhãn đã nằm dưới khoá `project_collections`. Có test chặn tái phát (`PhanVungModelTests`) |
+
+**Đánh đổi.** project-svc lớn hơn (thêm hai bounded context) và scale chung một tiến trình; đổi lại bỏ được ba lớp bản sao, hai event, một lời gọi HTTP đồng bộ và cả loại lỗi "chưa đồng bộ". Nếu sau này đường làm bài cần scale riêng, tách lại theo **đọc/ghi** (replica đọc cho kết quả / xuất file) trước khi tách service.
+
+### 3.22. quality-svc đọc dữ liệu làm bài qua gRPC, không giữ bản sao (11/2026)
+
+**Vấn đề.** Sau mục 3.21 vẫn còn một cụm bản sao lớn: quality-svc chép `projects` (từ `project.published`), `attempts` và `labels` (từ `attempt.submitted`, kèm cả nội dung mẫu), `project_collections.attempt_ids` (từ `collection_finished`), `fraud_submissions` (thời gian, IP, thiết bị). `labels` cùng cỡ với `annotations` — bảng lớn nhất hệ thống — nên mỗi câu trả lời nằm ở hai database suốt đời dự án (+ thời gian lưu trữ). Kèm theo là lớp code đồng bộ: chờ đủ `attempt.submitted` mới chấm (hai queue lộn thứ tự), tự bù bản sao khi lỡ `project.published`, dọn bản sao theo `project.closed_data_retention`. Theo luật mục 4 thì bản sao chỉ có lý do khi **đường nóng** phải lọc SQL trên nó — chấm, lô Dawid–Skene, xét gian lận đều là việc nền, không phải đường nóng.
+
+**Quyết định.** project-svc mở service gRPC nội bộ `QualityData` (`contracts/grpc/project/v1/quality_data.proto`, cổng riêng 9102 HTTP/2, metadata `x-internal-key` cùng khoá `InternalApi:Key`). quality-svc đọc thẳng từ nguồn khi cần, chỉ giữ **kết quả của chính nó**:
+
+| RPC | Thay cho | Ai gọi |
+|---|---|---|
+| `GetProject` (tập nhãn, ngưỡng, số suất, lý do / lúc đóng thu bài, câu bị loại) | `quality.projects`, `project_collections.excluded_sample_ids` | chấm, lô DS, xét gian lận, kiểm chủ dự án ở API báo cáo |
+| `ListSubmittedAttempts` (câu thật theo thứ tự bài, câu vàng, thời điểm, IP / thiết bị, **kết quả cuối sau khiếu nại**) | `quality.attempts`, `project_collections.attempt_ids` | chấm, xét gian lận, báo cáo |
+| `StreamLabels` (server stream, nối `annotations` × `samples` cùng phân vùng) | `quality.labels` | chấm, lô DS, nhúng câu trả lời mở, xét "một nhãn liên tục" |
+| `FindSharedSubmitters`, `GetLabelerSubmissionStats` | `fraud_submissions` | xét chung IP / thiết bị, hồ sơ gian lận của admin |
+
+| Quyết định | Lý do |
+|---|---|
+| gRPC thay REST nội bộ | Hợp đồng có kiểu sinh cho cả C# (Grpc.Tools lúc build) và Python (stub commit ở `app/grpc_gen`, `sinh_grpc.py`); nhãn đi theo **stream** nên dự án lớn không phải nạp một cục JSON; HTTP/2 multiplex trên một kết nối |
+| Consumer **không** gọi gRPC | `attempt.submitted` chỉ ghi `pending_attempts` + `ds_state.dirty_at`; `collection_finished` ghi `project_gradings` rồi thử chấm, gRPC lỗi thì bỏ qua. project-svc sập vài phút không đẩy message vào DLQ (consumer nack tức thì, quá 5 lần là DLQ); worker `viec_cho.py` làm lại theo `quality.pending_work_interval` |
+| `attempt.submitted` **v2** chỉ là tín hiệu | Bỏ `Answers` (câu trả lời + nội dung mẫu): event nhỏ đi một bậc, không còn chở dữ liệu mà không ai lưu |
+| Chấm ngay khi nhận `collection_finished` | Đóng thu bài và outbox cùng transaction ở project-svc ⇒ mọi bài đã commit trước event; bỏ được cơ chế "chờ đủ bài" |
+| Kết quả của bài ở **một chỗ** | Số câu so được / giống đa số / câu vàng, đạt / được thưởng / khiếu nại đều nằm trên `project.attempts` (project-svc ghi khi nhận `project.graded`); báo cáo đọc qua gRPC (đúng cả sau phân xử khiếu nại). Bảng `attempt_grades` (chép lại 4 con số làm bằng chứng uy tín) cũng đã bỏ — xem "Uy tín" dưới đây |
+| **Uy tín** tính SAU khi project-svc ghi xong kết quả | Bằng chứng cộng dồn mọi dự án đọc qua `GetLabelerEvidence` (SUM trên `attempts`, chỉ mục `ix_attempts_labeler`). Chấm xong chưa tính ngay: lúc đó project-svc chưa nhận `project.graded`, tổng còn thiếu đúng dự án vừa chấm. Worker thấy mọi bài của dự án `graded` qua gRPC → xếp labeler vào `reputation_dirty` (`project_gradings.reputation_at`) → tính theo lô. Lô Dawid–Skene đổi độ tin cậy cũng chỉ xếp hàng. Mỗi labeler chỉ một worker tính một lúc (`FOR UPDATE SKIP LOCKED`), nên bỏ được khoá advisory theo labeler |
+| Câu thật của bài tính lại từ `question_order` trừ câu vàng | Câu vàng khoá từ lúc rời Draft (`KiemTraCoTheSuaCauHoiVang`) nên kết quả luôn bằng lúc nộp — không cần lưu danh sách |
+| Index `attempts (client_ip, submitted_at)`, `(device_id, submitted_at)` ở project_db | Xét chung IP / thiết bị chạy trên nguồn thay cho index của `fraud_submissions` |
+
+**Bỏ:** `quality.projects`, `attempts`, `labels`, `project_collections`, `fraud_submissions`, `reputation_baseline` (di sản, rỗng trên dữ liệu seed), `attempt_grades`; queue `quality-svc.project-published`; endpoint REST `GET /internal/projects/{id}/published-terms`; setting `quality.fraud_submission_retention`. 13 migration SQL của quality gộp thành một (dữ liệu chỉ là seed).
+
+**Giữ lại có chủ đích** (vẫn là bản sao / dữ liệu dẫn xuất, có lý do): `settings_replica`; `project.labeler_cache` (đường nóng mở bài — bỏ ở mục 3.24); bản sao của gate (traffic gấp ~100 lần, phải sập độc lập — mục 3.6; từ mục 3.23 chỉ còn dự án bật cổng link); `ledger.project_escrows` (điều khoản tiền **chốt** lúc ký quỹ), `ledger.referrals` / `gate_clicks` (đọc–ghi dưới khoá sổ cái), hoá đơn (ảnh chụp pháp lý); `notification.contacts`; `identity.labeler_stats.reputation` (tính cấp độ); read model của admin; `project.attempts` giữ kết quả chấm (aggregate bài làm đổi được khi phân xử khiếu nại); `quality.reputations` (cache tổng của `attempt_grades` + DS).
+
+**Đánh đổi.** Chấm / lô DS / báo cáo chất lượng phụ thuộc project-svc đang sống. Việc nền thì chỉ chậm lại (hàng chờ, thử lại); API báo cáo trả 503 `du_lieu_du_an_tam_thoi_khong_doc_duoc` khi project-svc không trả lời. Mỗi lần chấm đọc lại toàn bộ nhãn của dự án qua mạng (một phân vùng, stream) thay vì đọc bảng cục bộ — chấp nhận được vì mỗi dự án chỉ chấm một lần, lô DS chỉ chạy dự án có bài mới. Uy tín đổi chậm hơn một nhịp worker (`quality.pending_work_interval`, mặc định 5 giây) so với lúc chấm; lô DS chạy xen giữa lúc chấm và lúc project-svc ghi kết quả thì có thể phát một giá trị thiếu dự án đó, rồi được sửa ngay khi dự án được áp dụng (labeler bị xếp hàng lại).
+
+### 3.23. gate-svc kéo mẫu của dự án bật cổng link qua gRPC lúc publish (11/2026)
+
+**Vấn đề.** gate giữ bản sao mẫu + câu vàng là đúng (đường nóng gấp ~100 lần, phải sống khi project-svc sập — mục 3.6, luật 1). Nhưng bản sao được lấp **sai thời điểm**: `dataset.ingested` tới lúc nạp dữ liệu, khi chưa biết dự án có bật cổng link không, nên gate chép mẫu của **mọi** dự án; câu vàng cũng chép từ `gold_set.updated` của mọi dự án. Chỉ khi `project.published` không bật cổng thì mới xoá. Dự án nháp, hoặc không bao giờ publish, nằm mãi trong gate_db; hai queue `dataset.ingested` / `project.published` lại tới lộn thứ tự.
+
+**Quyết định.** project-svc mở thêm service gRPC `GateData` (`contracts/grpc/project/v1/gate_data.proto`, cùng cổng 9102, cùng `x-internal-key`): `StreamGateContent` trả câu vàng **QualityCheck** rồi stream từng mẫu của dự án đã publish bật cổng link (khác → `NOT_FOUND`).
+
+| Bước | Ai làm |
+|---|---|
+| `project.published` bật cổng → thêm `gate_projects` với `content_loaded_at = NULL` (không gọi gRPC trong consumer — project-svc sập thì message không rơi vào DLQ) | consumer gate |
+| Kéo toàn bộ mẫu + câu vàng qua stream (ngoài transaction), rồi ghi **một** transaction: khoá dòng `gate_projects FOR UPDATE`, dự án đã đóng thì bỏ, xoá bản cũ, chèn mới, đặt `content_loaded_at` | `ContentLoadWorker` → `GateContentLoader`, chu kỳ `gate.content_load_interval` (mặc định 5 giây); `UNAVAILABLE` → thử lại vòng sau |
+| Chỉ phục vụ dự án đã nạp xong (`content_loaded_at IS NOT NULL`) | `GateCatalog` |
+| `project.cancelled` / `completed` → xoá mẫu (cùng khoá dòng với worker nên không sót mẫu của dự án vừa đóng) | consumer gate |
+
+Một lần là đủ: sau publish mẫu không thêm, câu vàng khoá từ lúc rời Draft (`KiemTraCoTheSuaCauHoiVang`), video phải chuẩn bị xong trước publish.
+
+**Bỏ:** consumer `gate-svc.dataset-ingested`, `gate-svc.gold-set-updated`; event `gold_set.updated` (không còn ai nghe — record `GoldSetUpdated`, `GoldSetItem`, enum hợp đồng `GoldPurpose`). `dataset.ingested` vẫn phát cho media-svc (chuẩn hoá sẵn video).
+
+**Đánh đổi.** Dự án vừa duyệt lên cổng chậm thêm tối đa một chu kỳ worker. Nếu project-svc sập đúng lúc đó, dự án chưa lên cổng tới khi project-svc trả lời; các dự án đã nạp vẫn chạy bình thường. Kéo cả dự án vào bộ nhớ của worker một lần (chục nghìn mẫu: vài MB), chấp nhận được vì chỉ xảy ra một lần mỗi dự án.
+
+### 3.24. Bỏ ba bản sao / thuật toán viết hai lần: đọc chủ dữ liệu qua gRPC, cache khi đọc nhiều (11/2026)
+
+**Vấn đề.** Rà lại toàn hệ thống sau 3.22–3.23, còn bốn chỗ dư thừa mà lý do giữ yếu:
+
+| # | Dư thừa | Vì sao từng giữ | Rủi ro khi giữ |
+|---|---|---|---|
+| A1 | Thuật toán **gộp nhãn** viết hai lần: Python (`quality app/gop.py`, chấm) và C# (`Crowd.Labeling` + `ResultAggregator`, kết quả giao doanh nghiệp), giữ khớp bằng 33 ví dụ `gop.vectors.json` | annotation-svc từng là service riêng, viết C# | Sửa luật gộp phải sửa hai nơi; ca lạ ngoài bộ ví dụ thì file doanh nghiệp tải về và kết quả chấm (trả tiền) có thể lệch nhau, không gì phát hiện lúc chạy |
+| A2 | `identity.labeler_stats.approved_count` + `labeler_daily_stats` — bộ đếm cộng dồn từ `project.graded` / `attempt.appeal_resolved` | Bảng xếp hạng JOIN thẳng `users` một câu SQL | Đúng mẫu hình `attempt_grades` (3.22): lệch một event là lệch mãi, không đối soát được |
+| A3 | `project.labeler_cache` (cấp, uy tín, khoá) từ `level.changed` / `reputation.changed` / `user.blocked` / `user.unblocked` | "Đường nóng mở bài" | Chỉ đọc 1 dòng theo khoá chính lúc **bắt đầu** bài (mỗi labeler một lần mỗi dự án — không phải đường nóng), trong khi lúc mời / xin vào dự án project-svc **đã** hỏi identity cùng ba trường đó. Người vừa bị khoá / tụt uy tín vẫn mở được bài tới khi event tới |
+| A4 | Cột / code chết: `ledger.holds.task_id` (luôn rỗng), `holds.annotation_id` (thực ra là id nguồn), `project_escrows.name` (chép tên dự án chỉ để in hoá đơn), chính sách posterior / voi + "xin thêm người" trong `consensus.py` / `redundancy.py` (chấm luôn gọi majority) | Di sản mô hình cũ | Đọc nhầm nghĩa, code không ai gọi |
+
+**Nguyên tắc chọn (người dùng chốt):** dữ liệu của service khác thì **đọc chủ dữ liệu qua gRPC**; chỗ nào đọc nhiều, ít đổi thì thêm **lớp cache trong bộ nhớ** (giống settings) thay vì bảng bản sao.
+
+**Quyết định.**
+
+| | Làm gì | gRPC |
+|---|---|---|
+| A1 | Gộp **chỉ còn ở Python**. project-svc gửi nhãn đã chốt (bài đạt + khách cổng link, đổi theo khiếu nại) của các mẫu cần tính, quality trả kết quả từng công cụ — đúng hình dạng JSON cũ (`method`, `final`, `votes` / `supports` / `scores`, `agrees`, `disputed`, `kind`). Ngưỡng do project-svc đưa (cũng là thành phần dấu vân tay của bảng đệm `sample_results`), nên cùng đầu vào luôn ra cùng kết quả; quality không lưu gì. Bỏ `LabelAggregator`, `IToolKind.Gop`, mọi `DaiDien` / `CachGop` / `ThuocTinh.Gop` / `Rle.DaSo` / `HinhHoc.TrungVi`... và `GopVectorTests.cs` | `quality.v1.LabelAggregation.AggregateSamples` (cổng **9201**, quality phục vụ) |
+| A2 | Bỏ `approved_count`, `labeler_daily_stats`. Số câu được chấp nhận = tổng `answered_count` trên `project.attempts` của bài `passed` (tính từ `graded_at`) hoặc khiếu nại được chấp nhận (từ `appeal_resolved_at`), chỉ mục lọc `ix_attempts_chap_nhan`. identity xếp labeler vào hàng chờ `level_dirty` khi nhận **`project.grading_applied`** (event mới — project-svc phát **sau khi** đã ghi kết quả chấm, nên tổng đọc về không thiếu dự án vừa chấm), `attempt.appeal_resolved` chấp nhận, `reputation.changed`; `CapDoWorker` (setting `identity.level_recalc_interval`) tính cấp / huy hiệu theo lô 200. Bảng xếp hạng + "cấp độ của tôi" đọc qua gRPC, **cache trong identity** (`identity.stats_cache_ttl`, mặc định 60 giây; worker ghi đè cache của người vừa tính). Seed: labeler seed được xếp sẵn vào hàng chờ (bài đạt của project seed có ngay cấp tương ứng) | `project.v1.LabelerStatsData.GetApprovedCounts` / `GetLeaderboard` (9102) |
+| A3 | Bỏ `labeler_cache` và consumer `level.changed` / `reputation.changed` / `user.unblocked` của project-svc (`user.blocked` vẫn nghe để huỷ bài đang làm). Mở bài hỏi identity qua gRPC, dùng **chung hàm** điều kiện với lúc mời / vào dự án (`LabelingProject.LyDoLabelerKhongDuDieuKien`). Không cache ở đây: mỗi labeler mở bài một lần mỗi dự án (cache ít trúng) và trạng thái khoá phải mới | `identity.v1.IdentityData.LookupUsers` (cổng **9101**, identity phục vụ) — project-svc dùng cho cả mời / vào dự án (thay `POST /internal/users/lookup`; ledger, link vẫn gọi REST cũ) |
+| A4 | Migration ledger: đổi tên `annotation_id` → `source_id` (giữ dữ liệu), bỏ `task_id` + `ix_holds_task`, bỏ `project_escrows.name`; hoá đơn VAT hỏi tên dự án lúc xuất rồi chụp vào dòng hoá đơn (`project.publish_requested` vẫn mang `projectName` — read model hàng chờ duyệt của admin dùng làm tiêu đề). Xoá posterior / voi, `xin_them`, `redundancy.py` | `project.v1.LedgerData.GetProjectNames` (9102) |
+
+Khoá nội bộ gRPC dùng chung một interceptor (`shared/auth/Internal/InternalGrpc.cs`, metadata `x-internal-key`); lỗi tạm thời (UNAVAILABLE / DEADLINE_EXCEEDED...) → 503 `dich_vu_khong_san_sang` ở API, thử lại vòng sau ở worker.
+
+**Đánh đổi.**
+
+- Xem / xuất kết quả dự án phụ thuộc quality-svc **cho các mẫu chưa có trong bảng đệm** (mẫu nào đã tính rồi vẫn xem được khi quality tắt). Gộp chạy trong thread riêng của quality, không chặn consumer / worker.
+- Mở bài phụ thuộc identity-svc: identity tắt → 503, không cho mở bài mới (bài đang làm và nộp bài không ảnh hưởng — nộp không kiểm điều kiện lại). Bù lại: khoá tài khoản / tụt uy tín có hiệu lực **ngay**.
+- Cấp độ đổi chậm hơn một nhịp worker; bảng xếp hạng có thể cũ tối đa `identity.stats_cache_ttl`; project-svc tắt khi cache đã hết hạn → bảng xếp hạng / "cấp độ của tôi" trả 503, tính cấp chờ vòng sau.
+- **Phép đo độ giống** (IoU, CER, Kendall...) vẫn có ở cả C# (`HinhHoc.cs` — chấm câu vàng **ngay lúc nộp**, bài test đầu vào, câu vàng ở đường nóng của gate: không được gọi service khác) và Python (ghép cụm khi gộp). Đây là phần duy nhất còn viết hai lần; bộ ví dụ `gop.vectors.json` nay là test hồi quy của `app/gop.py`.
+
+**Còn giữ (vẫn đúng sau khi rà):** bản sao của gate (đường nóng ~100 lần), `ledger.project_escrows` điều khoản tiền chốt lúc ký quỹ, `ledger.referrals` (đọc dưới khoá sổ cái mỗi lượt click), `notification.contacts` (gửi thông báo cho toàn hệ thống), `settings_replica`, read model của admin, `identity.labeler_stats.reputation` (bản sao uy tín để tính cấp — quality chưa phục vụ gRPC uy tín), `quality.project_reports` (ảnh chụp trước khi dọn).
+
 ## 4. Dữ liệu chéo — ba luật cứng
 
 Đây là chỗ dự án microservice hay vỡ nhất.
 
 ```
-1. KHÔNG gọi HTTP đồng bộ để lấy dữ liệu chéo trong đường nóng.
+1. KHÔNG gọi HTTP / gRPC đồng bộ để lấy dữ liệu chéo trong ĐƯỜNG NÓNG.
+   Việc nền (chấm, lô thống kê, xét gian lận) ĐƯỢC đọc thẳng từ chủ dữ liệu (mục 3.22).
 2. Service cần field của service khác → giữ BẢN SAO READ-ONLY,
    cập nhật bằng event, KHÔNG coi là nguồn sự thật.
-       task_db.labeler_cache(user_id, reputation, level, verified, blocked, updated_at)
-         ← identity: reputation.changed | level.changed | user.blocked
-       task_db.project_members_cache(project_id, user_id, role, state)
-         ← project:  member.added | member.blocked | member.removed
+       gate_db.gate_projects / gate_links / gate_budgets   (đường nóng của gate, mục 3.6)
+         ← project: project.published | link: link.* | ledger: gate.budget_changed
+       (labeler_cache đã bỏ — mở bài hỏi identity qua gRPC, mục 3.24; thành viên cùng project_db — 3.21)
 3. Màn hình gộp nhiều nguồn → web-bff, không nhồi vào service nghiệp vụ.
 ```
 
-Nhờ luật 2, `task-svc` lọc eligibility bằng **một câu SQL trên DB của chính nó** — nhanh ngang monolith mà vẫn tách thật.
+Nhờ luật 2, đường nóng của gate (traffic gấp ~100 lần) không gọi service nào và vẫn chạy khi project-svc sập. Chỗ đọc không nằm ở đường nóng thì hỏi thẳng chủ dữ liệu qua gRPC, đọc nhiều thì thêm cache trong bộ nhớ (mục 3.22–3.24).
 
-**Khi nào KHÔNG cần bản sao.** Bản sao tốn một bảng + consumer ở mỗi service cần nó. Nếu điều cần biết là sự thật **một chiều về chính người đang gọi** (email đã xác thực, doanh nghiệp đã được duyệt KYB) thì đưa vào **claim của access token** (`email_verified`, `kyb_verified`): service đọc thẳng từ token, không bảng, không event. Điều kiện: không bao giờ đảo chiều (token cũ mang `true` không được phép sai), và client làm mới token khi trạng thái đổi. Thứ có thể đảo chiều (bị khoá, bị chặn khỏi dự án) hoặc phải lọc bằng SQL trên nhiều người (uy tín, cấp độ) vẫn là bản sao.
+**Khi nào KHÔNG cần bản sao.** Bản sao tốn một bảng + consumer ở mỗi service cần nó. Nếu điều cần biết là sự thật **một chiều về chính người đang gọi** (email đã xác thực, doanh nghiệp đã được duyệt KYB) thì đưa vào **claim của access token** (`email_verified`, `kyb_verified`): service đọc thẳng từ token, không bảng, không event. Điều kiện: không bao giờ đảo chiều (token cũ mang `true` không được phép sai), và client làm mới token khi trạng thái đổi. Thứ có thể đảo chiều (bị khoá, bị chặn khỏi dự án) hoặc cấp độ / uy tín thì hỏi chủ dữ liệu lúc cần (mục 3.24).
 
 **Ví dụ luật 3 — dashboard labeler** cần profile + lịch sử + tỉ lệ duyệt + ví:
 
 ```
 web-bff  ──┬─► identity-svc    GET /users/{id}/profile
-           ├─► annotation-svc  GET /labelers/{id}/stats
-           ├─► task-svc        GET /labelers/{id}/active-leases
+           ├─► project-svc     GET /tasks/me/attempts
            └─► ledger-svc      GET /accounts/labeler:{id}/balance
-           (4 lời gọi song song, timeout 300ms, phần nào lỗi thì degrade phần đó)
+           (3 lời gọi song song, timeout 300ms, phần nào lỗi thì degrade phần đó)
 ```
 
-Ranh giới đọc/ghi: quyết định **tiền bạc** luôn hỏi lại chủ sở hữu dữ liệu, không bao giờ đọc từ bản sao. Ví dụ duy nhất hiện có của lời gọi HTTP đồng bộ giữa hai service nghiệp vụ là **đóng dự án** (mục 3.4.1): hiếm, không ở đường nóng, hỏi thẳng task-svc và annotation-svc trước khi ký quỹ được hoàn.
+Ranh giới đọc/ghi: quyết định **tiền bạc** luôn hỏi lại chủ sở hữu dữ liệu, không bao giờ đọc từ bản sao. Ví dụ hiện có của lời gọi đồng bộ giữa hai service nghiệp vụ: **quality đọc bài nộp / nhãn / bằng chứng uy tín qua gRPC** (mục 3.22, việc nền), **gate kéo mẫu của dự án bật cổng link qua gRPC lúc publish** (mục 3.23, việc nền — đường nóng vẫn đọc bản sao), **mở bài hỏi identity, kết quả dự án nhờ quality gộp, identity đọc số câu được chấp nhận, ledger đọc tên dự án** (mục 3.24), **rút tiền** (ledger hỏi identity tài khoản có bị khoá), **mời / vào dự án** (project hỏi identity hồ sơ labeler), **nhận mã giới thiệu** (link hỏi identity ngày đăng ký) — đều hiếm, không ở đường nóng. Kiểm tra trước khi đóng dự án (mục 3.4.1) nay nằm trong cùng database (mục 3.21).
 
 ---
 
@@ -1138,7 +1254,7 @@ Ba service Python (`quality`, `ml`, `fraud`) và một service Node (`collab`) c
 
 **Quy ước đặt tên:** tiền tố sản phẩm `Crowd.` + tên service + vai trò → `Crowd.Ledger.Api`, `Crowd.Ledger.Domain`, …
 
-**Một ngoại lệ bắt buộc:** `task-svc` có assembly là **`Crowd.Tasking.*`**, không phải `Crowd.Task.*`. Lý do là ràng buộc của C#: trong `namespace Crowd.Task.Api`, định danh `Task` phân giải về namespace `Crowd.Task` trước khi tới `System.Threading.Tasks.Task`, nên `async Task Foo()` không biên dịch được. Thư mục vẫn giữ `services/task/`, tên service, container và database vẫn là `task-svc` / `task_db` để khớp toàn bộ tài liệu.
+**Một ngoại lệ bắt buộc (lịch sử — task-svc đã gộp vào project-svc, mục 3.21; namespace contract `Crowd.Contracts.Tasking` vẫn giữ vì cùng lý do):** `task-svc` từng có assembly là **`Crowd.Tasking.*`**, không phải `Crowd.Task.*`. Lý do là ràng buộc của C#: trong `namespace Crowd.Task.Api`, định danh `Task` phân giải về namespace `Crowd.Task` trước khi tới `System.Threading.Tasks.Task`, nên `async Task Foo()` không biên dịch được. Thư mục vẫn giữ `services/task/`, tên service, container và database vẫn là `task-svc` / `task_db` để khớp toàn bộ tài liệu.
 
 **Đồ thị tham chiếu** (service 4 project):
 

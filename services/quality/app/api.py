@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
 
-from app import archive, ds_batch, reports
+from app import archive, ds_batch, project_client, reports
 from app.contracts import FraudCaseConfirmed
 from app.messaging import outbox
 from app.auth import NguoiGoi, can_vai_tro, nguoi_goi
@@ -26,15 +26,18 @@ router = APIRouter(prefix="/quality")
 
 
 async def _kiem_chu_du_an(project_id: uuid.UUID, ng: NguoiGoi) -> None:
-    async with session_factory()() as s:
-        dong = (await s.execute(text("SELECT owner_id FROM projects WHERE project_id = :p"), {"p": project_id})).first()
-    if dong is None or (not ng.la_admin and dong.owner_id != ng.user_id):
+    """Chu du an hoi thang project-svc (gRPC, 3.22) — quality khong giu ban sao du an."""
+    try:
+        du_an = await project_client.du_an(project_id)
+    except project_client.KhongTimThay:
+        du_an = None
+    if du_an is None or (not ng.la_admin and du_an.owner_id != ng.user_id):
         raise LoiApi(404, "khong_tim_thay", "Không tìm thấy dự án.")
 
 
 @router.get("/projects/{project_id}/summary")
 async def tong_quan(project_id: uuid.UUID, ng: NguoiGoi = Depends(nguoi_goi)) -> dict:
-    """Dong thuan + redundancy thich ung + cau vang + Krippendorff alpha theo cong cu.
+    """Giong da so + cau vang + Krippendorff alpha theo cong cu.
     Du an da luu tru (archivedAt co gia tri): so lieu la ban chup, khong con doi."""
     await _kiem_chu_du_an(project_id, ng)
     async with session_factory()() as s:
@@ -51,7 +54,7 @@ async def labeler_trong_du_an(project_id: uuid.UUID, ng: NguoiGoi = Depends(nguo
 
 @router.post("/admin/projects/{project_id}/archive")
 async def luu_tru_du_an(project_id: uuid.UUID, ng: NguoiGoi = Depends(can_vai_tro("admin"))) -> dict:
-    """Admin luu tru NGAY du lieu chat luong cua mot du an DA DONG (chup bao cao, xoa nhan tho), khong doi
+    """Admin luu tru NGAY du lieu chat luong cua mot du an DA DONG (chup bao cao, xoa ket qua trung gian), khong doi
     het project.closed_data_retention. 409 neu du an chua dong."""
     return await archive.luu_tru(project_id)
 
@@ -127,18 +130,16 @@ async def chi_tiet_ho_so(case_id: uuid.UUID, ng: NguoiGoi = Depends(can_vai_tro(
         r = (await s.execute(text("SELECT * FROM fraud_cases WHERE id = :id"), {"id": case_id})).first()
         if r is None:
             raise LoiApi(404, "khong_tim_thay", "Không tìm thấy hồ sơ.")
-        # Lich su gan day cua tung nguoi trong ho so (giup admin quyet dinh).
-        luot = (await s.execute(text(
-            "SELECT labeler_id, COUNT(*) AS so_luot, percentile_cont(0.5) WITHIN GROUP (ORDER BY work_seconds) AS trung_vi "
-            "FROM fraud_submissions WHERE labeler_id = ANY(:u) GROUP BY labeler_id"), {"u": list(r.user_ids)})).all()
         uy_tin = {d.labeler_id: d.reputation for d in (await s.execute(text(
             "SELECT labeler_id, reputation FROM reputations WHERE labeler_id = ANY(:u)"), {"u": list(r.user_ids)})).all()}
+    # Lich su bai nop cua tung nguoi trong ho so (giup admin quyet dinh) — hoi project-svc qua gRPC.
+    luot = await project_client.thong_ke_labeler(list(r.user_ids))
     kq = _ho_so(r)
     kq["users"] = [
-        {"userId": str(d.labeler_id), "submissions": d.so_luot,
-         "medianWorkSeconds": None if d.trung_vi is None else round(float(d.trung_vi), 3),
-         "reputation": uy_tin.get(d.labeler_id)}
-        for d in luot
+        {"userId": str(u), "submissions": so,
+         "medianWorkSeconds": round(trung_vi, 3),
+         "reputation": uy_tin.get(u)}
+        for u, (so, trung_vi) in luot.items()
     ]
     return kq
 

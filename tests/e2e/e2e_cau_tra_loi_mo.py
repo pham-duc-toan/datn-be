@@ -79,7 +79,7 @@ def docker(*args):
 
 try:
     dat_va_cho("ledger.reward_hold", 0, ["ledger"])
-    dat_va_cho("task.appeal_window", 15, ["task"])
+    dat_va_cho("task.appeal_window", 15, ["project"])
     biz = dang_ky(["business"], "mobiz")
     lab = [dang_ky(["labeler"], f"mo{i}") for i in range(1, 4)]
     nap(biz, 1_000_000)

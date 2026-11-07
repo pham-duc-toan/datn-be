@@ -45,34 +45,27 @@ namespace Crowd.Identity.Api.Persistence.Configurations
             builder.ToTable("labeler_stats");
             builder.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
             builder.HasKey(x => x.UserId);
-            builder.Property(x => x.ApprovedCount).HasColumnName("approved_count").IsRequired();
             builder.Property(x => x.Reputation).HasColumnName("reputation");
             builder.Property(x => x.ReputationAt).HasColumnName("reputation_at");
             builder.Property(x => x.Level).HasColumnName("level").IsRequired();
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
-
-            // Bang xep hang toan thoi gian.
-            builder.HasIndex(x => x.ApprovedCount).HasDatabaseName("ix_labeler_stats_xep_hang");
         }
     }
 
-    public sealed class ThongKeNgayConfiguration : IEntityTypeConfiguration<ThongKeNgay>
+    public sealed class HangChoTinhCapConfiguration : IEntityTypeConfiguration<HangChoTinhCap>
     {
-        public void Configure(EntityTypeBuilder<ThongKeNgay> builder)
+        public void Configure(EntityTypeBuilder<HangChoTinhCap> builder)
         {
             if (builder == null)
             {
                 throw new ArgumentNullException(nameof(builder));
             }
 
-            builder.ToTable("labeler_daily_stats");
-            builder.Property(x => x.UserId).HasColumnName("user_id");
-            builder.Property(x => x.Ngay).HasColumnName("day");
-            builder.HasKey(x => new { x.UserId, x.Ngay });
-            builder.Property(x => x.ApprovedCount).HasColumnName("approved_count").IsRequired();
-
-            // Bang xep hang theo khoang ngay.
-            builder.HasIndex(x => x.Ngay).HasDatabaseName("ix_labeler_daily_stats_ngay");
+            builder.ToTable("level_dirty");
+            builder.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
+            builder.HasKey(x => x.UserId);
+            builder.Property(x => x.DirtyAt).HasColumnName("dirty_at").IsRequired();
+            builder.Property(x => x.CorrelationId).HasColumnName("correlation_id");
         }
     }
 

@@ -4,10 +4,9 @@ using Crowd.BuildingBlocks.Messaging;
 namespace Crowd.Contracts.Identity
 {
     // identity-svc SE phat ba event nay (diem uy tin, cap do, khoa tai khoan);
-    // task-svc nghe de dung ban sao labeler_cache phuc vu loc eligibility.
-    // Khai truoc de task-svc dung duoc ngay — giong escrow.* cua ledger.
+    // project-svc nghe de dung ban sao labeler_cache phuc vu loc eligibility luc mo bai.
 
-    /// <summary>Tai khoan bi khoa: task/gate/link/ledger deu phai chan (CATALOG).</summary>
+    /// <summary>Tai khoan bi khoa: project/gate/link deu phai chan (ledger hoi identity luc rut) (CATALOG).</summary>
     public sealed record UserBlocked : IEventPayload
     {
         public static string EventType

@@ -289,9 +289,10 @@ namespace Crowd.Ledger.Tests
         [Fact]
         public void Treo_3_ngay_moi_giai_phong()
         {
-            FundsHold h = FundsHold.TaoChoBaiDat(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 200000, Luc, TimeSpan.FromDays(3));
+            Guid baiLam = Guid.NewGuid();
+            FundsHold h = FundsHold.TaoChoBaiDat(baiLam, Guid.NewGuid(), Guid.NewGuid(), 200000, Luc, TimeSpan.FromDays(3));
             Assert.Equal(HoldKind.ProjectReward, h.Kind);
-            Assert.Equal(Guid.Empty, h.TaskId);
+            Assert.Equal(baiLam, h.SourceId);
 
             Assert.False(h.DenHan(Luc.AddDays(2)));
             Assert.Throws<RuleViolationException>(() => h.GiaiPhong(Luc.AddDays(2)));

@@ -607,7 +607,7 @@
     "max": 315360000,
     "unit": "giây",
     "effect": "newOperations",
-    "description": "Dự án đã đóng (hoàn thành / huỷ) bao lâu thì xoá dữ liệu VẬN HÀNH của nó: task, lượt giữ, báo lỗi (task-svc); nhãn thô và vòng đồng thuận (quality-svc). Trước khi xoá, tiến độ và báo cáo chất lượng được chụp lại nên vẫn xem được. Nhãn đã nộp / đã duyệt, kết quả, sổ cái, mẫu dữ liệu và uy tín labeler KHÔNG bị xoá. 0 = không bao giờ xoá."
+    "description": "Dự án đã đóng (hoàn thành / huỷ) bao lâu thì xoá dữ liệu VẬN HÀNH của nó: nháp còn sót, báo lỗi (project-svc); nhãn thô và vòng đồng thuận (quality-svc). Trước khi xoá, tiến độ và báo cáo chất lượng được chụp lại nên vẫn xem được. Nhãn đã nộp / đã duyệt, kết quả, sổ cái, mẫu dữ liệu và uy tín labeler KHÔNG bị xoá. 0 = không bao giờ xoá."
   },
   {
     "key": "project.entrance_question_default",
@@ -1258,18 +1258,6 @@
     "description": "Hồ sơ đã xử lý (bỏ qua / xác nhận) thì không mở lại cùng khoá trong khoảng này."
   },
   {
-    "key": "quality.fraud_submission_retention",
-    "name": "Giữ dữ liệu xét gian lận",
-    "group": "Chất lượng",
-    "type": "durationSeconds",
-    "default": 604800,
-    "min": 86400,
-    "max": 31536000,
-    "unit": "giây",
-    "effect": "newOperations",
-    "description": "Giữ dữ liệu lượt nộp dùng để xét gian lận (tốc độ, IP, thiết bị) bao lâu. Thuật toán chỉ cần vài chục lượt gần nhất và cửa sổ chung IP — không cần giữ mãi."
-  },
-  {
     "key": "quality.ds_min_labels",
     "name": "Số nhãn tối thiểu cho Dawid-Skene",
     "group": "Chất lượng",
@@ -1507,7 +1495,19 @@
     "max": 3600,
     "unit": "giây",
     "effect": "newOperations",
-    "description": "Chu kỳ quality-svc gửi câu trả lời mở mới sang ml-svc và thử chấm lại dự án đang chờ phân tích."
+    "description": "Chu kỳ quality-svc gửi câu trả lời mở mới sang ml-svc để nhúng."
+  },
+  {
+    "key": "quality.pending_work_interval",
+    "name": "Chu kỳ xử lý việc chờ của chất lượng",
+    "group": "Kỹ thuật",
+    "type": "durationSeconds",
+    "default": 5,
+    "min": 1,
+    "max": 3600,
+    "unit": "giây",
+    "effect": "newOperations",
+    "description": "Chu kỳ quality-svc xét gian lận bài vừa nộp, chấm lại dự án chưa chấm xong (project-svc tạm không trả lời qua gRPC, hoặc đang chờ phân tích câu trả lời mở) và tính lại uy tín labeler sau khi project-svc ghi xong kết quả chấm."
   },
   {
     "key": "identity.access_token_lifetime",
@@ -1688,6 +1688,30 @@
     "unit": "tuổi",
     "effect": "newOperations",
     "description": "Tuổi tối thiểu để xem dự án nội dung nhạy cảm (mục 2.9, VD-P-04). Tính từ ngày sinh trên giấy tờ đã được admin xác minh."
+  },
+  {
+    "key": "identity.level_recalc_interval",
+    "name": "Chu kỳ tính lại cấp độ",
+    "group": "Kỹ thuật",
+    "type": "durationSeconds",
+    "default": 5,
+    "min": 1,
+    "max": 3600,
+    "unit": "giây",
+    "effect": "newOperations",
+    "description": "Identity tính lại cấp / huy hiệu cho labeler vừa có bài được chấp nhận hoặc vừa đổi uy tín sau mỗi khoảng này (số câu được chấp nhận đọc qua gRPC từ project-svc; project-svc không trả lời thì vòng sau thử lại)."
+  },
+  {
+    "key": "identity.stats_cache_ttl",
+    "name": "Thời gian giữ bảng xếp hạng trong bộ nhớ",
+    "group": "Kỹ thuật",
+    "type": "durationSeconds",
+    "default": 60,
+    "min": 0,
+    "max": 3600,
+    "unit": "giây",
+    "effect": "newOperations",
+    "description": "Bảng xếp hạng và số câu được chấp nhận (đọc qua gRPC từ project-svc) được giữ trong bộ nhớ của identity bấy lâu. 0 = luôn hỏi lại."
   },
   {
     "key": "admin.audit_excluded_types",
@@ -2211,6 +2235,18 @@
     "unit": "lượt",
     "effect": "newOperations",
     "description": "Số lượt vượt gate chuyển mỗi lô."
+  },
+  {
+    "key": "gate.content_load_interval",
+    "name": "Chu kỳ kéo mẫu cho cổng link",
+    "group": "Kỹ thuật",
+    "type": "durationSeconds",
+    "default": 5,
+    "min": 1,
+    "max": 3600,
+    "unit": "giây",
+    "effect": "newOperations",
+    "description": "Gate kéo mẫu + câu vàng của dự án vừa publish bật cổng link từ project-svc (gRPC) sau mỗi khoảng này; project-svc không trả lời thì vòng sau thử lại."
   },
   {
     "key": "link.code_length",

@@ -31,8 +31,9 @@ namespace Crowd.Link.Api.Services
         private readonly LinkEventPublisher _events;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
+        private readonly IdentityClient _identity;
 
-        public ReferralService(LinkDbContext db, LinkEventPublisher events, ISettings settings, TimeProvider clock)
+        public ReferralService(LinkDbContext db, LinkEventPublisher events, ISettings settings, TimeProvider clock, IdentityClient identity)
         {
             if (db == null)
             {
@@ -54,10 +55,16 @@ namespace Crowd.Link.Api.Services
                 throw new ArgumentNullException(nameof(clock));
             }
 
+            if (identity == null)
+            {
+                throw new ArgumentNullException(nameof(identity));
+            }
+
             _db = db;
             _events = events;
             _settings = settings;
             _clock = clock;
+            _identity = identity;
         }
 
         /// <summary>Ma gioi thieu cua toi (tao lan dau) + so nguoi da moi.</summary>
@@ -105,9 +112,9 @@ namespace Crowd.Link.Api.Services
                 throw new LinkException(409, "tu_gioi_thieu", "Không nhập mã giới thiệu của chính mình.");
             }
 
-            KnownUser? u = await _db.KnownUsers.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == toi, ct);
+            DateTimeOffset? dangKy = await _identity.LucDangKyAsync(toi, ct);
             DateTimeOffset bayGio = _clock.GetUtcNow();
-            if (u == null || bayGio - u.RegisteredAt > _settings.ThoiGian(SettingKeys.LinkReferralClaimWindow))
+            if (!dangKy.HasValue || bayGio - dangKy.Value > _settings.ThoiGian(SettingKeys.LinkReferralClaimWindow))
             {
                 throw new LinkException(409, "qua_han_nhap_ma", "Chỉ tài khoản mới đăng ký mới nhập được mã giới thiệu.");
             }

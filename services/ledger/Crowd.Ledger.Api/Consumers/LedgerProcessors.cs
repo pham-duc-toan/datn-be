@@ -107,7 +107,7 @@ namespace Crowd.Ledger.Api.Consumers
         }
     }
 
-    /// <summary>attempt.appeal_resolved (task-svc): khieu nai ca bai duoc chap nhan → tra thuong.</summary>
+    /// <summary>attempt.appeal_resolved (project-svc): khieu nai ca bai duoc chap nhan → tra thuong.</summary>
     public sealed class AttemptAppealResolvedProcessor : IEventProcessor<AttemptAppealResolved>
     {
         private readonly MoneyFlowService _flow;
@@ -256,75 +256,6 @@ namespace Crowd.Ledger.Api.Consumers
             }
 
             return _flow.ThatBaiRutAsync(envelope.Payload, ct);
-        }
-    }
-
-    /// <summary>user.blocked (identity): chan RUT tien. Tien van nguyen trong so.</summary>
-    public sealed class UserBlockedProcessor : IEventProcessor<UserBlocked>
-    {
-        private readonly LedgerDbContext _db;
-
-        public UserBlockedProcessor(LedgerDbContext db)
-        {
-            if (db == null)
-            {
-                throw new ArgumentNullException(nameof(db));
-            }
-
-            _db = db;
-        }
-
-        public async Task XuLyAsync(EventEnvelope<UserBlocked> envelope, CancellationToken ct)
-        {
-            if (envelope == null)
-            {
-                throw new ArgumentNullException(nameof(envelope));
-            }
-
-            BlockedUser b = await TrangThaiNguoiDung.LayKhoaAsync(_db, envelope.Payload.UserId, ct);
-            b.Khoa(envelope.OccurredAt);
-        }
-    }
-
-    /// <summary>user.unblocked (identity): rut tien lai duoc.</summary>
-    public sealed class UserUnblockedProcessor : IEventProcessor<UserUnblocked>
-    {
-        private readonly LedgerDbContext _db;
-
-        public UserUnblockedProcessor(LedgerDbContext db)
-        {
-            if (db == null)
-            {
-                throw new ArgumentNullException(nameof(db));
-            }
-
-            _db = db;
-        }
-
-        public async Task XuLyAsync(EventEnvelope<UserUnblocked> envelope, CancellationToken ct)
-        {
-            if (envelope == null)
-            {
-                throw new ArgumentNullException(nameof(envelope));
-            }
-
-            BlockedUser b = await TrangThaiNguoiDung.LayKhoaAsync(_db, envelope.Payload.UserId, ct);
-            b.MoKhoa(envelope.OccurredAt);
-        }
-    }
-
-    internal static class TrangThaiNguoiDung
-    {
-        public static async Task<BlockedUser> LayKhoaAsync(LedgerDbContext db, Guid userId, CancellationToken ct)
-        {
-            BlockedUser? b = await db.BlockedUsers.FirstOrDefaultAsync(x => x.UserId == userId, ct);
-            if (b == null)
-            {
-                b = BlockedUser.Tao(userId);
-                db.BlockedUsers.Add(b);
-            }
-
-            return b;
         }
     }
 

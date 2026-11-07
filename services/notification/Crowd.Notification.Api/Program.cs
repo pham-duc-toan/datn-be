@@ -41,8 +41,6 @@ builder.Services.AddOutbox<NotificationDbContext>(cfg);
 
 // ---- Ban sao (khong tao thong bao) ----
 builder.Services.AddEventConsumer<NotificationDbContext, UserRegistered, UserRegisteredProcessor>(cfg, "notification-svc.user-registered");
-builder.Services.AddEventConsumer<NotificationDbContext, ProjectPublishRequested, PublishRequestedProcessor>(cfg, "notification-svc.project-publish-requested");
-builder.Services.AddEventConsumer<NotificationDbContext, PayoutRequested, PayoutRequestedProcessor>(cfg, "notification-svc.payout-requested");
 
 // ---- Tai khoan, KYB ----
 builder.Services.AddEventConsumer<NotificationDbContext, BusinessVerified, BusinessVerifiedProcessor>(cfg, "notification-svc.business-verified");

@@ -1,0 +1,53 @@
+// quality-svc phuc vu project-svc qua gRPC (noi bo, cong 9201 HTTP/2, metadata x-internal-key).
+//
+// VI SAO (kien truc 3.24): thuat toan GOP NHAN (da so, ghep cum, trung vi, Borda...) truoc day duoc viet HAI
+// lan — Python o quality-svc (cham bai) va C# o project-svc (ket qua giao doanh nghiep), giu khop nhau bang bo
+// vi du contracts/labeling/testdata/gop.vectors.json. Nay chi con ban Python (app/gop.py): project-svc gui
+// nhan DA CHOT cua cac mau can tinh, quality gop va tra ket qua theo tung cong cu. Dau vao la cua project-svc
+// (nhan Accepted: bai dat + khach cong link, doi theo khieu nai) nen quality KHONG luu gi o day — tinh xong
+// tra ve; project-svc giu ket qua trong bang dem sample_results (dau van tay dau vao), chi hoi lai mau doi.
+//
+// Sua file nay → sinh lai stub Python (services/quality/sinh_grpc.py); C# tu sinh luc build (Grpc.Tools).
+
+syntax = "proto3";
+
+package crowd.quality.v1;
+
+option csharp_namespace = "Crowd.Contracts.Grpc.Quality";
+
+service LabelAggregation {
+  // Gop nhan cua tung mau theo TAP NHAN cua du an. Nguong do noi goi dua (cung la thanh phan dau van tay cua
+  // bang dem ben project-svc) — cung dau vao luon ra cung ket qua. Tap nhan sai → INVALID_ARGUMENT.
+  rpc AggregateSamples(AggregateRequest) returns (AggregateResponse);
+}
+
+message AggregateRequest {
+  // Crowd.Labeling.LabelSchema (JSON).
+  string label_schema_json = 1;
+  // Nguong ghep doi tuong mac dinh theo loai cong cu (setting labeling.threshold.<loai>); thieu loai nao thi
+  // dung mac dinh cua thu vien. matchThreshold cua cong cu luon duoc uu tien.
+  map<string, double> thresholds = 2;
+  // Setting quality.consensus_min_f1: cong cu dang danh sach — F1 toi thieu de mot nguoi tinh la khop.
+  double min_f1 = 3;
+  repeated SampleLabels samples = 4;
+}
+
+message SampleLabels {
+  string sample_id = 1;
+  // Crowd.Labeling.SampleMetadata (width / height... cho diem moc, duong gap khuc).
+  string metadata_json = 2;
+  // Noi dung tung nhan (LabelPayload.data: {ten cong cu: ket qua}), THEO THU TU NOP — "agrees" cua ket qua
+  // theo dung thu tu nay.
+  repeated string label_data_json = 3;
+}
+
+message AggregateResponse {
+  repeated SampleAggregate samples = 1;
+}
+
+message SampleAggregate {
+  string sample_id = 1;
+  // Ket qua theo tung cong cu: {"<ten>": {"method", "final", "votes" | "supports" | "scores", "agrees",
+  // "disputed", "kind"}} — "method": "none" voi freeText hoac cong cu khong ai lam.
+  string tools_json = 2;
+}

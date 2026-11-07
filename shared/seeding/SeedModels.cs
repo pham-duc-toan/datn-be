@@ -118,13 +118,13 @@ namespace Crowd.Seeding
         /// <summary>Phan du lieu nhan theo cac cong cu, vd {"label":{"labelIds":["do"]}}.</summary>
         public required string PayloadJson { get; init; }
 
-        /// <summary>Id nhan o annotation-svc (chi cau that cua bai DA NOP).</summary>
+        /// <summary>Id nhan (bang annotations cua project-svc; chi cau that cua bai DA NOP).</summary>
         public required Guid AnnotationId { get; init; }
     }
 
     public enum SeedAttemptState
     {
-        /// <summary>Dang lam: cau tra loi la ban nhap (task-svc), chua co nhan o annotation-svc.</summary>
+        /// <summary>Dang lam: cau tra loi la ban nhap (attempt_drafts), chua vao kho nhan.</summary>
         InProgress,
 
         Submitted,
@@ -144,7 +144,7 @@ namespace Crowd.Seeding
 
     /// <summary>
     /// Mot BAI LAM (docs 3.18): labeler lam het cac cau cua du an roi nop ca bai. Mot dong nay sinh du lieu
-    /// o nhieu service: bai lam (task-svc), nhan (annotation-svc), ban sao cham (quality-svc), tien thuong
+    /// o nhieu service: bai lam va nhan (project-svc), ban sao cham (quality-svc), tien thuong
     /// (ledger) — tat ca dung chung cac ID ben duoi.
     /// </summary>
     public sealed class SeedAttempt

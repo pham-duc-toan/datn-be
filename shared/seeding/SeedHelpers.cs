@@ -42,7 +42,7 @@ namespace Crowd.Seeding
         /// phat event — vd ledger giu ky quy thi phat escrow.reserved. Nhung moi
         /// service da TU seed phan cua minh roi: de cac event nay bay len
         /// RabbitMQ thi project-svc nhan escrow.reserved cho mot du an da chay
-        /// tu lau, task-svc nhan lai du lieu da co... Nen seed KHONG phat gi ra
+        /// tu lau, quality-svc nhan lai bai da nop... Nen seed KHONG phat gi ra
         /// ngoai: go cac dong outbox moi them (chua luu) khoi DbContext.
         ///
         /// Phai goi NGAY sau moi buoc co the phat event, truoc lan SaveChanges

@@ -29,6 +29,12 @@ namespace Crowd.Labeling
             }
         }
 
+        /// <summary>Moi loai da ghi de (kind -&gt; nguong) — gui sang quality-svc khi nho gop nhan qua gRPC.</summary>
+        public IReadOnlyDictionary<string, double> TheoLoai
+        {
+            get { return _theoLoai; }
+        }
+
         public double? Lay(string kind)
         {
             double giaTri;

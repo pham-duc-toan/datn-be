@@ -18,10 +18,10 @@ namespace Crowd.BuildingBlocks.Persistence.Outbox
         /// <summary>
         /// Exchange kieu "topic" ma moi event di qua.
         ///
-        /// Routing key chinh la eventType, vd "annotation.approved". Nho dau
+        /// Routing key chinh la eventType, vd "attempt.submitted". Nho dau
         /// cham trong eventType ma consumer binh queue theo mau duoc:
-        ///     annotation.*    nhan moi event cua annotation-svc
-        ///     *.approved      nhan moi event ket thuc bang approved
+        ///     attempt.*       nhan moi event ve bai lam
+        ///     *.submitted     nhan moi event ket thuc bang submitted
         /// Do la ly do eventType bat buoc co dang &lt;aggregate&gt;.&lt;qua_khu&gt;.
         /// </summary>
         public string Exchange { get; set; } = "datn.events";

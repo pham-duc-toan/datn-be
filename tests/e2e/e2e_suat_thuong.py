@@ -39,9 +39,9 @@ def bai_cua_toi(u, pid):
 
 
 try:
-    dat_va_cho("project.participant_multiplier", 2, ["task"])
-    dat_va_cho("task.appeal_window", 10, ["task"])
-    dat_va_cho("task.reaper_interval", 2, ["task"])
+    dat_va_cho("project.participant_multiplier", 2, ["project"])
+    dat_va_cho("task.appeal_window", 10, ["project"])
+    dat_va_cho("task.reaper_interval", 2, ["project"])
     dat_va_cho("ledger.reward_hold", 0, ["ledger"])
 
     biz = dang_ky(["business"], "suat-biz")

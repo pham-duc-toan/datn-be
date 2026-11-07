@@ -215,38 +215,6 @@ namespace Crowd.Labeling.Tests
                 .KhopDapAn(Cap, LabelPayload.Tao(Cap, "{\"tot_hon\":{\"choice\":\"a\"}}", null)));
         }
 
-        // ---------------------------------------------------------------- gop
-
-        [Fact]
-        public void Gop_theo_tung_cong_cu()
-        {
-            LabelPayload[] nhan = new LabelPayload[]
-            {
-                LabelPayload.Tao(Anh, "{\"loai\":{\"labelIds\":[\"ngay\"]},\"vat\":[]}", Anh100x50),
-                LabelPayload.Tao(Anh, "{\"loai\":{\"labelIds\":[\"ngay\"]},\"vat\":[]}", Anh100x50),
-                LabelPayload.Tao(Anh, "{\"loai\":{\"labelIds\":[\"dem\"]},\"vat\":[]}", Anh100x50),
-            };
-
-            JsonObject g = LabelAggregator.Gop(Anh, nhan);
-
-            Assert.Equal("majority", g["loai"]!["method"]!.GetValue<string>());
-            Assert.Equal("ngay", g["loai"]!["final"]!["labelIds"]![0]!.GetValue<string>());
-            Assert.Equal(2, g["loai"]!["votes"]!["ngay"]!.GetValue<int>());
-            Assert.False(g["loai"]!["disputed"]!.GetValue<bool>());
-            // Khung: ba nguoi deu khong ve gi → ket qua gop la danh sach rong, khong tranh chap.
-            Assert.Equal("cluster", g["vat"]!["method"]!.GetValue<string>());
-            Assert.Empty((JsonArray)g["vat"]!["final"]!);
-            Assert.False(g["vat"]!["disputed"]!.GetValue<bool>());
-            Assert.Equal("none", g["vung"]!["method"]!.GetValue<string>());   // khong ai gan cong cu tuy chon nay
-
-            JsonObject hoa = LabelAggregator.Gop(Cap, new LabelPayload[]
-            {
-                LabelPayload.Tao(Cap, "{\"tot_hon\":{\"choice\":\"a\"}}", null),
-                LabelPayload.Tao(Cap, "{\"tot_hon\":{\"choice\":\"b\"}}", null),
-            });
-            Assert.True(hoa["tot_hon"]!["disputed"]!.GetValue<bool>());
-        }
-
         // ---------------------------------------------------------------- tren day
 
         [Fact]

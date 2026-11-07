@@ -87,16 +87,6 @@ services:
 
   # ================= REDIS rieng tung service =================
 
-  redis-task:
-    image: redis:7-alpine
-    container_name: datn-redis-task
-    profiles: ["all", "p0"]
-    # lease:{taskId} TTL 900s
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
-    ports: ["127.0.0.1:6380:6379"]
-    volumes: [redis-task-data:/data]
-    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 20 }
-
   redis-gate:
     image: redis:7-alpine
     container_name: datn-redis-gate
@@ -176,42 +166,6 @@ services:
     volumes: [pgdata-project:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U project_user -d project_db"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  db-task:
-    image: postgres:16-alpine
-    container_name: datn-db-task
-    profiles: ["all", "p0"]
-    # tier hot - hang doi SKIP LOCKED
-    command: ["postgres","-c","max_connections=50","-c","shared_buffers=192MB"]
-    environment:
-      POSTGRES_USER: task_user
-      POSTGRES_PASSWORD: dev_task_pw
-      POSTGRES_DB: task_db
-    ports: ["127.0.0.1:5403:5432"]
-    volumes: [pgdata-task:/var/lib/postgresql/data]
-    healthcheck:
-      test: ["CMD-SHELL","pg_isready -U task_user -d task_db"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  db-annotation:
-    image: postgres:16-alpine
-    container_name: datn-db-annotation
-    profiles: ["all", "p0"]
-    # tier hot - JSONB + GIN, nhan da hinh
-    command: ["postgres","-c","max_connections=50","-c","shared_buffers=192MB"]
-    environment:
-      POSTGRES_USER: annotation_user
-      POSTGRES_PASSWORD: dev_annotation_pw
-      POSTGRES_DB: annotation_db
-    ports: ["127.0.0.1:5404:5432"]
-    volumes: [pgdata-annotation:/var/lib/postgresql/data]
-    healthcheck:
-      test: ["CMD-SHELL","pg_isready -U annotation_user -d annotation_db"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -421,13 +375,10 @@ volumes:
   miniodata:
   ch-gate-data:
   redis-gateway-data:
-  redis-task-data:
   redis-gate-data:
   redis-collab-data:
   pgdata-identity:
   pgdata-project:
-  pgdata-task:
-  pgdata-annotation:
   pgdata-ledger:
   pgdata-payment:
   pgdata-link:

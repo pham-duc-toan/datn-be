@@ -3,7 +3,7 @@
 #
 # Phu cac cong cu them sau va viec gop nhan nhieu nguoi cho MOI cong cu:
 #   [1] anh: khung + thuoc tinh (OCR), diem moc, duong gap khuc, mat na, so, chep chu, van ban tu do
-#       → kiem dinh dang LUC NOP CA BAI, ket qua gop (annotation-svc), xuat COCO / CSV / YOLO
+#       → kiem dinh dang LUC NOP CA BAI, ket qua gop (project-svc), xuat COCO / CSV / YOLO
 #   [2] diem moc lech nhau: 3 bai → da so (2 diem gan nhau) → bai lech bi cham khong giong
 #   [3] van ban: doan + QUAN HE giua cac doan
 #   [4] du lieu DANH SACH: xep hang (Borda) + thang diem (trung vi)
@@ -190,8 +190,11 @@ try:
     kq_bai = cham(biz, P1, 2)
     # Hai bai (< 3) → khong so da so, chi xet cau vang; du an khong co cau vang → ca hai dat.
     kiem("cham: 2 bai dat (it hon 3 bai → chi xet cau vang)", kq_bai is not None and all(b["passed"] for b in kq_bai.values()), kq_bai)
-    kiem("quality luu metadata mau theo nhan (kich thuoc anh cho diem moc / duong)",
-         sql("quality", f"select count(*) from labels where project_id = '{P1}' and sample_metadata ->> 'width' = '200'") == "2")
+    # quality khong giu ban sao (3.22): gRPC StreamLabels noi annotations voi samples (cung phan vung) de dua
+    # kich thuoc anh cho diem moc / duong — kiem dung phep noi do ra 2 nhan co width 200.
+    kiem("nhan doc kem metadata mau (kich thuoc anh cho diem moc / duong) — nguon cua gRPC StreamLabels",
+         sql("project", f"select count(*) from annotations a join samples s on s.project_id = a.project_id and s.id = a.sample_id "
+                        f"where a.project_id = '{P1}' and a.labeler_id is not null and s.metadata ->> 'width' = '200'") == "2")
     kiem("nhan cua 2 bai dat vao ket qua", cho(lambda: len(ds_nhan(biz, P1, "accepted")) == 2, 30), ds_nhan(biz, P1))
     kq = ket_qua(biz, P1)
     s = kq["samples"][0]
@@ -250,8 +253,10 @@ try:
     kiem("bai lech: 0% < nguong 60% → truot", kq_bai and kq_bai[l2["id"]]["passed"] is False and kq_bai[l2["id"]]["agreementPercent"] == 0, kq_bai)
     cuoi = json.loads(sql("quality", f"select final from sample_majorities where project_id = '{P2}' and status = 'agreed'") or "null")
     kiem("ket qua da so = trung vi cua hai diem khop", cuoi and gan(cuoi["moc"][0]["x"], 100.5) and gan(cuoi["moc"][0]["y"], 75.5), cuoi)
+    # Bang chung uy tin nam tren project.attempts (quality doc qua gRPC GetLabelerEvidence, khong giu ban sao).
     kiem("bang chung uy tin theo bai: 2 giong, 1 khac",
-         sql("quality", f"select string_agg(matched_count::text, ',' order by matched_count) from attempt_grades where project_id = '{P2}'") == "0,1,1")
+         sql("project", f"select string_agg(matched_count::text, ',' order by matched_count) from attempts "
+                        f"where project_id = '{P2}' and graded_at is not null") == "0,1,1")
 
     # =================================================================================
     print("\n[3] Van ban: doan + QUAN HE giua cac doan")
@@ -262,7 +267,8 @@ try:
         rows=[{"text": CAU, "name": "cau1"}])
     r = requests.put(G + f"/projects/{P3}/label-schema", headers=biz["h"], json={"modality": "text", "tools": [
         {"name": "ner", "kind": "span", "classes": ["PER"]}, {"name": "qh", "kind": "relation", "classes": ["x"], "spanTool": "khong_co"}]})
-    kiem("relation tro toi cong cu span khong ton tai → 400", r.status_code == 400 and "spanTool" in r.text, r.text)
+    kiem("relation tro toi cong cu span khong ton tai → 400",
+         r.status_code == 400 and "tap_nhan_khong_hop_le" in r.text and "Đoạn văn bản" in r.text, r.text)
     publish_va_duyet(biz, P3)
     for u in (l1, l2, l3):
         tham_gia(u, P3)
@@ -396,7 +402,7 @@ try:
     kiem("moi bai: 12 cau that + cau vang kiem tra nam lan trong de (cau vang bai test KHONG vao bai)",
          (n1, vang1, n2, vang2) == (12, True, 12, True), (n1, vang1, n2, vang2))
     kq_bai = cham(biz, P6, 2)
-    kiem("task-svc cham cau vang diem moc luc nop: l1 (lech 6 px) dung, l2 (lech 30 px) sai",
+    kiem("project-svc cham cau vang diem moc luc nop: l1 (lech 6 px) dung, l2 (lech 30 px) sai",
          kq_bai is not None and (kq_bai[l1["id"]]["goldCorrect"], kq_bai[l2["id"]]["goldCorrect"]) == (1, 0), kq_bai)
     kiem("sai cau vang → bai l2 truot, l1 dat", kq_bai and kq_bai[l1["id"]]["passed"] and not kq_bai[l2["id"]]["passed"], kq_bai)
 
@@ -406,7 +412,7 @@ try:
         "labeling.threshold.keypoint", "labeling.threshold.polyline", "labeling.threshold.mask", "labeling.threshold.track",
         "labeling.threshold.relation", "labeling.threshold.ranking", "quality.consensus_min_f1")))
     # Ha nguong diem moc xuong 0,7 (lech toi 30% duong cheo van la mot diem): hai diem cach 67 px cua [2] gio se khop.
-    dat_va_cho("labeling.threshold.keypoint", 0.7, ["quality", "annotation"])
+    dat_va_cho("labeling.threshold.keypoint", 0.7, ["quality", "project"])
     P7, _, _ = du_an(biz, "Nguong diem moc", "image", {"modality": "image", "tools": [{"name": "moc", "kind": "keypoint", "classes": ["tam"]}]},
                      files=[os.path.join(M, "anh.png")])
     publish_va_duyet(biz, P7)

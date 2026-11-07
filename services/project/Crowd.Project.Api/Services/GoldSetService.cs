@@ -19,8 +19,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Crowd.Project.Api.Services
 {
     /// <summary>
-    /// Cau hoi vang (FB-16). Moi thay doi phat gold_set.updated mang TOAN BO tap
-    /// sau thay doi — consumer chi viec thay the ban sao, khong phai cong don.
+    /// Cau hoi vang (FB-16). Khong phat event: gate-svc keo cau vang qua gRPC (GateData) luc du an publish
+    /// bat cong link, ma cau vang thi khoa tu luc roi Draft (KiemTraCoTheSuaCauHoiVang) — khong ai can theo doi
+    /// tung lan sua.
     ///
     /// Dap an vang la BI MAT cua du an: chi chu du an xem duoc.
     /// </summary>
@@ -28,14 +29,12 @@ namespace Crowd.Project.Api.Services
     {
         private readonly ProjectDbContext _db;
         private readonly ProjectAccessService _access;
-        private readonly ProjectEventPublisher _events;
         private readonly TimeProvider _clock;
         private readonly ISettings _settings;
 
         public GoldSetService(
             ProjectDbContext db,
             ProjectAccessService access,
-            ProjectEventPublisher events,
             TimeProvider clock,
             ISettings settings)
         {
@@ -56,11 +55,6 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(access));
             }
 
-            if (events == null)
-            {
-                throw new ArgumentNullException(nameof(events));
-            }
-
             if (clock == null)
             {
                 throw new ArgumentNullException(nameof(clock));
@@ -68,7 +62,6 @@ namespace Crowd.Project.Api.Services
 
             _db = db;
             _access = access;
-            _events = events;
             _clock = clock;
         }
 
@@ -166,10 +159,6 @@ namespace Crowd.Project.Api.Services
 
             _db.GoldItems.AddRange(moi);
 
-            List<GoldItem> tapSau = new List<GoldItem>(hienCo);
-            tapSau.AddRange(moi);
-            PhatTapMoi(projectId, tapSau, caller);
-
             await _db.SaveChangesAsync(ct);
 
             List<GoldItemResponse> ketQua = new List<GoldItemResponse>();
@@ -195,26 +184,8 @@ namespace Crowd.Project.Api.Services
             }
 
             _db.GoldItems.Remove(canXoa);
-            hienCo.Remove(canXoa);
-            PhatTapMoi(projectId, hienCo, caller);
 
             await _db.SaveChangesAsync(ct);
-        }
-
-        private void PhatTapMoi(Guid projectId, List<GoldItem> tap, Caller caller)
-        {
-            List<GoldSetItem> items = new List<GoldSetItem>();
-            foreach (GoldItem g in tap)
-            {
-                items.Add(new GoldSetItem
-                {
-                    SampleId = g.SampleId,
-                    ExpectedPayload = g.ExpectedPayload,
-                    Purpose = ContractMapper.ToContract(g.Purpose),
-                });
-            }
-
-            _events.Phat(caller, new GoldSetUpdated { ProjectId = projectId, Items = items });
         }
 
         private static GoldItemResponse TaoResponse(GoldItem g)

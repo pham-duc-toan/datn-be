@@ -197,6 +197,8 @@ namespace Crowd.Payment.Api.Workers
                     events.Phat(heThong, new PayoutCompleted
                     {
                         WithdrawalId = p.Id,
+                        LabelerId = p.LabelerId,
+                        NetAmountVnd = p.NetVnd,
                         Provider = _provider.Name,
                         ProviderTxnId = p.ProviderTxnId!,
                     });
@@ -204,7 +206,13 @@ namespace Crowd.Payment.Api.Workers
                 else if (kq.Outcome == ProviderOutcome.Failed)
                 {
                     p.ThatBai(kq.Reason ?? "Cong tu choi", bayGio);
-                    events.Phat(heThong, new PayoutFailed { WithdrawalId = p.Id, Reason = p.LastError! });
+                    events.Phat(heThong, new PayoutFailed
+                    {
+                        WithdrawalId = p.Id,
+                        LabelerId = p.LabelerId,
+                        NetAmountVnd = p.NetVnd,
+                        Reason = p.LastError!,
+                    });
                 }
                 else
                 {

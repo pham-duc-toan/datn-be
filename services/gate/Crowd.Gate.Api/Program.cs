@@ -2,11 +2,13 @@ using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Security;
 using Crowd.BuildingBlocks.Storage;
+using Crowd.Contracts.Grpc.Project;
 using Crowd.Contracts.Ledger;
 using Crowd.Contracts.Link;
 using Crowd.Contracts.Project;
@@ -53,13 +55,27 @@ builder.Services.AddEventConsumer<GateDbContext, ProjectPaused, ProjectStatusPro
 builder.Services.AddEventConsumer<GateDbContext, ProjectResumed, ProjectStatusProcessors>(cfg, "gate-svc.project-resumed");
 builder.Services.AddEventConsumer<GateDbContext, ProjectCancelled, ProjectStatusProcessors>(cfg, "gate-svc.project-cancelled");
 builder.Services.AddEventConsumer<GateDbContext, ProjectCompleted, ProjectStatusProcessors>(cfg, "gate-svc.project-completed");
-builder.Services.AddEventConsumer<GateDbContext, DatasetIngested, DatasetIngestedProcessor>(cfg, "gate-svc.dataset-ingested");
-builder.Services.AddEventConsumer<GateDbContext, GoldSetUpdated, GoldSetUpdatedProcessor>(cfg, "gate-svc.gold-set-updated");
 builder.Services.AddEventConsumer<GateDbContext, LinkActivated, LinkProcessors>(cfg, "gate-svc.link-activated");
 builder.Services.AddEventConsumer<GateDbContext, LinkDisabled, LinkProcessors>(cfg, "gate-svc.link-disabled");
 builder.Services.AddEventConsumer<GateDbContext, GateBudgetChanged, GateBudgetChangedProcessor>(cfg, "gate-svc.gate-budget-changed");
 
 builder.Services.Configure<GateOptions>(cfg.GetSection(GateOptions.SectionName));
+
+// ---- Mau + cau vang cua du an bat cong link: keo qua gRPC tu project-svc mot lan sau publish (kien truc 3.23) ----
+builder.Services.AddCrowdInternalApi(cfg);
+InternalApiOptions noiBo = new InternalApiOptions();
+cfg.GetSection(InternalApiOptions.Section).Bind(noiBo);
+if (string.IsNullOrWhiteSpace(noiBo.Key) || string.IsNullOrWhiteSpace(noiBo.ProjectGrpcUrl))
+{
+    throw new InvalidOperationException("Thieu InternalApi:Key / InternalApi:ProjectGrpcUrl trong appsettings.");
+}
+
+builder.Services.AddGrpcClient<GateData.GateDataClient>(o =>
+{
+    o.Address = new Uri(noiBo.ProjectGrpcUrl);
+});
+builder.Services.AddScoped<GateContentLoader>();
+builder.Services.AddHostedService<ContentLoadWorker>();
 builder.Services.Configure<PrivacyOptions>(cfg.GetSection(PrivacyOptions.SectionName));
 
 // ---- Duong nong: Redis rieng cua gate + ClickHouse cho thong ke ----

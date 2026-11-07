@@ -1,5 +1,9 @@
 """NC-B-06 — phan phoi task duoi tai: N labeler cung "lay task → nop" lien tuc.
 
+LICH SU: chay tren mo hinh lease cu (truoc docs 3.18) va task-svc rieng (cong 8103). Ca hai da bo —
+lam bai nay nam trong project-svc (docs 3.21). Giu lai lam bang chung cho ket qua trong
+docs/thi-nghiem/nc-b-06-hieu-nang.md; KHONG chay duoc tren he thong hien tai.
+
 GIA THUYET
   H3: Lay task bang UPDATE ... FOR UPDATE SKIP LOCKED (docs 3.5) KHONG BAO GIO cap trung
       (moi (task, labeler) toi da mot luot, so nop moi task <= redundancy) o moi muc dong thoi.

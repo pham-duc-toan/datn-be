@@ -66,10 +66,10 @@ try:
     s0 = b0["questions"][0]["sampleId"]
     luu(L[0], b0["attemptId"], s0, {**anh_nhan(15, 0), "khung_thang": [{"labelId": "bien", "x": 10, "y": 10, "w": 20, "h": 20, "angle": 10}]}).raise_for_status()
     r = nop_bai(L[0], b0["attemptId"])
-    kiem("goc xoay tren cong cu KHONG rotatable → nop bai 400 (danh sach cau sai)", r.status_code == 400 and "bai_chua_hop_le" in r.text and "rotatable" in r.text, r.text)
+    kiem("goc xoay tren cong cu KHONG rotatable → nop bai 400 (danh sach cau sai)", r.status_code == 400 and "bai_chua_hop_le" in r.text and "không cho xoay" in r.text, r.text)
     luu(L[0], b0["attemptId"], s0, {**anh_nhan(45, 0), "khung": [{"labelId": "bien", "x": 150, "y": 50, "w": 80, "h": 30, "angle": 45}]}).raise_for_status()
     r = nop_bai(L[0], b0["attemptId"])
-    kiem("khung xoay co dinh ra ngoai anh → nop bai 400", r.status_code == 400 and "ngoai anh" in r.text, r.text)
+    kiem("khung xoay co dinh ra ngoai anh → nop bai 400", r.status_code == 400 and "ngoài ảnh" in r.text, r.text)
     luu(L[0], b0["attemptId"], s0, anh_nhan(15, 0)).raise_for_status()
     r = nop_bai(L[0], b0["attemptId"])
     kiem("sua lai khung xoay hop le → nop duoc", r.status_code == 200, r.text)
@@ -85,7 +85,7 @@ try:
     kiem("lan 1 tinh moi (misses=1), lan 2 dung lai (hits=1, misses=0)",
          cache1 == "hits=0; misses=1" and kq2.headers.get("X-Results-Cache") == "hits=1; misses=0", (cache1, kq2.headers.get("X-Results-Cache")))
     kiem("ket qua lan 2 giong het lan 1", kq2.json()["samples"] == kq.json()["samples"])
-    dat_va_cho("labeling.threshold.polygon", 0.6, ["annotation"])
+    dat_va_cho("labeling.threshold.polygon", 0.6, ["project"])
     kiem("doi nguong ghep → dau van tay lech → tinh lai (misses=1)",
          requests.get(G + f"/annotations/projects/{P}/results", headers=biz["h"]).headers.get("X-Results-Cache") == "hits=0; misses=1")
 

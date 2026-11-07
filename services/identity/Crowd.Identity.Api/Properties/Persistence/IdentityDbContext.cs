@@ -31,7 +31,7 @@ namespace Crowd.Identity.Api.Persistence
 
         public DbSet<ThongKeLabeler> ThongKeLabelers => Set<ThongKeLabeler>();
 
-        public DbSet<ThongKeNgay> ThongKeNgays => Set<ThongKeNgay>();
+        public DbSet<HangChoTinhCap> HangChoTinhCaps => Set<HangChoTinhCap>();
 
         public DbSet<HuyHieuDaDat> HuyHieuDaDats => Set<HuyHieuDaDat>();
 
@@ -60,7 +60,7 @@ namespace Crowd.Identity.Api.Persistence
             modelBuilder.ApplyConfiguration(new BusinessProfileConfiguration());
             modelBuilder.ApplyConfiguration(new MaTaiKhoanConfiguration());
             modelBuilder.ApplyConfiguration(new ThongKeLabelerConfiguration());
-            modelBuilder.ApplyConfiguration(new ThongKeNgayConfiguration());
+            modelBuilder.ApplyConfiguration(new HangChoTinhCapConfiguration());
             modelBuilder.ApplyConfiguration(new HuyHieuDaDatConfiguration());
             modelBuilder.ApplyConfiguration(new MocThuHoiPhienConfiguration());
             modelBuilder.ApplyConfiguration(new HaiLopConfiguration());

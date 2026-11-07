@@ -15,6 +15,9 @@ namespace Crowd.Gate.Domain
     /// <summary>
     /// Ban sao du an tu project.published (chi du an BAT kenh cong link). Tap nhan co hop
     /// voi khach vang lai khong thi GateCatalog kiem luc nap (LuatCongLink).
+    ///
+    /// Mau + cau vang KHONG di theo event: worker keo qua gRPC tu project-svc (GateData) mot lan sau publish.
+    /// ContentLoadedAt null = chua keo xong → chua phuc vu.
     /// </summary>
     public sealed class DuAnCong
     {
@@ -41,6 +44,9 @@ namespace Crowd.Gate.Domain
 
         public DateTimeOffset UpdatedAt { get; private set; }
 
+        /// <summary>Luc da nap xong mau + cau vang tu project-svc. null = dang cho worker.</summary>
+        public DateTimeOffset? ContentLoadedAt { get; private set; }
+
         public static DuAnCong Tao(Guid projectId, Guid ownerId, string modality, string labelSchemaJson, long unitPriceVnd, long platformFeeVnd, DateTimeOffset luc)
         {
             DuAnCong d = new DuAnCong();
@@ -65,6 +71,11 @@ namespace Crowd.Gate.Domain
 
             Status = moi;
             UpdatedAt = luc;
+        }
+
+        public void DaNapNoiDung(DateTimeOffset luc)
+        {
+            ContentLoadedAt = luc;
         }
 
     }
@@ -111,7 +122,7 @@ namespace Crowd.Gate.Domain
         }
     }
 
-    /// <summary>Ban sao mau tu dataset.ingested — moi du an (chua biet du an nao se bat cong link luc nap).</summary>
+    /// <summary>Ban sao mau cua du an bat cong link — keo qua gRPC sau publish (GateContentLoader).</summary>
     public sealed class MauCong
     {
         private MauCong()
@@ -145,7 +156,7 @@ namespace Crowd.Gate.Domain
     }
 
     /// <summary>
-    /// Cau vang KIEM TRA (GoldPurpose.QualityCheck) tu gold_set.updated. Cau cua bai test
+    /// Cau vang KIEM TRA (QualityCheck) keo qua gRPC cung mau. Cau cua bai test
     /// dau vao KHONG dua len trang cong khai — khach vang lai nhin mai se thuoc de.
     /// Dap an chi nam o day, KHONG BAO GIO ra client (VD-Q-01).
     /// </summary>

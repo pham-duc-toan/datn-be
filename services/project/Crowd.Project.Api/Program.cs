@@ -1,18 +1,23 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Admin;
+using Crowd.Contracts.Gate;
+using Crowd.Contracts.Grpc.Identity;
+using Crowd.Contracts.Grpc.Quality;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
 using Crowd.Contracts.Media;
-using Crowd.Contracts.Tasking;
+using Crowd.Contracts.Quality;
 using Crowd.Project.Api.Consumers;
 using Crowd.Project.Api.Exceptions;
+using Crowd.Project.Api.Grpc;
 using Crowd.Project.Api.Helpers;
 using Crowd.Project.Api.Seeding;
 using Crowd.Project.Api.Services;
@@ -24,6 +29,7 @@ using Crowd.Project.Infrastructure.Persistence;
 using Crowd.Seeding;
 using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -50,11 +56,17 @@ builder.Services.AddEventConsumer<ProjectDbContext, EscrowReserved, EscrowReserv
 builder.Services.AddEventConsumer<ProjectDbContext, EscrowRejected, EscrowRejectedProcessor>(
     builder.Configuration, "project-svc.escrow-rejected");
 
-// Du an lam trung tam (docs 3.18): task-svc dong thu bai → Dang cham; het han khieu nai → Hoan thanh.
-builder.Services.AddEventConsumer<ProjectDbContext, ProjectCollectionFinished, CollectionFinishedProcessor>(
-    builder.Configuration, "project-svc.collection-finished");
-builder.Services.AddEventConsumer<ProjectDbContext, ProjectSettled, ProjectSettledProcessor>(
-    builder.Configuration, "project-svc.project-settled");
+// Lam bai va nhan (truoc la task-svc, annotation-svc — nay cung database): chi con nghe event cua SERVICE KHAC.
+// quality-svc cham xong → ghi ket qua bai + nhan, mo han khieu nai.
+builder.Services.AddEventConsumer<ProjectDbContext, ProjectGraded, ProjectGradedProcessor>(
+    builder.Configuration, "project-svc.project-graded");
+// Tai khoan bi khoa → huy bai dang lam. Dieu kien MO bai (khoa, cap, uy tin) hoi identity qua gRPC luc mo
+// (3.24) — khong con ban sao labeler_cache, nen khong nghe user.unblocked / level.changed / reputation.changed.
+builder.Services.AddEventConsumer<ProjectDbContext, UserBlocked, UserBlockedProcessor>(
+    builder.Configuration, "project-svc.user-blocked");
+// gate-svc: khach vuot link da gan nhan → nhan Accepted (source LinkGateway).
+builder.Services.AddEventConsumer<ProjectDbContext, GateSolved, GateSolvedProcessor>(
+    builder.Configuration, "project-svc.gate-solved");
 
 // Email vua xac thuc → nhan loi moi cho gui toi email do.
 builder.Services.AddEventConsumer<ProjectDbContext, UserEmailVerified, UserEmailVerifiedProcessor>(
@@ -107,13 +119,54 @@ builder.Services.AddHostedService<DatasetIngestWorker>();
 builder.Services.AddScoped<GoldSetService>();
 builder.Services.AddScoped<EntranceTestService>();
 builder.Services.AddHostedService<PendingApprovalTimeoutWorker>();
+
+// Lam bai (FL-04..FL-09) va nhan / ket qua / xuat file (FB-22, FB-25).
+builder.Services.AddScoped<BaiLamRevoker>();
+builder.Services.AddScoped<ThuBaiService>();
+builder.Services.AddScoped<LamBaiService>();
+builder.Services.AddScoped<BaoLoiService>();
+builder.Services.AddScoped<DonDuAnDaDongService>();
+builder.Services.AddScoped<AnnotationService>();
+builder.Services.AddHostedService<BaiLamWorker>();
+builder.Services.AddHostedService<ClosedProjectPurgeWorker>();
+builder.Services.AddHostedService<HistoryRetentionWorker>();
+// IP that cua labeler qua X-Forwarded-For cua gateway (chi tin mang noi bo cau hinh) — chong gian lan (FM-07).
+builder.Services.Configure<ForwardedHeadersOptions>(o => ProxyTinCay.CauHinh(o, builder.Configuration));
+
 builder.Services.AddScoped<ProjectSeeder>();
 
 // ---- Kiem token (giong moi service) ----
 builder.Services.AddCrowdJwtAuthentication(builder.Configuration);
 builder.Services.AddCrowdInternalApi(builder.Configuration);
-builder.Services.AddHttpClient<DongSoClient>();
-builder.Services.AddHttpClient<IdentityClient>();
+
+// ---- gRPC noi bo ben GOI (3.24): identity (tra cuu nguoi dung luc moi / tham gia / mo bai), quality (gop nhan
+// cho ket qua giao doanh nghiep — thuat toan chi con o quality-svc) ----
+InternalApiOptions noiBo = new InternalApiOptions();
+builder.Configuration.GetSection(InternalApiOptions.Section).Bind(noiBo);
+if (string.IsNullOrWhiteSpace(noiBo.Key) || string.IsNullOrWhiteSpace(noiBo.IdentityGrpcUrl)
+    || string.IsNullOrWhiteSpace(noiBo.QualityGrpcUrl))
+{
+    throw new InvalidOperationException("Thieu InternalApi:Key / IdentityGrpcUrl / QualityGrpcUrl trong appsettings.");
+}
+
+builder.Services.AddGrpcClient<IdentityData.IdentityDataClient>(o =>
+{
+    o.Address = new Uri(noiBo.IdentityGrpcUrl);
+});
+builder.Services.AddScoped<IdentityClient>();
+builder.Services.AddGrpcClient<LabelAggregation.LabelAggregationClient>(o =>
+{
+    o.Address = new Uri(noiBo.QualityGrpcUrl);
+});
+builder.Services.AddScoped<GopNhanClient>();
+
+// ---- gRPC noi bo ben PHUC VU (quality 3.22, gate 3.23, identity + ledger 3.24): cong rieng HTTP/2
+// (Kestrel:Endpoints:Grpc), khoa noi bo ----
+builder.Services.AddSingleton<InternalKeyInterceptor>();
+builder.Services.AddGrpc(options =>
+{
+    options.Interceptors.Add<InternalKeyInterceptor>();
+});
 
 // ---- HTTP ----
 builder.Services
@@ -146,9 +199,14 @@ using (IServiceScope scope = app.Services.CreateScope())
 }
 
 app.UseExceptionHandler();
+app.UseForwardedHeaders();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapGrpcService<QualityDataService>();
+app.MapGrpcService<GateDataService>();
+app.MapGrpcService<LabelerStatsService>();
+app.MapGrpcService<LedgerDataService>();
 
 await app.RunAsync();

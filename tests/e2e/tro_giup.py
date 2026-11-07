@@ -7,7 +7,7 @@ import hashlib, json, os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_ANNOTATION, URL_GATE, URL_LINK, URL_TASK, rabbit_container, sql_container  # noqa: E402,F401
+from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
 sys.path.insert(0, os.path.join(GOC_REPO, "services", "quality"))
 from tai_khoan_e2e import mo_rong_gioi_han, xac_thuc_email  # noqa: E402
 
@@ -120,7 +120,7 @@ if os.environ.get("E2E_HE_SO_NGUOI_LAM") != "giu":
     _he_so = requests.get(G + "/admin/settings/project.participant_multiplier", headers=admin).json()["value"]
     GOC.setdefault("project.participant_multiplier", _he_so)
     if _he_so != 1:
-        dat_va_cho("project.participant_multiplier", 1, ["task"])
+        dat_va_cho("project.participant_multiplier", 1, ["project"])
 
 
 def vi(u):
@@ -174,7 +174,7 @@ def publish_va_duyet(chu, pid):
     ok = cho(lambda: requests.get(G + f"/projects/{pid}", headers=chu["h"]).json()["status"] == "pendingApproval", 30)
     assert ok, requests.get(G + f"/projects/{pid}", headers=chu["h"]).text
     requests.post(G + f"/projects/{pid}/approve", headers=admin).raise_for_status()
-    # task-svc mo thu bai khi nhan project.published.
+    # project-svc mo dot thu bai ngay luc duyet du an.
     cho(lambda: requests.get(G + f"/tasks/projects/{pid}/slots", headers=chu["h"]).status_code == 200, 30)
 
 

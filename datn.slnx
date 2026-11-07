@@ -4,12 +4,6 @@
     <Project Path="services/admin/Crowd.Admin.Api/Crowd.Admin.Api.csproj" />
     <Project Path="services/admin/Crowd.Admin.Tests/Crowd.Admin.Tests.csproj" />
   </Folder>
-  <Folder Name="/services/annotation/">
-    <Project Path="services/annotation/Crowd.Annotation.Api/Crowd.Annotation.Api.csproj" />
-    <Project Path="services/annotation/Crowd.Annotation.Domain/Crowd.Annotation.Domain.csproj" />
-    <Project Path="services/annotation/Crowd.Annotation.Infrastructure/Crowd.Annotation.Infrastructure.csproj" />
-    <Project Path="services/annotation/Crowd.Annotation.Tests/Crowd.Annotation.Tests.csproj" />
-  </Folder>
   <Folder Name="/services/gate/">
     <Project Path="services/gate/Crowd.Gate.Api/Crowd.Gate.Api.csproj" />
     <Project Path="services/gate/Crowd.Gate.Domain/Crowd.Gate.Domain.csproj" />
@@ -53,12 +47,6 @@
     <Project Path="services/project/Crowd.Project.Domain/Crowd.Project.Domain.csproj" />
     <Project Path="services/project/Crowd.Project.Infrastructure/Crowd.Project.Infrastructure.csproj" />
     <Project Path="services/project/Crowd.Project.Tests/Crowd.Project.Tests.csproj" />
-  </Folder>
-  <Folder Name="/services/task/">
-    <Project Path="services/task/Crowd.Tasking.Api/Crowd.Tasking.Api.csproj" />
-    <Project Path="services/task/Crowd.Tasking.Domain/Crowd.Tasking.Domain.csproj" />
-    <Project Path="services/task/Crowd.Tasking.Infrastructure/Crowd.Tasking.Infrastructure.csproj" />
-    <Project Path="services/task/Crowd.Tasking.Tests/Crowd.Tasking.Tests.csproj" />
   </Folder>
   <Folder Name="/services/web-bff/">
     <Project Path="services/web-bff/Crowd.WebBff.Api/Crowd.WebBff.Api.csproj" />

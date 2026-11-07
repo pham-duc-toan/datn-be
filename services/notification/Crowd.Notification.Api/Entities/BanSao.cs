@@ -74,47 +74,4 @@ namespace Crowd.Notification.Api.Entities
             EmailEnabled = bat;
         }
     }
-
-    /// <summary>Chu du an (tu project.publish_requested): escrow.rejected chi mang ProjectId.</summary>
-    public sealed class ChuDuAn
-    {
-        private ChuDuAn()
-        {
-        }
-
-        public Guid ProjectId { get; private set; }
-
-        public Guid OwnerId { get; private set; }
-
-        public static ChuDuAn Tao(Guid projectId, Guid ownerId)
-        {
-            ChuDuAn c = new ChuDuAn();
-            c.ProjectId = projectId;
-            c.OwnerId = ownerId;
-            return c;
-        }
-    }
-
-    /// <summary>Chu lenh rut (tu payout.requested): payout.completed / failed chi mang WithdrawalId.</summary>
-    public sealed class ChuLenhRut
-    {
-        private ChuLenhRut()
-        {
-        }
-
-        public Guid WithdrawalId { get; private set; }
-
-        public Guid LabelerId { get; private set; }
-
-        public long NetAmountVnd { get; private set; }
-
-        public static ChuLenhRut Tao(Guid withdrawalId, Guid labelerId, long netAmountVnd)
-        {
-            ChuLenhRut c = new ChuLenhRut();
-            c.WithdrawalId = withdrawalId;
-            c.LabelerId = labelerId;
-            c.NetAmountVnd = netAmountVnd;
-            return c;
-        }
-    }
 }

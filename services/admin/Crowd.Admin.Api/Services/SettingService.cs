@@ -241,12 +241,24 @@ namespace Crowd.Admin.Api.Services
         /// Moi khoa trong danh muc chua co trong bang → them voi gia tri khoi tao (kem
         /// lich su "khoi tao"). Khong bao gio ghi de gia tri admin da dat. Development co
         /// the dung gia tri dev rieng (vd treo tien 2 phut de test nhanh).
+        ///
+        /// Khoa da BO khoi danh muc (vd quality.fraud_submission_retention, kien truc 3.22) → xoa khoi
+        /// bang (lich su giu lai): khong xoa thi settings.snapshot phat no mai mai, moi service ghi canh
+        /// bao "khong hop le voi catalog" moi lan nhan.
         /// </summary>
         public async Task<int> KhoiTaoAsync(IReadOnlyDictionary<string, JsonNode> giaTriDev, CancellationToken ct)
         {
             HashSet<string> co = new HashSet<string>(await _db.Settings.Select(s => s.Key).ToListAsync(ct), StringComparer.Ordinal);
             DateTimeOffset bayGio = _clock.GetUtcNow();
             int so = 0;
+
+            HashSet<string> trongDanhMuc = new HashSet<string>(SettingCatalog.TatCa.Select(d => d.Key), StringComparer.Ordinal);
+            List<string> thua = co.Where(k => !trongDanhMuc.Contains(k)).ToList();
+            if (thua.Count > 0)
+            {
+                await _db.Settings.Where(s => thua.Contains(s.Key)).ExecuteDeleteAsync(ct);
+                _logger.LogInformation("Setting: xoa {So} khoa khong con trong danh muc: {Khoa}", thua.Count, string.Join(", ", thua));
+            }
 
             foreach (SettingDefinition d in SettingCatalog.TatCa)
             {

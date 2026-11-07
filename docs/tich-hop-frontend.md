@@ -609,19 +609,14 @@ POST /projects/{id}/cancel   { "reason": "..." }
 
 | Phản hồi | Ý nghĩa | FE làm gì |
 |---|---|---|
-| 409 `can_tam_dung_truoc` | Dự án đang chạy | Nút "Tạm dừng" trước; tạm dừng thì ngừng cấp task mới, người đang làm vẫn nộp được |
-| 409 `chua_the_dong`, `closeCheck.reasons` chứa `chua_dong_bo_tam_dung` | Lệnh tạm dừng chưa tới task-svc | Thử lại sau vài giây |
-| … `con_luot_dang_lam` (`activeLeases`) | Labeler đang làm dở | "Còn N người đang làm — chờ họ nộp (tối đa 15 phút)" |
-| … `con_nhan_cho_duyet` (`pendingReview`) | Còn nhãn chưa duyệt | Link sang hàng duyệt / nút duyệt hàng loạt |
-| … `con_khieu_nai` (`openAppeals`) | Có khiếu nại chờ admin | "Chờ admin phân xử" |
-| … `con_han_khieu_nai` (`rejectedInAppealWindow`, `appealWindowEndsAt`) | Nhãn bị từ chối còn trong hạn khiếu nại | "Đóng được sau {appealWindowEndsAt}" |
-| … `nhan_chua_dong_bo` (`annotationCount` ≠ `submittedCount`) | Nhãn vừa nộp chưa tới annotation-svc | Thử lại sau vài giây |
-| 503 `dich_vu_khong_san_sang` | Không kiểm được | Thử lại sau |
+| 409 `can_tam_dung_truoc` | Dự án đang chạy | Nút "Tạm dừng" trước; tạm dừng thì không mở bài mới, người đang làm giữ bài (nộp lại được khi chạy tiếp) |
+| 409 `chua_the_dong`, `closeCheck.reasons` chứa `da_co_bai_nop` (`submittedCount`, `inProgressCount`) | Đã có bài nộp — huỷ sẽ làm người nộp làm không công | Ẩn "Huỷ", gợi ý "Kết thúc sớm" (chấm + trả thưởng bài đạt, hoàn phần suất thừa) |
+
+Tạm dừng / huỷ được ghi **ngay** (phần thu bài cùng database với dự án), không còn trạng thái "chưa đồng bộ — thử lại sau vài giây".
 
 ```json
-{ "code": "chua_the_dong", "detail": "Chua dong duoc du an: con 2 nhan cho duyet.",
-  "closeCheck": { "reasons": ["con_nhan_cho_duyet"], "activeLeases": 0, "submittedCount": 2, "annotationCount": 2,
-                  "pendingReview": 2, "openAppeals": 0, "rejectedInAppealWindow": 0, "appealWindowEndsAt": null } }
+{ "code": "chua_the_dong", "detail": "Đã có 2 bài nộp — không huỷ được. Bấm \"Kết thúc sớm\" để chấm và trả thưởng cho người đạt.",
+  "closeCheck": { "reasons": ["da_co_bai_nop"], "inProgressCount": 1, "submittedCount": 2 } }
 ```
 
 Sau khi đóng: duyệt, từ chối, khiếu nại, phân xử nhãn của dự án → 409 `du_an_da_ket_thuc`.
@@ -919,7 +914,7 @@ DELETE /projects/{id}/join-requests/mine   → rút đơn đang chờ (404 nếu
 ```
 
 - 409 `da_co_don_dang_cho` (mỗi dự án một đơn chờ), `chua_duoc_xin_lai` (bị từ chối chưa quá `project.join_request_cooldown`, mặc định 24 giờ — hiện `canRequestAgainAt`), `can_lam_test` (dự án có bài test: làm bài, đạt thì đơn tự tạo), `khong_can_duyet` (dự án `public`: dùng `join`).
-- Kết quả đơn tới qua thông báo `thanh_vien` ("Đơn xin tham gia được duyệt / bị từ chối"). Được duyệt thì `POST /tasks/projects/{id}/next` dùng được sau vài giây (task-svc nhận `member.added`).
+- Kết quả đơn tới qua thông báo `thanh_vien` ("Đơn xin tham gia được duyệt / bị từ chối"). Được duyệt thì `POST /tasks/projects/{id}/attempt` dùng được ngay (cùng database với thành viên).
 
 ### 5.2 Bài test đầu vào
 

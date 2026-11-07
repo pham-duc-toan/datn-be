@@ -14,8 +14,8 @@ namespace Crowd.BuildingBlocks.Auth.Internal
     /// Cau hinh goi HTTP NOI BO giua cac service (muc "InternalApi" trong appsettings).
     ///
     /// Chi dung cho thao tac HIEM, khong nam tren duong nong, ma can hoi CHU du lieu
-    /// ngay tai cho (luat muc 4 docs: quyet dinh tien bac hoi lai chu so huu) — vd dong
-    /// du an: project-svc hoi task-svc va annotation-svc truoc khi tra ky quy.
+    /// ngay tai cho (luat muc 4 docs: quyet dinh tien bac hoi lai chu so huu) — vd
+    /// ledger-svc hoi identity-svc trang thai khoa luc rut tien.
     /// </summary>
     public sealed class InternalApiOptions
     {
@@ -24,12 +24,20 @@ namespace Crowd.BuildingBlocks.Auth.Internal
         /// <summary>Khoa dung chung giua cac service. Rong = moi endpoint noi bo tu choi.</summary>
         public string Key { get; set; } = string.Empty;
 
-        public string TaskUrl { get; set; } = string.Empty;
-
-        public string AnnotationUrl { get; set; } = string.Empty;
-
-        /// <summary>identity-svc: project-svc tra cuu nguoi duoc moi / xin vao du an.</summary>
+        /// <summary>identity-svc: project-svc tra cuu nguoi duoc moi, ledger kiem khoa luc rut, link kiem luc dang ky.</summary>
         public string IdentityUrl { get; set; } = string.Empty;
+
+        /// <summary>
+        /// project-svc gRPC (HTTP/2, cong 9102): gate keo mau + cau vang luc du an publish bat cong link; identity
+        /// doc so cau duoc chap nhan / bang xep hang; ledger doc ten du an luc xuat hoa don.
+        /// </summary>
+        public string ProjectGrpcUrl { get; set; } = string.Empty;
+
+        /// <summary>identity-svc gRPC (HTTP/2, cong 9101): project-svc tra cuu nguoi dung (moi / tham gia / mo bai).</summary>
+        public string IdentityGrpcUrl { get; set; } = string.Empty;
+
+        /// <summary>quality-svc gRPC (HTTP/2, cong 9201): project-svc nho gop nhan cho ket qua giao doanh nghiep.</summary>
+        public string QualityGrpcUrl { get; set; } = string.Empty;
 
         /// <summary>Het gio moi loi goi noi bo.</summary>
         public int TimeoutSeconds { get; set; } = 10;

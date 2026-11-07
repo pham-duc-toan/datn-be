@@ -34,8 +34,8 @@ namespace Crowd.Contracts.Project
         public required long EscrowAmountVnd { get; init; }
 
         /// <summary>
-        /// Ten du an luc publish — ledger ghi len dong hoa don VAT (FB-05). KHONG bat buoc: ban tin
-        /// phat truoc khi them truong nay khong co, ledger in "Du an {ma}".
+        /// Ten du an luc publish — admin-svc dat lam tieu de muc cho duyet (read model dung tu event). KHONG bat
+        /// buoc. ledger KHONG chep ten nay nua (3.24): hoa don VAT hoi ten qua gRPC LedgerData luc xuat.
         /// </summary>
         public string? ProjectName { get; init; }
     }
@@ -70,7 +70,7 @@ namespace Crowd.Contracts.Project
 
         /// <summary>
         /// TAP NHAN o dang chuan (Crowd.Labeling.LabelSchema): loai du lieu + danh
-        /// sach cong cu. task-svc, annotation-svc, quality-svc chep nguyen khoi nay — kiem nhan,
+        /// sach cong cu. quality-svc, gate-svc chep nguyen khoi nay — kiem nhan,
         /// cham cau vang, gop ket qua deu theo no, khong phai hoi lai project-svc.
         /// </summary>
         public required RawJson LabelSchema { get; init; }
@@ -100,7 +100,7 @@ namespace Crowd.Contracts.Project
         /// <summary>So cau that cua de (khong tinh cau vang) luc publish.</summary>
         public required int QuestionCount { get; init; }
 
-        /// <summary>Han chot: toi han thi task-svc dong thu bai (bai dang lam do dang khong duoc tinh).</summary>
+        /// <summary>Han chot: toi han thi project-svc dong thu bai (bai dang lam do dang khong duoc tinh).</summary>
         public required DateTimeOffset Deadline { get; init; }
 
         public required bool AllowProfessional { get; init; }
@@ -123,7 +123,7 @@ namespace Crowd.Contracts.Project
         /// <summary>true = chi thanh vien duoc moi moi thay du an (FP-05).</summary>
         public required bool IsPrivate { get; init; }
 
-        /// <summary>null = khong gioi han. task-svc loc theo labeler_cache.</summary>
+        /// <summary>null = khong gioi han. project-svc loc theo labeler_cache.</summary>
         public int? MinLevel { get; init; }
 
         /// <summary>Thang 0-100. null = khong gioi han.</summary>
@@ -171,27 +171,8 @@ namespace Crowd.Contracts.Project
     }
 
     /// <summary>
-    /// Doanh nghiep bam "Ket thuc som": task-svc dong thu bai NGAY (bai dang lam do dang bi huy,
-    /// khong tinh) roi phat project.collection_finished nhu khi du suat / het han.
-    /// </summary>
-    public sealed record ProjectFinishRequested : IEventPayload
-    {
-        public static string EventType
-        {
-            get { return "project.finish_requested"; }
-        }
-
-        public static int Version
-        {
-            get { return 1; }
-        }
-
-        public required Guid ProjectId { get; init; }
-    }
-
-    /// <summary>
     /// Du an bi huy — CHI khi chua co bai nao duoc nop (con bai nop thi phai "ket thuc som" de cham,
-    /// khong ai lam khong cong). task-svc huy bai dang lam; ledger hoan toan bo ky quy.
+    /// khong ai lam khong cong). Bai dang lam bi huy cung transaction; ledger hoan toan bo ky quy.
     /// </summary>
     public sealed record ProjectCancelled : IEventPayload
     {
@@ -219,8 +200,8 @@ namespace Crowd.Contracts.Project
     }
 
     /// <summary>
-    /// Du an ket thuc: da cham, het han khieu nai, khong con khieu nai mo (task-svc phat
-    /// project.settled). Ledger hoan phan ky quy con lai SAU KHI da tra du PassedAttemptCount nguoi:
+    /// Du an ket thuc: da cham, het han khieu nai, khong con khieu nai mo (project-svc
+    /// chot dot thu bai). Ledger hoan phan ky quy con lai SAU KHI da tra du PassedAttemptCount nguoi:
     /// project.graded / attempt.appeal_resolved va event nay di cac queue khac nhau, tien thuong co
     /// the toi SAU (bai hoc NC-B-01, TLA+).
     /// </summary>
@@ -242,5 +223,28 @@ namespace Crowd.Contracts.Project
 
         /// <summary>So bai DUOC THUONG cuoi cung (sau khieu nai, toi da so suat) — so nguoi ledger phai tra truoc khi hoan. Ten giu nguyen tu ban cu (khi moi bai dat deu duoc thuong).</summary>
         public required int PassedAttemptCount { get; init; }
+    }
+
+    /// <summary>
+    /// project-svc DA GHI ket qua cham (project.graded cua quality-svc) vao bai lam — so cau duoc chap nhan doc
+    /// qua gRPC LabelerStatsData tu luc nay moi tinh ca du an nay. identity xep cac labeler co bai dat vao hang cho
+    /// tinh lai cap / huy hieu (kien truc 3.24). Phat MOT lan trong cung transaction voi luc ghi ket qua.
+    /// </summary>
+    public sealed record ProjectGradingApplied : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "project.grading_applied"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid ProjectId { get; init; }
+
+        /// <summary>Labeler co bai DAT trong du an (so cau duoc chap nhan cua ho vua tang).</summary>
+        public required IReadOnlyList<Guid> ApprovedLabelerIds { get; init; }
     }
 }

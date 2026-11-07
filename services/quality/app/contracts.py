@@ -12,49 +12,9 @@ from typing import Any
 from app.messaging.envelope import HopDong, Payload
 
 
-class LabelPayload(HopDong):
-    """Nhan dinh dang chung (Crowd.Labeling): taskType = loai du lieu, data theo ten cong cu."""
-
-    task_type: str
-    schema_version: int
-    data: dict[str, Any]
-
-
 # =====================================================================
 # NHAN VAO
 # =====================================================================
-
-
-class ProjectPublished(Payload):
-    """v2 — du an lam trung tam (docs 3.18): thuong / suat / nguong dat cho CA du an."""
-
-    EVENT_TYPE = "project.published"
-
-    project_id: uuid.UUID
-    owner_id: uuid.UUID
-    modality: str
-    label_schema: dict[str, Any]
-    reward_vnd: int
-    platform_fee_vnd: int
-    slots: int
-    pass_threshold_percent: int
-    # Lap suat trong — khong bat buoc (ban tin cu / null = khong lap).
-    fill_slots_min_percent: int | None = None
-    question_count: int
-    deadline: datetime
-    allow_professional: bool
-    allow_link_gateway: bool
-    allow_collaborative: bool
-    gate_unit_price_vnd: int | None = None
-    gate_platform_fee_vnd: int | None = None
-    gate_budget_vnd: int | None = None
-    is_private: bool
-    min_level: int | None
-    min_reputation: int | None
-    require_entrance_test: bool
-    sample_count: int
-    # Noi dung nhay cam (muc 2.9) — khong bat buoc.
-    sensitive_content: bool | None = None
 
 
 class ProjectCompleted(Payload):
@@ -76,26 +36,17 @@ class ProjectCancelled(Payload):
     was_escrowed: bool
 
 
-class AttemptAnswer(HopDong):
-    """Mot cau THAT trong bai nop; label_payload None = labeler bo trong cau nay."""
-
-    sample_id: uuid.UUID
-    storage_key: str | None = None
-    sample_content: Any | None = None
-    sample_metadata: Any
-    label_payload: LabelPayload | None = None
-
-
 class AttemptSubmitted(Payload):
-    """task-svc: labeler nop CA BAI. Cau vang chi mang so dung / tong (khong lo cau nao la vang).
-    StartedAt / SubmittedAt, ClientIp / DeviceId de chong gian lan (FM-07)."""
+    """v2 (kien truc 3.22): labeler nop CA BAI — chi la TIN HIEU. Cau tra loi, de bai, IP / thiet bi quality doc
+    qua gRPC tu project-svc luc xet (viec_cho.py), khong di trong event."""
 
     EVENT_TYPE = "attempt.submitted"
+    VERSION = 2
 
     attempt_id: uuid.UUID
     project_id: uuid.UUID
     labeler_id: uuid.UUID
-    answers: list[AttemptAnswer]
+    answered_count: int
     gold_total: int
     gold_correct: int
     started_at: datetime
@@ -112,7 +63,8 @@ class SubmittedAttemptRef(HopDong):
 
 
 class ProjectCollectionFinished(Payload):
-    """task-svc dong thu bai (du suat / het han / ket thuc som): danh sach bai PHAI cham + cau bi loai."""
+    """project-svc dong thu bai (du suat / het han / ket thuc som). quality chi dung no lam yeu cau cham: de bai,
+    bai nop, cau bi loai doc lai qua gRPC (cung nguon voi lan cham lai cua worker)."""
 
     EVENT_TYPE = "project.collection_finished"
 
@@ -145,8 +97,10 @@ class ProjectGraded(Payload):
     """Cham xong ca du an: bai dat (ti le cau giong da so >= nguong VA dung het cau vang) duoc thuong."""
 
     EVENT_TYPE = "project.graded"
+    VERSION = 2  # v2: + owner_id
 
     project_id: uuid.UUID
+    owner_id: uuid.UUID
     pass_threshold_percent: int
     majority_used: bool
     attempts: list[GradedAttempt]

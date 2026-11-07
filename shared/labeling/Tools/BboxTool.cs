@@ -9,12 +9,10 @@ namespace Crowd.Labeling.Tools
     /// Khung chu nhat tren anh: [{"labelId":"xe","x":10,"y":20,"w":100,"h":50}],
     /// toa do pixel, goc tren-trai. Khung phai nam trong anh (width x height).
     /// Cham dap an: IoU tung cap &gt;= nguong (mac dinh 0.5 — muc pho bien cua COCO/PASCAL VOC).
-    /// Gop nhieu nguoi: ghep cum theo IoU, khung dai dien = TRUNG VI tung toa do.
     ///
     /// KHUNG XOAY (cong cu "rotatable": true): them "angle" (do, -90..90, thuan chieu kim dong ho tren anh)
     /// quay khung quanh TAM. Ca bon dinh phai nam trong anh. IoU co khung xoay = IoU da giac cua bon dinh
     /// (HinhHoc.IouDaGiac, luoi 100 x 100 — cung cach voi polygon); hai khung khong xoay van tinh chinh xac.
-    /// Gop: trung vi x, y, w, h va trung vi angle.
     /// </summary>
     internal sealed class BboxTool : DanhSachToolBase
     {
@@ -126,25 +124,6 @@ namespace Crowd.Labeling.Tools
         {
             return DoGiongDaPhanTich(PhanTich(a), PhanTich(b), tyLe);
         }
-
-        protected override JsonObject DaiDien(IReadOnlyList<JsonObject> thanhVien, BoSoSanh so)
-        {
-            JsonObject dd = new JsonObject
-            {
-                ["x"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => HinhHoc.So(m["x"])))),
-                ["y"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => HinhHoc.So(m["y"])))),
-                ["w"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => HinhHoc.So(m["w"])))),
-                ["h"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => HinhHoc.So(m["h"])))),
-            };
-
-            if (thanhVien.Any(m => m["angle"] != null))
-            {
-                dd["angle"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => Goc(m))));
-            }
-
-            return dd;
-        }
-
         protected override string KhoaSapXep(JsonObject p)
         {
             return p["labelId"]!.GetValue<string>() + "|" + SoDeSapXep(HinhHoc.So(p["x"])) + "|" + SoDeSapXep(HinhHoc.So(p["y"]))

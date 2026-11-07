@@ -92,6 +92,23 @@ namespace Crowd.Project.Api.Services
             return duAn;
         }
 
+        /// <summary>
+        /// Lay mot du an cho thao tac CHI CHU DU AN (hoac admin) cua phan lam bai / nhan (/tasks, /annotations):
+        /// khong phai chu thi 404, KHONG phai 403 — labeler trong du an cung khong biet tien do, bao loi, nhan cua
+        /// nguoi khac co ton tai hay khong (giu dung hop dong cua task-svc / annotation-svc truoc khi gop).
+        /// </summary>
+        public async Task<LabelingProject> LayChoChuAsync(Guid projectId, Caller caller, CancellationToken ct)
+        {
+            LabelingProject? duAn = await XemDuoc(caller).FirstOrDefaultAsync(p => p.Id == projectId, ct);
+
+            if (duAn == null || !LaChu(duAn, caller))
+            {
+                throw new NotFoundException("Không tìm thấy dự án.");
+            }
+
+            return duAn;
+        }
+
         public static bool LaChu(LabelingProject duAn, Caller caller)
         {
             if (duAn == null)

@@ -11,4 +11,20 @@
     <ProjectReference Include="..\..\..\shared\settings\Crowd.Settings.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.Net.ClientFactory" />
+  </ItemGroup>
+
+  <!-- gRPC noi bo. Phuc vu: quality-svc (kien truc 3.22), gate-svc (3.23), identity-svc + ledger-svc (3.24).
+       Goi: identity-svc (tra cuu nguoi dung), quality-svc (gop nhan). Proto dung chung o contracts/grpc. -->
+  <ItemGroup>
+    <Protobuf Include="..\..\..\contracts\grpc\project\v1\quality_data.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Server" Link="Grpc\quality_data.proto" />
+    <Protobuf Include="..\..\..\contracts\grpc\project\v1\gate_data.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Server" Link="Grpc\gate_data.proto" />
+    <Protobuf Include="..\..\..\contracts\grpc\project\v1\labeler_stats.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Server" Link="Grpc\labeler_stats.proto" />
+    <Protobuf Include="..\..\..\contracts\grpc\project\v1\ledger_data.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Server" Link="Grpc\ledger_data.proto" />
+    <Protobuf Include="..\..\..\contracts\grpc\identity\v1\identity_data.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Client" Link="Grpc\identity_data.proto" />
+    <Protobuf Include="..\..\..\contracts\grpc\quality\v1\label_aggregation.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Client" Link="Grpc\label_aggregation.proto" />
+  </ItemGroup>
+
 </Project>

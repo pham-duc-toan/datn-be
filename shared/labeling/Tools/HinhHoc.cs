@@ -7,11 +7,13 @@ using System.Text.Json.Nodes;
 namespace Crowd.Labeling.Tools
 {
     /// <summary>
-    /// Phep do dung chung cho so khop dap an va gop nhan nhieu nguoi.
+    /// Phep do do giong (IoU, CER, Kendall, do lech duong...) de CHAM DAP AN: cau vang luc nop bai,
+    /// bai test dau vao (project-svc), cau vang o duong nong cong link (gate-svc) — deu phai tra loi
+    /// ngay, khong goi service khac.
     ///
-    /// quality-svc (Python, app/gop.py) cai LAI dung cac cong thuc nay — hai ben doi chieu bang
-    /// bo vi du chung contracts/labeling/testdata/gop.vectors.json. Sua cong thuc o day thi sua
-    /// ca ben kia va cap nhat bo vi du.
+    /// quality-svc (app/gop.py) co cung cac phep do nay de GHEP CUM khi gop nhan (kien truc 3.24 — gop chi
+    /// con o Python). Hai ben phai ra cung do giong: sua cong thuc o day thi sua ca app/gop.py; bo vi du
+    /// contracts/labeling/testdata/gop.vectors.json (test Python) bat lech phia gop.
     /// </summary>
     internal static class HinhHoc
     {
@@ -260,18 +262,6 @@ namespace Crowd.Labeling.Tools
             return (double)KhoangCachSua(a, b) / b.Length;
         }
 
-        /// <summary>
-        /// Do lech DOI XUNG giua hai van ban (0 = giong het, 1 = khac hoan toan): khoang cach sua
-        /// chia do dai ban dai hon, sau khi chuan hoa. Dung chon ban "o giua" khi gop nhieu ban chep.
-        /// </summary>
-        public static double DoLechChu(string x, string y)
-        {
-            string a = ChuanHoaChu(x);
-            string b = ChuanHoaChu(y);
-            int dai = Math.Max(a.Length, b.Length);
-            return dai == 0 ? 0 : (double)KhoangCachSua(a, b) / dai;
-        }
-
         /// <summary>Khoang cach Levenshtein: so phep them / xoa / thay it nhat de bien a thanh b.</summary>
         public static int KhoangCachSua(string a, string b)
         {
@@ -297,30 +287,6 @@ namespace Crowd.Labeling.Tools
             }
 
             return truoc[b.Length];
-        }
-
-        // =====================================================================
-        // SO: lam tron, trung vi
-        // =====================================================================
-
-        /// <summary>Lam tron 3 chu so thap phan (nua thi len) — cung cong thuc voi ben Python.</summary>
-        public static double LamTron(double v)
-        {
-            return Math.Floor((v * 1000) + 0.5) / 1000;
-        }
-
-        /// <summary>Trung vi; so phan tu chan thi lay trung binh hai phan tu giua.</summary>
-        public static double TrungVi(IEnumerable<double> giaTri)
-        {
-            List<double> ds = new List<double>(giaTri);
-            ds.Sort();
-            if (ds.Count == 0)
-            {
-                throw new ArgumentException("Can it nhat mot gia tri.", nameof(giaTri));
-            }
-
-            int giua = ds.Count / 2;
-            return ds.Count % 2 == 1 ? ds[giua] : (ds[giua - 1] + ds[giua]) / 2;
         }
 
         // =====================================================================
@@ -433,15 +399,9 @@ namespace Crowd.Labeling.Tools
         }
 
         /// <summary>
-        /// Do lech trung binh (pixel) giua hai duong gap khuc: lay mau deu tren moi duong, trung binh
-        /// khoang cach tung cap diem tuong ung; thu ca chieu nguoc (ve tu dau nao cung la mot duong).
+        /// Do lech trung binh (pixel) giua hai duong gap khuc DA lay mau deu (moi day SoDiemMauDuong diem):
+        /// trung binh khoang cach tung cap diem tuong ung; thu ca chieu nguoc (ve tu dau nao cung la mot duong).
         /// </summary>
-        public static double DoLechDuong(IReadOnlyList<double[]> p1, IReadOnlyList<double[]> p2)
-        {
-            return DoLechMauDuong(LayMauDuong(p1, SoDiemMauDuong), LayMauDuong(p2, SoDiemMauDuong));
-        }
-
-        /// <summary>DoLechDuong tren hai day diem DA lay mau (moi day SoDiemMauDuong diem).</summary>
         public static double DoLechMauDuong(IReadOnlyList<double[]> a, IReadOnlyList<double[]> b)
         {
             double xuoi = 0;

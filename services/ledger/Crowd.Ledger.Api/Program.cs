@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Auth.Internal;
+using Crowd.Contracts.Grpc.Project;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Contracts.Gate;
@@ -51,8 +52,6 @@ builder.Services.AddEventConsumer<LedgerDbContext, ProjectCompleted, ProjectComp
 builder.Services.AddEventConsumer<LedgerDbContext, DepositConfirmed, DepositConfirmedProcessor>(cfg, "ledger-svc.deposit-confirmed");
 builder.Services.AddEventConsumer<LedgerDbContext, PayoutCompleted, PayoutCompletedProcessor>(cfg, "ledger-svc.payout-completed");
 builder.Services.AddEventConsumer<LedgerDbContext, PayoutFailed, PayoutFailedProcessor>(cfg, "ledger-svc.payout-failed");
-builder.Services.AddEventConsumer<LedgerDbContext, UserBlocked, UserBlockedProcessor>(cfg, "ledger-svc.user-blocked");
-builder.Services.AddEventConsumer<LedgerDbContext, UserUnblocked, UserUnblockedProcessor>(cfg, "ledger-svc.user-unblocked");
 // Xac thuc email (FC-01): chua xac thuc thi chua rut tien duoc.
 
 // Cong link (P2): tra nguoi chia se, hoa hong gioi thieu, giu doanh thu link vi pham.
@@ -71,6 +70,20 @@ builder.Services.AddScoped<ThongKeService>();
 // Hoa don GTGT (FB-05): hoi identity ho so KYB luc xuat (API noi bo), worker tu xuat dau thang.
 builder.Services.AddCrowdInternalApi(cfg);
 builder.Services.AddHttpClient<IdentityClient>();
+
+// Ten du an in len hoa don VAT: hoi project-svc qua gRPC LedgerData luc xuat (3.24) — khong chep vao escrow.
+InternalApiOptions noiBo = new InternalApiOptions();
+cfg.GetSection(InternalApiOptions.Section).Bind(noiBo);
+if (string.IsNullOrWhiteSpace(noiBo.Key) || string.IsNullOrWhiteSpace(noiBo.ProjectGrpcUrl))
+{
+    throw new InvalidOperationException("Thieu InternalApi:Key / InternalApi:ProjectGrpcUrl trong appsettings.");
+}
+
+builder.Services.AddGrpcClient<LedgerData.LedgerDataClient>(o =>
+{
+    o.Address = new Uri(noiBo.ProjectGrpcUrl);
+});
+builder.Services.AddScoped<TenDuAnClient>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddHostedService<InvoiceWorker>();
 builder.Services.AddHostedService<GateBatchWorker>();

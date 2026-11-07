@@ -15,6 +15,8 @@ using Crowd.Project.Api.Dtos;
 using Crowd.Project.Api.Exceptions;
 using Crowd.Project.Api.Helpers;
 using Crowd.Project.Api.Settings;
+using Crowd.Project.Domain.Attempts;
+using Crowd.Project.Domain.Collections;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Gold;
@@ -44,9 +46,9 @@ namespace Crowd.Project.Api.Services
         private readonly TimeProvider _clock;
         private readonly ILogger<ProjectService> _logger;
         private readonly ISettings _settings;
-        private readonly DongSoClient _dongSo;
+        private readonly ThuBaiService _thuBai;
+        private readonly BaiLamRevoker _revoker;
 
-        private static readonly string[] LyDoChuaDongBoTamDung = { "chua_dong_bo_tam_dung" };
         private static readonly string[] LyDoDaCoBaiNop = { "da_co_bai_nop" };
 
         public ProjectService(
@@ -57,20 +59,27 @@ namespace Crowd.Project.Api.Services
             TimeProvider clock,
             ILogger<ProjectService> logger,
             ISettings settings,
-            DongSoClient dongSo)
+            ThuBaiService thuBai,
+            BaiLamRevoker revoker)
         {
             if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            if (dongSo == null)
+            if (thuBai == null)
             {
-                throw new ArgumentNullException(nameof(dongSo));
+                throw new ArgumentNullException(nameof(thuBai));
+            }
+
+            if (revoker == null)
+            {
+                throw new ArgumentNullException(nameof(revoker));
             }
 
             _settings = settings;
-            _dongSo = dongSo;
+            _thuBai = thuBai;
+            _revoker = revoker;
 
             if (db == null)
             {
@@ -687,6 +696,7 @@ namespace Crowd.Project.Api.Services
             }
 
             duAn.Duyet(_clock.GetUtcNow());
+            MoDotThuBai(duAn);
             int soMau = await DemMauAsync(duAn.Id, ct);
             _events.Phat(caller, TaoProjectPublished(duAn, soMau));
             _logger.LogInformation("Du an {ProjectId} tu duyet (project.auto_approve)", duAn.Id);
@@ -707,12 +717,24 @@ namespace Crowd.Project.Api.Services
             }
 
             duAn.Duyet(_clock.GetUtcNow());
+            MoDotThuBai(duAn);
 
             int soMau = await DemMauAsync(id, ct);
             _events.Phat(caller, TaoProjectPublished(duAn, soMau));
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
+        }
+
+        /// <summary>
+        /// Du an vua duoc duyet (Dang chay): mo DOT THU BAI — tran nguoi lam = so suat x he so CHUP luc nay (admin
+        /// doi project.participant_multiplier sau do khong lam lech du an dang chay). Truoc khi gop, task-svc dung
+        /// ban sao nay tu project.published.
+        /// </summary>
+        private void MoDotThuBai(LabelingProject duAn)
+        {
+            _db.CollectionRounds.Add(CollectionRound.Mo(
+                duAn.Id, duAn.Slots, _settings.SoNguyen(SettingKeys.ProjectParticipantMultiplier), _clock.GetUtcNow()));
         }
 
         /// <summary>Admin tu choi: huy + ledger hoan ky quy (compensation).</summary>
@@ -727,81 +749,162 @@ namespace Crowd.Project.Api.Services
             return TaoResponse(duAn, caller);
         }
 
+        // ---- Tam dung / tiep tuc / ket thuc som / huy: cham ca du an LAN dot thu bai ----
+        //
+        // THU TU KHOA: dot thu bai (project_collections) TRUOC, roi moi doi du an — cung thu tu voi bat dau / nop
+        // bai (khoa dot → bai → mau). Nguoc thu tu thi nop bai cuoi (giu dot, cho projects khi dong thu bai) va
+        // tam dung (giu projects, cho dot) co the cho nhau vong tron.
+
         public async Task<ProjectResponse> TamDungAsync(Guid id, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.TamDung(_clock.GetUtcNow());
+            DateTimeOffset bayGio = _clock.GetUtcNow();
 
-            _events.Phat(caller, new ProjectPaused { ProjectId = duAn.Id });
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                CollectionRound? dot = await LamBaiQueries.KhoaDotAsync(_db, id, ct);
+                duAn.TamDung(bayGio);
+                if (dot != null)
+                {
+                    // Bai dang lam KHONG bi huy: luu nhap van duoc, chi chua nop / bat dau moi duoc. Chay tiep thi
+                    // thoi gian tam dung duoc cong bu cho moi bai dang lam.
+                    dot.GhiTamDung(bayGio);
+                }
 
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
+                // gate-svc nghe de ngung phuc vu trang vuot link cua du an.
+                _events.Phat(caller, new ProjectPaused { ProjectId = duAn.Id });
+
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return TaoResponse(duAn, caller);
+            }
+            finally
+            {
+                await tx.DisposeAsync();
+            }
         }
 
         public async Task<ProjectResponse> TiepTucAsync(Guid id, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.TiepTuc(_clock.GetUtcNow());
+            DateTimeOffset bayGio = _clock.GetUtcNow();
 
-            _events.Phat(caller, new ProjectResumed { ProjectId = duAn.Id });
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                CollectionRound? dot = await LamBaiQueries.KhoaDotAsync(_db, id, ct);
+                duAn.TiepTuc(bayGio);
+                if (dot != null)
+                {
+                    // Cong bu thoi gian tam dung cho bai dang lam (khong qua han chot).
+                    TimeSpan daDung = dot.TiepTuc(bayGio);
+                    if (daDung > TimeSpan.Zero && duAn.Deadline.HasValue)
+                    {
+                        List<Attempt> dangLam = await LamBaiQueries.KhoaBaiDangLamAsync(_db, id, null, ct);
+                        foreach (Attempt a in dangLam)
+                        {
+                            a.CongBuThoiGian(daDung, duAn.Deadline.Value);
+                        }
+                    }
+                }
 
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
+                _events.Phat(caller, new ProjectResumed { ProjectId = duAn.Id });
+
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return TaoResponse(duAn, caller);
+            }
+            finally
+            {
+                await tx.DisposeAsync();
+            }
         }
 
         /// <summary>
-        /// "Ket thuc som": danh dau va bao task-svc dong thu bai. Trang thai chuyen sang Dang cham khi
-        /// task-svc phat project.collection_finished (consumer).
+        /// "Ket thuc som": dong thu bai NGAY trong cung transaction — du an sang Dang cham, bai dang lam do bi het
+        /// han, quality-svc cham voi so bai da nop (project.collection_finished). Truoc khi gop phai phat
+        /// project.finish_requested cho task-svc roi cho task-svc phat nguoc lai.
         /// </summary>
         public async Task<ProjectResponse> KetThucSomAsync(Guid id, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.YeuCauKetThucSom(_clock.GetUtcNow());
+            DateTimeOffset bayGio = _clock.GetUtcNow();
 
-            _events.Phat(caller, new ProjectFinishRequested { ProjectId = duAn.Id });
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                CollectionRound? dot = await LamBaiQueries.KhoaDotAsync(_db, id, ct);
+                duAn.YeuCauKetThucSom(bayGio);
+                if (dot == null)
+                {
+                    throw new RuleViolationException("du_an_chua_san_sang", "Dự án chưa có đợt thu bài.");
+                }
 
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
+                await _thuBai.DongThuBaiAsync(dot, "ket_thuc_som", bayGio, caller, ct);
+
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return TaoResponse(duAn, caller);
+            }
+            finally
+            {
+                await tx.DisposeAsync();
+            }
         }
 
         public async Task<ProjectResponse> HuyAsync(Guid id, string? lyDo, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            await DamBaoChuaCoBaiNopAsync(duAn, ct);
-            duAn.Huy(lyDo, _clock.GetUtcNow());
+            DateTimeOffset bayGio = _clock.GetUtcNow();
 
-            PhatDaHuy(duAn, caller);
+            var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                // Khoa dot: khong ai nop chen vao giua luc dem bai nop va luc huy.
+                CollectionRound? dot = await LamBaiQueries.KhoaDotAsync(_db, id, ct);
+                if (dot != null)
+                {
+                    await DamBaoChuaCoBaiNopAsync(duAn, ct);
+                }
 
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
+                duAn.Huy(lyDo, bayGio);
+
+                // Bai dang lam do bi huy theo du an (truoc day task-svc lam khi nhan project.cancelled).
+                await _revoker.ThuHoiAsync(id, null, bayGio, ct);
+
+                PhatDaHuy(duAn, caller);
+
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return TaoResponse(duAn, caller);
+            }
+            finally
+            {
+                await tx.DisposeAsync();
+            }
         }
 
         /// <summary>
-        /// Huy mot du an DA CHAY — ngay sau do ledger tra TOAN BO ky quy ve doanh nghiep — chi khi
-        /// task-svc xac nhan: da nhan project.paused (khong ai nop them duoc) va CHUA CO BAI NAO NOP.
-        /// Con bai nop thi phai "Ket thuc som" de cham va tra thuong — khong ai lam khong cong. Bai dang
-        /// lam do bi huy theo du an. Du an chua chay (Nhap, Cho duyet) bo qua; dang Running thi domain
-        /// nem can_tam_dung_truoc.
+        /// Huy mot du an DA CHAY — ngay sau do ledger tra TOAN BO ky quy ve doanh nghiep — chi khi CHUA CO BAI
+        /// NAO NOP. Con bai nop thi phai "Ket thuc som" de cham va tra thuong — khong ai lam khong cong. Dem truc
+        /// tiep trong cung database (truoc day hoi task-svc qua HTTP va phai cho task-svc nhan project.paused).
         /// </summary>
         private async Task DamBaoChuaCoBaiNopAsync(LabelingProject duAn, CancellationToken ct)
         {
-            if (duAn.Status != ProjectStatus.Paused)
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            int daNop = await _db.Attempts.CountAsync(a => a.ProjectId == duAn.Id && a.State == AttemptState.Submitted, ct);
+            if (daNop > 0)
             {
-                return;
-            }
-
-            TaskCloseCheck task = await _dongSo.KiemTaskAsync(duAn.Id, ct);
-            if (!task.Paused || task.SubmittedCount > 0)
-            {
+                int dangLam = await _db.Attempts.CountAsync(
+                    a => a.ProjectId == duAn.Id && a.State == AttemptState.InProgress && a.ExpiresAt > bayGio, ct);
                 throw new ChuaTheDongDuAnException(
-                    !task.Paused
-                        ? "Hệ thống đang xử lý lệnh tạm dừng, thử lại sau vài giây."
-                        : "Đã có " + task.SubmittedCount + " bài nộp — không huỷ được. Bấm \"Kết thúc sớm\" để chấm và trả thưởng cho người đạt.",
+                    "Đã có " + daNop + " bài nộp — không huỷ được. Bấm \"Kết thúc sớm\" để chấm và trả thưởng cho người đạt.",
                     new
                     {
-                        reasons = !task.Paused ? LyDoChuaDongBoTamDung : LyDoDaCoBaiNop,
-                        inProgressCount = task.InProgressCount,
-                        submittedCount = task.SubmittedCount,
+                        reasons = LyDoDaCoBaiNop,
+                        inProgressCount = dangLam,
+                        submittedCount = daNop,
                     });
             }
         }
@@ -851,26 +954,6 @@ namespace Crowd.Project.Api.Services
             }
 
             return soDaHuy;
-        }
-
-        /// <summary>
-        /// Dieu khoan luc publish (dung payload project.published) — cho service ban sao tu bu khi lo mat event
-        /// (vd quality-svc ra doi sau khi du an da publish). Du an chua tung publish → 404.
-        /// </summary>
-        public async Task<PublishedTermsResponse> DieuKhoanDaPublishAsync(Guid id, CancellationToken ct)
-        {
-            LabelingProject? duAn = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
-            if (duAn == null || duAn.PublishedAt == null || duAn.LabelSchema == null || duAn.Deadline == null)
-            {
-                throw new NotFoundException("Dự án chưa publish.");
-            }
-
-            int soMau = await DemMauAsync(id, ct);
-            return new PublishedTermsResponse
-            {
-                PublishedAt = duAn.PublishedAt.Value,
-                Terms = TaoProjectPublished(duAn, soMau),
-            };
         }
 
         /// <summary>Loai cong cu khach vang lai lam duoc o cong link (setting gate.allowed_tools).</summary>

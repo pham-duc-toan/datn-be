@@ -1,0 +1,49 @@
+// identity-svc phuc vu cac service khac qua gRPC (noi bo, cong 9101 HTTP/2, metadata x-internal-key).
+//
+// VI SAO (kien truc 3.24): project-svc truoc day giu bang labeler_cache (cap do, uy tin, khoa) chep tu
+// level.changed / reputation.changed / user.blocked de loc dieu kien luc mo bai — trong khi luc moi / xin vao
+// du an no VAN hoi identity cung ba truong do. Nay ca hai luong deu hoi identity qua RPC nay: mot nguon, khong
+// co khoang "ban sao chua kip cap nhat" (vua bi khoa van mo duoc bai).
+//
+// C# sinh luc build (Grpc.Tools): identity-svc GrpcServices="Server", project-svc GrpcServices="Client".
+
+syntax = "proto3";
+
+package crowd.identity.v1;
+
+option csharp_namespace = "Crowd.Contracts.Grpc.Identity";
+
+service IdentityData {
+  // Tra cuu theo id, email hoac username (bat ky to hop nao). Nguoi khong ton tai thi khong co trong ket qua.
+  rpc LookupUsers(LookupUsersRequest) returns (LookupUsersResponse);
+}
+
+message LookupUsersRequest {
+  repeated string user_ids = 1;
+  repeated string emails = 2;
+  repeated string usernames = 3;
+}
+
+message UserInfo {
+  string user_id = 1;
+  string email = 2;
+  string username = 3;
+  string display_name = 4;
+  repeated string roles = 5;
+  // Tai khoan bi khoa (khong con Active).
+  bool locked = 6;
+  int32 level = 7;
+  // Uy tin 0-100; khong co = quality-svc chua cham bai nao cua nguoi nay.
+  optional int32 reputation = 8;
+  // Da xac minh danh tinh (FP-05).
+  bool identity_verified = 9;
+  // Da xac minh va du tuoi (muc 2.9).
+  bool adult = 10;
+  repeated string domains = 11;
+  repeated string languages = 12;
+  repeated string modalities = 13;
+}
+
+message LookupUsersResponse {
+  repeated UserInfo users = 1;
+}

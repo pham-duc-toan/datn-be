@@ -3,7 +3,7 @@ import os, re, subprocess, sys, time
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import G, GOC_REPO, RABBIT_MGMT, RABBIT_PASSWORD, RABBIT_USER, URL_ANNOTATION, URL_GATE, URL_LINK, URL_TASK, rabbit_container, sql_container  # noqa: E402,F401
+from moi_truong import G, GOC_REPO, RABBIT_MGMT, RABBIT_PASSWORD, RABBIT_USER, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
 from tai_khoan_e2e import mo_rong_gioi_han, tra_gioi_han  # noqa: E402
 
 S = os.path.dirname(os.path.abspath(__file__))
@@ -71,6 +71,8 @@ ok &= chay("chi_so_chat_luong", "e2e_chi_so_chat_luong.py")
 ok &= chay("watermark_av", "e2e_watermark_av.py")
 ok &= chay("hang_doi_duyet", "e2e_hang_doi_duyet.py")
 ok &= chay("thong_bao_realtime", "e2e_thong_bao_realtime.py")
+# Doc chu du lieu qua gRPC thay ban sao (3.24): mo bai hoi identity, quality gop ket qua, cap do qua project.
+ok &= chay("grpc_phu_thuoc", "e2e_grpc_phu_thuoc.py")
 
 dat("ledger.gate_batch_interval", 2)
 dat("ledger.gate_payout_mode", "batched")
@@ -87,7 +89,7 @@ dlq = [(x["name"], x.get("messages", 0)) for x in q if x["name"].endswith(".dlq"
 print(f"  DLQ co tin: {dlq if dlq else 'khong (0 / ' + str(sum(1 for x in q if x['name'].endswith('.dlq'))) + ' hang DLQ)'}")
 ok &= not dlq
 ton = {}
-for db in ("identity", "project", "task", "annotation", "ledger", "payment", "link", "gate", "quality", "admin", "notification"):
+for db in ("identity", "project", "ledger", "payment", "link", "gate", "quality", "admin", "notification"):
     r = subprocess.run(["docker", "exec", sql_container(db), "psql", "-U", f"{db}_user", "-d", f"{db}_db", "-tAc",
                         "select count(*) from outbox where published_at is null"], capture_output=True, text=True)
     ton[db] = (r.stdout.strip() or r.stderr.strip()[:60])

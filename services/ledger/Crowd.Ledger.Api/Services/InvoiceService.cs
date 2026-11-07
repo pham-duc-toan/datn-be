@@ -38,11 +38,18 @@ namespace Crowd.Ledger.Api.Services
 
         private readonly LedgerDbContext _db;
         private readonly IdentityClient _identity;
+        private readonly TenDuAnClient _tenDuAn;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly ILogger<InvoiceService> _logger;
 
-        public InvoiceService(LedgerDbContext db, IdentityClient identity, ISettings settings, TimeProvider clock, ILogger<InvoiceService> logger)
+        public InvoiceService(
+            LedgerDbContext db,
+            IdentityClient identity,
+            TenDuAnClient tenDuAn,
+            ISettings settings,
+            TimeProvider clock,
+            ILogger<InvoiceService> logger)
         {
             if (db == null)
             {
@@ -52,6 +59,11 @@ namespace Crowd.Ledger.Api.Services
             if (identity == null)
             {
                 throw new ArgumentNullException(nameof(identity));
+            }
+
+            if (tenDuAn == null)
+            {
+                throw new ArgumentNullException(nameof(tenDuAn));
             }
 
             if (settings == null)
@@ -71,6 +83,7 @@ namespace Crowd.Ledger.Api.Services
 
             _db = db;
             _identity = identity;
+            _tenDuAn = tenDuAn;
             _settings = settings;
             _clock = clock;
             _logger = logger;
@@ -336,9 +349,8 @@ namespace Crowd.Ledger.Api.Services
                 GROUP BY g.project_id").ToListAsync(ct);
 
             List<Guid> ids = dong.Where(d => d.ProjectId.HasValue).Select(d => d.ProjectId!.Value).ToList();
-            Dictionary<Guid, string?> ten = await _db.Escrows.AsNoTracking()
-                .Where(e => ids.Contains(e.ProjectId))
-                .ToDictionaryAsync(e => e.ProjectId, e => e.Name, ct);
+            // Ten du an la cua project-svc — hoi qua gRPC luc xuat (3.24), roi chup vao dong hoa don.
+            Dictionary<Guid, string> ten = await _tenDuAn.LayAsync(ids, ct);
 
             List<DongPhi> phi = new List<DongPhi>();
             List<PassThroughItem> chiHo = new List<PassThroughItem>();
@@ -370,7 +382,7 @@ namespace Crowd.Ledger.Api.Services
             return new TinhKetQuaThang { Phi = phi, ChiHo = chiHo };
         }
 
-        private static string TenDuAn(Guid? projectId, Dictionary<Guid, string?> ten)
+        private static string TenDuAn(Guid? projectId, Dictionary<Guid, string> ten)
         {
             if (!projectId.HasValue)
             {

@@ -57,33 +57,6 @@ namespace Crowd.Seeding
             return ds;
         }
 
-        /// <summary>gold_set.updated — null khi du an khong co cau vang.</summary>
-        public static GoldSetUpdated? CauVang(SeedProject p)
-        {
-            if (p == null)
-            {
-                throw new ArgumentNullException(nameof(p));
-            }
-
-            if (p.Gold.Count == 0)
-            {
-                return null;
-            }
-
-            List<GoldSetItem> items = new List<GoldSetItem>();
-            foreach (SeedGold g in p.Gold)
-            {
-                items.Add(new GoldSetItem
-                {
-                    SampleId = g.SampleId,
-                    ExpectedPayload = LabelPayload.Tao(p.TapNhan(), g.PayloadJson, p.Mau(g.SampleId).Metadata),
-                    Purpose = g.ForEntranceTest ? GoldPurpose.EntranceTest : GoldPurpose.QualityCheck,
-                });
-            }
-
-            return new GoldSetUpdated { ProjectId = p.Id, Items = items };
-        }
-
         /// <summary>project.publish_requested — ky quy = so suat x (thuong + phi) (giong ProjectService).</summary>
         public static ProjectPublishRequested YeuCauKyQuy(SeedProject p)
         {
@@ -148,64 +121,6 @@ namespace Crowd.Seeding
             return LabelPayload.Tao(p.TapNhan(), a.PayloadJson, p.Mau(a.SampleId).Metadata);
         }
 
-        /// <summary>attempt.submitted — chi cau THAT (cau vang chi mang so dung / tong), giong LamBaiService.</summary>
-        public static AttemptSubmitted BaiNop(SeedProject p, SeedAttempt b, DateTimeOffset bayGio)
-        {
-            if (p == null)
-            {
-                throw new ArgumentNullException(nameof(p));
-            }
-
-            if (b == null)
-            {
-                throw new ArgumentNullException(nameof(b));
-            }
-
-            if (b.State != SeedAttemptState.Submitted || !b.SubmittedAgo.HasValue)
-            {
-                throw new InvalidOperationException("Bai " + b.AttemptId + " chua nop.");
-            }
-
-            List<AttemptAnswer> ds = new List<AttemptAnswer>();
-            foreach (SeedSample s in p.Samples)
-            {
-                if (p.LaCauVang(s.Id))
-                {
-                    continue;
-                }
-
-                SeedAnswer? tl = null;
-                foreach (SeedAnswer a in b.Answers)
-                {
-                    if (a.SampleId == s.Id)
-                    {
-                        tl = a;
-                    }
-                }
-
-                ds.Add(new AttemptAnswer
-                {
-                    SampleId = s.Id,
-                    StorageKey = s.StorageKey,
-                    SampleContent = s.ContentJson == null ? null : RawJson.Tu(s.ContentJson),
-                    SampleMetadata = s.Metadata.ToRawJson(),
-                    LabelPayload = tl == null ? null : NhanCua(p, tl),
-                });
-            }
-
-            return new AttemptSubmitted
-            {
-                AttemptId = b.AttemptId,
-                ProjectId = p.Id,
-                LabelerId = b.LabelerId,
-                Answers = ds,
-                GoldTotal = b.GoldTotal,
-                GoldCorrect = b.GoldCorrect,
-                StartedAt = bayGio - b.StartedAgo,
-                SubmittedAt = bayGio - b.SubmittedAgo.Value,
-            };
-        }
-
         /// <summary>project.collection_finished — du an Completed: moi bai trong kich ban da nop.</summary>
         public static ProjectCollectionFinished DongThuBai(SeedProject p, DateTimeOffset bayGio)
         {
@@ -264,6 +179,7 @@ namespace Crowd.Seeding
             return new ProjectGraded
             {
                 ProjectId = p.Id,
+                OwnerId = p.OwnerId,
                 PassThresholdPercent = p.PassThresholdPercent,
                 MajorityUsed = p.Attempts.Count >= 3,
                 Attempts = ds,

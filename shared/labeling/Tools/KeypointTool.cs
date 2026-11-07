@@ -10,7 +10,6 @@ namespace Crowd.Labeling.Tools
     ///
     /// Do giong hai diem = 1 − (khoang cach / DUONG CHEO ANH), nen nguong khong phu thuoc do phan
     /// giai. Mac dinh 0.98: lech toi da 2% duong cheo (anh 1920x1080 ≈ 44 pixel).
-    /// Gop nhieu nguoi: ghep cum theo do giong, diem dai dien = TRUNG VI x va y.
     /// </summary>
     internal sealed class KeypointTool : DanhSachToolBase
     {
@@ -61,16 +60,6 @@ namespace Crowd.Labeling.Tools
         {
             return DoGiongDaPhanTich(PhanTich(a), PhanTich(b), tyLe);
         }
-
-        protected override JsonObject DaiDien(IReadOnlyList<JsonObject> thanhVien, BoSoSanh so)
-        {
-            return new JsonObject
-            {
-                ["x"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => HinhHoc.So(m["x"])))),
-                ["y"] = HinhHoc.LamTron(HinhHoc.TrungVi(thanhVien.Select(m => HinhHoc.So(m["y"])))),
-            };
-        }
-
         protected override string KhoaSapXep(JsonObject p)
         {
             return p["labelId"]!.GetValue<string>() + "|" + SoDeSapXep(HinhHoc.So(p["x"])) + "|" + SoDeSapXep(HinhHoc.So(p["y"]));

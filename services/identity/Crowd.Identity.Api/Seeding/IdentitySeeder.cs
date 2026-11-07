@@ -98,6 +98,13 @@ namespace Crowd.Identity.Api.Seeding
 
                 _db.Users.Add(user);
                 soTao = soTao + 1;
+
+                // Labeler seed co the da co bai dat (project seed): xep vao hang cho tinh cap — CapDoWorker doc so
+                // cau duoc chap nhan qua gRPC tu project-svc (3.24), cap / huy hieu khop voi bang xep hang.
+                if (su.Roles.Contains("labeler"))
+                {
+                    _db.HangChoTinhCaps.Add(HangChoTinhCap.Tao(su.Id, lucTao));
+                }
             }
 
             SeedOutbox.BoEventChuaGui(_db);

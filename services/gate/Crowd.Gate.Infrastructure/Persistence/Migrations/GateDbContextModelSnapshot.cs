@@ -144,6 +144,10 @@ namespace Crowd.Gate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
+                    b.Property<DateTimeOffset?>("ContentLoadedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("content_loaded_at");
+
                     b.Property<string>("LabelSchemaJson")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -178,6 +182,10 @@ namespace Crowd.Gate.Infrastructure.Persistence.Migrations
                         .HasColumnName("updated_at");
 
                     b.HasKey("ProjectId");
+
+                    b.HasIndex("ContentLoadedAt")
+                        .HasDatabaseName("ix_gate_projects_cho_nap")
+                        .HasFilter("content_loaded_at IS NULL");
 
                     b.ToTable("gate_projects", (string)null);
                 });

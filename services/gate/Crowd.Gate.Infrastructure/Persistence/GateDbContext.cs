@@ -68,6 +68,8 @@ namespace Crowd.Gate.Infrastructure.Persistence
                 b.Property(x => x.PlatformFeeVnd).HasColumnName("platform_fee_vnd").IsRequired();
                 b.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+                b.Property(x => x.ContentLoadedAt).HasColumnName("content_loaded_at");
+                b.HasIndex(x => x.ContentLoadedAt).HasFilter("content_loaded_at IS NULL").HasDatabaseName("ix_gate_projects_cho_nap");
             });
 
             modelBuilder.Entity<NganSachCong>(b =>

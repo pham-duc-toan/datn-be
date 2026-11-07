@@ -1,14 +1,22 @@
-# E2E CHI SO CHAT LUONG (FQ-02) + BU BAN SAO DU AN:
+# E2E CHI SO CHAT LUONG (FQ-02) + KHONG BAN SAO (kien truc 3.22):
 #   Krippendorff alpha cho MOI loai cong cu (nominal / interval / set_f1), Fleiss' kappa cho cong cu
 #   chon mot gia tri, STAPLE (do nhay / dac hieu) cho mat na trong bao cao labeler;
-#   quality-svc thieu ban sao du an → tu hoi project-svc (/internal/projects/{id}/published-terms) luc CHAM.
+#   quality-svc khong giu ban sao de bai / bai nop / nhan — doc qua gRPC tu project-svc; project-svc tat dung
+#   luc quality nhan "dong thu bai" → yeu cau cham nam cho, project-svc chay lai thi worker cham (khong DLQ).
 # Chay: python e2e_chi_so_chat_luong.py   (stack demo: E2E_PROFILE=demo)
-import os, sys
+import os, subprocess, sys
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tro_giup import *  # noqa: E402,F401,F403
+from moi_truong import TIEN_TO_CONTAINER  # noqa: E402
 import e2e_cong_cu_helpers as h  # noqa: E402
+
+DEMO = os.environ.get("E2E_PROFILE", "dev").lower() == "demo"
+
+
+def docker(*lenh):
+    subprocess.run(["docker", *lenh], check=True, capture_output=True)
 
 
 def lam_tat_ca(u, pid, payload_cua):
@@ -55,7 +63,8 @@ try:
         tham_gia(u, P)
         kiem(f"labeler {k} lam du 4 mau", lam_tat_ca(u, P, payload(k == 2)) == 4)
 
-    cho(lambda: sql("quality", f"select count(*) from labels where project_id='{P}'") == "12", 30)
+    # attempt.submitted (tin hieu) da toi quality → du an duoc danh dau can tinh DS; nhan doc qua gRPC luc chay lo.
+    cho(lambda: sql("quality", f"select count(*) from ds_state where project_id='{P}'") == "1", 30)
     requests.post(G + "/quality/admin/dawid-skene/run", headers=admin).raise_for_status()
 
     def chi_so_du():
@@ -84,20 +93,46 @@ try:
     kiem("mat na khong vao Dawid-Skene", all("vung" not in d.get("dawidSkeneSkill", {}) for d in lb.values()), lb)
 
     # =================================================================================
-    print("\n[2] Bu ban sao du an: quality mat ban sao → tu hoi project-svc")
-    Q, _ = tao_du_an(biz, "bu ban sao", {f"c{i}": f"cau so {i} {TAG}" for i in range(3)}, 2, 2, 1000)
+    print("\n[2] Khong ban sao: cham doc bai nop qua gRPC; project-svc tat luc dong thu bai → cham lai sau")
+    bang = sql("quality", "select string_agg(table_name, ',' order by table_name) from information_schema.tables "
+                          "where table_schema = 'public' and table_name in ('projects', 'attempts', 'labels', "
+                          "'project_collections', 'fraud_submissions', 'reputation_baseline')")
+    kiem("quality khong con bang ban sao (projects / attempts / labels / fraud_submissions ...)", bang == "", bang)
+    Q, _ = tao_du_an(biz, "cham qua grpc", {f"c{i}": f"cau so {i} {TAG}" for i in range(3)}, 2, 2, 1000)
     publish_va_duyet(biz, Q)
-    kiem("quality nhan project.published", cho(lambda: sql("quality", f"select count(*) from projects where project_id='{Q}'") == "1", 30))
-    sql("quality", f"delete from projects where project_id='{Q}'")
-    kiem("xoa ban sao (gia lap du an publish truoc khi quality ton tai)", sql("quality", f"select count(*) from projects where project_id='{Q}'") == "0")
-    for u in L:
+    for u in L[:2]:
         tham_gia(u, Q)
         lam_het(u, Q, lambda _t: "a")
-    kiem("ban sao duoc bu lai tu project-svc", cho(lambda: sql("quality", f"select count(*) from projects where project_id='{Q}'") == "1", 30))
-    kiem("label_schema / nguong dat (t) dung",
-         sql("quality", f"select label_schema->'tools'->0->>'kind' || '/' || pass_threshold_percent from projects where project_id='{Q}'") == "classification/60")
-    tq = cho(lambda: (lambda j: j if j.get("attemptsGraded", 0) == 3 else None)(requests.get(G + f"/quality/projects/{Q}/summary", headers=biz["h"]).json()), 60)
-    kiem("du suat → cham du 3 bai, 3 cau co da so (khong bi bo qua)", tq is not None and tq["agreed"] == 3 and tq["attemptsPassed"] == 3, tq)
+    tham_gia(L[2], Q)
+    if DEMO:
+        QUALITY, PROJECT = f"{TIEN_TO_CONTAINER}quality", f"{TIEN_TO_CONTAINER}project"
+        docker("stop", QUALITY)  # bai cuoi + "dong thu bai" nam cho trong queue cua quality
+        try:
+            lam_het(L[2], Q, lambda _t: "a")
+            # Outbox cua project phai GUI XONG "dong thu bai" truoc khi tat — khong thi event chi di sau khi
+            # project chay lai, quality cham ngay (khong bao gio thay trang thai cho).
+            kiem("project-svc da phat project.collection_finished",
+                 cho(lambda: sql("project", "select count(*) from outbox where event_type = 'project.collection_finished' "
+                                            f"and envelope_json->'payload'->>'projectId' = '{Q}' and published_at is not null") == "1", 30))
+            docker("stop", PROJECT)
+            docker("start", QUALITY)
+            kiem("project-svc tat: quality ghi yeu cau cham, CHUA cham (gRPC khong goi duoc), khong vao DLQ",
+                 cho(lambda: sql("quality", f"select count(*) from project_gradings where project_id='{Q}' and graded_at is null") == "1", 60),
+                 sql("quality", f"select graded_at from project_gradings where project_id='{Q}'"))
+        finally:
+            docker("start", PROJECT)
+            docker("start", QUALITY)
+    else:
+        lam_het(L[2], Q, lambda _t: "a")
+    kiem("worker cham xong khi project-svc tra loi",
+         cho(lambda: sql("quality", f"select count(*) from project_gradings where project_id='{Q}' and graded_at is not null") == "1", 120),
+         sql("quality", f"select * from project_gradings where project_id='{Q}'"))
+    tq = cho(lambda: (lambda r: r.json() if r.status_code == 200 and r.json().get("attemptsGraded", 0) == 3 else None)(
+        requests.get(G + f"/quality/projects/{Q}/summary", headers=biz["h"])), 90)
+    kiem("du suat → cham du 3 bai, 3 cau co da so, ket qua cuoi lay tu project-svc", tq is not None and tq["agreed"] == 3 and tq["attemptsPassed"] == 3, tq)
+    kiem("bai vua nop van duoc xet gian lan sau khi project-svc chay lai (hang cho rong)",
+         cho(lambda: sql("quality", f"select count(*) from pending_attempts where project_id='{Q}'") == "0", 60),
+         sql("quality", f"select * from pending_attempts where project_id='{Q}'"))
 finally:
     print(f"\n== KET QUA: {KQ['pass']} PASS, {KQ['fail']} FAIL")
     for l in KQ["loi"]:

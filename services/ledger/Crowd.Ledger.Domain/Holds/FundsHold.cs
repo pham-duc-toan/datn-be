@@ -10,27 +10,18 @@ namespace Crowd.Ledger.Domain.Holds
 
         /// <summary>Giu lai vi vi pham (link bi vo hieu hoa) — tien sang platform:withheld, khong tra.</summary>
         Withheld,
-
-        /// <summary>Du lieu cu: tranh chap nhan da duyet (da bo cung duyet tung nhan, docs 3.18).</summary>
-        Disputed,
-
-        /// <summary>Du lieu cu: tranh chap xu doanh nghiep thang.</summary>
-        Refunded,
     }
 
     /// <summary>Khoan treo sinh ra tu dau.</summary>
     public enum HoldKind
     {
-        /// <summary>Du lieu cu: nhan duoc duyet (truoc du an lam trung tam). AnnotationId = nhan.</summary>
-        Annotation,
-
-        /// <summary>Luot vuot link hop le (sharer). AnnotationId = ClickId, LinkId = link.</summary>
+        /// <summary>Luot vuot link hop le (sharer). SourceId = ClickId, LinkId = link.</summary>
         GateClick,
 
-        /// <summary>Hoa hong gioi thieu (FS-08). AnnotationId = ClickId goc, LinkId = link goc.</summary>
+        /// <summary>Hoa hong gioi thieu (FS-08). SourceId = ClickId goc, LinkId = link goc.</summary>
         Referral,
 
-        /// <summary>Thuong cho MOT bai dat cua du an (docs 3.18). AnnotationId = id bai lam.</summary>
+        /// <summary>Thuong cho MOT bai dat cua du an (docs 3.18). SourceId = id bai lam.</summary>
         ProjectReward,
     }
 
@@ -48,9 +39,9 @@ namespace Crowd.Ledger.Domain.Holds
 
         /// <summary>
         /// UNIQUE (cung Kind): moi su viec sinh DUNG MOT khoan treo (VD-M-02). Voi ProjectReward la id bai
-        /// lam; voi GateClick / Referral la ClickId cua luot vuot link; du lieu cu (Annotation) la id nhan.
+        /// lam; voi GateClick / Referral la ClickId cua luot vuot link.
         /// </summary>
-        public Guid AnnotationId { get; private set; }
+        public Guid SourceId { get; private set; }
 
         public HoldKind Kind { get; private set; }
 
@@ -60,9 +51,6 @@ namespace Crowd.Ledger.Domain.Holds
         public Guid LabelerId { get; private set; }
 
         public Guid ProjectId { get; private set; }
-
-        /// <summary>Du lieu cu (chi theo task). Khoan moi: Guid.Empty.</summary>
-        public Guid TaskId { get; private set; }
 
         public long AmountVnd { get; private set; }
 
@@ -91,10 +79,9 @@ namespace Crowd.Ledger.Domain.Holds
 
             FundsHold h = new FundsHold();
             h.Id = Guid.CreateVersion7();
-            h.AnnotationId = nguon;
+            h.SourceId = nguon;
             h.LabelerId = userId;
             h.ProjectId = projectId;
-            h.TaskId = Guid.Empty;
             h.AmountVnd = amount;
             h.HeldAt = luc;
             h.ReleaseAt = luc + thoiGianTreo;

@@ -63,8 +63,8 @@ try:
     # =================================================================================
     print("\n[3] Vong doi du an: tao, gia CA DU AN, ky quy theo suat (saga), duyet, thieu tien")
     dat_va_cho("ledger.reward_hold", 0, ("ledger",))
-    dat_va_cho("task.appeal_window", 15, ("task",))
-    dat_va_cho("task.reaper_interval", 2, ("task",))
+    dat_va_cho("task.appeal_window", 15, ("project",))
+    dat_va_cho("task.reaper_interval", 2, ("project",))
     MAU_A = {"s1": "Hang tot nhung giao cham", "s2": "Tuyet voi", "s3": "Qua te", "s4": "Rat hai long", "s5": "That vong", "s6": "On"}
     DUNG_A = {"Hang tot nhung giao cham": "a", "Tuyet voi": "a", "Qua te": "b", "Rat hai long": "a", "That vong": "b", "On": "a"}
     THUONG_A = 60000
@@ -311,8 +311,9 @@ try:
         return requests.post(G + f"/tasks/projects/{C}/attempt", headers=u["h"])
 
     def ban_sao(trang_thai):
-        """Doi project.paused / resumed toi task-svc (ban sao). Truoc do task-svc van coi du an dang chay."""
-        return cho(lambda: sql("task", f"select status from project_snapshots where project_id='{C}'") == trang_thai, 20)
+        """Tam dung / chay tiep ghi NGAY trong project-svc (cung database voi bai lam) — chi doc lai cho chac."""
+        cot = "paused_at is not null" if trang_thai == "Paused" else "paused_at is null"
+        return cho(lambda: sql("project", f"select {cot} from project_collections where project_id='{C}'") == "t", 20)
 
     r = requests.post(G + f"/projects/{C}/pause", headers=biz["h"])
     kiem("tam dung du an", r.status_code == 200, r.text)
@@ -354,8 +355,8 @@ try:
     kiem("it hon 3 bai, khong co cau vang → ca hai dat", x1 and x2 and x1["passed"] and x2["passed"], (x1, x2))
     kiem("het han khieu nai → Completed", cho(lambda: requests.get(G + f"/projects/{C}", headers=biz["h"]).json()["status"] == "completed", 90))
     kiem("chay tiep du an da xong → 409", requests.post(G + f"/projects/{C}/resume", headers=biz["h"]).status_code == 409)
-    kiem("annotation-svc da chot du an C",
-         cho(lambda: sql("annotation", f"select closed_at is not null and is_final from project_terms where project_id='{C}'") == "t", 20))
+    kiem("dot thu bai cua du an C da chot",
+         cho(lambda: sql("project", f"select settled_at is not null from project_collections where project_id='{C}'") == "t", 20))
 
     H, _ = tao_du_an(biz, "Huy", {"h1": "x", "h2": "y"}, thuong=10000, suat=3)
     publish_va_duyet(biz, H)
@@ -368,8 +369,7 @@ try:
     kiem("huy → hoan ky quy", cho(lambda: vi(biz)["businessAvailableVnd"] > truoc, 20), (truoc, vi(biz)))
 
     # Endpoint noi bo: khong qua gateway, can khoa.
-    kiem("endpoint noi bo qua gateway → 404", requests.get(G + f"/internal/projects/{C}/close-check").status_code == 404)
-    kiem("endpoint noi bo khong khoa → 404", requests.get(f"{URL_TASK}/internal/projects/{C}/close-check").status_code == 404)
+    kiem("endpoint noi bo qua gateway → 404", requests.post(G + "/internal/users/lookup", json={"userIds": [str(C)]}).status_code == 404)
 
     # =================================================================================
     print("\n[10] Kiem dinh dang nhan luc NOP bai: span van ban, so sanh cap (du an moi)")

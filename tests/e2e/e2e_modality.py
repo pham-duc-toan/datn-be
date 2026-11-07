@@ -3,7 +3,7 @@ import hashlib, json, os, subprocess, sys, time
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_ANNOTATION, URL_GATE, URL_LINK, URL_TASK, rabbit_container, sql_container  # noqa: E402,F401
+from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
 import tao_media  # noqa: E402
 
 M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "media")
@@ -48,7 +48,7 @@ def nhan_task(h, pid, cho_dong_bo=False, chon=None):
     Bai da nop / du an dong thu bai / chua dong bo → None."""
     r = requests.post(G + "/tasks/projects/%s/attempt" % pid, headers=h)
     if r.status_code == 403 and cho_dong_bo:
-        return None  # member.added / project.published chua toi task-svc
+        return None  # member.added / project.published chua xu ly xong
     if r.status_code in (403, 409):
         return None
     r.raise_for_status()
@@ -129,7 +129,9 @@ if t:
     dai = md["durationSec"]
     kiem("metadata co durationSec", dai > 0, md)
     am = requests.get(t["fileUrl"])
-    kiem("fileUrl tai duoc file WAV", am.status_code == 200 and am.content[:4] == b"RIFF", am.status_code)
+    kiem("fileUrl tai duoc am thanh (ban watermark FLAC, khong phai ban goc WAV)",
+         am.status_code == 200 and am.headers.get("Content-Type", "").startswith("audio/flac") and am.content[:4] == b"fLaC",
+         (am.status_code, am.headers.get("Content-Type"), am.content[:4]))
     r = nop(lab1, t["assignmentId"], {"loi_noi": {"text": "xin chao"}, "doan": [{"labelId": "giong_noi", "start": 0, "end": dai + 3}]})
     kiem("doan vuot thoi luong mau → 400", r.status_code == 400, r.text)
     r = nop(lab1, t["assignmentId"], {"loi_noi": {"text": "xin chao"}, "doan": [{"labelId": "giong_noi", "start": 0, "end": min(2, dai)}]})
@@ -217,7 +219,7 @@ def chay_du_an(pid, so_mau, ngan_sach=None, chon=None):
     kiem("admin duyet", r.status_code == 200, r.text)
     r = requests.post(G + "/projects/%s/join" % pid, headers=lab1)
     kiem("lab1 tham gia", r.status_code == 200, r.text)
-    # Cho task-svc nhan project.published + member.added + dataset.ingested.
+    # Cho du an san sang (duyet + thanh vien + du lieu nap xong).
     t = cho(lambda: nhan_task(lab1, pid, True, chon), 20, 1)
     kiem("lab1 mo duoc bai", t is not None, t)
     return t

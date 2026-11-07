@@ -191,21 +191,6 @@ namespace Crowd.Link.Api.Persistence.Migrations
                     b.ToTable("campaigns", (string)null);
                 });
 
-            modelBuilder.Entity("Crowd.Link.Api.Entities.KnownUser", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<DateTimeOffset>("RegisteredAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("registered_at");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("known_users", (string)null);
-                });
-
             modelBuilder.Entity("Crowd.Link.Api.Entities.LinkReport", b =>
                 {
                     b.Property<Guid>("Id")

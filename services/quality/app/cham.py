@@ -1,9 +1,9 @@
 """Cham CA DU AN (docs 3.18) — logic thuan, khong DB, de test.
 
-Sau khi task-svc dong thu bai (project.collection_finished), moi bai da nop duoc cham MOT lan:
+Sau khi project-svc dong thu bai (project.collection_finished), moi bai da nop duoc cham MOT lan:
 
   1. Voi tung cau THAT (khong phai cau vang, khong bi loai): gop cau tra loi cua MOI bai da nop theo
-     tung cong cu (consensus.danh_gia — cung thuat toan gop voi annotation-svc). Cau co "da so" khi it
+     tung cong cu (consensus.danh_gia — app/gop.py, noi duy nhat cai thuat toan gop). Cau co "da so" khi it
      nhat mot cong cu gop ra ket qua duoc qua nua so nguoi tra loi ung ho, va co tu SO_NGUOI_TOI_THIEU_MOT_CAU
      nguoi tra loi tro len. Cau khong co da so (hoa phieu, chi toan freeText) KHONG tinh cho ai.
   2. Moi bai: so cau so duoc = cau co da so ma bai co trong de; so cau giong = cau ma nhan cua bai khop
@@ -144,8 +144,7 @@ def cham_du_an(label_schema: dict[str, Any], bai: list[Bai], nhan: dict[tuple[st
             nguong=tham_so.nguong if tham_so is not None else {},
             f1_toi_thieu=tham_so.f1_toi_thieu if tham_so is not None else gop.F1_TOI_THIEU_MAC_DINH,
             mo=None if mo is None else consensus.ThamSoMo(mo.phuong_phap, mo.nguong, vector_theo_cau.get(mau, {})))
-        # Tran = so nguoi da lam: cham mot lan, khong xin them nguoi (khong con redundancy thich ung).
-        kq = consensus.danh_gia(label_schema, da_lam, len(da_lam), len(da_lam), consensus.ChinhSach(), ts)
+        kq = consensus.danh_gia(label_schema, da_lam, ts)
         co_da_so = len(da_lam) >= SO_NGUOI_TOI_THIEU_MOT_CAU and any(v is not None for v in kq.agrees.values())
         trang_thai = kq.status if co_da_so or kq.status == "notApplicable" else "disputed"
         ket_qua_cau.append(KetQuaCau(mau, trang_thai, kq.final if co_da_so else None, len(da_lam)))

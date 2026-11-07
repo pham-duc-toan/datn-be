@@ -34,7 +34,6 @@ namespace Crowd.Seeding.Tests
                 ids.Add(p.Id);
                 ids.Add(p.DatasetId);
                 ids.AddRange(p.Samples.Select(s => s.Id));
-                ids.AddRange(p.Samples.Select(s => KichBanSeed.TaskIdCua(s.Id)));
                 ids.AddRange(p.Gold.Select(g => g.Id));
                 ids.AddRange(p.Attempts.Select(b => b.AttemptId));
                 ids.AddRange(p.Attempts.SelectMany(b => b.Answers).Where(a => p.LaCauVang(a.SampleId) == false).Select(a => a.AnnotationId));

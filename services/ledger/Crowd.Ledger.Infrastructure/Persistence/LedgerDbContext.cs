@@ -41,7 +41,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
 
         public DbSet<ProjectEscrow> Escrows => Set<ProjectEscrow>();
 
-        public DbSet<BlockedUser> BlockedUsers => Set<BlockedUser>();
 
 
         public DbSet<Invoice> Invoices => Set<Invoice>();
@@ -104,24 +103,22 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.ToTable("holds");
                 b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
                 b.HasKey(x => x.Id);
-                b.Property(x => x.AnnotationId).HasColumnName("annotation_id").IsRequired();
+                b.Property(x => x.SourceId).HasColumnName("source_id").IsRequired();
                 b.Property(x => x.LabelerId).HasColumnName("labeler_id").IsRequired();
                 b.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
-                b.Property(x => x.TaskId).HasColumnName("task_id").IsRequired();
                 b.Property(x => x.AmountVnd).HasColumnName("amount_vnd").IsRequired();
                 b.Property(x => x.HeldAt).HasColumnName("held_at").IsRequired();
                 b.Property(x => x.ReleaseAt).HasColumnName("release_at").IsRequired();
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.ReleasedAt).HasColumnName("released_at");
-                b.Property(x => x.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(20).HasDefaultValue(HoldKind.Annotation).IsRequired();
+                b.Property(x => x.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.LinkId).HasColumnName("link_id");
-                b.HasIndex(x => new { x.AnnotationId, x.Kind }).IsUnique().HasDatabaseName("ux_holds_source");
+                b.HasIndex(x => new { x.SourceId, x.Kind }).IsUnique().HasDatabaseName("ux_holds_source");
                 b.HasIndex(x => x.LinkId).HasFilter("link_id IS NOT NULL AND state = 'Held'").HasDatabaseName("ix_holds_link_dang_treo");
                 b.HasIndex(x => x.ReleaseAt).HasFilter("state = 'Held'").HasDatabaseName("ix_holds_den_han");
 
                 // Thong ke thu nhap theo nguoi nhan + khoang thoi gian (FL-11).
                 b.HasIndex(x => new { x.LabelerId, x.HeldAt }).HasDatabaseName("ix_holds_thu_nhap");
-                b.HasIndex(x => x.TaskId).HasDatabaseName("ix_holds_task");
             });
 
             modelBuilder.Entity<Withdrawal>(b =>
@@ -156,7 +153,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.Slots).HasColumnName("slots").IsRequired();
                 b.Property(x => x.State).HasColumnName("state").HasConversion<string>().HasMaxLength(20).IsRequired();
                 b.Property(x => x.ReservedAt).HasColumnName("reserved_at").IsRequired();
-                b.Property(x => x.Name).HasColumnName("name").HasMaxLength(200);
                 b.Property(x => x.ClosedAt).HasColumnName("closed_at");
                 b.Property(x => x.ExpectedPaidAttempts).HasColumnName("expected_paid_attempts");
                 b.Property(x => x.ClosingIsCancel).HasColumnName("closing_is_cancel").IsRequired();
@@ -196,15 +192,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.ReferredId).HasColumnName("referred_id").ValueGeneratedNever();
                 b.Property(x => x.ReferrerId).HasColumnName("referrer_id").IsRequired();
                 b.Property(x => x.RegisteredAt).HasColumnName("registered_at").IsRequired();
-            });
-
-            modelBuilder.Entity<BlockedUser>(b =>
-            {
-                b.ToTable("blocked_users");
-                b.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
-                b.HasKey(x => x.UserId);
-                b.Property(x => x.Blocked).HasColumnName("blocked").IsRequired();
-                b.Property(x => x.ChangedAt).HasColumnName("changed_at").IsRequired();
             });
 
             // Hoa don GTGT (FB-05): dong hang + bang ke chi ho luu jsonb (chup luc xuat, khong sua).
@@ -273,57 +260,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 (a, b) => JsonSerializer.Serialize(a, JsonCot) == JsonSerializer.Serialize(b, JsonCot),
                 v => JsonSerializer.Serialize(v, JsonCot).GetHashCode(StringComparison.Ordinal),
                 v => JsonSerializer.Deserialize<List<T>>(JsonSerializer.Serialize(v, JsonCot), JsonCot) ?? new List<T>());
-        }
-    }
-
-    /// <summary>
-    /// Trang thai khoa tai khoan (ban sao tu user.blocked / user.unblocked cua identity) — dang khoa
-    /// thi khong rut duoc tien. Tien van nam nguyen trong so, chi chan dong ra.
-    ///
-    /// Ghi theo MOC THOI GIAN SU KIEN: blocked va unblocked di hai queue khac nhau, co the den lech
-    /// thu tu — su kien cu hon moc da ap dung thi bo qua (cung luat voi labeler_cache cua task-svc).
-    /// </summary>
-    public sealed class BlockedUser
-    {
-        private BlockedUser()
-        {
-        }
-
-        public Guid UserId { get; private set; }
-
-        public bool Blocked { get; private set; }
-
-        /// <summary>Moc cua su kien khoa / mo khoa da ap dung gan nhat.</summary>
-        public DateTimeOffset ChangedAt { get; private set; }
-
-        public static BlockedUser Tao(Guid userId)
-        {
-            BlockedUser b = new BlockedUser();
-            b.UserId = userId;
-            b.ChangedAt = DateTimeOffset.MinValue;
-            return b;
-        }
-
-        public bool Khoa(DateTimeOffset occurredAt)
-        {
-            return Doi(true, occurredAt);
-        }
-
-        public bool MoKhoa(DateTimeOffset occurredAt)
-        {
-            return Doi(false, occurredAt);
-        }
-
-        private bool Doi(bool khoa, DateTimeOffset occurredAt)
-        {
-            if (occurredAt < ChangedAt)
-            {
-                return false;
-            }
-
-            Blocked = khoa;
-            ChangedAt = occurredAt;
-            return true;
         }
     }
 }

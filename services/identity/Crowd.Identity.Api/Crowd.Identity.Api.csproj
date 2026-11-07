@@ -10,7 +10,16 @@
     <ProjectReference Include="..\..\..\shared\storage\Crowd.BuildingBlocks.Storage.csproj" />
   </ItemGroup>
 
+  <!-- gRPC noi bo (kien truc 3.24): phuc vu project-svc tra cuu nguoi dung; goi project-svc lay so cau duoc
+       chap nhan / bang xep hang. Proto dung chung o contracts/grpc. -->
   <ItemGroup>
+    <Protobuf Include="..\..\..\contracts\grpc\identity\v1\identity_data.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Server" Link="Grpc\identity_data.proto" />
+    <Protobuf Include="..\..\..\contracts\grpc\project\v1\labeler_stats.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Client" Link="Grpc\labeler_stats.proto" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.Net.ClientFactory" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

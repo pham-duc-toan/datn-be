@@ -74,6 +74,34 @@ namespace Crowd.Project.Domain.Datasets
         /// <summary>Ly do khi MediaState = failed.</summary>
         public string? MediaError { get; private set; }
 
+        /// <summary>
+        /// Luc mau bi LOAI khoi du an do bao loi (chu du an loai, hoac du nguoi bao tu loai). null = con dung.
+        /// Mau bi loai khong vao bai lam moi va bi bo khoi phan cham (project.collection_finished mang
+        /// ExcludedSampleIds) — ai da tra loi cau do cung khong bi tinh.
+        /// </summary>
+        public DateTimeOffset? ExcludedAt { get; private set; }
+
+        /// <summary>report_accepted (chu du an loai) | auto_reports (du nguoi bao).</summary>
+        public string? ExcludedReason { get; private set; }
+
+        /// <summary>Loai mau (mot lan). Tra ve false neu da bi loai tu truoc.</summary>
+        public bool LoaiBo(string lyDo, DateTimeOffset luc)
+        {
+            if (string.IsNullOrWhiteSpace(lyDo))
+            {
+                throw new ArgumentException("Thieu ly do.", nameof(lyDo));
+            }
+
+            if (ExcludedAt.HasValue)
+            {
+                return false;
+            }
+
+            ExcludedAt = luc;
+            ExcludedReason = lyDo;
+            return true;
+        }
+
         /// <summary>media-svc bao ket qua (video.prepared). Giao lai nhieu lan thi ghi de — vo hai.</summary>
         public void GhiKetQuaMedia(bool thanhCong, string? loi)
         {

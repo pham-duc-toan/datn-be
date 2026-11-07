@@ -4,7 +4,7 @@ namespace Crowd.Project.Domain.Members
 {
     /// <summary>
     /// Nhung gi project-svc can biet ve MOT nguoi dung de quyet "vao du an duoc khong". Lay tu
-    /// identity-svc ngay luc can (POST /internal/users/lookup) — project_db khong giu ban sao
+    /// identity-svc ngay luc can (gRPC IdentityData.LookupUsers) — project_db khong giu ban sao
     /// email / cap do / uy tin.
     /// </summary>
     public sealed class HoSoNguoiDung

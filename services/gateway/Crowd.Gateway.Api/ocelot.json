@@ -50,7 +50,7 @@
       "UpstreamHttpMethod": ["Get", "Post", "Put"],
       "DownstreamPathTemplate": "/tasks/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8103 }],
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8102 }],
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] },
       // IP that cua labeler (chong gian lan FM-07: nhieu tai khoan chung IP). X-Device-Id tu frontend di thang.
       "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
@@ -210,7 +210,7 @@
       "UpstreamHttpMethod": ["Get", "Post"],
       "DownstreamPathTemplate": "/annotations/{everything}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8104 }],
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8102 }],
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {

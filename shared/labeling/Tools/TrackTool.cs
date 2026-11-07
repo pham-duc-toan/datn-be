@@ -15,7 +15,7 @@ namespace Crowd.Labeling.Tools
     /// Do giong hai chuoi = IoU KHONG-THOI GIAN: lay mau deu SoMocMauTrack thoi diem tren khoang hop
     /// cua hai chuoi, tong dien tich giao / tong dien tich hop (chuoi chua / khong con ton tai o thoi
     /// diem do coi nhu dien tich 0). Vua phat lech vi tri, vua phat lech thoi diem bat dau / ket thuc.
-    /// Cham dap an: &gt;= nguong (mac dinh 0.5). Gop nhieu nguoi: ghep cum, lay chuoi "o giua".
+    /// Cham dap an: &gt;= nguong (mac dinh 0.5).
     /// </summary>
     internal sealed class TrackTool : DanhSachToolBase
     {

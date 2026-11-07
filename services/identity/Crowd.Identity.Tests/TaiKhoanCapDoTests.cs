@@ -139,12 +139,14 @@ namespace Crowd.Identity.Tests
         }
 
         [Fact]
-        public void So_nhan_khong_am()
+        public void Doi_cap_chi_bao_khi_cap_thay_doi()
         {
             ThongKeLabeler tk = ThongKeLabeler.Tao(Guid.NewGuid(), T);
-            tk.CongNhan(-1, T);
 
-            Assert.Equal(0, tk.ApprovedCount);
+            Assert.False(tk.DatCap(1, T));
+            Assert.True(tk.DatCap(3, T.AddMinutes(1)));
+            Assert.Equal(3, tk.Level);
+            Assert.Equal(T.AddMinutes(1), tk.UpdatedAt);
         }
 
         [Fact]

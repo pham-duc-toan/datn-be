@@ -33,6 +33,7 @@ namespace Crowd.Project.Api.Services
         private readonly MemberService _members;
         private readonly IdentityClient _identity;
         private readonly TimeProvider _clock;
+        private readonly BaiLamRevoker _revoker;
 
         public QuanHeLabelerService(
             ProjectDbContext db,
@@ -40,8 +41,16 @@ namespace Crowd.Project.Api.Services
             ProjectEventPublisher events,
             MemberService members,
             IdentityClient identity,
-            TimeProvider clock)
+            TimeProvider clock,
+            BaiLamRevoker revoker)
         {
+            if (revoker == null)
+            {
+                throw new ArgumentNullException(nameof(revoker));
+            }
+
+            _revoker = revoker;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -214,6 +223,7 @@ namespace Crowd.Project.Api.Services
             {
                 if (m.ChanTheoDanhSach(luc))
                 {
+                    await _revoker.ThuHoiAsync(m.ProjectId, labelerId, luc, ct);
                     _events.Phat(caller, new MemberBlocked { ProjectId = m.ProjectId, UserId = labelerId });
                     n++;
                 }

@@ -3,8 +3,9 @@ using System;
 namespace Crowd.Identity.Api.Entities
 {
     /// <summary>
-    /// Thong ke cua mot labeler de tinh cap do / huy hieu (FL-12): so nhan duoc duyet (tu
-    /// annotation.approved), uy tin moi nhat (tu reputation.changed cua quality-svc).
+    /// Cap do + uy tin cua mot labeler (FL-12). Cap la quyet dinh cua identity (luat identity.level_rules);
+    /// uy tin moi nhat tu reputation.changed cua quality-svc. So cau duoc chap nhan KHONG luu o day — doc qua
+    /// gRPC LabelerStatsData tu project.attempts khi tinh cap (kien truc 3.24; truoc la bo dem approved_count).
     /// </summary>
     public sealed class ThongKeLabeler
     {
@@ -13,8 +14,6 @@ namespace Crowd.Identity.Api.Entities
         }
 
         public Guid UserId { get; private set; }
-
-        public int ApprovedCount { get; private set; }
 
         /// <summary>null = quality-svc chua cham (chua co bang chung).</summary>
         public int? Reputation { get; private set; }
@@ -35,12 +34,6 @@ namespace Crowd.Identity.Api.Entities
             return t;
         }
 
-        public void CongNhan(int soNhan, DateTimeOffset luc)
-        {
-            ApprovedCount = Math.Max(0, ApprovedCount + soNhan);
-            UpdatedAt = luc;
-        }
-
         /// <summary>Ghi uy tin moi; ban cu hon ban dang co thi bo qua (tra ve false).</summary>
         public bool DatUyTin(int uyTin, DateTimeOffset occurredAt)
         {
@@ -56,7 +49,7 @@ namespace Crowd.Identity.Api.Entities
         }
 
         /// <summary>Doi cap; tra ve true neu cap thay doi.</summary>
-        public bool DatCap(int cap)
+        public bool DatCap(int cap, DateTimeOffset luc)
         {
             if (cap == Level)
             {
@@ -64,34 +57,36 @@ namespace Crowd.Identity.Api.Entities
             }
 
             Level = cap;
+            UpdatedAt = luc;
             return true;
         }
     }
 
-    /// <summary>So nhan duoc duyet theo NGAY — bang xep hang theo khoang thoi gian.</summary>
-    public sealed class ThongKeNgay
+    /// <summary>
+    /// Hang cho TINH LAI CAP (kien truc 3.24): labeler vua co bai duoc chap nhan (project.grading_applied,
+    /// khieu nai chap nhan) hoac vua doi uy tin. CapDoWorker doc theo lo (FOR UPDATE SKIP LOCKED), hoi so cau
+    /// duoc chap nhan qua gRPC, tinh cap / huy hieu roi xoa dong. project-svc tam tat → dong nam lai, vong sau.
+    /// </summary>
+    public sealed class HangChoTinhCap
     {
-        private ThongKeNgay()
+        private HangChoTinhCap()
         {
         }
 
         public Guid UserId { get; private set; }
 
-        public DateOnly Ngay { get; private set; }
+        public DateTimeOffset DirtyAt { get; private set; }
 
-        public int ApprovedCount { get; private set; }
+        /// <summary>Chuoi thao tac cua event gay ra (de level.changed / badge.awarded noi tiep); null = gop nhieu.</summary>
+        public Guid? CorrelationId { get; private set; }
 
-        public static ThongKeNgay Tao(Guid userId, DateOnly ngay)
+        /// <summary>Consumer ghi bang UPSERT SQL (CapDoService.XepTinhLaiAsync); ham nay cho seed (chua co dong nao).</summary>
+        public static HangChoTinhCap Tao(Guid userId, DateTimeOffset luc)
         {
-            ThongKeNgay t = new ThongKeNgay();
-            t.UserId = userId;
-            t.Ngay = ngay;
-            return t;
-        }
-
-        public void Cong(int soNhan)
-        {
-            ApprovedCount = Math.Max(0, ApprovedCount + soNhan);
+            HangChoTinhCap h = new HangChoTinhCap();
+            h.UserId = userId;
+            h.DirtyAt = luc;
+            return h;
         }
     }
 

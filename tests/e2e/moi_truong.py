@@ -2,7 +2,7 @@
 
 Dev (service chay tren may + docker-compose.infra.yml):   khong can dat gi.
 Stack demo / CI (docker-compose.demo.yml):                 E2E_PROFILE=demo
-Tung gia tri van ghi de duoc rieng: E2E_GATEWAY, E2E_TASK_URL, E2E_ANNOTATION_URL, E2E_LINK_URL,
+Tung gia tri van ghi de duoc rieng: E2E_GATEWAY, E2E_LINK_URL,
 E2E_GATE_URL, E2E_RABBIT_MGMT, E2E_MAILPIT, E2E_CONTAINER_PREFIX.
 """
 
@@ -21,8 +21,6 @@ def _url(bien: str, cong: int) -> str:
 
 
 G = _url("E2E_GATEWAY", 8080)
-URL_TASK = _url("E2E_TASK_URL", 8103)
-URL_ANNOTATION = _url("E2E_ANNOTATION_URL", 8104)
 URL_LINK = _url("E2E_LINK_URL", 8107)
 URL_GATE = _url("E2E_GATE_URL", 8108)
 RABBIT_MGMT = _url("E2E_RABBIT_MGMT", 15672)
@@ -52,7 +50,7 @@ RABBIT_PASSWORD = os.environ.get("E2E_RABBIT_PASSWORD") or (
 
 
 def sql_container(db: str) -> str:
-    """Ten container Postgres cua service `db` (identity, task, ...)."""
+    """Ten container Postgres cua service `db` (identity, project, ...)."""
     return f"{TIEN_TO_CONTAINER}db-{db}"
 
 

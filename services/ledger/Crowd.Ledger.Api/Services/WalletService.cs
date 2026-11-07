@@ -31,13 +31,15 @@ namespace Crowd.Ledger.Api.Services
         private readonly LedgerEventPublisher _events;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
+        private readonly IdentityClient _identity;
 
         public WalletService(
             LedgerDbContext db,
             LedgerWriter writer,
             LedgerEventPublisher events,
             ISettings settings,
-            TimeProvider clock)
+            TimeProvider clock,
+            IdentityClient identity)
         {
             if (db == null)
             {
@@ -64,11 +66,17 @@ namespace Crowd.Ledger.Api.Services
                 throw new ArgumentNullException(nameof(clock));
             }
 
+            if (identity == null)
+            {
+                throw new ArgumentNullException(nameof(identity));
+            }
+
             _db = db;
             _writer = writer;
             _events = events;
             _settings = settings;
             _clock = clock;
+            _identity = identity;
         }
 
         public async Task<BalanceResponse> SoDuAsync(Caller caller, CancellationToken ct)
@@ -186,7 +194,8 @@ namespace Crowd.Ledger.Api.Services
                 return TaoResponse(cu);
             }
 
-            if (await _db.BlockedUsers.AnyAsync(b => b.UserId == uid && b.Blocked, ct))
+            // Hoi identity (chu du lieu) truoc khi mo transaction — khong goi mang trong khoa so cai.
+            if (await _identity.DaKhoaAsync(uid, ct))
             {
                 throw new ForbiddenException("tai_khoan_bi_khoa", "Tài khoản đang bị khoá, không rút được tiền.");
             }

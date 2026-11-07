@@ -1,11 +1,14 @@
-"""Gop nhan cua nhieu nguoi cho MOT cong cu — logic thuan, khong DB.
+"""Gop nhan cua nhieu nguoi — logic thuan, khong DB. NOI DUY NHAT cai thuat toan gop (kien truc 3.24).
 
-BAN PYTHON cua thuat toan trong shared/labeling (C#: Tools/DanhSachToolBase.cs, HinhHoc.cs, Rle.cs,
-ThuocTinh.cs va tung *Tool.cs). Hai ben PHAI ra cung ket qua tren cung du lieu:
-  - annotation-svc (C#) gop cac nhan DA DUYET → ket qua giao cho doanh nghiep;
-  - quality-svc (file nay) gop moi nhan VUA NOP → dong thuan, xin them nguoi, cham khop / lech.
-Doi chieu bang bo vi du chung contracts/labeling/testdata/gop.vectors.json (tests/test_gop_vectors.py
-va GopVectorTests.cs). Sua thuat toan o mot ben thi sua ca ben kia va cap nhat bo vi du.
+Hai noi goi:
+  - quality-svc cham ca du an: gop moi nhan VUA NOP → da so, cham khop / lech (consensus.py, cham.py);
+  - project-svc can ket qua giao cho doanh nghiep (nhan DA CHOT: bai dat + khach cong link): goi gRPC
+    LabelAggregation (grpc_server.py → gop_mau). Truoc day project-svc co ban C# rieng, giu khop bang bo vi
+    du — nay bo vi du contracts/labeling/testdata/gop.vectors.json la test hoi quy cua chinh file nay
+    (tests/test_gop_vectors.py): "expected" la ket qua da chot, doi thuat toan thi sua ca "expected".
+
+Phep do do giong (IoU, CER, Kendall...) van co ban C# (shared/labeling/Tools/HinhHoc.cs) de CHAM DAP AN ngay
+luc nop bai / o cong link. Sua cong thuc o day thi sua ca ben do.
 
 Cach gop theo loai cong cu:
   classification            lop duoc hon mot nua so nguoi chon (xet tung lop doc lap)
@@ -817,3 +820,81 @@ def gop_cong_cu(tool: dict[str, Any], ket_qua: list[Any], mau: dict[str, Any] | 
     if kind in _LOAI:
         return _gop_danh_sach(tool, [list(k) for k in ket_qua], mau, nguong_mac_dinh, f1_toi_thieu)
     raise ValueError(f"Chua ho tro gop cong cu '{kind}'")
+
+
+# =====================================================================
+# CA MAU, DUNG HINH DANG KET QUA GIAO DOANH NGHIEP (gRPC LabelAggregation)
+# =====================================================================
+
+# Ten cach gop ghi vao ket qua — cung chuoi ma bo xuat file (project-svc) doc.
+CACH_GOP = {
+    "classification": "majority", "pairwise": "majority", "span": "majority", "relation": "majority",
+    "bbox": "cluster", "polygon": "cluster", "keypoint": "cluster", "polyline": "cluster", "mask": "cluster",
+    "temporalSegment": "cluster", "track": "cluster",
+    "transcription": "medoid", "number": "median", "ranking": "borda",
+}
+
+
+def _phieu(kind: str, ket_qua: list[Any]) -> dict[str, int]:
+    """So phieu tung lua chon (phan loai: moi lop mot phieu moi nguoi), khoa sap xep nhu C# (Ordinal)."""
+    phieu: dict[str, int] = {}
+    for k in ket_qua:
+        lua_chon = set(k.get("labelIds", [])) if kind == "classification" else {k["choice"]}
+        for l in lua_chon:
+            phieu[l] = phieu.get(l, 0) + 1
+    return {l: phieu[l] for l in sorted(phieu, key=_thu_tu)}
+
+
+def _so_gon(v: Any) -> Any:
+    """So thuc nguyen (11.0) → so nguyen (11): JSON ra giong ban C# (double 11 ghi "11")."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, float) and math.isfinite(v) and v.is_integer():
+        return int(v)
+    if isinstance(v, dict):
+        return {k: _so_gon(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_so_gon(x) for x in v]
+    return v
+
+
+def gop_ket_qua_cong_cu(tool: dict[str, Any], ket_qua: list[Any], mau: dict[str, Any] | None = None,
+                        nguong_mac_dinh: float | None = None,
+                        f1_toi_thieu: float = F1_TOI_THIEU_MAC_DINH) -> dict[str, Any]:
+    """
+    Ket qua gop cua MOT cong cu dung hinh dang giao doanh nghiep:
+      {"method", "final", "votes" | "supports" | "scores", "agrees", "disputed", "kind"}
+    "method": "none" (chi kem "kind") voi freeText hoac khi khong ai lam cong cu.
+    """
+    kind = tool["kind"]
+    if not ket_qua or kind in CONG_CU_KHONG_GOP:
+        return {"method": "none", "kind": kind}
+
+    kq = gop_cong_cu(tool, ket_qua, mau, nguong_mac_dinh, f1_toi_thieu)
+    ra: dict[str, Any] = {"method": CACH_GOP[kind], "final": kq["final"]}
+    if kind in ("classification", "pairwise"):
+        ra["votes"] = _phieu(kind, ket_qua)
+    if "supports" in kq:
+        ra["supports"] = kq["supports"]
+    if "scores" in kq:
+        ra["scores"] = kq["scores"]
+    ra["agrees"] = kq["agrees"]
+    ra["disputed"] = kq["disputed"]
+    ra["kind"] = kind
+    return _so_gon(ra)
+
+
+def gop_mau(label_schema: dict[str, Any], nhan: list[dict[str, Any]], mau: dict[str, Any] | None = None,
+            nguong: dict[str, float] | None = None, f1_toi_thieu: float = F1_TOI_THIEU_MAC_DINH) -> dict[str, Any]:
+    """
+    Gop moi cong cu cua MOT mau. nhan: noi dung tung nhan ({ten cong cu: ket qua}) theo thu tu nop — "agrees"
+    cua moi cong cu theo dung thu tu do, bo nhan khong lam cong cu. nguong: loai cong cu → setting
+    labeling.threshold.* (thieu thi mac dinh thu vien).
+    """
+    theo_loai = nguong or {}
+    ra: dict[str, Any] = {}
+    for t in label_schema.get("tools", []):
+        ten = t["name"]
+        ket_qua = [n[ten] for n in nhan if ten in n and n[ten] is not None]
+        ra[ten] = gop_ket_qua_cong_cu(t, ket_qua, mau, theo_loai.get(t["kind"]), f1_toi_thieu)
+    return ra

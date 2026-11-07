@@ -6,7 +6,7 @@ using Crowd.Labeling;
 namespace Crowd.Contracts.Gate
 {
     // gate-svc (P2): trang vuot link. Khach vang lai giai k cau vang + m cau that;
-    // DAT cau vang thi nhan cau that duoc gui sang annotation-svc va (neu luot hop le)
+    // DAT cau vang thi nhan cau that duoc gui sang project-svc va (neu luot hop le)
     // nguoi chia se link duoc tra tien.
 
     /// <summary>Khach da qua cau vang: nhan cua cac cau THAT (khong co cau vang).</summary>

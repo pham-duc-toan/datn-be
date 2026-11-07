@@ -19,8 +19,8 @@ attempt.appeal_resolved v1  (AttemptAppealResolved)
     ProjectId                Guid                 required
     Rewarded                 Boolean              required
 
-attempt.submitted v1  (AttemptSubmitted)
-    Answers                  IReadOnlyList<AttemptAnswer> required
+attempt.submitted v2  (AttemptSubmitted)
+    AnsweredCount            Int32                required
     AttemptId                Guid                 required
     ClientIp                 String?              nullable
     DeviceId                 String?              nullable
@@ -72,7 +72,8 @@ deposit.confirmed v1  (DepositConfirmed)
     Provider                 String               required
     ProviderTxnId            String               required
 
-escrow.rejected v1  (EscrowRejected)
+escrow.rejected v2  (EscrowRejected)
+    OwnerId                  Guid                 required
     ProjectId                Guid                 required
     Reason                   String               required
 
@@ -109,10 +110,6 @@ gate.solved v1  (GateSolved)
     ProjectId                Guid                 required
     SessionId                Guid                 required
     SolvedAt                 DateTimeOffset       required
-
-gold_set.updated v1  (GoldSetUpdated)
-    Items                    IReadOnlyList<GoldSetItem> required
-    ProjectId                Guid                 required
 
 hold.expired v1  (HoldExpired)
     AmountVnd                Int64                required
@@ -189,12 +186,16 @@ ops.dlq_alert v1  (OpsDlqAlert)
     Queue                    String               required
     Threshold                Int32                required
 
-payout.completed v1  (PayoutCompleted)
+payout.completed v2  (PayoutCompleted)
+    LabelerId                Guid                 required
+    NetAmountVnd             Int64                required
     Provider                 String               required
     ProviderTxnId            String               required
     WithdrawalId             Guid                 required
 
-payout.failed v1  (PayoutFailed)
+payout.failed v2  (PayoutFailed)
+    LabelerId                Guid                 required
+    NetAmountVnd             Int64                required
     Reason                   String               required
     WithdrawalId             Guid                 required
 
@@ -222,14 +223,16 @@ project.completed v2  (ProjectCompleted)
     PassedAttemptCount       Int32                required
     ProjectId                Guid                 required
 
-project.finish_requested v1  (ProjectFinishRequested)
-    ProjectId                Guid                 required
-
-project.graded v1  (ProjectGraded)
+project.graded v2  (ProjectGraded)
     Attempts                 IReadOnlyList<GradedAttempt> required
     GradedAt                 DateTimeOffset       required
     MajorityUsed             Boolean              required
+    OwnerId                  Guid                 required
     PassThresholdPercent     Int32                required
+    ProjectId                Guid                 required
+
+project.grading_applied v1  (ProjectGradingApplied)
+    ApprovedLabelerIds       IReadOnlyList<Guid>  required
     ProjectId                Guid                 required
 
 project.invitation_created v1  (ProjectInvitationCreated)
@@ -276,10 +279,6 @@ project.published v2  (ProjectPublished)
     Slots                    Int32                required
 
 project.resumed v1  (ProjectResumed)
-    ProjectId                Guid                 required
-
-project.settled v1  (ProjectSettled)
-    PassedAttemptCount       Int32                required
     ProjectId                Guid                 required
 
 referral.flagged v1  (ReferralFlagged)

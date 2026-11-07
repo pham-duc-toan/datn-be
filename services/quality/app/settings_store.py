@@ -47,7 +47,6 @@ FRAUD_SHARED_ACCOUNTS = "quality.fraud_shared_accounts"
 FRAUD_SHARED_WINDOW = "quality.fraud_shared_window"
 FRAUD_IGNORE_PRIVATE_IPS = "quality.fraud_ignore_private_ips"
 FRAUD_REOPEN_COOLDOWN = "quality.fraud_reopen_cooldown"
-FRAUD_SUBMISSION_RETENTION = "quality.fraud_submission_retention"
 OUTBOX_RETENTION = "outbox.retention"
 OUTBOX_CLEANUP_INTERVAL = "outbox.cleanup_interval"
 CONSUMERS_PROCESSED_RETENTION = "consumers.processed_retention"
@@ -57,6 +56,7 @@ FREETEXT_SIMILARITY = "quality.freetext_similarity"
 FREETEXT_LEXICAL_SIMILARITY = "quality.freetext_lexical_similarity"
 FREETEXT_ANALYSIS_TIMEOUT = "quality.freetext_analysis_timeout"
 FREETEXT_ANALYSIS_INTERVAL = "quality.freetext_analysis_interval"
+PENDING_WORK_INTERVAL = "quality.pending_work_interval"
 
 # Loai cong cu → setting nguong mac dinh (trung NguongKhopTuSetting ben C#).
 LABELING_THRESHOLD = {

@@ -1,8 +1,13 @@
 """Bao cao chat luong cua mot du an — tinh tu du lieu song, hoac doc ban chup neu du an da luu tru.
 
-Du an da dong qua project.closed_data_retention thi nhan tho (labels), bai nop (attempts) va ket qua gop
-tung cau (sample_majorities) bi xoa (archive.py). Truoc khi xoa, hai bao cao duoi day duoc CHUP vao project_reports,
-nen chu du an van xem duoc — chi la so lieu dung yen.
+Du lieu song = hai nguon (kien truc 3.22, khong ban sao):
+  - project-svc qua gRPC: bai da nop (so cau, cau vang, thoi diem) va KET QUA CUOI cua bai (dat, duoc thuong —
+    da tinh ca phan xu khieu nai), ly do / luc dong thu bai;
+  - quality: moc cham, da so tung cau, chi so do tin cay, DS / STAPLE, uy tin.
+
+Du an da dong qua project.closed_data_retention thi ket qua trung gian (sample_majorities, vector cau mo, ds_state)
+bi xoa (archive.py). Truoc khi xoa, hai bao cao duoi day duoc CHUP vao project_reports, nen chu du an van xem duoc
+— chi la so lieu dung yen.
 """
 
 import json
@@ -12,6 +17,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import project_client
+
 
 def phan_tram(dung: int, tong: int) -> int | None:
     return round(100 * dung / tong) if tong else None
@@ -19,46 +26,43 @@ def phan_tram(dung: int, tong: int) -> int | None:
 
 async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, Any]:
     """Ket qua cham ca du an (docs 3.18) + cau vang + Krippendorff alpha theo cong cu — tu du lieu song."""
-    so_nhan = (await s.execute(text("SELECT COUNT(*) FROM labels WHERE project_id = :p"), {"p": project_id})).scalar_one()
-    bai = (await s.execute(text(
-        "SELECT COUNT(*) AS n, COALESCE(SUM(gold_total), 0) AS gt, COALESCE(SUM(gold_correct), 0) AS gd "
-        "FROM attempts WHERE project_id = :p"), {"p": project_id})).one()
-    dot = (await s.execute(text(
-        "SELECT reason, finished_at, graded_at, majority_used, freetext_state, freetext_method FROM project_collections WHERE project_id = :p"),
-        {"p": project_id})).first()
+    du_an = await project_client.du_an(project_id)
+    bai = await project_client.bai_da_nop(project_id)
     cham = (await s.execute(text(
-        "SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE passed) AS dat, COUNT(*) FILTER (WHERE rewarded) AS thuong "
-        "FROM attempt_grades WHERE project_id = :p"),
-        {"p": project_id})).one()
+        "SELECT graded_at, majority_used, freetext_state, freetext_method FROM project_gradings WHERE project_id = :p"),
+        {"p": project_id})).first()
     cau = (await s.execute(text(
         "SELECT status, COUNT(*) AS n FROM sample_majorities WHERE project_id = :p GROUP BY status"), {"p": project_id})).all()
     chi_so = (await s.execute(text(
         "SELECT tool, alpha, kappa, metric, item_count, label_count, computed_at FROM project_metrics WHERE project_id = :p ORDER BY tool"),
         {"p": project_id})).all()
 
+    da_cham = [b for b in bai if b.graded]
+    dat = sum(1 for b in da_cham if b.passed)
+    vang_tong = sum(b.gold_total for b in bai)
     dem = {r.status: r.n for r in cau}
     return {
         "projectId": str(project_id),
-        "labelCount": so_nhan,
-        "attemptsSubmitted": bai.n,
-        "attemptsGraded": cham.n,
-        "attemptsPassed": cham.dat,
-        # Bai dat duoc thuong (toi da so suat — n bai dat nop som nhat).
-        "attemptsRewarded": cham.thuong,
-        "attemptsFailed": cham.n - cham.dat,
-        "collectionReason": None if dot is None else dot.reason,
-        "collectionFinishedAt": None if dot is None else dot.finished_at.isoformat(),
-        "gradedAt": None if dot is None or dot.graded_at is None else dot.graded_at.isoformat(),
-        "majorityUsed": None if dot is None else dot.majority_used,
+        "labelCount": sum(b.label_count for b in bai),
+        "attemptsSubmitted": len(bai),
+        "attemptsGraded": len(da_cham),
+        "attemptsPassed": dat,
+        # Bai duoc thuong (toi da so suat — n bai dat nop som nhat, lap suat trong, khieu nai duoc chap nhan).
+        "attemptsRewarded": sum(1 for b in da_cham if b.rewarded),
+        "attemptsFailed": len(da_cham) - dat,
+        "collectionReason": du_an.finish_reason,
+        "collectionFinishedAt": None if du_an.collection_finished_at is None else du_an.collection_finished_at.isoformat(),
+        "gradedAt": None if cham is None or cham.graded_at is None else cham.graded_at.isoformat(),
+        "majorityUsed": None if cham is None else cham.majority_used,
         # Cau tra loi mo (3.19): pending = cho ml-svc phan tich; method semantic (so nghia) | lexical (so chu).
-        "freeTextAnalysis": None if dot is None or dot.freetext_state is None else {
-            "state": dot.freetext_state, "method": dot.freetext_method},
+        "freeTextAnalysis": None if cham is None or cham.freetext_state is None else {
+            "state": cham.freetext_state, "method": cham.freetext_method},
         "samplesEvaluated": sum(dem.values()),
         "agreed": dem.get("agreed", 0),
         "disputed": dem.get("disputed", 0),
         "notApplicable": dem.get("notApplicable", 0),
-        "goldAnswers": int(bai.gt),
-        "goldAccuracyPercent": phan_tram(int(bai.gd), int(bai.gt)),
+        "goldAnswers": vang_tong,
+        "goldAccuracyPercent": phan_tram(sum(b.gold_correct for b in bai), vang_tong),
         "tools": [
             {"tool": r.tool, "krippendorffAlpha": r.alpha, "fleissKappa": r.kappa,
              # Ham khoang cach cua alpha: nominal / interval / cer / kendall / set_f1 (null = ban tinh cu, nominal).
@@ -66,23 +70,19 @@ async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, An
              "itemCount": r.item_count, "labelCount": r.label_count, "computedAt": r.computed_at.isoformat()}
             for r in chi_so
         ],
-        # null = so lieu song; co gia tri = ban chup luc luu tru (du an da dong, nhan tho da xoa).
+        # null = so lieu song; co gia tri = ban chup luc luu tru (du an da dong, ket qua trung gian da xoa).
         "archivedAt": None,
     }
 
 
 async def tinh_labelers(s: AsyncSession, project_id: uuid.UUID) -> list[dict[str, Any]]:
     """Tung bai nop trong du an: so cau tra loi, ti le giong da so, cau vang, dat / truot, DS, uy tin — tu du lieu song."""
-    dong = (await s.execute(text(
-        "SELECT a.attempt_id, a.labeler_id, a.answered_count, cardinality(a.sample_ids) AS so_cau, a.gold_total, a.gold_correct, "
-        "  a.submitted_at, g.comparable_count, g.matched_count, g.agreement_percent, g.passed, g.rewarded, "
-        "  (SELECT reputation FROM reputations r WHERE r.labeler_id = a.labeler_id) AS uy_tin "
-        "FROM attempts a LEFT JOIN attempt_grades g ON g.attempt_id = a.attempt_id "
-        "WHERE a.project_id = :p ORDER BY g.agreement_percent DESC NULLS LAST, a.submitted_at"),
-        {"p": project_id})).all()
+    bai = await project_client.bai_da_nop(project_id)
+    nguoi = list({b.labeler_id for b in bai})
+    uy_tin = {r.labeler_id: r.reputation for r in (await s.execute(text(
+        "SELECT labeler_id, reputation FROM reputations WHERE labeler_id = ANY(:u)"), {"u": nguoi})).all()} if nguoi else {}
     ky_nang = (await s.execute(text(
         "SELECT labeler_id, tool, skill, label_count FROM ds_skills WHERE project_id = :p"), {"p": project_id})).all()
-
     staple = (await s.execute(text(
         "SELECT labeler_id, tool, sensitivity, specificity, sample_count FROM staple_skills WHERE project_id = :p"),
         {"p": project_id})).all()
@@ -95,29 +95,31 @@ async def tinh_labelers(s: AsyncSession, project_id: uuid.UUID) -> list[dict[str
         st.setdefault(k.labeler_id, {})[k.tool] = {
             "sensitivity": round(k.sensitivity, 3), "specificity": round(k.specificity, 3), "sampleCount": k.sample_count}
 
+    # Ti le giong da so cao truoc (chua cham xuong cuoi), cung ti le thi nop som truoc.
+    bai = sorted(bai, key=lambda b: (0 if b.graded else 1, -b.agreement_percent if b.graded else 0, b.submitted_at))
     return [
         {
-            "labelerId": str(d.labeler_id),
-            "attemptId": str(d.attempt_id),
-            "labelCount": d.answered_count,
-            "questionCount": d.so_cau,
-            "submittedAt": d.submitted_at.isoformat(),
+            "labelerId": str(b.labeler_id),
+            "attemptId": str(b.attempt_id),
+            "labelCount": b.label_count,
+            "questionCount": len(b.sample_ids),
+            "submittedAt": b.submitted_at.isoformat(),
             # null = chua cham (du an chua dong thu bai).
-            "agreementPercent": d.agreement_percent,
-            "agreementSampleCount": d.comparable_count,
-            "matchedCount": d.matched_count,
-            "passed": d.passed,
+            "agreementPercent": b.agreement_percent if b.graded else None,
+            "agreementSampleCount": b.comparable_count if b.graded else None,
+            "matchedCount": b.matched_count if b.graded else None,
+            "passed": b.passed if b.graded else None,
             # Trong n suat thuong (n bai dat nop som nhat). passed ma rewarded false = dat nhung het suat;
-            # rewarded ma passed false = duoc lap suat trong.
-            "rewarded": d.rewarded,
-            "goldAnswers": d.gold_total,
-            "goldAccuracyPercent": phan_tram(d.gold_correct, d.gold_total),
-            "dawidSkeneSkill": ds.get(d.labeler_id, {}),
+            # rewarded ma passed false = duoc lap suat trong / khieu nai duoc chap nhan.
+            "rewarded": b.rewarded if b.graded else None,
+            "goldAnswers": b.gold_total,
+            "goldAccuracyPercent": phan_tram(b.gold_correct, b.gold_total),
+            "dawidSkeneSkill": ds.get(b.labeler_id, {}),
             # STAPLE (mat na): chi de chu du an xem, khong tinh vao uy tin.
-            "stapleMask": st.get(d.labeler_id, {}),
-            "reputation": d.uy_tin,
+            "stapleMask": st.get(b.labeler_id, {}),
+            "reputation": uy_tin.get(b.labeler_id),
         }
-        for d in dong
+        for b in bai
     ]
 
 

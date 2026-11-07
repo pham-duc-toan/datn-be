@@ -7,8 +7,6 @@ namespace Crowd.Labeling.Tools
     /// Da giac tren anh: [{"labelId":"so_tay","points":[[x,y],[x,y],[x,y],...]}].
     /// Moi diem nam trong anh. Thu tu DIEM giu nguyen (dao thu tu la doi hinh).
     /// Cham dap an: IoU (uoc luong bang luoi diem) &gt;= nguong (mac dinh 0.5).
-    /// Gop nhieu nguoi: ghep cum theo IoU, da giac dai dien = da giac "o giua" cua cum (so dinh
-    /// moi nguoi mot khac nen khong lay trung binh tung dinh duoc).
     /// </summary>
     internal sealed class PolygonTool : DanhSachToolBase
     {

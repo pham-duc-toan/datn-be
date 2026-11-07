@@ -1,8 +1,10 @@
-"""Seed ban sao du an + bai nop + ket qua cham cua kich ban dev (shared/seeding/quality-seed.json).
+"""Seed KET QUA cua quality cho kich ban dev (shared/seeding/quality-seed.json).
 
-Kich ban seed nam o C# (KichBanSeed); test QualitySeedSnapshotTests xuat phan
-quality can ra JSON. Giong cac service C#: chi chay khi moi truong Development
-VA bat co seed; du an da co thi bo qua (chay lai an toan).
+Kich ban seed nam o C# (KichBanSeed); test QualitySeedSnapshotTests xuat phan quality can ra JSON. De bai, bai
+nop va nhan da seed o project-svc — quality doc qua gRPC (kien truc 3.22), nen o day chi con: du an co bai nop
+(danh dau lo DS can tinh) va, voi du an Completed, moc cham (project_gradings) + moc dong. Bang chung uy tin
+(so cau so duoc / giong / cau vang) nam tren project.attempts da seed — khong chep ve day.
+Giong cac service C#: chi chay khi moi truong Development VA bat co seed; da co thi bo qua (chay lai an toan).
 """
 
 import json
@@ -12,13 +14,15 @@ from pathlib import Path
 
 from sqlalchemy import text
 
-from app import processors
 from app.config import settings
 from app.db import session_factory
 
 log = logging.getLogger(__name__)
 
 FILE_SEED = Path(__file__).resolve().parents[3] / "shared" / "seeding" / "quality-seed.json"
+
+# correlation_id cua lan cham seed (khong co event goc).
+KHONG_GIAN_SEED = uuid.UUID("6f1d3c9e-2b7a-4f55-9a43-0c8e1d2b7a01")
 
 
 async def chay() -> None:
@@ -34,69 +38,35 @@ async def chay() -> None:
     so = 0
     async with session_factory()() as s, s.begin():
         for p in du_an:
-            r = await s.execute(
-                text(
-                    "INSERT INTO projects (project_id, owner_id, modality, label_schema, pass_threshold_percent, slots, question_count, published_at) "
-                    "VALUES (:id, :owner, :m, CAST(:schema AS jsonb), :t, :slots, :q, now() - make_interval(secs => :ago)) "
-                    "ON CONFLICT (project_id) DO NOTHING"
-                ),
-                {"id": p["projectId"], "owner": p["ownerId"], "m": p["modality"], "schema": json.dumps(p["labelSchema"]),
-                 "t": p["passThresholdPercent"], "slots": p["slots"], "q": p["questionCount"], "ago": float(p["createdAgoSeconds"])},
-            )
-            if not r.rowcount:
-                continue
-            so += 1
-            await _seed_bai(s, p)
+            if p["submittedAttempts"] > 0:
+                await s.execute(
+                    text("INSERT INTO ds_state (project_id, dirty_at) VALUES (:p, now()) ON CONFLICT (project_id) DO NOTHING"),
+                    {"p": p["projectId"]})
+            if "gradedAgoSeconds" in p and await _seed_ket_qua(s, p):
+                so += 1
 
-    log.info("Seed quality: them %s / %s du an", so, len(du_an))
+    log.info("Seed quality: them ket qua cham %s du an", so)
 
 
-async def _seed_bai(s, p: dict) -> None:
-    """Bai da nop (+ nhan) cua du an; du an Completed them ket qua cham — dung so lieu kich ban C#."""
-    for b in p["attempts"]:
-        await s.execute(
-            text(
-                "INSERT INTO attempts (attempt_id, project_id, labeler_id, sample_ids, answered_count, gold_total, gold_correct, started_at, submitted_at) "
-                "VALUES (:a, :p, :l, :ids, :n, :gt, :gd, now() - make_interval(secs => :st), now() - make_interval(secs => :sb))"
-            ),
-            {"a": b["attemptId"], "p": p["projectId"], "l": b["labelerId"], "ids": [uuid.UUID(x) for x in b["sampleIds"]], "n": len(b["labels"]),
-             "gt": b["goldTotal"], "gd": b["goldCorrect"], "st": float(b["startedAgoSeconds"]), "sb": float(b["submittedAgoSeconds"])},
-        )
-        for n in b["labels"]:
-            await s.execute(
-                text(
-                    "INSERT INTO labels (annotation_id, project_id, attempt_id, sample_id, labeler_id, data, sample_metadata, received_at) "
-                    "VALUES (:id, :p, :a, :sm, :l, CAST(:d AS jsonb), CAST(:md AS jsonb), now() - make_interval(secs => :sb))"
-                ),
-                {"id": processors.id_nhan(uuid.UUID(b["attemptId"]), uuid.UUID(n["sampleId"])), "p": p["projectId"],
-                 "a": b["attemptId"], "sm": n["sampleId"], "l": b["labelerId"], "d": json.dumps(n["data"]),
-                 "md": json.dumps(n["sampleMetadata"]), "sb": float(b["submittedAgoSeconds"])},
-            )
-
-    if "gradedAgoSeconds" not in p:
-        return
-
-    await s.execute(
+async def _seed_ket_qua(s, p: dict) -> bool:
+    """Du an Completed: ket qua cham dung so lieu kich ban C#. Da co thi bo qua."""
+    r = await s.execute(
         text(
-            "INSERT INTO project_collections (project_id, reason, attempt_ids, excluded_sample_ids, finished_at, graded_at, majority_used) "
-            "VALUES (:p, :r, :a, '{}', now() - make_interval(secs => :g), now() - make_interval(secs => :g), :mj)"
+            # reputation_at = graded_at: kich ban seed da co uy tin san (identity / labeler_cache) — khong tinh lai.
+            "INSERT INTO project_gradings (project_id, requested_at, correlation_id, graded_at, majority_used, reputation_at) "
+            "VALUES (:p, now() - make_interval(secs => :g), :c, now() - make_interval(secs => :g), :mj, "
+            "now() - make_interval(secs => :g)) "
+            "ON CONFLICT (project_id) DO NOTHING"
         ),
-        {"p": p["projectId"], "r": "du_suat" if len(p["attempts"]) >= p["slots"] else "het_han",
-         "a": [uuid.UUID(b["attemptId"]) for b in p["attempts"]], "g": float(p["gradedAgoSeconds"]), "mj": p["majorityUsed"]},
+        {"p": p["projectId"], "g": float(p["gradedAgoSeconds"]), "c": uuid.uuid5(KHONG_GIAN_SEED, p["projectId"]),
+         "mj": p["majorityUsed"]},
     )
-    for b in p["attempts"]:
-        kq = b["result"]
-        await s.execute(
-            text(
-                "INSERT INTO attempt_grades (attempt_id, project_id, labeler_id, comparable_count, matched_count, agreement_percent, "
-                "gold_total, gold_correct, passed, rewarded, answered_count, graded_at) "
-                "VALUES (:a, :p, :l, :c, :m, :pt, :gt, :gd, :ok, :ok, :n, now() - make_interval(secs => :g))"
-            ),
-            {"a": b["attemptId"], "p": p["projectId"], "l": b["labelerId"], "c": kq["comparableCount"], "m": kq["matchedCount"],
-             "pt": kq["agreementPercent"], "gt": b["goldTotal"], "gd": b["goldCorrect"], "ok": kq["passed"],
-             "n": len(b["labels"]), "g": float(p["gradedAgoSeconds"])},
-        )
+    if not r.rowcount:
+        return False
+
     await s.execute(
-        text("UPDATE projects SET closed_at = now() - make_interval(secs => :c) WHERE project_id = :p"),
+        text("INSERT INTO project_archives (project_id, closed_at) VALUES (:p, now() - make_interval(secs => :c)) "
+             "ON CONFLICT (project_id) DO NOTHING"),
         {"p": p["projectId"], "c": float(p["completedAgoSeconds"])},
     )
+    return True

@@ -6,8 +6,8 @@ using Crowd.Labeling;
 namespace Crowd.Contracts.Project
 {
     /// <summary>
-    /// Mot LO mau vua nap vao du an. task-svc giu ban sao danh sach mau de sinh
-    /// task khi du an publish; ml-svc bat dau pre-label.
+    /// Mot LO mau vua nap vao du an. media-svc chuan hoa san video (ban chuan). gate-svc KHONG nghe nua:
+    /// no keo mau qua gRPC (GateData) luc du an publish bat cong link.
     ///
     /// Chia lo vi mot dataset co the vai chuc nghin mau — nhet het vao mot
     /// message thi message nang vai MB, vuot xa kich thuoc hop ly cua bus.
@@ -38,7 +38,7 @@ namespace Crowd.Contracts.Project
     }
 
     /// <summary>
-    /// Mot mau trong lo. Mang du thong tin de task-svc phat viec ma khong phai
+    /// Mot mau trong lo. Mang du thong tin de service nghe phat viec ma khong phai
     /// hoi lai project-svc: file (khoa MinIO) hoac noi dung (text), va metadata
     /// de kiem nhan (kich thuoc anh, thoi luong, do dai van ban).
     /// </summary>
@@ -57,37 +57,5 @@ namespace Crowd.Contracts.Project
 
         /// <summary>Thong tin mau (Crowd.Labeling.SampleMetadata): width/height, durationSec, length, doan cat.</summary>
         public required RawJson Metadata { get; init; }
-    }
-
-    /// <summary>
-    /// Toan bo tap cau hoi vang cua du an SAU khi thay doi (thay the, khong
-    /// phai cong don). task-svc tron cau hoi vang vao task; gate-svc dung lam
-    /// thu thach o cong link.
-    /// </summary>
-    public sealed record GoldSetUpdated : IEventPayload
-    {
-        public static string EventType
-        {
-            get { return "gold_set.updated"; }
-        }
-
-        public static int Version
-        {
-            get { return 1; }
-        }
-
-        public required Guid ProjectId { get; init; }
-
-        public required IReadOnlyList<GoldSetItem> Items { get; init; }
-    }
-
-    public sealed record GoldSetItem
-    {
-        public required Guid SampleId { get; init; }
-
-        /// <summary>Dap an dung, cung dinh dang voi nhan labeler nop — xem Crowd.Labeling.</summary>
-        public required LabelPayload ExpectedPayload { get; init; }
-
-        public required GoldPurpose Purpose { get; init; }
     }
 }

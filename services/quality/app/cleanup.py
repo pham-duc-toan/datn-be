@@ -2,9 +2,9 @@
 
   - outbox: event DA GUI qua outbox.retention (event chua gui khong bao gio xoa);
   - processed_events: dau vet chong xu ly trung qua consumers.processed_retention;
-  - fraud_submissions: luot nop dung xet gian lan qua quality.fraud_submission_retention
-    (thuat toan chi can vai chuc luot gan nhat va cua so chung IP);
-  - du an da dong qua project.closed_data_retention: chup bao cao roi xoa nhan tho (archive.py).
+  - du an da dong qua project.closed_data_retention: chup bao cao roi xoa ket qua trung gian (archive.py).
+
+(Dau vet bai nop dung xet gian lan khong con o quality — doc qua gRPC tu project-svc, kien truc 3.22.)
 
 Xoa theo LO voi FOR UPDATE SKIP LOCKED: khong giu khoa lau, khong tranh voi dispatcher / consumer
 (hai ben dung vao dong MOI), chay nhieu ban sao khong xoa trung. Moi vong toi da LO_MOI_VONG lo.
@@ -29,7 +29,6 @@ LO_MOI_VONG = 25
 BANG = [
     ("outbox", "id", "published_at IS NOT NULL AND published_at < :han", settings_store.OUTBOX_RETENTION),
     ("processed_events", "event_id, handler", "processed_at < :han", settings_store.CONSUMERS_PROCESSED_RETENTION),
-    ("fraud_submissions", "assignment_id", "submitted_at < :han", settings_store.FRAUD_SUBMISSION_RETENTION),
 ]
 
 

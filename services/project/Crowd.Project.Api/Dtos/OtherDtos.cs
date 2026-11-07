@@ -442,14 +442,4 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>Link chia se file hoac thu muc (thu muc can khoa API Google cau hinh o server).</summary>
         public IReadOnlyList<string>? Links { get; init; }
     }
-
-    // ---- Noi bo ----
-
-    /// <summary>GET /internal/projects/{id}/published-terms: dung payload project.published + luc publish.</summary>
-    public sealed class PublishedTermsResponse
-    {
-        public required DateTimeOffset PublishedAt { get; init; }
-
-        public required Crowd.Contracts.Project.ProjectPublished Terms { get; init; }
-    }
 }

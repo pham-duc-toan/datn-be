@@ -106,6 +106,393 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.ToTable("outbox", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Project.Domain.Annotations.KetQuaMauDem", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("SampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sample_id");
+
+                    b.Property<DateTimeOffset>("ComputedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("computed_at");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("fingerprint");
+
+                    b.Property<string>("ToolsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("tools");
+
+                    b.HasKey("ProjectId", "SampleId");
+
+                    b.ToTable("sample_results", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Annotations.LabelAnnotation", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("attempt_id");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("LabelerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("labeler_id");
+
+                    b.Property<Guid>("SampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sample_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<string>("_payloadJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<int>("_payloadSchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<string>("_payloadTaskType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("task_type");
+
+                    b.HasKey("ProjectId", "Id");
+
+                    b.HasIndex("ProjectId", "SampleId")
+                        .HasDatabaseName("ix_annotations_project_sample");
+
+                    b.HasIndex("ProjectId", "Status")
+                        .HasDatabaseName("ix_annotations_project_status");
+
+                    b.HasIndex("ProjectId", "AttemptId", "SampleId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_annotations_attempt_sample");
+
+                    b.ToTable("annotations", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Attempts.Attempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int?>("AgreementPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("agreement_percent");
+
+                    b.Property<int?>("AnsweredCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("answered_count");
+
+                    b.Property<string>("AppealMessage")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("appeal_message");
+
+                    b.Property<string>("AppealNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("appeal_note");
+
+                    b.Property<DateTimeOffset?>("AppealResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("appeal_resolved_at");
+
+                    b.Property<Guid?>("AppealResolvedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("appeal_resolved_by");
+
+                    b.Property<string>("AppealState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("appeal_state");
+
+                    b.Property<DateTimeOffset?>("AppealedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("appealed_at");
+
+                    b.Property<string>("ClientIp")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("client_ip");
+
+                    b.Property<int?>("ComparableCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("comparable_count");
+
+                    b.Property<string>("DeviceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("device_id");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ended_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("GoldAnswersJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("gold_answers");
+
+                    b.Property<int>("GoldCorrect")
+                        .HasColumnType("integer")
+                        .HasColumnName("gold_correct");
+
+                    b.Property<int>("GoldTotal")
+                        .HasColumnType("integer")
+                        .HasColumnName("gold_total");
+
+                    b.Property<DateTimeOffset?>("GradedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("graded_at");
+
+                    b.Property<Guid>("LabelerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("labeler_id");
+
+                    b.Property<int?>("MatchedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("matched_count");
+
+                    b.Property<bool?>("Passed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("passed");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<bool?>("Rewarded")
+                        .HasColumnType("boolean")
+                        .HasColumnName("rewarded");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.PrimitiveCollection<List<Guid>>("_questionOrder")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("question_order");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppealedAt")
+                        .HasDatabaseName("ix_attempts_khieu_nai_mo")
+                        .HasFilter("appeal_state = 'Open'");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_attempts_het_han")
+                        .HasFilter("state = 'InProgress'");
+
+                    b.HasIndex("LabelerId")
+                        .HasDatabaseName("ix_attempts_chap_nhan")
+                        .HasFilter("passed = true OR appeal_state = 'Accepted'");
+
+                    b.HasIndex("ClientIp", "SubmittedAt")
+                        .HasDatabaseName("ix_attempts_client_ip")
+                        .HasFilter("client_ip IS NOT NULL");
+
+                    b.HasIndex("DeviceId", "SubmittedAt")
+                        .HasDatabaseName("ix_attempts_device")
+                        .HasFilter("device_id IS NOT NULL");
+
+                    b.HasIndex("LabelerId", "StartedAt")
+                        .HasDatabaseName("ix_attempts_labeler");
+
+                    b.HasIndex("ProjectId", "LabelerId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_attempts_project_labeler_active")
+                        .HasFilter("state IN ('InProgress','Submitted')");
+
+                    b.HasIndex("ProjectId", "State")
+                        .HasDatabaseName("ix_attempts_project_state");
+
+                    b.ToTable("attempts", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Attempts.AttemptDraft", b =>
+                {
+                    b.Property<Guid>("AttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("attempt_id");
+
+                    b.Property<Guid>("SampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sample_id");
+
+                    b.Property<string>("DataJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("data");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("AttemptId", "SampleId");
+
+                    b.ToTable("attempt_drafts", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Attempts.AttemptHistoryEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<Guid>("AttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("attempt_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttemptId")
+                        .HasDatabaseName("ix_attempt_history_attempt");
+
+                    b.ToTable("attempt_history", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Collections.CollectionRound", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<DateTimeOffset?>("AppealDeadline")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("appeal_deadline");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DataPurgedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("data_purged_at");
+
+                    b.Property<string>("FinalProgressJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("final_progress");
+
+                    b.Property<string>("FinishReason")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("finish_reason");
+
+                    b.Property<DateTimeOffset?>("GradedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("graded_at");
+
+                    b.Property<int>("MaxParticipants")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_participants");
+
+                    b.Property<int?>("PassedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("passed_count");
+
+                    b.Property<DateTimeOffset?>("PausedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paused_at");
+
+                    b.Property<DateTimeOffset?>("SettledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("settled_at");
+
+                    b.HasKey("ProjectId");
+
+                    b.HasIndex("AppealDeadline")
+                        .HasDatabaseName("ix_project_collections_cho_chot")
+                        .HasFilter("graded_at IS NOT NULL AND settled_at IS NULL");
+
+                    b.ToTable("project_collections", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Project.Domain.Datasets.Dataset", b =>
                 {
                     b.Property<Guid>("Id")
@@ -181,6 +568,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Crowd.Project.Domain.Datasets.Sample", b =>
                 {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
@@ -201,6 +592,15 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("DatasetId")
                         .HasColumnType("uuid")
                         .HasColumnName("dataset_id");
+
+                    b.Property<DateTimeOffset?>("ExcludedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluded_at");
+
+                    b.Property<string>("ExcludedReason")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("excluded_reason");
 
                     b.Property<string>("MediaError")
                         .HasMaxLength(500)
@@ -229,10 +629,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("original_name");
 
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
                     b.Property<string>("Sha256")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -248,7 +644,7 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("storage_key");
 
-                    b.HasKey("Id");
+                    b.HasKey("ProjectId", "Id");
 
                     b.HasIndex("DatasetId")
                         .HasDatabaseName("ix_samples_dataset");
@@ -350,8 +746,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnName("expected_task_type");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("SampleId");
 
                     b.HasIndex("ProjectId", "SampleId")
                         .IsUnique()
@@ -972,6 +1366,72 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.ToTable("projects", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Project.Domain.Reports.SampleReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("attempt_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("LabelerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("labeler_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid?>("ResolvedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolved_by");
+
+                    b.Property<Guid>("SampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sample_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttemptId", "SampleId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_sample_reports_attempt_sample");
+
+                    b.HasIndex("ProjectId", "SampleId")
+                        .HasDatabaseName("ix_sample_reports_mau");
+
+                    b.HasIndex("ProjectId", "State", "CreatedAt")
+                        .HasDatabaseName("ix_sample_reports_du_an");
+
+                    b.ToTable("sample_reports", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
                 {
                     b.Property<string>("Key")
@@ -995,6 +1455,42 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.HasKey("Key");
 
                     b.ToTable("settings_replica", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Attempts.Attempt", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Attempts.AttemptDraft", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Attempts.Attempt", null)
+                        .WithMany()
+                        .HasForeignKey("AttemptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Attempts.AttemptHistoryEntry", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Attempts.Attempt", null)
+                        .WithMany()
+                        .HasForeignKey("AttemptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Collections.CollectionRound", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
+                        .WithOne()
+                        .HasForeignKey("Crowd.Project.Domain.Collections.CollectionRound", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Crowd.Project.Domain.Datasets.Dataset", b =>
@@ -1040,7 +1536,7 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
 
                     b.HasOne("Crowd.Project.Domain.Datasets.Sample", null)
                         .WithMany()
-                        .HasForeignKey("SampleId")
+                        .HasForeignKey("ProjectId", "SampleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -1095,6 +1591,21 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Reports.SampleReport", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Attempts.Attempt", null)
+                        .WithMany()
+                        .HasForeignKey("AttemptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Crowd.Project.Domain.Datasets.Sample", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId", "SampleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

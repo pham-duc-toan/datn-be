@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Labeling;
@@ -23,13 +24,39 @@ namespace Crowd.Project.Api.Exceptions
         }
     }
 
-    /// <summary>Xem duoc nhung khong duoc SUA (vd labeler goi API cua chu du an) → 403.</summary>
+    /// <summary>
+    /// Xem duoc nhung khong duoc SUA (vd labeler goi API cua chu du an) → 403. Co Code rieng khi frontend can
+    /// phan biet ly do (vd labeler chua du dieu kien lam bai: chua_du_cap_do, bi_chan_khoi_du_an...).
+    /// </summary>
     public sealed class ForbiddenException : Exception
     {
         public ForbiddenException(string message)
-            : base(message)
+            : this("khong_co_quyen", message)
         {
         }
+
+        public ForbiddenException(string code, string message)
+            : base(message)
+        {
+            Code = code;
+        }
+
+        public string Code { get; }
+    }
+
+    /// <summary>
+    /// Nop bai co cau tra loi SAI DINH DANG (khung ngoai anh, thieu cong cu bat buoc...) → 400
+    /// bai_chua_hop_le kem invalidAnswers: frontend nhay toi tung cau de sua. Bai VAN dang lam.
+    /// </summary>
+    public sealed class BaiChuaHopLeException : Exception
+    {
+        public BaiChuaHopLeException(IReadOnlyList<Crowd.Project.Api.Dtos.InvalidAnswer> cauSai)
+            : base("Có " + (cauSai == null ? 0 : cauSai.Count) + " câu trả lời chưa đúng định dạng — sửa rồi nộp lại.")
+        {
+            CauSai = cauSai ?? new List<Crowd.Project.Api.Dtos.InvalidAnswer>();
+        }
+
+        public IReadOnlyList<Crowd.Project.Api.Dtos.InvalidAnswer> CauSai { get; }
     }
 
     /// <summary>
@@ -166,10 +193,16 @@ namespace Crowd.Project.Api.Exceptions
                 code = "khong_tim_thay";
                 message = exception.Message;
             }
-            else if (exception is ForbiddenException)
+            else if (exception is ForbiddenException forbidden)
             {
                 status = StatusCodes.Status403Forbidden;
-                code = "khong_co_quyen";
+                code = forbidden.Code;
+                message = exception.Message;
+            }
+            else if (exception is BaiChuaHopLeException)
+            {
+                status = StatusCodes.Status400BadRequest;
+                code = "bai_chua_hop_le";
                 message = exception.Message;
             }
             else if (exception is DbUpdateConcurrencyException)
@@ -200,6 +233,12 @@ namespace Crowd.Project.Api.Exceptions
                 long giay = (long)Math.Ceiling(vuot.ThuLaiSau.TotalSeconds);
                 httpContext.Response.Headers.RetryAfter = giay.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 chiTiet.Extensions["retryAfterSeconds"] = giay;
+            }
+
+            BaiChuaHopLeException? baiSai = exception as BaiChuaHopLeException;
+            if (baiSai != null)
+            {
+                chiTiet.Extensions["invalidAnswers"] = baiSai.CauSai;
             }
 
             ChuaTheDongDuAnException? chuaDong = exception as ChuaTheDongDuAnException;

@@ -28,9 +28,7 @@ dotnet build datn.slnx
 # 3. Mỗi service một terminal (thứ tự không quan trọng; admin-svc giữ setting hệ thống)
 dotnet run --project services/admin/Crowd.Admin.Api
 dotnet run --project services/identity/Crowd.Identity.Api
-dotnet run --project services/project/Crowd.Project.Api
-dotnet run --project services/task/Crowd.Tasking.Api
-dotnet run --project services/annotation/Crowd.Annotation.Api
+dotnet run --project services/project/Crowd.Project.Api      # gồm cả làm bài (/tasks) và nhãn (/annotations)
 dotnet run --project services/ledger/Crowd.Ledger.Api
 dotnet run --project services/payment/Crowd.Payment.Api
 dotnet run --project services/link/Crowd.Link.Api            # cổng link: link rút gọn của người chia sẻ
@@ -66,7 +64,7 @@ docker compose -f docker-compose.demo.yml down -v             # tắt và XOÁ d
 | http://localhost:18025 | Mailpit (email) |
 | http://localhost:19001 | MinIO console (`datn` / `MINIO_PASSWORD` trong `.env`) |
 | http://localhost:25672 | RabbitMQ management (`datn` / `RABBIT_PASSWORD` trong `.env`) |
-| 18103 / 18104 / 18107 / 18108 | task / annotation / link / gate gọi thẳng (cho E2E) |
+| 18107 / 18108 | link / gate gọi thẳng (cho E2E) |
 
 Chỉ gateway (18080) mở ra mạng; mọi cổng còn lại chỉ bind `127.0.0.1` (VD-S-06) — mở từ máy khác trong mạng LAN sẽ không vào được.
 
@@ -74,7 +72,7 @@ Khác với chạy trên máy:
 - Link xem / tải file ký bằng `ObjectStorage:PublicUrl` = `http://localhost:19000`, vì trong mạng compose các service gọi MinIO qua `minio:9000`, còn trình duyệt chỉ tới được cổng publish.
 - Gateway ghi đè host của `ocelot.json` bằng `DownstreamHosts__<cổng>=<service>`.
 - gate-svc và link-svc tin `X-Forwarded-For` từ mạng nội bộ `10.88.0.0/24` (`ForwardedHeaders:TrustedNetworks`); nếu không, mọi khách sẽ mang IP của gateway.
-- task-svc tin `X-Forwarded-For` từ cùng mạng đó (IP người nộp nhãn cho chống gian lận).
+- project-svc tin `X-Forwarded-For` từ cùng mạng đó (IP người nộp bài cho chống gian lận).
 - Gateway nạp mốc thu hồi phiên từ `http://identity:8101` (`SessionRevocation__IdentityUrl`).
 
 **Bí mật (S-08).** `docker-compose.demo.yml` không chứa mật khẩu nào: mật khẩu 11 database, RabbitMQ, MinIO, khoá API nội bộ, khoá link xem file (`MEDIA_GRANT_KEY`) và khoá watermark (`MEDIA_WATERMARK_KEY`) đọc từ `.env` ở gốc repo (danh sách biến: [.env.example](../.env.example)). Thiếu `.env` thì compose dừng với thông báo `chay python deploy/tao_env.py`. Khoá ký JWT do identity tự sinh lần đầu và giữ trong volume `identity-keys` (không nằm trong image). `.env` và mọi thư mục `secrets/` bị loại khỏi git và khỏi ngữ cảnh build Docker.
@@ -97,7 +95,9 @@ Chế độ chạy service trên máy (mục 0, `docker-compose.infra.yml` + `ap
 | container `redis-gateway` | Gateway đếm rate limit dùng chung (`ConnectionStrings__GatewayRedis`). Redis sập thì gateway tạm đếm trong bộ nhớ |
 | Cổng thanh toán giả lập | payment-svc (chỉ Development) có trang "VNPay" / "MoMo" giả ở `/payments/sandbox/vnpay/*`, `/payments/sandbox/momo/*`, ký đúng thuật toán của cổng thật. Cấu hình cổng thật: `PaymentProviders:VnPay:*`, `PaymentProviders:MoMo:*`; bật / tắt bằng setting `payment.enabled_providers` |
 | `DatasetImport__AllowedPrivateHosts__0: minio` | Nhập dữ liệu từ S3 chặn mọi IP nội bộ (SSRF); stack demo cho phép riêng host `minio` để E2E nhập từ MinIO như từ S3 |
-| `QUALITY_PROJECT_URL`, `QUALITY_INTERNAL_API_KEY` | quality-svc tự bù bản sao dự án thiếu qua API nội bộ của project-svc |
+| `InternalApi__ProjectGrpcUrl` (gate, identity, ledger: `http://project:9102`) | gate-svc kéo mẫu + câu vàng của dự án bật cổng link qua gRPC lúc publish (kiến trúc 3.23); identity đọc số câu được chấp nhận / bảng xếp hạng, ledger đọc tên dự án in hoá đơn (3.24). Dev: `http://localhost:9102` (appsettings.Development.json) |
+| `InternalApi__IdentityGrpcUrl` (project: `http://identity:9101`), `InternalApi__QualityGrpcUrl` (project: `http://quality:9201`) | project-svc hỏi identity lúc mời / vào dự án / mở bài, nhờ quality gộp nhãn cho kết quả giao doanh nghiệp (3.24). identity mở thêm cổng gRPC `Kestrel__Endpoints__Grpc__Url` (9101); quality `QUALITY_GRPC_PORT` (9201). Dev: `localhost:9101` / `localhost:9201` |
+| `QUALITY_PROJECT_GRPC` (`project:9102`), `QUALITY_INTERNAL_API_KEY` | quality-svc đọc đề bài / bài nộp / nhãn qua gRPC nội bộ của project-svc (kiến trúc 3.22). project-svc mở hai cổng: `Kestrel__Endpoints__Http__Url` (8102, REST) và `Kestrel__Endpoints__Grpc__Url` (9102, HTTP/2). Chạy quality ngoài Docker: mặc định `localhost:9102`. Sửa `contracts/grpc/**/*.proto` thì sinh lại stub Python: `services/quality/.venv/Scripts/python services/quality/sinh_grpc.py` |
 | `MEDIA_AV_CACHE_DIR` / `MEDIA_AV_CACHE_TTL_SECONDS` / `MEDIA_AV_CACHE_MAX_BYTES` | Bộ đệm đĩa bản âm thanh / video đã watermark và bản chuẩn của video (mặc định `/tmp/media-wm`, 6 giờ, 5 GB; stack demo đặt `/var/cache/media-wm` trên volume `media-cache`). Image media cần `ffmpeg` (đã cài trong Dockerfile); chạy trên máy cần `ffmpeg` trong PATH |
 | setting `ops.alert_email` | Email nhận cảnh báo DLQ (trống = chỉ log + `GET /admin/ops/queues`) |
 
@@ -118,15 +118,15 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_cau_tra_loi_mo.py` | Câu trả lời mở chấm theo nghĩa (3.19): cảnh báo readiness, nhúng câu ngay khi bài tới, cùng ý khác chữ → đạt, lạc đề / bỏ trống → trượt, ml_db chỉ giữ vector; **dừng container ml** → chờ phân tích → quá hạn chấm bằng so chữ (phần này chỉ chạy với `E2E_PROFILE=demo`) |
 | `e2e_tong_the.py` | Xác thực, nạp tiền, vòng đời dự án + ký quỹ theo suất (saga, thiếu tiền, từ chối → hoàn), test đầu vào, làm bài (lưu / sửa / bỏ trống / bỏ bài / hết suất / BOLA), kiểm định dạng lúc nộp (`bai_chua_hop_le` kèm từng câu), chấm cả dự án + khiếu nại bị bác + hoàn suất thừa, rút tiền, setting x ≤ y, tạm dừng / chặn thành viên / kết thúc sớm / huỷ, span văn bản + so sánh cặp |
 | `e2e_settings.py` | Đổi setting lúc chạy (phí, tự duyệt, giới hạn, nạp chuyển khoản, quality nhận setting) |
-| `e2e_p2.py` | Cổng link: rút gọn, vượt link, Turnstile, chống trùng IP, hoa hồng, kiểm duyệt (`chay_hoi_quy` chạy hai lần: chi `perClick` và `batched`) |
+| `e2e_p2.py` | Cổng link: rút gọn, vượt link, Turnstile, chống trùng IP, hoa hồng, kiểm duyệt; gate chỉ giữ mẫu sau khi dự án publish bật cổng (kéo qua gRPC), **tắt project-svc** lúc gate cần kéo mẫu → dự án chờ, project chạy lại thì lên cổng (phần này chỉ với `E2E_PROFILE=demo`) (`chay_hoi_quy` chạy hai lần: chi `perClick` và `batched`) |
 | `e2e_modality.py` | Ảnh, văn bản, âm thanh, video, cặp, khung ảnh; media sinh bằng ffmpeg (`tao_media.py`) |
 | `ep_race_quality.py` | Ép race: 3 labeler nộp **cùng lúc** bài lấp suất cuối → `attempt.submitted` và `project.collection_finished` tới quality-svc song song; mỗi dự án phải được chấm **đúng một lần** (một `project.graded`, ledger trả thưởng đúng 3 bài) |
-| `ep_race_uy_tin.py` | Ép race: K dự án, labeler thứ ba nộp K bài **cùng lúc** → K lần chấm song song cho cùng ba labeler; `reputations.agree_total` phải bằng tổng `attempt_grades.comparable_count` (= K) — khoá theo labeler chống đếm thiếu |
+| `ep_race_uy_tin.py` | Ép race: K dự án, labeler thứ ba nộp K bài **cùng lúc** → K lần chấm song song cho cùng ba labeler; `reputations.agree_total` phải bằng tổng `comparable_count` trên `project.attempts` (= K) — uy tín tính sau khi project-svc ghi xong kết quả, đọc tổng qua gRPC |
 | `e2e_kyb_thong_bao.py` | KYB doanh nghiệp (khai hồ sơ, giấy phép, từ chối → nộp lại → duyệt, chặn publish khi chưa xác minh), thông báo trong ứng dụng + **email thật qua Mailpit**, tuỳ chọn email, gộp thông báo, khoá / mở khoá tài khoản |
 | `e2e_dong_cho_chi.py` | Kịch bản TLA+ tìm ra (NC-B-01) theo mô hình 3.18: dừng container ledger, dự án được chấm và chốt, bật lại. Bài đạt phải được trả thưởng dù `project.completed` tới trước `project.graded` (ký quỹ chờ đủ `PassedAttemptCount` mới đóng; chỉ chạy với `E2E_PROFILE=demo`) |
 | `e2e_bao_ve_du_lieu.py` | Link file qua media-svc (không lộ MinIO), chủ dự án nhận bản gốc, labeler / reviewer nhận ảnh có watermark, admin giải mã ảnh "bị lộ" ra đúng người (labeler 1 ≠ labeler 2, ảnh khác của cùng người vẫn ra người đó), token bị sửa → 403, hết hạn → 410, tắt watermark bằng setting |
 | `e2e_hoan_thien.py` | Xác thực email (bấm link thật trong Mailpit), quên / đặt lại / đổi mật khẩu, thu hồi phiên ở gateway, hồ sơ + avatar + kỹ năng, cấp độ (theo số câu của bài đạt) / xếp hạng, tự lưu câu trả lời + báo lỗi câu trong bài (tự loại khi đủ người báo), tiến độ, chi phí cả dự án, cảnh báo lệch, xuất YOLO sai loại dự án (nội dung zip YOLO / VOC kiểm ở unit test `HoanThienTests`), thu nhập `projectReward`, API tranh chấp cũ đã gỡ, hồ sơ gian lận theo bài nộp (quá nhanh / một nhãn liên tục / chung IP / chung thiết bị) + khoá, audit + báo cáo + thông báo toàn hệ thống, rate limit 429 |
-| `e2e_luu_tru.py` | Lưu trữ & dọn dẹp: một dòng mỗi phiên đăng nhập (làm mới 5 lần vẫn một dòng, dùng lại token cũ → thu hồi phiên), claim `email_verified` / `kyb_verified`, không còn `task.leased`, audit không lưu chi tiết `annotation.submitted` nhưng báo cáo vẫn đếm, mẫu lưu một lần (`annotation_samples`), gate không giữ mẫu dự án không bật cổng link, **dọn outbox đã gửi ở cả 11 service** (hạ `outbox.retention` xuống 1 giờ), dọn dự án đã đóng ở task-svc + quality-svc (tiến độ, báo cáo chất lượng, nhãn và uy tín giữ nguyên) |
+| `e2e_luu_tru.py` | Lưu trữ & dọn dẹp: một dòng mỗi phiên đăng nhập (làm mới 5 lần vẫn một dòng, dùng lại token cũ → thu hồi phiên), claim `email_verified` / `kyb_verified`, không còn `task.leased`, audit không lưu chi tiết `annotation.submitted` nhưng báo cáo vẫn đếm, mẫu lưu một lần (`samples` của project-svc, nhãn chỉ trỏ `sample_id`), gate không giữ mẫu dự án không bật cổng link, **dọn outbox đã gửi ở cả 9 service** (hạ `outbox.retention` xuống 1 giờ), dọn dự án đã đóng ở project-svc + quality-svc (tiến độ, báo cáo chất lượng, mẫu, nhãn và uy tín giữ nguyên) |
 | `e2e_cong_cu.py` | Công cụ gán nhãn mở rộng + gộp nhãn (kiến trúc 3.15): ảnh có khung kèm thuộc tính (OCR), điểm mốc, đường gấp khúc, mặt nạ, số, chép chữ, văn bản tự do — nộp sai bị từ chối đúng lý do, quality-svc tính đồng thuận, kết quả gộp và file COCO / CSV / YOLO; điểm mốc lệch nhau → tranh chấp → xin thêm người → người thứ ba phá thế hoà; văn bản có **quan hệ** giữa các đoạn; dữ liệu **danh sách** với xếp hạng (Borda) + thang điểm (trung vị); **theo dõi đối tượng** trong video; bài test đầu vào và câu vàng bằng điểm mốc (chấm theo đường chéo ảnh); đổi ngưỡng ghép bằng setting lúc đang chạy. Cần ffmpeg |
 | `e2e_bao_mat_tai_khoan.py` | 2FA (bật, đăng nhập hai bước, sai mã / hết lượt, mã dự phòng, tắt, admin đặt lại), xác minh danh tính + đủ tuổi (một giấy tờ một tài khoản), rate limit dùng chung qua Redis |
 | `e2e_cong_thanh_toan.py` | Nạp qua VNPay / MoMo (cổng giả lập): chữ ký sai, IPN trùng, sửa số tiền, Return URL không ghi tiền, `sync`, đối soát lệnh treo, hết hạn |
@@ -134,10 +134,11 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_bao_ve_du_an.py` | Nội dung nhạy cảm / NDA / yêu cầu xác minh, ép nghỉ giải lao (429), rời dự án, lời mời (email chưa có tài khoản, cần đồng ý), danh sách ưu tiên / chặn, đánh giá, gợi ý dự án, đơn hết hạn, xoá file sau khi đóng, đơn giá tối thiểu |
 | `e2e_nhap_nguon_ngoai.py` | Nhập dữ liệu từ S3 (MinIO), danh sách URL, Google Drive; chặn SSRF |
 | `e2e_xuat_mo_rong.py` | Khung xoay, track ẩn / hiện lại, xuất yolo-obb / yolo-seg / voc / coco-keypoints / conll / mot, bộ đệm kết quả gộp |
-| `e2e_chi_so_chat_luong.py` | Krippendorff alpha mọi loại công cụ, Fleiss' kappa, STAPLE mặt nạ; quality-svc tự bù bản sao dự án thiếu |
+| `e2e_chi_so_chat_luong.py` | Krippendorff alpha mọi loại công cụ, Fleiss' kappa, STAPLE mặt nạ; quality không còn bảng bản sao, tắt project-svc lúc đóng thu bài → yêu cầu chấm nằm chờ, chạy lại thì worker chấm qua gRPC |
 | `e2e_watermark_av.py` | Watermark âm thanh (FLAC) / video (H.264): tua (Range 206), bộ đệm, admin giải mã ra đúng labeler, tắt bằng setting; video nhỏ (320×240, nhúng mọi khung) và video 720p (`clip-hd.mp4`, chỉ khung đầu + cuối). Cần ffmpeg |
 | `e2e_hang_doi_duyet.py` | Hàng đợi duyệt chung (KYB, dự án, khiếu nại, link, giới thiệu nghi lạm dụng), audit lượt xem giấy tờ (S-07), cổng link chỉ cho công cụ làm nhanh, mẫu bài toán, audit chỉ-ghi-thêm ở mức CSDL, cảnh báo DLQ |
 | `e2e_thong_bao_realtime.py` | Ngôn ngữ thông báo, WebSocket qua gateway (vé dùng một lần, mã đóng 4401), email 2FA bắt buộc, thư mời người chưa có tài khoản, email cảnh báo DLQ, hạn giữ thông báo |
+| `e2e_grpc_phu_thuoc.py` | Đọc chủ dữ liệu qua gRPC thay bản sao (kiến trúc 3.24): mở bài hỏi identity (tụt uy tín có hiệu lực ngay, không còn `labeler_cache`), kết quả dự án do quality gộp + bảng đệm `sample_results` (lần sau dùng lại), cấp độ / xếp hạng đọc số câu từ `project.attempts`. `E2E_PROFILE=demo`: **tắt identity** lúc mở bài → 503, bài đang làm vẫn mở; **tắt quality** → mẫu đã đệm vẫn xem được, mẫu phải tính lại → 503, chạy lại → 200 |
 | `e2e_thanh_vien.py` | Vào dự án (kiến trúc 3.16): mời theo email / userId, một và nhiều người (kết quả từng dòng, giới hạn lô); **VD-S-16**: mời theo email ra cùng một kết quả cho email có / chưa có tài khoản / đã là thành viên / bị chặn, chủ dự án không thấy userId tới khi chấp nhận, lời mời câm, hạn mức email / 24 giờ (429 + `Retry-After`); mã mời (gõ tay, hết lượt, hết hạn, thu hồi, **6 người tranh 3 lượt**, dùng được khi dự án còn Nháp); kiểm cấp độ / uy tín ở `join`, lúc mời, mã mời và **trước** bài test; chế độ `approval` (gửi đơn, trùng, từ chối + thời gian chờ, rút, duyệt, uy tín tụt lúc duyệt, đơn tự đóng khi vào bằng đường khác) và `approval` kèm bài test (đạt → đơn kèm điểm); thông báo cho cả hai phía; nhận task thật sau khi vào. Cấp độ / uy tín đặt thẳng trong `identity_db.labeler_stats` |
 
 Tài khoản doanh nghiệp do E2E tự tạo được **xác minh KYB tự động** (`tro_giup.dang_ky(..., xac_minh=True)`, mặc định) để các bộ cũ publish được như trước. Tương tự, mọi tài khoản E2E tự tạo được **xác thực email** bằng link thật trong Mailpit (`xac_thuc=True`, mặc định) — chưa xác thực thì không rút tiền / publish được.
@@ -201,9 +202,7 @@ Ví dụ mở psql: `docker exec -it datn-db-ledger psql -U ledger_user -d ledge
 | gateway (Ocelot) | **8080** | `dotnet run --project services/gateway/Crowd.Gateway.Api` |
 | admin-svc | 8111 | `dotnet run --project services/admin/Crowd.Admin.Api` |
 | identity-svc | 8101 | `dotnet run --project services/identity/Crowd.Identity.Api` |
-| project-svc | 8102 | `dotnet run --project services/project/Crowd.Project.Api` |
-| task-svc | 8103 | `dotnet run --project services/task/Crowd.Tasking.Api` |
-| annotation-svc | 8104 | `dotnet run --project services/annotation/Crowd.Annotation.Api` |
+| project-svc (gồm làm bài + nhãn) | 8102 | `dotnet run --project services/project/Crowd.Project.Api` |
 | ledger-svc | 8105 | `dotnet run --project services/ledger/Crowd.Ledger.Api` |
 | payment-svc | 8106 | `dotnet run --project services/payment/Crowd.Payment.Api` |
 | link-svc | 8107 | `dotnet run --project services/link/Crowd.Link.Api` |
@@ -259,8 +258,6 @@ mkdir -p logs
 dotnet run --project services/admin/Crowd.Admin.Api           > logs/admin.log 2>&1 &
 dotnet run --project services/identity/Crowd.Identity.Api     > logs/identity.log 2>&1 &
 dotnet run --project services/project/Crowd.Project.Api       > logs/project.log 2>&1 &
-dotnet run --project services/task/Crowd.Tasking.Api          > logs/task.log 2>&1 &
-dotnet run --project services/annotation/Crowd.Annotation.Api > logs/annotation.log 2>&1 &
 dotnet run --project services/ledger/Crowd.Ledger.Api         > logs/ledger.log 2>&1 &
 dotnet run --project services/payment/Crowd.Payment.Api       > logs/payment.log 2>&1 &
 dotnet run --project services/link/Crowd.Link.Api             > logs/link.log 2>&1 &
@@ -289,13 +286,14 @@ tài khoản   dự án, ảnh   task,      nhãn +          ký quỹ,     lệ
 ```
 
 - **Mỗi service tự ghi phần của mình vào database riêng.** Không service nào ghi vào DB của service khác, đúng nguyên tắc database-per-service.
-- **ID khớp nhau giữa các service** vì được tính tất định từ tên. Ví dụ dự án P1 ở project-svc, task-svc, annotation-svc và ledger-svc đều là `3d904a1a-3920-530b-b055-793baae64f1b`.
+- **ID khớp nhau giữa các service** vì được tính tất định từ tên. Ví dụ dự án P1 ở project-svc, quality-svc và ledger-svc đều là `3d904a1a-3920-530b-b055-793baae64f1b`.
 - **Seed đi qua code nghiệp vụ thật, không ghi bảng bằng tay:**
   - Domain: `LabelingProject.Tao` → `YeuCauPublish` → `Duyet`, `Assignment.Tao` → `Nop`, `LabelAnnotation.Duyet` / `TuChoi` / `KhieuNai`.
   - Service: `MoneyFlowService` của ledger.
-  - Processor: task, annotation và ledger phát lại các event `member.added`, `project.published`, `gold_set.updated` vào chính processor của mình.
+  - Processor: ledger phát lại các event nạp tiền, `project.publish_requested`, `project.published`, `project.graded` vào chính processor của mình.
+  - gate-svc không seed: dự án bật cổng link lên cổng khi publish (kéo mẫu qua gRPC).
   - Nhờ vậy kịch bản sai luật (ví dụ ngân sách không đủ ký quỹ) sẽ ném lỗi ngay khi seed.
-- **quality-svc (Python) không đọc được kịch bản C#**, nên test [QualitySeedSnapshotTests](../shared/test/seeding-tests/QualitySeedSnapshotTests.cs) xuất bản sao 5 dự án seed đang chạy ra [shared/seeding/quality-seed.json](../shared/seeding/quality-seed.json), quality-svc nạp file này lúc khởi động. Sửa kịch bản thì chạy `UPDATE_SEED_SNAPSHOT=1 dotnet test shared/test/seeding-tests`.
+- **quality-svc (Python) không đọc được kịch bản C#**, nên test [QualitySeedSnapshotTests](../shared/test/seeding-tests/QualitySeedSnapshotTests.cs) xuất kết quả chấm của các dự án seed (đề bài / bài nộp / nhãn quality đọc qua gRPC từ project-svc) ra [shared/seeding/quality-seed.json](../shared/seeding/quality-seed.json), quality-svc nạp file này lúc khởi động. Sửa kịch bản thì chạy `UPDATE_SEED_SNAPSHOT=1 dotnet test shared/test/seeding-tests`.
 - **Seed không phát event nào ra RabbitMQ.** Code nghiệp vụ có xếp event vào outbox, nhưng seeder gỡ các event đó trước khi lưu (`SeedOutbox.BoEventChuaGui`), vì service nào cũng đã tự seed phần của mình.
 - **Ledger seed bằng "đồng hồ lùi về quá khứ"** (`DongHoCoDinh`). Nhãn được duyệt 4 ngày trước thì khoản treo đã hết hạn, nên labeler rút được tiền ngay.
 - **Chỉ chạy khi môi trường là `Development` và `Seed:Enabled = true`** ([`SeedSwitch`](../shared/seeding/SeedHelpers.cs)). Ở production, quên tắt cờ cũng không seed được.
@@ -338,7 +336,7 @@ P1–P4 là dự án **ảnh**, tập nhãn có một công cụ phân loại t�
 
 ### 4.4 Bài làm và nhãn lúc vừa seed
 
-- **P1**: bài của lab1 đã nộp → annotation-svc có nhãn `submitted` (chờ chấm) cho 7 câu; bài của lab2 `inProgress`. Dự án chưa đóng thu bài (còn suất) — muốn xem chấm điểm thì cho rev1 làm và nộp bài (đủ 3 suất là tự đóng) hoặc doanh nghiệp bấm **Kết thúc sớm**.
+- **P1**: bài của lab1 đã nộp → bảng `annotations` (project-svc) có nhãn `submitted` (chờ chấm) cho 7 câu; bài của lab2 `inProgress`. Dự án chưa đóng thu bài (còn suất) — muốn xem chấm điểm thì cho rev1 làm và nộp bài (đủ 3 suất là tự đóng) hoặc doanh nghiệp bấm **Kết thúc sớm**.
 - **P7**: đã chấm và chốt — nhãn của lab1, lab2 `accepted` (vào kết quả gộp), của rev1 `excluded`; quality-svc có kết quả chấm từng bài.
 
 ### 4.5 Tiền lúc vừa seed
@@ -510,7 +508,7 @@ curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/release -
 
 curl -s http://localhost:8080/tasks/assignments/mine -H "Authorization: Bearer <token-lab1>"
 
-# Nhãn vừa nộp xuất hiện bên annotation-svc (qua event assignment.submitted)
+# Nhãn vừa nộp (ghi cùng transaction nộp bài)
 curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b?status=pendingReview" -H "Authorization: Bearer <token-biz1>"
 ```
 
@@ -703,7 +701,7 @@ curl -s -X POST http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64
 curl -s -X POST http://localhost:8080/tasks/projects/3d904a1a-3920-530b-b055-793baae64f1b/next -H "Authorization: Bearer <token-lab2>"
 curl -s -X POST http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/members/0398f264-d694-5176-9614-844201175b74/unblock -H "Authorization: Bearer <token-biz1>"
 
-# Tạm dừng P1 → task-svc ngừng cấp task (403 du_an_khong_chay) → chạy tiếp
+# Tạm dừng P1 → không mở bài mới được (403 du_an_khong_chay) → chạy tiếp
 curl -s -X POST http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/pause -H "Authorization: Bearer <token-biz1>"
 curl -s -X POST http://localhost:8080/tasks/projects/3d904a1a-3920-530b-b055-793baae64f1b/next -H "Authorization: Bearer <token-lab1>"
 curl -s -X POST http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/resume -H "Authorization: Bearer <token-biz1>"
@@ -737,7 +735,7 @@ curl -s http://localhost:8080/ledger/me/balance -H "Authorization: Bearer <token
 - không còn nhãn chờ duyệt (`con_nhan_cho_duyet`) và khiếu nại đang mở (`con_khieu_nai`);
 - nhãn bị từ chối đã qua hạn khiếu nại `annotation.appeal_window`, mặc định 7 ngày (`con_han_khieu_nai`, có `appealWindowEndsAt`). Muốn thử nhanh thì đặt setting này = 0.
 
-Sau khi đóng, duyệt / từ chối / khiếu nại nhãn của dự án đó → 409 `du_an_da_ket_thuc`. Endpoint nội bộ `/internal/...` của task-svc (8103) và annotation-svc (8104) cần header `X-Internal-Key` (dev: `dev_internal_key`), gateway không định tuyến.
+Sau khi đóng, duyệt / từ chối / khiếu nại nhãn của dự án đó → 409 `du_an_da_ket_thuc`. Endpoint nội bộ `/internal/...` cần header `X-Internal-Key` (dev: `dev_internal_key`), gateway không định tuyến.
 
 ### 6.13 Phân quyền chiều ngang (BOLA)
 
@@ -866,10 +864,11 @@ Kiểm tra thêm:
 `quality-svc` (Python) chạy nền, không chặn luồng gán nhãn:
 
 ```
-task-svc ──gold.answered────────────► quality-svc ──reputation.changed──► task-svc (lọc minReputation)
-annotation-svc ──annotation.submitted─►     │
-task-svc ──task.redundancy_reached──►      ├─ khớp      → consensus.reached ──► annotation-svc (cờ khớp/lệch, chỉ gợi ý)
-                                            └─ tranh chấp → redundancy.increase_requested ──► task-svc (+1 người, ≤ trần)
+(luồng cũ, trước khi gộp task-svc + annotation-svc vào project-svc)
+task ──gold.answered────────────► quality-svc ──reputation.changed──► task (lọc minReputation)
+annotation ──annotation.submitted─►     │
+task ──task.redundancy_reached──►      ├─ khớp      → consensus.reached ──► annotation (cờ khớp/lệch, chỉ gợi ý)
+                                       └─ tranh chấp → redundancy.increase_requested ──► task (+1 người, ≤ trần)
 ```
 
 - **Câu vàng kiểm tra:** câu vàng mục đích `qualityCheck` được trộn vào luồng task theo tỉ lệ `goldCheckPercent` (mặc định 10%). Response giống hệt task thật. Trả lời không tạo nhãn, không trả tiền; task-svc chấm ngay và báo `gold.answered`.
@@ -917,9 +916,9 @@ curl -s http://localhost:8080/quality/me -H "Authorization: Bearer <token-lab1>"
 Xem trong database:
 
 ```bash
-docker exec datn-db-task psql -U task_user -d task_db -c "select sample_id, redundancy_target, state from tasks where project_id='<id-du-an-moi>'"
-docker exec datn-db-quality psql -U quality_user -d quality_db -c "select task_id, target, status, final from consensus_rounds order by decided_at desc limit 10"
-docker exec datn-db-task psql -U task_user -d task_db -c "select user_id, reputation, reputation_at from labeler_cache"
+docker exec datn-db-project psql -U project_user -d project_db -c "select id, excluded_at, excluded_reason from samples where project_id='<id-du-an-moi>'"
+docker exec datn-db-quality psql -U quality_user -d quality_db -c "select sample_id, label_count, final from sample_majorities where project_id='<id-du-an-moi>'"
+docker exec datn-db-project psql -U project_user -d project_db -c "select user_id, reputation, reputation_at from labeler_cache"
 ```
 
 Kiểm tra thêm:
@@ -1077,7 +1076,7 @@ curl -s "http://localhost:8123/?user=gate_user&password=dev_gate_pw&database=gat
 
 Kiểm tra thêm:
 - Vượt lại **từ cùng máy** đã tạo link: vẫn mở được link nhưng **không** tính tiền (`tuVuot` — cùng IP với lúc tạo link). Vượt hai lần cùng IP trong 24 giờ: lần hai `trungIp`.
-- Nhãn khách vượt link nằm ở annotation-svc với `source: "linkGateway"`, `taskId: null`. Duyệt nhãn này **không** chi tiền (sharer đã được trả theo lượt).
+- Nhãn khách vượt link nằm ở bảng `annotations` của project-svc với `source: "linkGateway"`. Duyệt nhãn này **không** chi tiền (sharer đã được trả theo lượt).
 - Hết ngân sách cổng: bộ câu trả về rỗng (chỉ đếm ngược), ledger không chi vượt — ký quỹ dành cho labeler giữ nguyên.
 - **Giới thiệu:** `GET /links/referrals/me` lấy mã; tài khoản **mới đăng ký** gọi `POST /links/referrals/claim {"code":"..."}`. Khi người được mời kiếm tiền qua cổng (và đã vượt `link.referral_min_earnings_vnd`), người giới thiệu nhận 10% vào `pendingVnd`.
 - **Kiểm duyệt:** khách bấm báo cáo `POST /links/r/<code>/report {"reason":"..."}`. Đủ `link.report_review_threshold` IP khác nhau thì link vào `GET /links/admin/review-queue`. Admin `POST /links/admin/<id>/disable {"reason":"...","withholdRevenue":true}` → trang vượt link 404, doanh thu đang treo của link chuyển sang `platform:withheld`.
@@ -1160,13 +1159,13 @@ curl -s -X PUT http://localhost:8080/admin/settings/outbox.retention -H "Authori
 curl -s -X PUT http://localhost:8080/admin/settings/outbox.cleanup_interval -H "Authorization: Bearer <token-admin>" \
   -H "Content-Type: application/json" -d '{"value":10,"reason":"thu don dep"}'
 # ~10 giây sau, log mỗi service có dòng "Don ha tang su kien: xoa N event da gui truoc ..."
-docker exec datn-db-task psql -U task_user -d task_db -c \
+docker exec datn-db-project psql -U project_user -d project_db -c \
   "select count(*) from outbox where published_at < now() - interval '65 minutes'"      # → 0
 # Xong thì đặt lại 604800 và 300.
 
 # Dọn NGAY một dự án đã hoàn thành / huỷ (không đợi 90 ngày) — admin
 curl -s -X POST http://localhost:8080/tasks/admin/projects/<projectId>/purge -H "Authorization: Bearer <token-admin>"
-#   → {"purgedNow":true,"deletedTasks":3,"deletedAssignments":6,...}; dự án chưa đóng → 409 du_an_chua_dong
+#   → {"purgedNow":true,"deletedDrafts":0,"deletedReports":1,...}; dự án chưa đóng → 409 du_an_chua_dong
 curl -s -X POST http://localhost:8080/quality/admin/projects/<projectId>/archive -H "Authorization: Bearer <token-admin>"
 #   → {"purgedNow":true,"deleted":{"labels":6,"consensus_rounds":3,"task_targets":3,"ds_state":1}}
 # Sau đó tiến độ và báo cáo chất lượng vẫn xem được (bản chụp), nhãn đã duyệt và uy tín labeler không đổi:
@@ -1226,7 +1225,7 @@ curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H
 curl -s http://localhost:8080/annotations/projects/<projectId>/results -H "Authorization: Bearer <token-biz1>"
 ```
 
-**Gộp nhãn nhiều người.** Cùng một thuật toán chạy ở hai chỗ: quality-svc gộp nhãn **vừa nộp** (đồng thuận → `consensusAgrees`, xin thêm người khi tranh chấp), annotation-svc gộp nhãn **đã duyệt** (`results`, file xuất). Một người *khớp* kết quả gộp của công cụ dạng danh sách khi F1 giữa các đối tượng của họ và các đối tượng đã gộp ≥ `quality.consensus_min_f1` (0,8); không quá một nửa số người khớp thì công cụ đó tranh chấp (`final: null`).
+**Gộp nhãn nhiều người.** Cùng một thuật toán chạy ở hai chỗ: quality-svc gộp nhãn **vừa nộp** (đồng thuận → `consensusAgrees`, xin thêm người khi tranh chấp), project-svc gộp nhãn **đã chấp nhận** (`results`, file xuất). Một người *khớp* kết quả gộp của công cụ dạng danh sách khi F1 giữa các đối tượng của họ và các đối tượng đã gộp ≥ `quality.consensus_min_f1` (0,8); không quá một nửa số người khớp thì công cụ đó tranh chấp (`final: null`).
 
 | Setting | Mặc định | Ý nghĩa |
 |---|---|---|
@@ -1257,7 +1256,7 @@ python tests/e2e/e2e_cong_cu.py                                          # E2E q
 
 ### 6.21 Vào dự án: mời nhiều người, mã mời, đơn xin tham gia (kiến trúc mục 3.16)
 
-Ba chế độ `visibility` (chỉ đổi khi dự án còn Nháp): `public` (labeler tự `join`), `approval` (labeler gửi đơn, chủ dự án duyệt), `private` (chỉ vào khi được mời / có mã mời). Mọi đường vào đều kiểm `minLevel` / `minReputation` ngay lúc vào, cùng mã lỗi với task-svc (`chua_du_cap_do`, `chua_du_uy_tin`, `tai_khoan_bi_khoa`, `khong_phai_labeler`).
+Ba chế độ `visibility` (chỉ đổi khi dự án còn Nháp): `public` (labeler tự `join`), `approval` (labeler gửi đơn, chủ dự án duyệt), `private` (chỉ vào khi được mời / có mã mời). Mọi đường vào đều kiểm `minLevel` / `minReputation` ngay lúc vào, cùng mã lỗi với lúc mở bài (`chua_du_cap_do`, `chua_du_uy_tin`, `tai_khoan_bi_khoa`, `khong_phai_labeler`).
 
 ```bash
 P=3d904a1a-3920-530b-b055-793baae64f1b   # P1 của biz1
@@ -1324,7 +1323,7 @@ curl -s -X POST http://localhost:18080/payments/deposits -H "Authorization: Bear
 curl -s http://localhost:18080/quality/projects/3d904a1a-3920-530b-b055-793baae64f1b/summary -H "Authorization: Bearer $TOKEN_BIZ"
 ```
 
-Kiểm phân vùng `tasks`: `docker exec datn-demo-db-task psql -U task_user -d task_db -c "\d+ tasks"` (16 phân vùng `tasks_p00`…`tasks_p15`). Kiểm audit chỉ-ghi-thêm: `UPDATE audit_events ...` trong `admin_db` báo `audit_events chi ghi them`.
+Kiểm phân vùng: `docker exec datn-demo-db-project psql -U project_user -d project_db -c "\d+ annotations"` (64 phân vùng `annotations_p00`…`annotations_p63`; `samples` cũng vậy). Kiểm audit chỉ-ghi-thêm: `UPDATE audit_events ...` trong `admin_db` báo `audit_events chi ghi them`.
 
 ### 6.23 Dự án làm trung tâm: làm cả bài → chấm → thưởng → khiếu nại → chốt (kiến trúc mục 3.18)
 
@@ -1456,7 +1455,6 @@ cd perf
 | Lô manifest đứng mãi ở `pending` | project-svc không chạy (worker nạp dữ liệu chạy bên trong nó). Bật lên là lô được xử lý; lô `ingesting` dở dang được làm lại từ đầu |
 | `docker compose up` báo `minio Error ... failed to resolve` / `no such manifest` / `pull access denied` | Đang dùng bản compose cũ trỏ tới `quay.io/minio/minio`: MinIO đã gỡ image chính thức khỏi cả Docker Hub lẫn quay.io, máy nào chưa có sẵn image trong cache đều không kéo được. `git pull` bản mới — compose dùng `pgsty/minio` (bản dựng từ mã nguồn MinIO do cộng đồng duy trì, ghim phiên bản, đọc được volume cũ) |
 | Lỗi bucket `datasets` không tồn tại | `minio-init` chưa chạy. Chạy lại `docker compose ... up -d` |
-| Nhãn đã duyệt nhưng labeler chưa thấy tiền | ledger-svc chưa chạy, hoặc event đang nằm trong outbox của annotation. Bật ledger lên thì event sẽ được giao (at-least-once) |
+| Bài đạt nhưng labeler chưa thấy tiền | ledger-svc chưa chạy, hoặc event `project.graded` đang nằm trong outbox của quality. Bật ledger lên thì event sẽ được giao (at-least-once) |
 | Mời thành viên / `join` / mã mời / đơn xin tham gia trả 503 `dich_vu_khong_san_sang` | project-svc không gọi được identity-svc (đang tắt), hoặc `InternalApi:IdentityUrl` / `InternalApi:Key` của project và identity không khớp. Không tra được hồ sơ thì project-svc **không** cho vào dự án (kiến trúc 3.16) |
-| Hoàn thành / hủy dự án trả 503 `dich_vu_khong_san_sang` | project-svc không gọi được task-svc hoặc annotation-svc (đang tắt), hoặc `InternalApi:Key` / địa chỉ trong appsettings của project, task, annotation không khớp nhau |
 | P2 tự chuyển sang `cancelled` | Đúng thiết kế: dự án chờ duyệt quá `project.approval_timeout` (mặc định 72 giờ) thì tự hủy và hoàn ký quỹ (compensation của saga) |

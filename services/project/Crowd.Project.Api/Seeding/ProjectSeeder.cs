@@ -4,12 +4,16 @@ using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Labeling;
 using Crowd.Project.Api.Helpers;
+using Crowd.Project.Domain.Annotations;
+using Crowd.Project.Domain.Attempts;
+using Crowd.Project.Domain.Collections;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
@@ -23,7 +27,11 @@ namespace Crowd.Project.Api.Seeding
 {
     /// <summary>
     /// Seed DU AN cua kich ban: du an, thanh vien, dataset + mau (anh PNG / am
-    /// thanh WAV len MinIO that; van ban / cap luu noi dung), cau hoi vang.
+    /// thanh WAV len MinIO that; van ban / cap luu noi dung), cau hoi vang, dot thu
+    /// bai, bai lam (nhap / da nop), nhan cua bai da nop va lich su bai.
+    ///
+    /// Truoc khi gop, task-svc va annotation-svc moi ben tu seed ban sao rieng (phat
+    /// lai event vao processor) — nay cung database nen seed THANG bang goc.
     ///
     /// Moi buoc di qua PHUONG THUC DOMAIN that (Tao, DatCauHinhGia, YeuCauPublish,
     /// XacNhanDaKyQuy, Duyet...) — kich ban sai luat (vd ngan sach khong du ky
@@ -154,7 +162,7 @@ namespace Crowd.Project.Api.Seeding
                 Sample mau = await TaoMauAsync(sp, s, lucTao, fileDaDay, ct);
                 SeedIds.GanId(mau, s.Id);
 
-                // Khoa file do kich ban dat — khop khoa ma task-svc / annotation-svc seed.
+                // Khoa file do kich ban dat — dung chung giua cac service seed.
                 if (s.StorageKey != null)
                 {
                     SeedIds.GanThuocTinh(mau, "StorageKey", s.StorageKey);
@@ -216,7 +224,118 @@ namespace Crowd.Project.Api.Seeding
                 _db.ProjectMembers.Add(ProjectMember.TaoThanhVien(sp.Id, m.UserId, MemberRole.Labeler, lucVaoDuAn));
             }
 
+            // ---- 6. Dot thu bai + bai lam + nhan ----
+            if (sp.DaChay)
+            {
+                CollectionRound dot = CollectionRound.Mo(
+                    sp.Id, sp.Slots, _settings.SoNguyen(SettingKeys.ProjectParticipantMultiplier), sp.LucDuyet(bayGio));
+                _db.CollectionRounds.Add(dot);
+                TaoBaiLam(sp, dot, sp.Deadline(bayGio), bayGio);
+            }
+
             return sp.Samples.Count;
+        }
+
+        /// <summary>
+        /// Bai lam — dung CHINH domain (Attempt.BatDau / Nop / GhiKetQua, LabelAnnotation.TaoTuBaiNop / ChotTheoKetQua)
+        /// nhu API that. Du an Completed thi dong thu bai, cham, chot theo dung moc thoi gian cua kich ban. Id bai va
+        /// nhan TAT DINH (kich ban) de quality-svc / ledger-svc seed khop.
+        /// </summary>
+        private void TaoBaiLam(SeedProject sp, CollectionRound dot, DateTimeOffset hanChot, DateTimeOffset bayGio)
+        {
+            if (sp.Attempts.Count == 0)
+            {
+                return;
+            }
+
+            // De = moi mau tru cau vang bai test dau vao (cau vang kiem tra van tron vao bai), theo thu tu kich ban.
+            List<Guid> de = new List<Guid>();
+            foreach (SeedSample m in sp.Samples)
+            {
+                bool vangTest = false;
+                foreach (SeedGold g in sp.Gold)
+                {
+                    if (g.SampleId == m.Id && g.ForEntranceTest)
+                    {
+                        vangTest = true;
+                    }
+                }
+
+                if (!vangTest)
+                {
+                    de.Add(m.Id);
+                }
+            }
+
+            DateTimeOffset? lucCham = sp.GradedAgo.HasValue ? bayGio - sp.GradedAgo.Value : null;
+
+            foreach (SeedAttempt b in sp.Attempts.OrderByDescending(x => x.StartedAgo))
+            {
+                DateTimeOffset batDau = bayGio - b.StartedAgo;
+                DateTimeOffset hetHan = batDau + _settings.ThoiGian(SettingKeys.TaskAttemptDuration);
+                if (hanChot < hetHan)
+                {
+                    hetHan = hanChot;
+                }
+
+                Attempt a = Attempt.BatDau(sp.Id, b.LabelerId, de, batDau, hetHan);
+                SeedIds.GanId(a, b.AttemptId);
+                _db.Attempts.Add(a);
+
+                if (b.State != SeedAttemptState.Submitted)
+                {
+                    // Dang lam: cau tra loi la ban nhap (JSON tho), chua vao kho nhan.
+                    foreach (SeedAnswer tl in b.Answers)
+                    {
+                        _db.AttemptDrafts.Add(AttemptDraft.Tao(a.Id, tl.SampleId, tl.PayloadJson, batDau + TimeSpan.FromMinutes(5)));
+                    }
+
+                    continue;
+                }
+
+                // Da nop: cau that vao annotations, cau vang vao gold_answers — nhu LamBaiService.NopAsync.
+                DateTimeOffset lucNop = bayGio - b.SubmittedAgo!.Value;
+                JsonObject vang = new JsonObject();
+                List<LabelAnnotation> nhan = new List<LabelAnnotation>();
+                foreach (SeedAnswer tl in b.Answers)
+                {
+                    LabelPayload payload = SeedEvents.NhanCua(sp, tl);
+                    if (sp.LaCauVang(tl.SampleId))
+                    {
+                        vang[tl.SampleId.ToString()] = JsonNode.Parse(payload.DataJson);
+                        continue;
+                    }
+
+                    LabelAnnotation x = LabelAnnotation.TaoTuBaiNop(a.Id, sp.Id, tl.SampleId, b.LabelerId, payload, lucNop);
+                    SeedIds.GanId(x, tl.AnnotationId);
+                    nhan.Add(x);
+                }
+
+                a.Nop(b.GoldTotal, b.GoldCorrect, b.Answers.Count, vang.Count == 0 ? null : vang.ToJsonString(), null, null, lucNop);
+                _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(a.Id, sp.Id, AttemptHistoryEntry.DaNop, b.LabelerId, null, lucNop));
+
+                if (b.Result != null)
+                {
+                    a.GhiKetQua(b.Result.ComparableCount, b.Result.MatchedCount, b.Result.AgreementPercent, b.Result.Passed, b.Result.Passed, lucCham!.Value);
+                    foreach (LabelAnnotation x in nhan)
+                    {
+                        x.ChotTheoKetQua(b.Result.Passed, lucCham.Value);
+                    }
+
+                    _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(
+                        a.Id, sp.Id, b.Result.Passed ? AttemptHistoryEntry.Dat : AttemptHistoryEntry.Truot, null, null, lucCham.Value));
+                }
+
+                _db.Annotations.AddRange(nhan);
+            }
+
+            if (sp.Stage == SeedStage.Completed)
+            {
+                DateTimeOffset lucXong = bayGio - sp.CompletedAgo!.Value;
+                dot.DongThuBai("du_suat");
+                dot.GhiDaCham(lucCham!.Value, lucXong - lucCham.Value);
+                dot.Chot(SeedEvents.SoNguoiDat(sp), lucXong);
+            }
         }
 
         private async Task<Sample> TaoMauAsync(

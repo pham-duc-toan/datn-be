@@ -32,7 +32,10 @@ namespace Crowd.Contracts.Payment
         public required string ProviderTxnId { get; init; }
     }
 
-    /// <summary>Tien da ROI he thong toi tai khoan ngan hang cua labeler.</summary>
+    /// <summary>
+    /// Tien da ROI he thong toi tai khoan ngan hang cua labeler.
+    /// v2: them LabelerId, NetAmountVnd — notification bao cho nguoi rut ma khong can ban sao lenh rut.
+    /// </summary>
     public sealed record PayoutCompleted : IEventPayload
     {
         public static string EventType
@@ -42,17 +45,24 @@ namespace Crowd.Contracts.Payment
 
         public static int Version
         {
-            get { return 1; }
+            get { return 2; }
         }
 
         public required Guid WithdrawalId { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        public required long NetAmountVnd { get; init; }
 
         public required string Provider { get; init; }
 
         public required string ProviderTxnId { get; init; }
     }
 
-    /// <summary>Cong tu choi chuyen khoan: ledger hoan TOAN BO ve so du kha dung.</summary>
+    /// <summary>
+    /// Cong tu choi chuyen khoan: ledger hoan TOAN BO ve so du kha dung.
+    /// v2: them LabelerId, NetAmountVnd (nhu PayoutCompleted).
+    /// </summary>
     public sealed record PayoutFailed : IEventPayload
     {
         public static string EventType
@@ -62,10 +72,14 @@ namespace Crowd.Contracts.Payment
 
         public static int Version
         {
-            get { return 1; }
+            get { return 2; }
         }
 
         public required Guid WithdrawalId { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        public required long NetAmountVnd { get; init; }
 
         public required string Reason { get; init; }
     }

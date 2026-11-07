@@ -1,19 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
+using Crowd.Contracts.Grpc.Identity;
 using Crowd.Project.Api.Exceptions;
 using Crowd.Project.Domain.Members;
+using Grpc.Core;
 using Microsoft.Extensions.Options;
 
 namespace Crowd.Project.Api.Helpers
 {
-    /// <summary>Tra loi cua identity-svc: POST /internal/users/lookup.</summary>
+    /// <summary>Tra loi cua identity-svc (gRPC IdentityData.LookupUsers).</summary>
     public sealed class NguoiDungTraCuu
     {
         public Guid UserId { get; init; }
@@ -51,22 +51,22 @@ namespace Crowd.Project.Api.Helpers
     }
 
     /// <summary>
-    /// Hoi identity-svc ve nguoi duoc moi / nguoi xin vao du an (email → userId, vai tro, khoa,
-    /// cap do, uy tin). Hoi CHU du lieu ngay luc can thay vi giu ban sao email trong project_db.
-    /// Chi tren thao tac moi / tham gia (hiem), khong tren duong nong. Loi (tat, het gio, ma loi)
-    /// → DichVuKhongSanSangException (503): khong kiem duoc thi KHONG cho vao — cung huong voi
-    /// task-svc (thieu du lieu thi tu choi).
+    /// Hoi identity-svc qua gRPC IdentityData (kien truc 3.24) ve nguoi duoc moi / nguoi xin vao du an / nguoi
+    /// MO BAI (email → userId, vai tro, khoa, cap do, uy tin). Hoi CHU du lieu ngay luc can — project_db khong
+    /// giu ban sao (ca email lan labeler_cache cu). Loi tam thoi (tat, het gio) → DichVuKhongSanSangException
+    /// (503): khong kiem duoc thi KHONG cho vao / khong cho mo bai (thieu du lieu thi tu choi).
     /// </summary>
     public sealed class IdentityClient
     {
-        private readonly HttpClient _http;
+        private readonly IdentityData.IdentityDataClient _client;
         private readonly InternalApiOptions _options;
+        private readonly TimeProvider _clock;
 
-        public IdentityClient(HttpClient http, IOptions<InternalApiOptions> options)
+        public IdentityClient(IdentityData.IdentityDataClient client, IOptions<InternalApiOptions> options, TimeProvider clock)
         {
-            if (http == null)
+            if (client == null)
             {
-                throw new ArgumentNullException(nameof(http));
+                throw new ArgumentNullException(nameof(client));
             }
 
             if (options == null)
@@ -74,8 +74,14 @@ namespace Crowd.Project.Api.Helpers
                 throw new ArgumentNullException(nameof(options));
             }
 
-            _http = http;
+            if (clock == null)
+            {
+                throw new ArgumentNullException(nameof(clock));
+            }
+
+            _client = client;
             _options = options.Value;
+            _clock = clock;
         }
 
         public Task<IReadOnlyList<NguoiDungTraCuu>> TraCuuAsync(
@@ -113,47 +119,44 @@ namespace Crowd.Project.Api.Helpers
                 return new List<NguoiDungTraCuu>();
             }
 
-            if (string.IsNullOrWhiteSpace(_options.IdentityUrl))
+            LookupUsersRequest req = new LookupUsersRequest();
+            req.UserIds.AddRange(userIds.Select(x => x.ToString()));
+            req.Emails.AddRange(emails);
+            req.Usernames.AddRange(usernames);
+
+            LookupUsersResponse res;
+            try
             {
-                throw new DichVuKhongSanSangException("Chua cau hinh InternalApi:IdentityUrl cho project-svc.", null);
+                res = await _client.LookupUsersAsync(
+                    req, InternalGrpc.Khoa(_options), _clock.GetUtcNow().UtcDateTime.AddSeconds(_options.TimeoutSeconds), ct);
+            }
+            catch (RpcException ex) when (InternalGrpc.LaLoiTamThoi(ex))
+            {
+                throw new DichVuKhongSanSangException("Khong goi duoc identity-svc de tra cuu nguoi dung. Thu lai sau.", ex);
             }
 
-            string goc = _options.IdentityUrl.EndsWith('/') ? _options.IdentityUrl : _options.IdentityUrl + "/";
-            using (HttpRequestMessage req = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(goc), "internal/users/lookup")))
+            List<NguoiDungTraCuu> kq = new List<NguoiDungTraCuu>();
+            foreach (UserInfo u in res.Users)
             {
-                req.Headers.Add(InternalApiHeaders.Key, _options.Key);
-                req.Content = JsonContent.Create(new { userIds = userIds, emails = emails, usernames = usernames });
-
-                try
+                kq.Add(new NguoiDungTraCuu
                 {
-                    using (CancellationTokenSource hetGio = CancellationTokenSource.CreateLinkedTokenSource(ct))
-                    {
-                        hetGio.CancelAfter(TimeSpan.FromSeconds(_options.TimeoutSeconds));
-                        HttpResponseMessage res = await _http.SendAsync(req, hetGio.Token);
-                        if (!res.IsSuccessStatusCode)
-                        {
-                            throw new DichVuKhongSanSangException(
-                                "identity-svc tra " + (int)res.StatusCode + " khi tra cuu nguoi dung. Thu lai sau.", null);
-                        }
-
-                        List<NguoiDungTraCuu>? kq = await res.Content.ReadFromJsonAsync<List<NguoiDungTraCuu>>(hetGio.Token);
-                        if (kq == null)
-                        {
-                            throw new DichVuKhongSanSangException("identity-svc tra ve rong khi tra cuu nguoi dung.", null);
-                        }
-
-                        return kq;
-                    }
-                }
-                catch (HttpRequestException ex)
-                {
-                    throw new DichVuKhongSanSangException("Khong goi duoc identity-svc de tra cuu nguoi dung. Thu lai sau.", ex);
-                }
-                catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
-                {
-                    throw new DichVuKhongSanSangException("identity-svc khong tra loi kip khi tra cuu nguoi dung. Thu lai sau.", ex);
-                }
+                    UserId = Guid.Parse(u.UserId),
+                    Email = u.Email,
+                    Username = u.Username,
+                    DisplayName = u.DisplayName,
+                    Roles = u.Roles.ToList(),
+                    Locked = u.Locked,
+                    Level = u.Level,
+                    Reputation = u.HasReputation ? u.Reputation : null,
+                    IdentityVerified = u.IdentityVerified,
+                    Adult = u.Adult,
+                    Domains = u.Domains.ToList(),
+                    Languages = u.Languages.ToList(),
+                    Modalities = u.Modalities.ToList(),
+                });
             }
+
+            return kq;
         }
 
         /// <summary>Ho so mot nguoi; khong ton tai → null.</summary>

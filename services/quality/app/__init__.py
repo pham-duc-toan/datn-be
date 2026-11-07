@@ -1,1 +1,1 @@
-"""quality-svc — chat luong nhan: dong thuan, redundancy thich ung, uy tin labeler."""
+"""quality-svc — chat luong nhan: cham giong da so, cau vang, uy tin labeler, chong gian lan."""

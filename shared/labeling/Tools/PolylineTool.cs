@@ -11,9 +11,8 @@ namespace Crowd.Labeling.Tools
     /// Moi diem nam trong anh; duong phai co do dai lon hon 0.
     ///
     /// Do giong hai duong = 1 − (do lech trung binh / DUONG CHEO ANH); do lech do bang cach lay
-    /// mau deu tren moi duong (HinhHoc.DoLechDuong), khong phu thuoc chieu ve va so dinh.
+    /// mau deu tren moi duong (HinhHoc.DoLechMauDuong), khong phu thuoc chieu ve va so dinh.
     /// Mac dinh 0.97: lech trung binh toi da 3% duong cheo.
-    /// Gop nhieu nguoi: ghep cum theo do giong, duong dai dien = duong "o giua" cua cum.
     /// </summary>
     internal sealed class PolylineTool : DanhSachToolBase
     {

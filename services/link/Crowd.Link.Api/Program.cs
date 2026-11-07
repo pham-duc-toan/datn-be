@@ -3,12 +3,11 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Security;
-using Crowd.Contracts.Identity;
-using Crowd.Link.Api.Consumers;
 using Crowd.Link.Api.Exceptions;
 using Crowd.Link.Api.Helpers;
 using Crowd.Link.Api.Persistence;
@@ -36,7 +35,10 @@ builder.Services.AddDbContext<LinkDbContext>(options =>
 // Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
 builder.Services.AddCrowdSettings<LinkDbContext>(cfg, "link-svc");
 builder.Services.AddOutbox<LinkDbContext>(cfg);
-builder.Services.AddEventConsumer<LinkDbContext, UserRegistered, UserRegisteredProcessor>(cfg, "link-svc.user-registered");
+
+// Hoi identity luc nhap ma gioi thieu (thay ban sao known_users).
+builder.Services.AddCrowdInternalApi(cfg);
+builder.Services.AddHttpClient<IdentityClient>();
 
 builder.Services.Configure<ShortLinkOptions>(cfg.GetSection(ShortLinkOptions.SectionName));
 builder.Services.Configure<PrivacyOptions>(cfg.GetSection(PrivacyOptions.SectionName));

@@ -107,8 +107,8 @@ try:
     kiem("labeler roi du an → 204", r.status_code == 204, r.text)
     kiem("khong con la thanh vien", lab["id"] not in thanh_vien(biz, P))
     kiem("roi du an → bai dang lam bi huy",
-         cho(lambda: sql("task", f"select state from attempts where id='{b2['attemptId']}'") == "Cancelled", 20),
-         sql("task", f"select state from attempts where id='{b2['attemptId']}'"))
+         cho(lambda: sql("project", f"select state from attempts where id='{b2['attemptId']}'") == "Cancelled", 20),
+         sql("project", f"select state from attempts where id='{b2['attemptId']}'"))
     kiem("vao lai duoc (da dong y tu truoc)", requests.post(G + f"/projects/{P}/join", headers=lab["h"]).status_code == 200)
 
     # =================================================================================
@@ -193,7 +193,7 @@ try:
     requests.put(G + f"/projects/{R}/tags", headers=biz["h"], json={"domains": ["y te", "giao thong"], "languages": ["vi"]}).raise_for_status()
     g = requests.get(G + "/projects/recommended?limit=50", headers=ky["h"]).json()
     rr = [x for x in g if x["id"] == R]
-    kiem("du an R duoc goi y voi diem 7 (text +3, y te +2, vi +2)", rr and rr[0]["score"] == 7 and "domain:y te" in rr[0]["reasons"], rr)
+    kiem("du an R duoc goi y voi diem 7 (text +3, y te +2, vi +2)", rr and rr[0]["score"] == 7 and "domain:y-te" in rr[0]["reasons"], rr)
     kiem("du an diem cao xep truoc", g and g[0]["score"] >= (rr[0]["score"] if rr else 0), [x["score"] for x in g][:5])
     kiem("du an nhay cam KHONG goi y cho nguoi chua xac minh", all(x["id"] != P for x in g))
 
