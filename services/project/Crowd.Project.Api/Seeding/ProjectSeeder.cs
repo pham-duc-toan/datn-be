@@ -237,9 +237,9 @@ namespace Crowd.Project.Api.Seeding
         }
 
         /// <summary>
-        /// Bai lam — dung CHINH domain (Attempt.BatDau / Nop / GhiKetQua, LabelAnnotation.TaoTuBaiNop / ChotTheoKetQua)
-        /// nhu API that. Du an Completed thi dong thu bai, cham, chot theo dung moc thoi gian cua kich ban. Id bai va
-        /// nhan TAT DINH (kich ban) de quality-svc / ledger-svc seed khop.
+        /// Bai lam — dung CHINH domain (Attempt.BatDau / Nop / GhiKetQua, LabelAnnotation.TaoTuBaiNop)
+        /// nhu API that. Du an Completed thi dong thu bai, cham, chot theo dung moc thoi gian cua kich ban. Id bai TAT
+        /// DINH (kich ban) de quality-svc / ledger-svc seed khop; nhan khoa theo (du an, bai, mau).
         /// </summary>
         private void TaoBaiLam(SeedProject sp, CollectionRound dot, DateTimeOffset hanChot, DateTimeOffset bayGio)
         {
@@ -284,12 +284,7 @@ namespace Crowd.Project.Api.Seeding
 
                 if (b.State != SeedAttemptState.Submitted)
                 {
-                    // Dang lam: cau tra loi la ban nhap (JSON tho), chua vao kho nhan.
-                    foreach (SeedAnswer tl in b.Answers)
-                    {
-                        _db.AttemptDrafts.Add(AttemptDraft.Tao(a.Id, tl.SampleId, tl.PayloadJson, batDau + TimeSpan.FromMinutes(5)));
-                    }
-
+                    // Dang lam: nhap chi nam o localStorage cua frontend — backend khong luu gi.
                     continue;
                 }
 
@@ -306,9 +301,7 @@ namespace Crowd.Project.Api.Seeding
                         continue;
                     }
 
-                    LabelAnnotation x = LabelAnnotation.TaoTuBaiNop(a.Id, sp.Id, tl.SampleId, b.LabelerId, payload, lucNop);
-                    SeedIds.GanId(x, tl.AnnotationId);
-                    nhan.Add(x);
+                    nhan.Add(LabelAnnotation.TaoTuBaiNop(a.Id, sp.Id, tl.SampleId, b.LabelerId, payload));
                 }
 
                 a.Nop(b.GoldTotal, b.GoldCorrect, b.Answers.Count, vang.Count == 0 ? null : vang.ToJsonString(), null, null, lucNop);
@@ -316,11 +309,8 @@ namespace Crowd.Project.Api.Seeding
 
                 if (b.Result != null)
                 {
+                    // Trang thai nhan (Accepted / Excluded) suy ra tu ket qua bai — khong ghi tren nhan.
                     a.GhiKetQua(b.Result.ComparableCount, b.Result.MatchedCount, b.Result.AgreementPercent, b.Result.Passed, b.Result.Passed, lucCham!.Value);
-                    foreach (LabelAnnotation x in nhan)
-                    {
-                        x.ChotTheoKetQua(b.Result.Passed, lucCham.Value);
-                    }
 
                     _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(
                         a.Id, sp.Id, b.Result.Passed ? AttemptHistoryEntry.Dat : AttemptHistoryEntry.Truot, null, null, lucCham.Value));

@@ -117,14 +117,14 @@ namespace Crowd.Seeding
 
         /// <summary>Phan du lieu nhan theo cac cong cu, vd {"label":{"labelIds":["do"]}}.</summary>
         public required string PayloadJson { get; init; }
-
-        /// <summary>Id nhan (bang annotations cua project-svc; chi cau that cua bai DA NOP).</summary>
-        public required Guid AnnotationId { get; init; }
     }
 
     public enum SeedAttemptState
     {
-        /// <summary>Dang lam: cau tra loi la ban nhap (attempt_drafts), chua vao kho nhan.</summary>
+        /// <summary>
+        /// Dang lam: cau tra loi la ban nhap — nhap chi nam o localStorage cua frontend nen seeder KHONG ghi gi
+        /// (Answers chi de mo ta kich ban).
+        /// </summary>
         InProgress,
 
         Submitted,

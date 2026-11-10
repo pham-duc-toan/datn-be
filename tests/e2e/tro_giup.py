@@ -196,13 +196,42 @@ def bat_dau(u, pid, giay=15):
         time.sleep(0.5)
 
 
+# Nhap (cau dang lam do) KHONG luu o backend: frontend giu trong localStorage roi nop ca bai mot lan. Test mo phong
+# dung nhu vay: luu() ghi vao bo nho cua test (theo bai), nop_bai() gui tat ca trong body.
+_NHAP = {}
+
+
+class _DaLuuCucBo:
+    """Ket qua luu nhap cuc bo — giu giao dien kieu Response cho noi goi cu (.status_code, .raise_for_status())."""
+    status_code = 200
+    text = ""
+
+    def raise_for_status(self):
+        return None
+
+
 def luu(u, aid, sid, data):
-    """data = dict nhan theo ten cong cu, hoac None (bo trong)."""
-    return requests.put(G + f"/tasks/attempts/{aid}/answers/{sid}", headers=u["h"], json={"data": data})
+    """data = dict nhan theo ten cong cu, hoac None (bo trong). Chi ghi nhap cuc bo (nhu localStorage)."""
+    bai = _NHAP.setdefault(aid, {})
+    if data is None:
+        bai.pop(sid, None)
+    else:
+        bai[sid] = data
+    return _DaLuuCucBo()
 
 
-def nop_bai(u, aid):
-    return requests.post(G + f"/tasks/attempts/{aid}/submit", headers=u["h"])
+def cau_tra_loi(aid):
+    """Body answers cua bai: moi cau da luu nhap."""
+    return [{"sampleId": s, "data": d} for s, d in _NHAP.get(aid, {}).items()]
+
+
+def nop_bai(u, aid, headers=None, answers=None):
+    """Nop CA BAI: gui moi cau da luu nhap (hoac `answers` tu truyen). Nop xong thi bo nhap (nhu frontend)."""
+    body = {"answers": cau_tra_loi(aid) if answers is None else answers}
+    r = requests.post(G + f"/tasks/attempts/{aid}/submit", headers=headers or u["h"], json=body)
+    if r.status_code == 200:
+        _NHAP.pop(aid, None)
+    return r
 
 
 def lam_bai(u, pid, tra_loi, nop=True):

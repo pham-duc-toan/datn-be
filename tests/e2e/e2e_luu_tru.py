@@ -144,9 +144,10 @@ try:
          sql("project", f"select count(*) from samples where project_id='{P}'") == "3"
          and sql("project", f"select count(*) from annotations where project_id='{P}'") == "9",
          sql("project", f"select count(*) from samples where project_id='{P}'"))
-    kiem("bang annotations khong con cot noi dung mau",
-         sql("project", "select count(*) from information_schema.columns where table_name='annotations' "
-                           "and column_name in ('storage_key','sample_content','sample_metadata')") == "0")
+    kiem("bang annotations chi con 6 cot (project, bai, cau, nguoi lam, kenh, cau tra loi)",
+         sql("project", "select string_agg(column_name, ',' order by column_name) from information_schema.columns "
+                           "where table_name='annotations'") == "attempt_id,labeler_id,payload,project_id,sample_id,source",
+         sql("project", "select string_agg(column_name, ',' order by column_name) from information_schema.columns where table_name='annotations'"))
     noi_dung = {m: t for m, t in (("s1", "Mau mot"), ("s2", "Mau hai"), ("s3", "Mau ba"))}
     dung = all((a.get("sampleContent") or {}).get("text") == noi_dung[next(k for k, v in ids.items() if v == a["sampleId"])] for a in nhan)
     kiem("API nhan van tra dung noi dung mau cua tung nhan", dung, nhan[0])
@@ -220,11 +221,11 @@ try:
 
     r = requests.post(G + f"/tasks/admin/projects/{P}/purge", headers=admin)
     j = r.json() if r.status_code == 200 else {}
-    # Nhap da xoa luc nop bai → khong con gi de don; mau / nhan / bai lam la du lieu cua du an → GIU.
-    kiem("admin don du an da dong → 200 (nhap da xoa luc nop → 0)",
-         r.status_code == 200 and j["purgedNow"] is True and j["deletedDrafts"] == 0 and j["deletedReports"] == 0, r.text)
-    kiem("khong con nhap cua du an; mau, nhan, bai lam van giu",
-         sql("project", f"select count(*) from attempt_drafts x join attempts a on a.id = x.attempt_id where a.project_id='{P}'") == "0"
+    # Nhap khong o backend (localStorage cua frontend) → chi con bao loi de don; mau / nhan / bai lam → GIU.
+    kiem("admin don du an da dong → 200",
+         r.status_code == 200 and j["purgedNow"] is True and "deletedDrafts" not in j and j["deletedReports"] == 0, r.text)
+    kiem("backend khong co bang nhap; mau, nhan, bai lam van giu",
+         sql("project", "select count(*) from information_schema.tables where table_name='attempt_drafts'") == "0"
          and sql("project", f"select count(*) from attempts where project_id='{P}'") == "3"
          and sql("project", f"select count(*) from samples where project_id='{P}'") == "3"
          and sql("project", f"select count(*) from annotations where project_id='{P}'") == "9")

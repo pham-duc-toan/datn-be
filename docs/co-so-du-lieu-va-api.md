@@ -80,14 +80,13 @@ Quy ước: `PK` là khoá chính. `?` là cột cho phép null. Cột `xmin` xu
 
 #### Phần làm bài và nhãn (trước là task-svc và annotation-svc, nay cùng `project_db`)
 
-Bài làm, nháp, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm chung database: không còn bản sao dự án / mẫu / câu vàng / thành viên ở service khác, mở bài đọc thẳng `projects`, `samples`, `gold_items`, `project_members`.
+Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm chung database: không còn bản sao dự án / mẫu / câu vàng / thành viên ở service khác, mở bài đọc thẳng `projects`, `samples`, `gold_items`, `project_members`.
 
 | Bảng | Cột chính | Ý nghĩa |
 |---|---|---|
 | `project_collections` | `project_id` PK (FK `projects`); `max_participants`; `paused_at?`; `finish_reason?` (`du_suat, het_han, ket_thuc_som`); `graded_at?`, `appeal_deadline?`, `settled_at?`, `passed_count?`; `final_progress?` jsonb (ảnh chụp tiến độ lúc đóng); `data_purged_at?`; `created_at` | **Đợt thu bài** của dự án, mở lúc admin duyệt. Mọi thao tác đổi trạng thái thu bài (nộp, tạm dừng, kết thúc sớm, huỷ) khoá dòng này trước (`FOR UPDATE`) — thứ tự khoá cố định `project_collections → attempts → samples` |
 | `attempts` | `id` PK; `project_id`; `labeler_id`; `state` (`InProgress, Submitted, Expired, Cancelled`); `started_at`, `expires_at` (hạn làm = min(+48h, hạn chót dự án)), `submitted_at?`, `ended_at?`; `question_order` uuid[] (thứ tự câu đã trộn); `answered_count?`; `gold_total`, `gold_correct`, `gold_answers?` jsonb (câu trả lời câu vàng, chấm lúc nộp); `client_ip?`, `device_id?`; `comparable_count?`, `matched_count?`, `agreement_percent?`, `passed?`, `rewarded?`, `graded_at?` (kết quả chấm do quality trả về); `appeal_state` (`None, Open, Accepted, Rejected`), `appealed_at?`, `appeal_message?`, `appeal_note?`, `appeal_resolved_at?`, `appeal_resolved_by?` | Một bài = mọi câu của dự án. UNIQUE có điều kiện `ux_attempts_project_labeler_active` (`state IN ('InProgress','Submitted')`): mỗi người một bài đang làm hoặc đã nộp mỗi dự án. `xmin` khoá lạc quan |
-| `attempt_drafts` | `(attempt_id, sample_id)` PK; `data` jsonb; `updated_at` | Câu trả lời **nháp**. Đường nóng nhất (lưu nháp là một `UPDATE` theo khoá chính) nên `fillfactor = 70` để được HOT update, autovacuum sớm. Bị **xoá ngay lúc nộp** (đã thành `annotations`), nên bảng luôn nhỏ, không phân vùng. Tối đa 256 KB/câu |
-| `annotations` | `(project_id, id)` PK; `attempt_id`, `sample_id`, `labeler_id?`; `task_type`, `schema_version`, `payload` jsonb (nén **lz4**, không GIN); `status` (`Submitted → Accepted` hoặc `Excluded`); `source` (cộng đồng, chuyên nghiệp, cổng link); `submitted_at`, `decided_at?` | Nhãn đã nộp — **bảng lớn nhất** về lâu dài. **Phân vùng HASH(`project_id`) 64 phần** (`annotations_p00..p63`): mọi truy vấn (nộp, chấm, kết quả, xuất file) đều theo dự án nên chỉ chạm một phân vùng. UNIQUE `(project_id, attempt_id, sample_id)` |
+| `annotations` | `(project_id, attempt_id, sample_id)` PK; `labeler_id?` (null = khách cổng link); `source` (`Professional`, `LinkGateway`, `Collaborative`); `payload` jsonb (nén **lz4**, không GIN) — **chỉ 6 cột** | Câu trả lời đã nộp: người nào (`labeler_id`, bài `attempt_id`) chọn gì (`payload`) cho câu nào (`sample_id`) — **bảng lớn nhất** về lâu dài. **Phân vùng HASH(`project_id`) 64 phần**. Không lưu những gì suy ra được: `status` (Submitted / Accepted / Excluded) tính từ `attempts.graded_at`, `passed`, `appeal_state` (cổng link luôn Accepted); thời điểm nộp / chốt lấy từ `attempts`; `task_type` = `projects.modality`, `schema_version` = 1. Chấm bài và phân xử khiếu nại chỉ sửa **một dòng `attempts`**, không UPDATE nhãn. Nhãn chỉ INSERT lúc nộp / `gate.solved` |
 | `sample_results` | `(project_id, sample_id)` PK; `tools` jsonb (kết quả gộp từng công cụ: `method, final, agrees, disputed…`); `fingerprint` (băm đầu vào); `computed_at` | **Bộ nhớ đệm** kết quả gộp. `fingerprint` đổi thì mới tính lại — mẫu cần tính được gửi sang quality-svc gộp qua gRPC `LabelAggregation` (kiến trúc 3.24, thuật toán gộp chỉ còn ở Python) |
 | `attempt_history` | `id` bigint identity PK; `attempt_id`; `project_id`; `action` (`submitted, accepted, excluded, appeal_opened, appeal_accepted, appeal_rejected`); `actor_id?`; `note?`; `at` | Lịch sử **theo bài** (một dòng mỗi sự kiện của cả bài, không phải mỗi nhãn). Worker dọn theo setting giữ lịch sử |
 | `sample_reports` | `id`; `attempt_id`; `project_id`; `sample_id` (FK `samples (project_id, id)`); `labeler_id`; `reason`; `note?`; `state` (`open, dismissed, excluded`); `created_at`, `resolved_by?`, `resolved_at?` | Labeler báo mẫu lỗi. Chủ dự án chấp nhận (hoặc đủ nhiều người báo) thì **mẫu** bị đánh dấu `samples.excluded_at` và loại khỏi chấm |
@@ -231,9 +230,9 @@ Mọi API client đi qua **gateway** (`:8080`, ở demo là `:18080`). Gateway k
 
 **project** — vòng đời: `POST /projects`, `GET /projects`, `GET /projects/{id}`, `GET /projects/{id}/readiness`, `PUT /projects/{id}`, `PUT .../label-schema|guideline|pricing|channels|eligibility|protection|tags|retention`, `POST .../publish|pause|resume|finish|cancel`; admin `GET /projects/pending-approval`, `POST /projects/{id}/approve|reject`. Dữ liệu: `POST .../uploads`, `POST .../datasets`, `.../datasets/manifest`, `.../datasets/import`, `GET .../datasets`, `GET .../samples`, `GET|POST|DELETE .../gold-items`. Thành viên: `GET|POST .../members`, `.../members/batch`, `POST .../members/{u}/block|unblock`, `DELETE .../members/{u}`, `POST .../join`, `.../leave`; mã mời: `POST|GET|DELETE .../invite-codes`, `POST /projects/join-by-code` (+ `/preview`); xin vào: `POST .../join-requests`, `GET .../join-requests`, `POST .../join-requests/{r}/approve|reject`; lời mời: `GET /projects/invitations/mine`, `POST .../invitations/{i}/accept|decline`; test đầu vào: `POST .../entrance-test/attempts` (+ `/{a}/submit`); NDA: `GET .../terms`, `POST .../consent`; danh sách riêng: `GET|PUT|DELETE /projects/labeler-lists/*`; đánh giá: `PUT .../ratings/{labelerId}`; gợi ý: `GET /projects/recommended`. Nội bộ: gRPC `QualityData` ở cổng 9102 cho quality (mục 4.1).
 
-**project — làm bài** (giữ tiền tố `/tasks` cũ) — `POST /tasks/projects/{p}/attempt` (bắt đầu bài), `GET /tasks/attempts/{a}`, `PUT /tasks/attempts/{a}/answers/{sample}` (lưu nháp), `POST .../submit`, `.../abandon`, `.../appeal`, `.../reports`; `GET /tasks/me/attempts`, `GET /tasks/projects/{p}/slots|progress|attempts|reports`, `POST /tasks/reports/{r}/resolve`. Admin: `GET /tasks/admin/appeals`, `POST /tasks/admin/attempts/{a}/appeal/resolve`, `POST /tasks/admin/projects/{p}/purge` (xoá nháp còn sót + báo lỗi). Không còn `/internal/projects/{id}/close-check` (đóng dự án kiểm tại chỗ, cùng transaction).
+**project — làm bài** (giữ tiền tố `/tasks` cũ) — `POST /tasks/projects/{p}/attempt` (bắt đầu bài), `GET /tasks/attempts/{a}`, `POST .../submit` (body `{answers:[{sampleId, data}]}` — cả bài một lần; **nháp nằm ở localStorage của frontend**, backend không lưu), `.../abandon`, `.../appeal`, `.../reports`; `GET /tasks/me/attempts`, `GET /tasks/projects/{p}/slots|progress|attempts|reports`, `POST /tasks/reports/{r}/resolve`. Admin: `GET /tasks/admin/appeals`, `POST /tasks/admin/attempts/{a}/appeal/resolve`, `POST /tasks/admin/projects/{p}/purge` (xoá báo lỗi). Không còn `/internal/projects/{id}/close-check` (đóng dự án kiểm tại chỗ, cùng transaction).
 
-**project — nhãn** (giữ tiền tố `/annotations` cũ) — `GET /annotations/mine`, `GET /annotations/projects/{p}`, `.../results` (kết quả gộp), `.../distribution`, `.../export` (COCO/YOLO/VOC), `GET /annotations/{id}/history`.
+**project — nhãn** (giữ tiền tố `/annotations` cũ) — `GET /annotations/mine`, `GET /annotations/projects/{p}`, `.../results` (kết quả gộp), `.../distribution`, `.../export` (COCO/YOLO/VOC), `GET /annotations/attempts/{attemptId}/history` (lịch sử theo bài — nhãn không có id riêng).
 
 **quality** — `GET /quality/projects/{p}/summary`, `GET /quality/projects/{p}/labelers`, `GET /quality/me`; admin `POST /quality/admin/projects/{p}/archive`, `POST /quality/admin/dawid-skene/run`, `GET /quality/admin/fraud-cases[/{id}]`, `POST .../fraud-cases/{id}/resolve`.
 
@@ -381,10 +380,11 @@ POST /tasks/projects/{p}/attempt: project đọc projects + project_collections 
    (khoá / cấp / uy tín — cùng hàm điều kiện với lúc vào dự án; identity lỗi → 503),
    khoá project_collections, kiểm còn suất → tạo attempts (hạn 48h, question_order = mẫu chưa loại + câu vàng)
    trộn câu vàng lẫn câu thật, labeler không phân biệt được
-PUT /tasks/attempts/{a}/answers/{sample}: UPSERT attempt_drafts (lưu nháp, sửa lại được)
-POST /tasks/attempts/{a}/submit: một transaction (khoá project_collections → attempts)
+Frontend lưu nháp từng câu vào localStorage (backend không biết, không gọi API)
+POST /tasks/attempts/{a}/submit {answers:[{sampleId, data}]}: một transaction (khoá project_collections → attempts)
+     ├ kiểm body: trùng câu / câu không thuộc bài / data không phải object → 400; vượt task.attempt_max_bytes → 400
      ├ chấm câu vàng ngay (gold_correct / gold_total, gold_answers)
-     ├ ghi annotations = Submitted cho các câu thật, xoá attempt_drafts của bài
+     ├ INSERT annotations (project, bài, câu, labeler, source, payload) cho các câu thật
      ├ đánh dấu Submitted (xmin chống nộp đôi), ghi attempt_history "submitted"
      ├ đủ max_participants bài nộp → đóng thu bài ngay (du_suat)
      └ outbox: attempt.submitted (tín hiệu) ──► quality (pending_attempts → worker xét gian lận qua gRPC)
@@ -405,7 +405,7 @@ quality: ghi project_gradings rồi chấm ngay — đề bài, bài nộp, câu
    uy tín: worker thấy project-svc đã ghi kết quả (gRPC: mọi bài graded) → reputation_dirty →
            GetLabelerEvidence (cộng dồn trên project.attempts) → reputations, phát reputation.changed
        ├─► ledger: trả thưởng R cho bài đạt (kind ProjectReward, vào số dư khả dụng); chặn vượt S suất
-       ├─► project: ghi attempts.passed, agreement_percent; annotations Submitted → Accepted / Excluded;
+       ├─► project: ghi attempts.passed, agreement_percent (nhãn tự thành Accepted / Excluded — suy ra từ bài);
        │            attempt_history; mở hạn khiếu nại (3 ngày)
        │            phát project.grading_applied ──► identity: level_dirty → CapDoWorker hỏi số câu qua gRPC
        │                                                  (LabelerStatsData) → cấp / huy hiệu
@@ -416,7 +416,7 @@ quality: ghi project_gradings rồi chấm ngay — đề bài, bài nộp, câu
 ```
 Labeler trượt → POST /tasks/attempts/{a}/appeal (trong 3 ngày, một lần): project phát attempt.appeal_opened
 admin → GET /tasks/admin/appeals → POST /tasks/admin/attempts/{a}/appeal/resolve
-   chấp nhận: annotations → Accepted ngay; attempt.appeal_resolved ─► ledger trả thưởng, identity, notification
+   chấp nhận: attempts.appeal_state = Accepted (nhãn của bài tự thành Accepted); attempt.appeal_resolved ─► ledger trả thưởng, identity, notification
    từ chối  : attempt.appeal_resolved ─► notification
 Hết hạn khiếu nại và không còn đơn mở (BaiLamWorker) → MỘT transaction:
    project_collections.settled_at, Grading → Completed, phát project.completed {PassedAttemptCount}

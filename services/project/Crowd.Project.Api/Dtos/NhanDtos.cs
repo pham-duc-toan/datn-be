@@ -5,10 +5,12 @@ using Crowd.Labeling;
 
 namespace Crowd.Project.Api.Dtos
 {
+    /// <summary>
+    /// Mot nhan. Khoa = (projectId, attemptId, sampleId) — bang annotations khong co cot id rieng. Status / SubmittedAt /
+    /// DecidedAt SUY RA tu bai lam (bang annotations khong luu).
+    /// </summary>
     public sealed class AnnotationResponse
     {
-        public required Guid Id { get; init; }
-
         public required Guid ProjectId { get; init; }
 
         public required Guid SampleId { get; init; }
@@ -32,12 +34,13 @@ namespace Crowd.Project.Api.Dtos
 
         public required AnnotationStatus Status { get; init; }
 
-        public required DateTimeOffset SubmittedAt { get; init; }
+        /// <summary>Luc nop bai (attempts.submitted_at). null voi nhan cong link (khong thuoc bai lam nao).</summary>
+        public DateTimeOffset? SubmittedAt { get; init; }
 
-        /// <summary>Bai lam chua nhan nay (cong link: id phien vuot link).</summary>
+        /// <summary>Bai lam chua nhan nay (cong link: id tat dinh (phien, mau)).</summary>
         public required Guid AttemptId { get; init; }
 
-        /// <summary>Luc chot vao / loai khoi ket qua (khi du an cham xong).</summary>
+        /// <summary>Luc chot vao / loai khoi ket qua: phan xu khieu nai neu co, khong thi luc cham (attempts).</summary>
         public DateTimeOffset? DecidedAt { get; init; }
     }
 

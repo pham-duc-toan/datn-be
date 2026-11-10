@@ -3,96 +3,104 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Crowd.Project.Domain.Annotations;
+using Crowd.Project.Domain.Attempts;
 using Crowd.Project.Domain.Common;
 using Crowd.Labeling;
 
 namespace Crowd.Project.Tests
 {
-    /// <summary>Vong doi nhan trong du an lam trung tam (docs 3.18): nop ca bai → cham → chot.</summary>
+    /// <summary>
+    /// Vong doi nhan (docs 3.18): nhan chi luu cau tra loi; trang thai SUY RA tu bai lam — nop → cham dat / truot →
+    /// khieu nai. Cham va phan xu chi sua bai, khong sua nhan.
+    /// </summary>
     public sealed class VongDoiNhanTests
     {
         private static readonly DateTimeOffset Luc = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
         private static readonly Guid Labeler = Guid.NewGuid();
 
-        private static LabelAnnotation NhanMoi()
+        private static LabelPayload Cho()
         {
-            return LabelAnnotation.TaoTuBaiNop(
-                Guid.NewGuid(),
-                Guid.NewGuid(),
-                Guid.NewGuid(),
-                Labeler,
-                LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null),
-                Luc);
+            return LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null);
+        }
+
+        private static Attempt BaiDaNop()
+        {
+            Attempt a = Attempt.BatDau(Guid.NewGuid(), Labeler, new List<Guid> { Guid.NewGuid() }, Luc, Luc.AddHours(48));
+            a.Nop(0, 0, 1, null, null, null, Luc.AddHours(1));
+            return a;
         }
 
         [Fact]
-        public void Nhan_moi_nop_cho_cham_khong_vao_ket_qua()
+        public void Nhan_chi_giu_cau_tra_loi_va_doc_lai_theo_loai_du_lieu_du_an()
         {
-            LabelAnnotation a = NhanMoi();
+            Guid bai = Guid.NewGuid();
+            Guid duAn = Guid.NewGuid();
+            Guid mau = Guid.NewGuid();
+            LabelAnnotation a = LabelAnnotation.TaoTuBaiNop(bai, duAn, mau, Labeler, Cho());
 
-            Assert.Equal(AnnotationStatus.Submitted, a.Status);
+            Assert.Equal(bai, a.AttemptId);
+            Assert.Equal(duAn, a.ProjectId);
+            Assert.Equal(mau, a.SampleId);
             Assert.Equal(LabelSource.Professional, a.Source);
-            Assert.Null(a.DecidedAt);
+
+            LabelPayload doc = a.LayPayload("image");
+            Assert.Equal(Cho(), doc);
+            Assert.NotNull(a.KetQua("loai"));
+            Assert.Null(a.KetQua("khong_co"));
         }
 
         [Fact]
-        public void Bai_dat_thi_nhan_vao_ket_qua_va_chi_chot_mot_lan()
+        public void Bai_chua_cham_thi_nhan_cho_cham()
         {
-            LabelAnnotation a = NhanMoi();
-
-            Assert.True(a.ChotTheoKetQua(true, Luc.AddDays(1)));
-            Assert.Equal(AnnotationStatus.Accepted, a.Status);
-            Assert.Equal(Luc.AddDays(1), a.DecidedAt);
-
-            // project.graded giao lai (hoac ket qua khac toi tre) khong doi nhan da chot.
-            Assert.False(a.ChotTheoKetQua(false, Luc.AddDays(2)));
-            Assert.Equal(AnnotationStatus.Accepted, a.Status);
+            Assert.Equal(AnnotationStatus.Submitted, LabelAnnotation.TrangThai(LabelSource.Professional, BaiDaNop()));
+            // Nhan mo coi (khong tim thay bai) khong bao gio tinh la vao ket qua.
+            Assert.Equal(AnnotationStatus.Submitted, LabelAnnotation.TrangThai(LabelSource.Professional, null));
         }
 
         [Fact]
-        public void Bai_truot_bi_loai_khieu_nai_duoc_chap_nhan_thi_vao_lai_ket_qua()
+        public void Bai_dat_thi_nhan_vao_ket_qua_bai_truot_thi_bi_loai()
         {
-            LabelAnnotation a = NhanMoi();
-            a.ChotTheoKetQua(false, Luc.AddDays(1));
-            Assert.Equal(AnnotationStatus.Excluded, a.Status);
+            Attempt dat = BaiDaNop();
+            dat.GhiKetQua(10, 9, 90, true, true, Luc.AddDays(1));
+            Assert.Equal(AnnotationStatus.Accepted, LabelAnnotation.TrangThai(LabelSource.Professional, dat));
 
-            Assert.True(a.ChapNhanSauKhieuNai(Luc.AddDays(2)));
-            Assert.Equal(AnnotationStatus.Accepted, a.Status);
-            Assert.Equal(Luc.AddDays(2), a.DecidedAt);
-
-            // Chap nhan giao lai: khong doi moc chot.
-            Assert.False(a.ChapNhanSauKhieuNai(Luc.AddDays(3)));
-            Assert.Equal(Luc.AddDays(2), a.DecidedAt);
+            Attempt truot = BaiDaNop();
+            truot.GhiKetQua(10, 5, 50, false, false, Luc.AddDays(1));
+            Assert.Equal(AnnotationStatus.Excluded, LabelAnnotation.TrangThai(LabelSource.Professional, truot));
         }
 
         [Fact]
-        public void Khieu_nai_chi_ap_dung_cho_nhan_bi_loai()
+        public void Khieu_nai_duoc_chap_nhan_thi_nhan_vao_lai_ket_qua_bac_bo_thi_van_bi_loai()
         {
-            LabelAnnotation a = NhanMoi();
+            Attempt a = BaiDaNop();
+            a.GhiKetQua(10, 5, 50, false, false, Luc.AddDays(1));
+            a.KhieuNai("Xem lai", Luc.AddDays(4), Luc.AddDays(2));
+            Assert.Equal(AnnotationStatus.Excluded, LabelAnnotation.TrangThai(LabelSource.Professional, a));
+            a.PhanXu(true, null, Guid.NewGuid(), true, Luc.AddDays(3));
+            Assert.Equal(AnnotationStatus.Accepted, LabelAnnotation.TrangThai(LabelSource.Professional, a));
 
-            Assert.False(a.ChapNhanSauKhieuNai(Luc.AddDays(1)));
-            Assert.Equal(AnnotationStatus.Submitted, a.Status);
+            Attempt b = BaiDaNop();
+            b.GhiKetQua(10, 5, 50, false, false, Luc.AddDays(1));
+            b.KhieuNai("Xem lai", Luc.AddDays(4), Luc.AddDays(2));
+            b.PhanXu(false, "Khong du", Guid.NewGuid(), true, Luc.AddDays(3));
+            Assert.Equal(AnnotationStatus.Excluded, LabelAnnotation.TrangThai(LabelSource.Professional, b));
         }
 
         [Fact]
-        public void Nhan_cong_link_vao_ket_qua_ngay_khong_co_labeler()
+        public void Nhan_cong_link_luon_vao_ket_qua_khong_co_labeler()
         {
-            LabelAnnotation a = LabelAnnotation.TaoTuCongLink(
-                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-                LabelPayload.Tao(ResultAggregatorTests.TapNhan, "{\"loai\":{\"labelIds\":[\"cho\"]}}", null),
-                Luc);
+            LabelAnnotation a = LabelAnnotation.TaoTuCongLink(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Cho());
 
-            Assert.Equal(AnnotationStatus.Accepted, a.Status);
             Assert.Equal(LabelSource.LinkGateway, a.Source);
             Assert.Null(a.LabelerId);
-            Assert.False(a.ChotTheoKetQua(false, Luc.AddDays(1)));
+            Assert.Equal(AnnotationStatus.Accepted, LabelAnnotation.TrangThai(a.Source, null));
         }
 
         [Fact]
         public void Nhan_rong_bi_tu_choi()
         {
             InvalidValueException ex = Assert.Throws<InvalidValueException>(() =>
-                LabelAnnotation.TaoTuBaiNop(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Labeler, null!, Luc));
+                LabelAnnotation.TaoTuBaiNop(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Labeler, null!));
             Assert.Equal("nhan_rong", ex.Code);
         }
     }
@@ -115,9 +123,7 @@ namespace Crowd.Project.Tests
                 Guid.NewGuid(),
                 Mau,
                 Guid.NewGuid(),
-                LabelPayload.Tao(TapNhan, duLieu, Anh),
-                DateTimeOffset.UtcNow);
-            a.ChotTheoKetQua(true, DateTimeOffset.UtcNow);
+                LabelPayload.Tao(TapNhan, duLieu, Anh));
             return a;
         }
 

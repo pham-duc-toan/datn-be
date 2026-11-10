@@ -13,7 +13,7 @@ os.environ["E2E_HE_SO_NGUOI_LAM"] = "giu"  # tro_giup khong ep he so = 1
 import requests  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from tro_giup import G, GOC, KQ, TAG, admin, cho, dang_ky, dat, dat_va_cho, kiem, tham_gia, vi  # noqa: E402,F401
+from tro_giup import G, GOC, KQ, TAG, admin, cho, dang_ky, dat, dat_va_cho, kiem, luu, nop_bai, tham_gia, vi  # noqa: E402,F401
 
 
 def nap(biz, so):
@@ -80,9 +80,8 @@ try:
         for q in bai["questions"]:
             dung = DUNG[q["content"]["text"]]
             lop = ("b" if dung == "a" else "a") if k == "l5" else dung
-            requests.put(G + f"/tasks/attempts/{bai['attemptId']}/answers/{q['sampleId']}", headers=u["h"],
-                         json={"data": {"nhan": {"labelIds": [lop]}}}).raise_for_status()
-        r = requests.post(G + f"/tasks/attempts/{bai['attemptId']}/submit", headers=u["h"])
+            luu(u, bai["attemptId"], q["sampleId"], {"nhan": {"labelIds": [lop]}})
+        r = nop_bai(u, bai["attemptId"])
         kiem(f"{k} nop bai", r.status_code == 200, r.text)
         time.sleep(0.3)  # thu tu nop ro rang
     s = requests.get(G + f"/tasks/projects/{P}/slots", headers=biz["h"]).json()

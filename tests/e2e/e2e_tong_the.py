@@ -158,8 +158,8 @@ try:
     kiem("bam mo bai lan hai → CHINH bai dang lam", bat_dau(l1, A)["attemptId"] == b1["attemptId"])
     aid = b1["attemptId"]
     q = [x["sampleId"] for x in b1["questions"]]
-    r = requests.put(G + f"/tasks/attempts/{aid}/answers/{q[0]}", headers=l1["h"], json={"data": "chuoi"})
-    kiem("cau tra loi khong phai object → 400 cau_tra_loi_sai_dinh_dang", r.status_code == 400 and "cau_tra_loi_sai_dinh_dang" in r.text, r.text)
+    r = nop_bai(l1, aid, answers=[{"sampleId": q[0], "data": "chuoi"}])
+    kiem("nop cau tra loi khong phai object → 400 cau_tra_loi_sai_dinh_dang", r.status_code == 400 and "cau_tra_loi_sai_dinh_dang" in r.text, r.text)
     luu(l1, aid, q[0], {"labelIds": ["a"]}).raise_for_status()
     luu(l1, aid, q[1], {"nhan": {"labelIds": ["khong_co"]}}).raise_for_status()
     luu(l1, aid, q[2], {"nhan": {"labelIds": ["a", "b"]}}).raise_for_status()
@@ -168,15 +168,17 @@ try:
     kiem("nop bai co 3 cau sai (thieu ten cong cu, lop la, chon hai lop) → 400 bai_chua_hop_le kem dung 3 cau",
          r.status_code == 400 and "bai_chua_hop_le" in r.text and sai == {q[0], q[1], q[2]}, r.text)
     kiem("bai van dang lam sau khi nop hong", requests.get(G + f"/tasks/attempts/{aid}", headers=l1["h"]).json()["state"] == "inProgress")
-    kiem("lab2 luu cau vao bai cua lab1 → 404 (BOLA)", luu(l2, aid, q[0], {"nhan": {"labelIds": ["a"]}}).status_code == 404)
-    kiem("lab2 nop bai cua lab1 → 404", nop_bai(l2, aid).status_code == 404)
+    # Nhap o frontend (localStorage) nen khong con API luu nhap de thu BOLA — nop bai la duong ghi duy nhat.
+    kiem("lab2 nop bai cua lab1 (kem cau tra loi) → 404 (BOLA)",
+         nop_bai(l2, aid, answers=[{"sampleId": q[0], "data": {"nhan": {"labelIds": ["a"]}}}]).status_code == 404)
     kiem("lab2 bo bai cua lab1 → 404", requests.post(G + f"/tasks/attempts/{aid}/abandon", headers=l2["h"]).status_code == 404)
     kiem("lab2 xem bai cua lab1 → 404", requests.get(G + f"/tasks/attempts/{aid}", headers=l2["h"]).status_code == 404)
-    r = luu(l1, aid, q[0], None)
-    kiem("xoa cau tra loi (bo trong) → answeredCount giam", r.status_code == 200 and r.json()["answeredCount"] == 2, r.text)
+    kiem("backend khong giu nhap: bai dang lam answeredCount = 0",
+         requests.get(G + f"/tasks/attempts/{aid}", headers=l1["h"]).json()["answeredCount"] == 0)
     r = requests.post(G + f"/tasks/attempts/{aid}/abandon", headers=l1["h"])
     kiem("lab1 bo bai → tra suat", r.status_code in (200, 204), r.text)
-    kiem("luu cau vao bai da bo → 409 bai_da_ket_thuc", luu(l1, aid, q[3], {"nhan": {"labelIds": ["a"]}}).status_code == 409)
+    r = nop_bai(l1, aid, answers=[{"sampleId": q[3], "data": {"nhan": {"labelIds": ["a"]}}}])
+    kiem("nop bai da bo → 409", r.status_code == 409, r.text)
     b1 = bat_dau(l1, A)
     kiem("bo bai roi mo lai → bai MOI, chua tra loi cau nao", b1["attemptId"] != aid and b1["answeredCount"] == 0, b1)
 

@@ -34,8 +34,9 @@ namespace Crowd.Project.Api.Services
     /// LAM BAI ca du an (docs 3.18):
     ///
     ///   POST /tasks/projects/{id}/attempt          bat dau (giu mot suat) / mo lai bai dang lam
-    ///   PUT  /tasks/attempts/{id}/answers/{sample} luu nhap MOT cau (quay lai, bo qua tuy y)
-    ///   POST /tasks/attempts/{id}/submit           nop CA BAI: kiem dinh dang moi cau, cham cau vang
+    ///   POST /tasks/attempts/{id}/submit           nop CA BAI (moi cau tra loi trong body): kiem dinh dang, cham cau vang
+    ///
+    /// Nhap (cau dang lam do) KHONG luu o backend: frontend giu trong localStorage, nop thi gui ca bai mot lan.
     ///
     /// Truoc day day la task-svc, doc BAN SAO du an / mau / cau vang / thanh vien dung tu event. Nay cung
     /// database voi du an nen doc thang bang GOC (projects, project_collections, samples, gold_items,
@@ -258,81 +259,8 @@ namespace Crowd.Project.Api.Services
         }
 
         // =====================================================================
-        // LUU NHAP / NOP / BO
+        // NOP / BO
         // =====================================================================
-
-        /// <summary>
-        /// Luu nhap MOT cau (JSON object toi da 256 KB, chua kiem luat — nhap la do dang; kiem day du khi nop).
-        /// data null = xoa cau tra loi (bo trong cau nay).
-        /// </summary>
-        public async Task<SaveAnswerResponse> LuuCauTraLoiAsync(
-            Guid attemptId, Guid sampleId, JsonElement? data, Caller caller, CancellationToken ct)
-        {
-            Guid labelerId = caller.LayUserId();
-            DateTimeOffset bayGio = _clock.GetUtcNow();
-
-            var tx = await _db.Database.BeginTransactionAsync(ct);
-            try
-            {
-                Attempt? a = await LamBaiQueries.KhoaBaiAsync(_db, attemptId, ct);
-                if (a == null || a.LabelerId != labelerId)
-                {
-                    throw new NotFoundException("Không tìm thấy bài làm.");
-                }
-
-                a.KiemConLamDuoc(bayGio);
-
-                if (!a.CoCauHoi(sampleId))
-                {
-                    throw new NotFoundException("Câu hỏi không thuộc bài làm này.");
-                }
-
-                AttemptDraft? tl = await _db.AttemptDrafts.FirstOrDefaultAsync(x => x.AttemptId == attemptId && x.SampleId == sampleId, ct);
-                bool coTraLoi = data.HasValue && data.Value.ValueKind != JsonValueKind.Null && data.Value.ValueKind != JsonValueKind.Undefined;
-
-                if (!coTraLoi)
-                {
-                    if (tl != null)
-                    {
-                        _db.AttemptDrafts.Remove(tl);
-                    }
-                }
-                else
-                {
-                    if (data!.Value.ValueKind != JsonValueKind.Object)
-                    {
-                        throw new InvalidValueException("cau_tra_loi_sai_dinh_dang", "Câu trả lời phải là một object JSON.");
-                    }
-
-                    string json = data.Value.GetRawText();
-                    if (tl == null)
-                    {
-                        _db.AttemptDrafts.Add(AttemptDraft.Tao(attemptId, sampleId, json, bayGio));
-                    }
-                    else
-                    {
-                        tl.Ghi(json, bayGio);
-                    }
-                }
-
-                await _db.SaveChangesAsync(ct);
-                await tx.CommitAsync(ct);
-
-                int daLam = await _db.AttemptDrafts.CountAsync(x => x.AttemptId == attemptId, ct);
-                return new SaveAnswerResponse
-                {
-                    AttemptId = attemptId,
-                    SampleId = sampleId,
-                    Answered = coTraLoi,
-                    AnsweredCount = daLam,
-                    SavedAt = bayGio,
-                };
-            }
-            finally
-            {
-                await tx.DisposeAsync();
-            }
-        }
 
         /// <summary>
         /// Nop CA BAI. Moi cau da tra loi phai dung dinh dang (Crowd.Labeling: theo tap nhan va metadata mau) —
@@ -340,14 +268,18 @@ namespace Crowd.Project.Api.Services
         /// khong giong da so; cau vang bo trong tinh la sai). Cau vang cham ngay bang CUNG luat voi bai test dau
         /// vao; chi so dung / tong di theo bai — khong ai biet cau nao la vang cho toi khi cham.
         ///
-        /// TRONG MOT transaction: bai thanh Submitted, cau that CHUYEN tu attempt_drafts sang annotations, cau
-        /// vang vao attempts.gold_answers, nhap bi xoa, outbox ghi attempt.submitted (quality-svc). Bai nop nay
-        /// lam du an du nguoi → dong thu bai ngay trong cung transaction.
+        /// Moi cau tra loi di trong body (frontend giu nhap trong localStorage). TRONG MOT transaction: bai thanh
+        /// Submitted, cau that vao annotations, cau vang vao attempts.gold_answers, outbox ghi attempt.submitted
+        /// (quality-svc). Bai nop nay lam du an du nguoi → dong thu bai ngay trong cung transaction.
         /// </summary>
-        public async Task<SubmitAttemptResponse> NopAsync(Guid attemptId, string? clientIp, string? deviceId, Caller caller, CancellationToken ct)
+        public async Task<SubmitAttemptResponse> NopAsync(
+            Guid attemptId, SubmitAttemptRequest? body, string? clientIp, string? deviceId, Caller caller, CancellationToken ct)
         {
             Guid labelerId = caller.LayUserId();
             DateTimeOffset bayGio = _clock.GetUtcNow();
+
+            // Kiem body TRUOC khi khoa gi: chi giu cau co tra loi; trung cau / khong phai object → 400.
+            Dictionary<Guid, string> traLoi = DocCauTraLoi(body);
 
             Attempt? xem = await _db.Attempts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == attemptId, ct);
             if (xem == null || xem.LabelerId != labelerId)
@@ -391,14 +323,18 @@ namespace Crowd.Project.Api.Services
                 Dictionary<Guid, GoldItem> vang = await _db.GoldItems.AsNoTracking()
                     .Where(g => g.ProjectId == a.ProjectId && g.Purpose == GoldPurpose.QualityCheck)
                     .ToDictionaryAsync(g => g.SampleId, ct);
-                Dictionary<Guid, AttemptDraft> traLoi = await _db.AttemptDrafts.AsNoTracking()
-                    .Where(x => x.AttemptId == a.Id)
-                    .ToDictionaryAsync(x => x.SampleId, ct);
+                foreach (Guid sampleId in traLoi.Keys)
+                {
+                    if (!a.CoCauHoi(sampleId))
+                    {
+                        throw new InvalidValueException("cau_khong_thuoc_bai", "Câu " + sampleId + " không thuộc bài làm này.");
+                    }
+                }
 
                 long tongByte = 0;
-                foreach (AttemptDraft x in traLoi.Values)
+                foreach (string json in traLoi.Values)
                 {
-                    tongByte = tongByte + Encoding.UTF8.GetByteCount(x.DataJson);
+                    tongByte = tongByte + Encoding.UTF8.GetByteCount(json);
                 }
 
                 if (tongByte > _settings.SoLon(SettingKeys.TaskAttemptMaxBytes))
@@ -424,12 +360,12 @@ namespace Crowd.Project.Api.Services
 
                     SampleMetadata thongTinMau = SampleMetadata.Tu(mau.Metadata);
                     LabelPayload? nhan = null;
-                    AttemptDraft? x;
+                    string? x;
                     if (traLoi.TryGetValue(sampleId, out x))
                     {
                         try
                         {
-                            nhan = LabelPayload.Tao(tapNhan, x.DataJson, thongTinMau);
+                            nhan = LabelPayload.Tao(tapNhan, x, thongTinMau);
                         }
                         catch (LabelFormatException ex)
                         {
@@ -456,7 +392,7 @@ namespace Crowd.Project.Api.Services
 
                     if (nhan != null)
                     {
-                        nhanMoi.Add(LabelAnnotation.TaoTuBaiNop(a.Id, a.ProjectId, sampleId, a.LabelerId, nhan, bayGio));
+                        nhanMoi.Add(LabelAnnotation.TaoTuBaiNop(a.Id, a.ProjectId, sampleId, a.LabelerId, nhan));
                     }
                 }
 
@@ -467,9 +403,8 @@ namespace Crowd.Project.Api.Services
 
                 a.Nop(soVang, soVangDung, traLoi.Count, traLoiVang.Count == 0 ? null : traLoiVang.ToJsonString(), clientIp, deviceId, bayGio);
 
-                // Cau that vao kho nhan (cung transaction), nhap bi xoa: moi cau tra loi chi nam o MOT noi.
+                // Cau that vao kho nhan (cung transaction).
                 _db.Annotations.AddRange(nhanMoi);
-                await _db.AttemptDrafts.Where(x => x.AttemptId == a.Id).ExecuteDeleteAsync(ct);
                 _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(a.Id, a.ProjectId, AttemptHistoryEntry.DaNop, a.LabelerId, null, bayGio));
 
                 _events.Phat(caller, new AttemptSubmitted
@@ -624,18 +559,9 @@ namespace Crowd.Project.Api.Services
                 // Chap nhan khieu nai: duoc thuong neu CON suat (khong lay lai tien cua bai da tra). Dem duoi khoa dot.
                 int daThuong = await _db.Attempts.CountAsync(x => x.ProjectId == a.ProjectId && x.Rewarded == true, ct);
                 Guid admin = caller.LayUserId();
+                // Chap nhan → appeal_state = Accepted: moi nhan cua bai tu dong tinh la Accepted (trang thai nhan suy
+                // ra tu bai — LabelAnnotation.TrangThai), khong UPDATE nhan nao.
                 a.PhanXu(body.Accept, body.Note, admin, daThuong < duAn.Slots, bayGio);
-
-                if (body.Accept)
-                {
-                    List<LabelAnnotation> nhan = await _db.Annotations
-                        .Where(x => x.ProjectId == a.ProjectId && x.AttemptId == a.Id)
-                        .ToListAsync(ct);
-                    foreach (LabelAnnotation x in nhan)
-                    {
-                        x.ChapNhanSauKhieuNai(bayGio);
-                    }
-                }
 
                 _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(
                     a.Id, a.ProjectId, body.Accept ? AttemptHistoryEntry.KhieuNaiChapNhan : AttemptHistoryEntry.KhieuNaiBacBo, admin, a.AppealNote, bayGio));
@@ -724,7 +650,7 @@ namespace Crowd.Project.Api.Services
                     .FirstOrDefaultAsync(ct);
                 if (a != null)
                 {
-                    cuaToi = TaoTomTat(a, duAn, dot, await SoCauDaLamAsync(a, ct), bayGio);
+                    cuaToi = TaoTomTat(a, duAn, dot, SoCauDaLam(a), bayGio);
                 }
             }
 
@@ -879,15 +805,51 @@ namespace Crowd.Project.Api.Services
             return a;
         }
 
-        /// <summary>Bai dang lam: dem ban nhap. Bai da nop: so chup luc nop.</summary>
-        private async Task<int> SoCauDaLamAsync(Attempt a, CancellationToken ct)
+        /// <summary>
+        /// Body nop bai → {sampleId: json cau tra loi}. Cau data null / thieu = bo trong (khong tinh). Hai dong cung
+        /// mot cau hoac data khong phai object → 400.
+        /// </summary>
+        private static Dictionary<Guid, string> DocCauTraLoi(SubmitAttemptRequest? body)
         {
-            if (a.AnsweredCount.HasValue)
+            Dictionary<Guid, string> kq = new Dictionary<Guid, string>();
+            if (body == null || body.Answers == null)
             {
-                return a.AnsweredCount.Value;
+                return kq;
             }
 
-            return await _db.AttemptDrafts.CountAsync(x => x.AttemptId == a.Id, ct);
+            foreach (SubmittedAnswer x in body.Answers)
+            {
+                if (x == null)
+                {
+                    throw new InvalidValueException("cau_tra_loi_sai_dinh_dang", "Mỗi câu trả lời phải có sampleId.");
+                }
+
+                if (kq.ContainsKey(x.SampleId))
+                {
+                    throw new InvalidValueException("cau_tra_loi_trung", "Câu " + x.SampleId + " được gửi hai lần.");
+                }
+
+                bool coTraLoi = x.Data.HasValue && x.Data.Value.ValueKind != JsonValueKind.Null && x.Data.Value.ValueKind != JsonValueKind.Undefined;
+                if (!coTraLoi)
+                {
+                    continue;
+                }
+
+                if (x.Data!.Value.ValueKind != JsonValueKind.Object)
+                {
+                    throw new InvalidValueException("cau_tra_loi_sai_dinh_dang", "Câu trả lời phải là một object JSON.");
+                }
+
+                kq[x.SampleId] = x.Data.Value.GetRawText();
+            }
+
+            return kq;
+        }
+
+        /// <summary>Bai da nop: so chup luc nop. Bai dang lam: backend khong biet (nhap o frontend) → 0.</summary>
+        private static int SoCauDaLam(Attempt a)
+        {
+            return a.AnsweredCount.HasValue ? a.AnsweredCount.Value : 0;
         }
 
         private async Task<IReadOnlyList<AttemptSummary>> TomTatNhieuAsync(List<Attempt> ds, CancellationToken ct)
@@ -901,14 +863,6 @@ namespace Crowd.Project.Api.Services
                 .Where(d => duAnIds.Contains(d.ProjectId))
                 .ToDictionaryAsync(d => d.ProjectId, ct);
 
-            // Chi bai DANG LAM moi phai dem nhap; bai da nop co so chup san.
-            List<Guid> dangLamIds = ds.Where(a => !a.AnsweredCount.HasValue).Select(a => a.Id).ToList();
-            Dictionary<Guid, int> daLam = await _db.AttemptDrafts.AsNoTracking()
-                .Where(x => dangLamIds.Contains(x.AttemptId))
-                .GroupBy(x => x.AttemptId)
-                .Select(g => new { Id = g.Key, So = g.Count() })
-                .ToDictionaryAsync(x => x.Id, x => x.So, ct);
-
             List<AttemptSummary> kq = new List<AttemptSummary>();
             foreach (Attempt a in ds)
             {
@@ -919,9 +873,7 @@ namespace Crowd.Project.Api.Services
                     continue;
                 }
 
-                int n;
-                int soCau = a.AnsweredCount.HasValue ? a.AnsweredCount.Value : (daLam.TryGetValue(a.Id, out n) ? n : 0);
-                kq.Add(TaoTomTat(a, p, d, soCau, bayGio));
+                kq.Add(TaoTomTat(a, p, d, SoCauDaLam(a), bayGio));
             }
 
             return kq;
@@ -974,8 +926,8 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// Bai day du cho workspace. Bai dang lam: cau tra loi doc tu nhap. Bai da nop: cau that doc tu
-        /// annotations, cau vang tu attempts.gold_answers (nhap da bi xoa luc nop).
+        /// Bai day du cho workspace. Bai dang lam: khong kem cau tra loi (nhap o localStorage cua frontend). Bai da
+        /// nop: cau that doc tu annotations, cau vang tu attempts.gold_answers.
         /// </summary>
         private async Task<AttemptResponse> TaoResponseAsync(Attempt a, CancellationToken ct)
         {
@@ -993,7 +945,7 @@ namespace Crowd.Project.Api.Services
                     .ToListAsync(ct);
                 foreach (LabelAnnotation x in nhan)
                 {
-                    traLoi[x.SampleId] = new KeyValuePair<string, DateTimeOffset>(x.Payload.DataJson, x.SubmittedAt);
+                    traLoi[x.SampleId] = new KeyValuePair<string, DateTimeOffset>(x.DataJson, a.SubmittedAt!.Value);
                 }
 
                 if (a.GoldAnswersJson != null)
@@ -1010,14 +962,6 @@ namespace Crowd.Project.Api.Services
                             }
                         }
                     }
-                }
-            }
-            else
-            {
-                List<AttemptDraft> nhap = await _db.AttemptDrafts.AsNoTracking().Where(x => x.AttemptId == a.Id).ToListAsync(ct);
-                foreach (AttemptDraft x in nhap)
-                {
-                    traLoi[x.SampleId] = new KeyValuePair<string, DateTimeOffset>(x.DataJson, x.UpdatedAt);
                 }
             }
 
@@ -1074,7 +1018,7 @@ namespace Crowd.Project.Api.Services
                 PassThresholdPercent = p.PassThresholdPercent,
                 SensitiveContent = p.SensitiveContent,
                 QuestionCount = ds.Count,
-                AnsweredCount = a.AnsweredCount.HasValue ? a.AnsweredCount.Value : traLoi.Count,
+                AnsweredCount = SoCauDaLam(a),
                 Questions = ds,
             };
         }

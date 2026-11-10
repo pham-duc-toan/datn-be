@@ -72,20 +72,16 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.LayAsync(attemptId, Labeler(), ct));
         }
 
-        /// <summary>PUT /tasks/attempts/{id}/answers/{sampleId} — luu nhap MOT cau, body {"data": {...} | null}.</summary>
-        [HttpPut("attempts/{attemptId:guid}/answers/{sampleId:guid}")]
-        [Authorize(Roles = CrowdRoles.Labeler)]
-        public async Task<IActionResult> LuuCauTraLoi(Guid attemptId, Guid sampleId, [FromBody] SaveAnswerRequest body, CancellationToken ct)
-        {
-            return Ok(await _service.LuuCauTraLoiAsync(attemptId, sampleId, body == null ? null : body.Data, Labeler(), ct));
-        }
-
-        /// <summary>POST /tasks/attempts/{id}/submit — nop CA BAI. Cau sai dinh dang → 400 bai_chua_hop_le kem invalidAnswers.</summary>
+        /// <summary>
+        /// POST /tasks/attempts/{id}/submit — nop CA BAI, body {"answers":[{"sampleId","data":{...}}]}. Nhap khong luu
+        /// o backend: frontend giu trong localStorage roi gui mot lan. Cau sai dinh dang → 400 bai_chua_hop_le kem
+        /// invalidAnswers.
+        /// </summary>
         [HttpPost("attempts/{attemptId:guid}/submit")]
         [Authorize(Roles = CrowdRoles.Labeler)]
-        public async Task<IActionResult> Nop(Guid attemptId, CancellationToken ct)
+        public async Task<IActionResult> Nop(Guid attemptId, [FromBody] SubmitAttemptRequest body, CancellationToken ct)
         {
-            return Ok(await _service.NopAsync(attemptId, IpKhach(), ThietBi(), Labeler(), ct));
+            return Ok(await _service.NopAsync(attemptId, body, IpKhach(), ThietBi(), Labeler(), ct));
         }
 
         /// <summary>POST /tasks/attempts/{id}/abandon — bo bai, tra suat cho nguoi khac.</summary>

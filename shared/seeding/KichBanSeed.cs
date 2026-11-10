@@ -751,14 +751,13 @@ namespace Crowd.Seeding
             };
         }
 
-        /// <summary>Mot cau tra loi — AnnotationId tinh tu (du an, mau, labeler) de cac service khop nhau.</summary>
+        /// <summary>Mot cau tra loi. Nhan khong co id rieng: khoa la (du an, bai, mau).</summary>
         private static SeedAnswer TraLoi(string projectKey, SeedSample mau, string labelerKey, string payloadJson)
         {
             return new SeedAnswer
             {
                 SampleId = mau.Id,
                 PayloadJson = payloadJson,
-                AnnotationId = SeedIds.Tu("annotation:" + projectKey + ":" + mau.Index.ToString(CultureInfo.InvariantCulture) + ":" + labelerKey),
             };
         }
 

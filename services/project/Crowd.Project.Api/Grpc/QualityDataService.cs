@@ -174,18 +174,20 @@ namespace Crowd.Project.Api.Grpc
                 nhan = nhan.Where(a => attemptIds.Contains(a.AttemptId));
             }
 
-            // Cung khoa phan vung (project_id) o hai bang → Postgres chi cham MOT phan vung moi ben.
+            // Cung khoa phan vung (project_id) o hai bang → Postgres chi cham MOT phan vung moi ben. Luc nop lay tu
+            // bai (annotations khong luu moc thoi gian).
             var dong = from a in nhan
                        join s in _db.Samples.AsNoTracking().Where(x => x.ProjectId == projectId) on a.SampleId equals s.Id
-                       orderby a.SubmittedAt, a.Id
+                       join t in _db.Attempts.AsNoTracking() on a.AttemptId equals t.Id
+                       orderby t.SubmittedAt, a.AttemptId, a.SampleId
                        select new
                        {
                            a.AttemptId,
                            a.SampleId,
                            a.LabelerId,
-                           Data = EF.Property<string>(a, "_payloadJson"),
+                           Data = a.DataJson,
                            s.Metadata,
-                           a.SubmittedAt,
+                           SubmittedAt = t.SubmittedAt ?? t.StartedAt,
                        };
 
             await foreach (var d in dong.AsAsyncEnumerable().WithCancellation(context.CancellationToken))

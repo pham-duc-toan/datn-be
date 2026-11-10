@@ -137,28 +137,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
         }
     }
 
-    public sealed class AttemptDraftConfiguration : IEntityTypeConfiguration<AttemptDraft>
-    {
-        public void Configure(EntityTypeBuilder<AttemptDraft> builder)
-        {
-            if (builder == null)
-            {
-                throw new ArgumentNullException(nameof(builder));
-            }
-
-            // Duong NONG nhat he thong (moi lan labeler sua mot cau). Khong chi muc nao ngoai khoa chinh, khong
-            // cot nao duoc danh chi muc bi sua → moi lan luu nhap la HOT update; fillfactor 70 chua cho cho no
-            // (dat trong migration). Nop bai thi nhap chuyen sang annotations va bi xoa.
-            builder.ToTable("attempt_drafts");
-            builder.Property(x => x.AttemptId).HasColumnName("attempt_id");
-            builder.Property(x => x.SampleId).HasColumnName("sample_id");
-            builder.HasKey(x => new { x.AttemptId, x.SampleId });
-            builder.Property(x => x.DataJson).HasColumnName("data").HasColumnType("jsonb").IsRequired();
-            builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
-            builder.HasOne<Attempt>().WithMany().HasForeignKey(x => x.AttemptId).OnDelete(DeleteBehavior.Cascade);
-        }
-    }
-
     public sealed class AttemptHistoryConfiguration : IEntityTypeConfiguration<AttemptHistoryEntry>
     {
         public void Configure(EntityTypeBuilder<AttemptHistoryEntry> builder)
@@ -229,31 +207,22 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             // Bang LON NHAT ve lau dai (moi nhan da nop) — PHAN VUNG HASH(project_id) 64 phan, payload nen lz4
             // (migration). Khong chi muc GIN tren payload: khong truy van nao loc ben trong JSON (phan bo nhan
             // tinh tu ket qua gop), GIN chi ton them 30-50% dung luong va lam cham moi lan chen.
+            // Chi 6 cot (xem LabelAnnotation): trang thai / moc thoi gian suy ra tu attempts, dinh dang tu projects.
             builder.ToTable("annotations");
-            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
-            builder.HasKey(x => new { x.ProjectId, x.Id });
-            builder.Property(x => x.AttemptId).HasColumnName("attempt_id").IsRequired();
-            builder.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
-            builder.Property(x => x.SampleId).HasColumnName("sample_id").IsRequired();
+            builder.Property(x => x.ProjectId).HasColumnName("project_id");
+            builder.Property(x => x.AttemptId).HasColumnName("attempt_id");
+            builder.Property(x => x.SampleId).HasColumnName("sample_id");
+
+            // Moi (bai lam, mau) DUNG MOT nhan — bai nop / gate.solved giao lai khong sinh nhan thu hai. Khoa chinh
+            // cua bang phan vung phai chua cot phan vung (project_id).
+            builder.HasKey(x => new { x.ProjectId, x.AttemptId, x.SampleId });
             builder.Property(x => x.LabelerId).HasColumnName("labeler_id");
-            builder.Ignore(x => x.Payload);
-            builder.Property<string>("_payloadTaskType").HasColumnName("task_type").HasMaxLength(50).IsRequired();
-            builder.Property<int>("_payloadSchemaVersion").HasColumnName("schema_version").IsRequired();
-            builder.Property<string>("_payloadJson").HasColumnName("payload").HasColumnType("jsonb").IsRequired();
             builder.Property(x => x.Source).HasColumnName("source").HasConversion<string>().HasMaxLength(20).IsRequired();
-            builder.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
-            builder.Property(x => x.SubmittedAt).HasColumnName("submitted_at").IsRequired();
-            builder.Property(x => x.DecidedAt).HasColumnName("decided_at");
+            builder.Property(x => x.DataJson).HasColumnName("payload").HasColumnType("jsonb").IsRequired();
 
             // KHONG dung xmin lam khoa lac quan o day: bang PHAN VUNG khong cho "INSERT ... RETURNING xmin" (Postgres
-            // bao "cannot retrieve a system column in this context"). Cung khong can: moi cho DOI trang thai nhan
-            // (cham — project.graded, phan xu khieu nai) deu khoa dong project_collections FOR UPDATE truoc, nen hai
-            // ben khong bao gio ghi cung luc; gate.solved chi INSERT (UNIQUE chan trung).
-
-            // Moi (bai lam, mau) DUNG MOT nhan — bai nop / gate.solved giao lai khong sinh nhan thu hai.
-            builder.HasIndex(x => new { x.ProjectId, x.AttemptId, x.SampleId }).IsUnique().HasDatabaseName("ux_annotations_attempt_sample");
-            builder.HasIndex(x => new { x.ProjectId, x.Status }).HasDatabaseName("ix_annotations_project_status");
-            builder.HasIndex(x => new { x.ProjectId, x.SampleId }).HasDatabaseName("ix_annotations_project_sample");
+            // bao "cannot retrieve a system column in this context"). Cung khong can: nhan chi INSERT luc nop / gate.solved,
+            // khong bao gio UPDATE (cham va khieu nai chi sua attempts).
         }
     }
 

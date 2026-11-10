@@ -41,7 +41,7 @@ namespace Crowd.Project.Tests
         }
     }
 
-    /// <summary>Bai lam ca du an (docs 3.18): bat dau → luu nhap → nop ca bai → cham → khieu nai.</summary>
+    /// <summary>Bai lam ca du an (docs 3.18): bat dau → nop ca bai (nhap o frontend) → cham → khieu nai.</summary>
     public sealed class AttemptTests
     {
         private static readonly DateTimeOffset Luc = DuAnMau.Luc;
@@ -213,18 +213,6 @@ namespace Crowd.Project.Tests
             b.KhieuNai("Xem lai", Luc.AddDays(4), Luc.AddDays(2));
             b.PhanXu(true, null, Guid.NewGuid(), true, Luc.AddDays(3));
             Assert.True(b.DuocThuong);
-        }
-
-        [Fact]
-        public void Cau_tra_loi_nhap_toi_da_256_KB()
-        {
-            string lon = "{\"x\":\"" + new string('a', AttemptDraft.KichThuocToiDa) + "\"}";
-            Assert.Throws<InvalidValueException>(() => AttemptDraft.Tao(Guid.NewGuid(), Guid.NewGuid(), lon, Luc));
-
-            AttemptDraft ok = AttemptDraft.Tao(Guid.NewGuid(), Guid.NewGuid(), "{\"label\":{\"labelIds\":[\"cho\"]}}", Luc);
-            ok.Ghi("{\"label\":{\"labelIds\":[\"meo\"]}}", Luc.AddMinutes(1));
-            Assert.Contains("meo", ok.DataJson);
-            Assert.Equal(Luc.AddMinutes(1), ok.UpdatedAt);
         }
 
         [Fact]

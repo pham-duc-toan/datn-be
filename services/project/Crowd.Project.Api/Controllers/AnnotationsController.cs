@@ -54,11 +54,14 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.DanhSachDuAnAsync(projectId, status, attemptId, page, pageSize, ChuDuAn(), ct));
         }
 
-        /// <summary>GET /annotations/{id}/history — vong doi mot nhan.</summary>
-        [HttpGet("{id:guid}/history")]
-        public async Task<IActionResult> LichSu(Guid id, CancellationToken ct)
+        /// <summary>
+        /// GET /annotations/attempts/{attemptId}/history — vong doi cua bai chua nhan (nhan khong co id rieng, khoa
+        /// la (du an, bai, cau); lich su ghi theo ca bai).
+        /// </summary>
+        [HttpGet("attempts/{attemptId:guid}/history")]
+        public async Task<IActionResult> LichSu(Guid attemptId, CancellationToken ct)
         {
-            return Ok(await _service.LichSuAsync(id, ChuDuAn(), ct));
+            return Ok(await _service.LichSuAsync(attemptId, ChuDuAn(), ct));
         }
 
         /// <summary>GET /annotations/projects/{projectId}/results — ket qua gop tu nhan DA CHOT (FB-22).</summary>

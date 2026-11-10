@@ -17,7 +17,8 @@ using Microsoft.Extensions.Logging;
 namespace Crowd.Project.Api.Services
 {
     /// <summary>
-    /// Don du lieu VAN HANH cua du an da dong (hoan thanh / huy): bao loi mau, ban nhap con sot.
+    /// Don du lieu VAN HANH cua du an da dong (hoan thanh / huy): bao loi mau. (Nhap khong con o backend —
+    /// frontend giu trong localStorage.)
     ///
     /// Du an dong la diem cuoi (khong mo lai). Thu con can ve sau GIU NGUYEN: bai lam (ket qua cham, khieu nai,
     /// lich su), nhan da nop (ket qua, file xuat), mau va cau vang (ket qua tro toi). Truoc khi gop, task-svc
@@ -102,7 +103,6 @@ namespace Crowd.Project.Api.Services
                         ProjectId = projectId,
                         PurgedAt = dot.DataPurgedAt.Value,
                         PurgedNow = false,
-                        DeletedDrafts = 0,
                         DeletedReports = 0,
                     };
                 }
@@ -143,12 +143,6 @@ namespace Crowd.Project.Api.Services
                 p => _db.Database.ExecuteSqlInterpolatedAsync(
                     $@"DELETE FROM sample_reports WHERE id IN (
                            SELECT id FROM sample_reports WHERE project_id = {p} LIMIT {KichThuocLo})", ct));
-            int nhap = await XoaTheoLoAsync(
-                projectId,
-                p => _db.Database.ExecuteSqlInterpolatedAsync(
-                    $@"DELETE FROM attempt_drafts WHERE ctid IN (
-                           SELECT x.ctid FROM attempt_drafts x JOIN attempts a ON a.id = x.attempt_id
-                            WHERE a.project_id = {p} LIMIT {KichThuocLo})", ct));
 
             // BUOC 3: danh dau.
             DateTimeOffset luc = _clock.GetUtcNow();
@@ -162,14 +156,13 @@ namespace Crowd.Project.Api.Services
                 luc = dot.DataPurgedAt.HasValue ? dot.DataPurgedAt.Value : luc;
             }
 
-            _logger.LogInformation("Don du an da dong {ProjectId}: {BaoLoi} bao loi, {Nhap} cau tra loi nhap", projectId, baoLoi, nhap);
+            _logger.LogInformation("Don du an da dong {ProjectId}: {BaoLoi} bao loi", projectId, baoLoi);
 
             return new PurgeResponse
             {
                 ProjectId = projectId,
                 PurgedAt = luc,
                 PurgedNow = true,
-                DeletedDrafts = nhap,
                 DeletedReports = baoLoi,
             };
         }

@@ -166,7 +166,7 @@ namespace Crowd.Project.Api.Consumers
                 }
 
                 GateLabel l = cap.Value;
-                _db.Annotations.Add(LabelAnnotation.TaoTuCongLink(cap.Key, p.ProjectId, l.SampleId, l.LabelPayload, p.SolvedAt));
+                _db.Annotations.Add(LabelAnnotation.TaoTuCongLink(cap.Key, p.ProjectId, l.SampleId, l.LabelPayload));
             }
         }
 

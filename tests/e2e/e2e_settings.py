@@ -130,11 +130,12 @@ try:
                 b = r.json()
                 break
             time.sleep(1)
+        # Nhap o frontend (localStorage) — nop gui ca bai mot lan.
+        tra_loi = []
         for q in b["questions"]:
             nhan = "tich_cuc" if "dep" in q["content"]["text"] else "tieu_cuc"
-            requests.put(G + f"/tasks/attempts/{b['attemptId']}/answers/{q['sampleId']}", headers=lab[k],
-                         json={"data": {"cam_xuc": {"labelIds": [nhan]}}}).raise_for_status()
-        requests.post(G + f"/tasks/attempts/{b['attemptId']}/submit", headers=lab[k]).raise_for_status()
+            tra_loi.append({"sampleId": q["sampleId"], "data": {"cam_xuc": {"labelIds": [nhan]}}})
+        requests.post(G + f"/tasks/attempts/{b['attemptId']}/submit", headers=lab[k], json={"answers": tra_loi}).raise_for_status()
     requests.post(G + f"/projects/{pid}/finish", headers=biz).raise_for_status()
     ok = cho(lambda: all(requests.get(G + "/ledger/me/balance", headers=lab[k]).json()["availableVnd"] == truoc[k] + 10000 for k in lab), 60)
     kiem("2 bai dat → moi labeler +10.000 kha dung ngay (reward_hold = 0)", ok,

@@ -42,10 +42,10 @@ namespace Crowd.Project.Tests
 
         private static LabelAnnotation Nhan(Guid mau, string duLieu, int phutSau)
         {
+            // phutSau: thu tu nop (nhan da duoc sap theo luc nop truoc khi gop — xem AnnotationService.KetQuaAsync).
             LabelAnnotation a = LabelAnnotation.TaoTuBaiNop(
                 Guid.NewGuid(), Guid.NewGuid(), mau, Guid.NewGuid(),
-                LabelPayload.Tao(TapNhan, duLieu, Anh4x4), DateTimeOffset.UnixEpoch.AddMinutes(phutSau));
-            a.ChotTheoKetQua(true, DateTimeOffset.UnixEpoch.AddHours(1));
+                LabelPayload.Tao(TapNhan, duLieu, Anh4x4));
             return a;
         }
 
@@ -85,7 +85,7 @@ namespace Crowd.Project.Tests
                     ApprovedCount = r.ApprovedCount,
                     Disputed = r.Disputed,
                     Tools = RawJson.Tu(r.Tools),
-                    Labels = r.Approved.Select(a => RawJson.Tu(a.Payload.DataJson)).ToList(),
+                    Labels = r.Approved.Select(a => RawJson.Tu(a.DataJson)).ToList(),
                 });
             }
 

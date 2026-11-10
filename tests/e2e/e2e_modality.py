@@ -60,15 +60,24 @@ def nhan_task(h, pid, cho_dong_bo=False, chon=None):
     return None
 
 
+# Nhap (cau dang lam do) chi nam o frontend (localStorage) — test giu nhap cuc bo theo bai, nop gui ca bai.
+_NHAP = {}
+
+
 def luu_cau(h, aid, payload):
     attempt_id, sid = aid.split("|")
-    return requests.put(G + "/tasks/attempts/%s/answers/%s" % (attempt_id, sid), headers=h, json={"data": payload})
+    _NHAP.setdefault(attempt_id, {})[sid] = payload
 
 
 def nop(h, aid, payload):
     """Luu cau roi NOP CA BAI (cau con lai bo trong). Nhan sai → 400 bai_chua_hop_le, bai van mo de sua."""
-    luu_cau(h, aid, payload).raise_for_status()
-    return requests.post(G + "/tasks/attempts/%s/submit" % aid.split("|")[0], headers=h)
+    luu_cau(h, aid, payload)
+    attempt_id = aid.split("|")[0]
+    tra_loi = [{"sampleId": s, "data": d} for s, d in _NHAP.get(attempt_id, {}).items()]
+    r = requests.post(G + "/tasks/attempts/%s/submit" % attempt_id, headers=h, json={"answers": tra_loi})
+    if r.status_code == 200:
+        _NHAP.pop(attempt_id, None)
+    return r
 
 
 def du_an_seed(ten_chua):
@@ -271,7 +280,7 @@ if t:
     # Tra loi DUNG cau vang (anh do 200x150) de bai dat → nhan vao ket qua.
     vang = [q for q in t["questions"] if q["metadata"]["width"] == 200][0]
     luu_cau(lab1, "%s|%s" % (t["attemptId"], vang["sampleId"]),
-            {"loai": {"labelIds": ["ngoai_troi"]}, "vat": [{"labelId": "xe", "x": 10, "y": 10, "w": 50, "h": 40}]}).raise_for_status()
+            {"loai": {"labelIds": ["ngoai_troi"]}, "vat": [{"labelId": "xe", "x": 10, "y": 10, "w": 50, "h": 40}]})
     r = nop(lab1, t["assignmentId"], {"loai": {"labelIds": ["ngoai_troi"]}, "vat": [{"labelId": "xe", "x": 250, "y": 150, "w": 100, "h": 100}]})
     kiem("bbox tran ra ngoai anh → 400", r.status_code == 400, r.text)
     r = nop(lab1, t["assignmentId"], {"loai": {"labelIds": ["ngoai_troi"]}, "vung": [{"labelId": "duong", "points": [[0, 0], [10, 0]]}]})

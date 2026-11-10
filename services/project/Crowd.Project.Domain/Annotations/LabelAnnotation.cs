@@ -1,10 +1,14 @@
 using System;
-using System.Collections.Generic;
-using Crowd.Project.Domain.Common;
+using System.Text.Json.Nodes;
 using Crowd.Labeling;
+using Crowd.Project.Domain.Attempts;
+using Crowd.Project.Domain.Common;
 
 namespace Crowd.Project.Domain.Annotations
 {
+    /// <summary>
+    /// Trang thai cua mot nhan — KHONG luu trong bang annotations, SUY RA tu bai lam (xem LabelAnnotation.TrangThai).
+    /// </summary>
     public enum AnnotationStatus
     {
         /// <summary>Nam trong mot bai DA NOP, cho du an ket thuc va cham (docs 3.18).</summary>
@@ -25,77 +29,78 @@ namespace Crowd.Project.Domain.Annotations
     }
 
     /// <summary>
-    /// AGGREGATE ROOT: mot nhan do mot nguoi gan cho mot mau — mot cau trong BAI LAM ca du an (docs 3.18).
+    /// MOT NHAN: cai nguoi dung chon cho MOT cau hoi (mau) trong MOT bai lam. Bang annotations chi giu dung
+    /// nhung gi khong suy ra duoc tu cho khac:
     ///
-    /// Vong doi (khong con duyet tung nhan):
+    ///   project_id   khoa phan vung (moi truy van deu theo du an)
+    ///   attempt_id   bai lam sinh ra nhan (cong link: id tat dinh (phien, mau) — khach khong co tai khoan)
+    ///   sample_id    cau hoi
+    ///   labeler_id   nguoi lam (null = khach vang lai o cong link)
+    ///   source       kenh: Professional | LinkGateway | Collaborative
+    ///   payload      cau tra loi (JSON theo ten cong cu)
     ///
-    ///   Submitted ──project.graded: bai DAT──► Accepted   (vao ket qua)
-    ///       │
-    ///       └──project.graded: bai TRUOT──► Excluded ──khieu nai ca bai duoc chap nhan──► Accepted
+    /// Khoa chinh (project_id, attempt_id, sample_id): moi bai mot nhan moi cau — bai nop / gate.solved giao lai
+    /// khong sinh nhan thu hai.
     ///
-    /// Tien KHONG di qua annotation-svc nua: ledger tra thuong theo ca bai (project.graded /
-    /// attempt.appeal_resolved). Annotation chi lo LUU nhan va CHOT nhan nao vao ket qua / file xuat.
+    /// Nhung thu DA BO vi suy ra duoc:
+    ///   task_type, schema_version → projects.modality + LabelPayload.PhienBanHienTai (tap nhan khoa tu luc roi Nhap,
+    ///                               nen moi nhan cua mot du an cung mot dinh dang)
+    ///   status                    → TrangThai(...) tu attempts.graded_at / passed / appeal_state
+    ///   submitted_at, decided_at  → attempts.submitted_at / graded_at / appeal_resolved_at
     ///
-    /// Lich su doi trang thai KHONG ghi theo tung nhan: moi lan doi deu xay ra theo CA BAI (nop, cham dat /
-    /// truot, khieu nai) nen ghi mot dong attempt_history cho ca bai thay vi N dong cho N nhan.
+    /// Vi khong con status tren tung nhan, cham bai va phan xu khieu nai chi sua MOT dong attempts, khong UPDATE
+    /// hang loat nhan.
     ///
-    /// Bang annotations phan vung HASH(project_id) 64 phan: moi truy van (nop, cham, ket qua, xuat file) deu
-    /// theo du an nen chi cham MOT phan vung. Ten la LabelAnnotation vi "Annotation" trung namespace cu.
+    /// Nhap (cau dang lam do) KHONG luu o backend: frontend giu trong localStorage, nop thi gui ca bai.
+    ///
+    /// Bang annotations phan vung HASH(project_id) 64 phan. Ten la LabelAnnotation vi "Annotation" trung namespace cu.
     /// </summary>
     public sealed class LabelAnnotation
     {
-        // Noi dung nhan o dinh dang chung (Crowd.Labeling) — ba cot task_type,
-        // schema_version, payload jsonb. Moi loai nhan mot hinh dang JSON, bang
-        // khong doi khi them loai moi.
-        private string _payloadTaskType;
-        private int _payloadSchemaVersion;
-        private string _payloadJson;
-
         private LabelAnnotation()
         {
-            _payloadTaskType = string.Empty;
-            _payloadJson = string.Empty;
+            DataJson = string.Empty;
         }
-
-        public Guid Id { get; private set; }
-
-        /// <summary>
-        /// Bai lam sinh ra nhan nay (cong link: id tat dinh (phien, mau)). UNIQUE (attempt, mau): bai nop giao
-        /// lai khong thanh hai nhan.
-        /// </summary>
-        public Guid AttemptId { get; private set; }
 
         public Guid ProjectId { get; private set; }
 
-        /// <summary>Mau duoc gan — khoa file / noi dung / metadata nam o AnnotationSample (mot ban moi mau).</summary>
+        /// <summary>Bai lam sinh ra nhan nay (cong link: id tat dinh (phien, mau)).</summary>
+        public Guid AttemptId { get; private set; }
+
+        /// <summary>Cau hoi (mau) duoc gan.</summary>
         public Guid SampleId { get; private set; }
 
         /// <summary>null = khach vang lai o cong link.</summary>
         public Guid? LabelerId { get; private set; }
 
-        /// <summary>Noi dung nhan. Dung lai tu ba cot moi lan doc — LabelPayload kiem lai dinh dang.</summary>
-        public LabelPayload Payload
-        {
-            get { return LabelPayload.TuLuuTru(_payloadTaskType, _payloadSchemaVersion, _payloadJson); }
-        }
-
         public LabelSource Source { get; private set; }
 
-        public AnnotationStatus Status { get; private set; }
+        /// <summary>Cau tra loi da kiem va chuan hoa — phan DataJson cua LabelPayload.</summary>
+        public string DataJson { get; private set; }
 
-        public DateTimeOffset SubmittedAt { get; private set; }
+        /// <summary>
+        /// Dung lai LabelPayload day du. Loai du lieu lay tu du an (projects.modality) vi bang khong luu task_type.
+        /// </summary>
+        public LabelPayload LayPayload(string modality)
+        {
+            return LabelPayload.TuLuuTru(modality, LabelPayload.PhienBanHienTai, DataJson);
+        }
 
-        /// <summary>Luc chot vao / loai khoi ket qua (cham, khieu nai).</summary>
-        public DateTimeOffset? DecidedAt { get; private set; }
+        /// <summary>Ket qua cua mot cong cu; null neu nhan khong co cong cu nay.</summary>
+        public JsonNode? KetQua(string tenCongCu)
+        {
+            JsonObject? o = JsonNode.Parse(DataJson) as JsonObject;
+            if (o == null)
+            {
+                return null;
+            }
 
-        /// <summary>Mot cau trong bai DA NOP (attempt.submitted) — cho cham.</summary>
-        public static LabelAnnotation TaoTuBaiNop(
-            Guid attemptId,
-            Guid projectId,
-            Guid sampleId,
-            Guid labelerId,
-            LabelPayload nhan,
-            DateTimeOffset submittedAt)
+            JsonNode? n = o[tenCongCu];
+            return n == null ? null : n.DeepClone();
+        }
+
+        /// <summary>Mot cau trong bai DA NOP — cho cham.</summary>
+        public static LabelAnnotation TaoTuBaiNop(Guid attemptId, Guid projectId, Guid sampleId, Guid labelerId, LabelPayload nhan)
         {
             // LabelPayload luon hop le dinh dang (chi tao duoc qua LabelPayload.Tao), nen o day chi can kiem
             // co hay khong.
@@ -105,31 +110,20 @@ namespace Crowd.Project.Domain.Annotations
             }
 
             LabelAnnotation a = new LabelAnnotation();
-            a.Id = Guid.CreateVersion7();
             a.AttemptId = attemptId;
             a.ProjectId = projectId;
             a.SampleId = sampleId;
             a.LabelerId = labelerId;
-            a._payloadTaskType = nhan.TaskType;
-            a._payloadSchemaVersion = nhan.SchemaVersion;
-            a._payloadJson = nhan.DataJson;
+            a.DataJson = nhan.DataJson;
             a.Source = LabelSource.Professional;
-            a.Status = AnnotationStatus.Submitted;
-            a.SubmittedAt = submittedAt;
             return a;
         }
 
         /// <summary>
-        /// Nhan cua khach vang lai qua trang vuot link (gate.solved): da qua cau vang, KHONG co labeler (nguoi
-        /// chia se link da duoc tra theo luot), khong thuoc bai lam nao → vao ket qua ngay (Accepted).
-        /// attemptId la id tat dinh (phien, mau) — event giao lai khong tao nhan thu hai.
+        /// Nhan cua khach vang lai qua trang vuot link (gate.solved): da qua cau vang, KHONG co labeler, khong
+        /// thuoc bai lam nao → luon vao ket qua. attemptId la id tat dinh (phien, mau).
         /// </summary>
-        public static LabelAnnotation TaoTuCongLink(
-            Guid attemptId,
-            Guid projectId,
-            Guid sampleId,
-            LabelPayload nhan,
-            DateTimeOffset submittedAt)
+        public static LabelAnnotation TaoTuCongLink(Guid attemptId, Guid projectId, Guid sampleId, LabelPayload nhan)
         {
             if (nhan == null)
             {
@@ -137,48 +131,38 @@ namespace Crowd.Project.Domain.Annotations
             }
 
             LabelAnnotation a = new LabelAnnotation();
-            a.Id = Guid.CreateVersion7();
             a.AttemptId = attemptId;
             a.ProjectId = projectId;
             a.SampleId = sampleId;
             a.LabelerId = null;
-            a._payloadTaskType = nhan.TaskType;
-            a._payloadSchemaVersion = nhan.SchemaVersion;
-            a._payloadJson = nhan.DataJson;
+            a.DataJson = nhan.DataJson;
             a.Source = LabelSource.LinkGateway;
-            a.Status = AnnotationStatus.Accepted;
-            a.SubmittedAt = submittedAt;
-            a.DecidedAt = submittedAt;
             return a;
         }
 
         /// <summary>
-        /// project.graded: bai dat → Accepted, bai truot → Excluded. Chi tu Submitted (giao lai / da chot →
-        /// khong doi). Tra ve true neu vua doi.
+        /// Trang thai cua nhan, suy ra tu bai lam:
+        ///
+        ///   cong link                              → Accepted (gate chi gui nhan cua khach da qua cau vang)
+        ///   bai chua cham (graded_at null)         → Submitted
+        ///   bai dat HOAC khieu nai duoc chap nhan  → Accepted
+        ///   con lai                                → Excluded
+        ///
+        /// Truy van SQL (AnnotationService, LamBaiQueries) viet LAI dung luat nay de Postgres loc duoc.
         /// </summary>
-        public bool ChotTheoKetQua(bool dat, DateTimeOffset luc)
+        public static AnnotationStatus TrangThai(LabelSource source, Attempt? bai)
         {
-            if (Status != AnnotationStatus.Submitted)
+            if (source == LabelSource.LinkGateway)
             {
-                return false;
+                return AnnotationStatus.Accepted;
             }
 
-            Status = dat ? AnnotationStatus.Accepted : AnnotationStatus.Excluded;
-            DecidedAt = luc;
-            return true;
-        }
-
-        /// <summary>Khieu nai ca bai duoc chap nhan: Excluded → Accepted (vao ket qua).</summary>
-        public bool ChapNhanSauKhieuNai(DateTimeOffset luc)
-        {
-            if (Status != AnnotationStatus.Excluded)
+            if (bai == null || !bai.GradedAt.HasValue)
             {
-                return false;
+                return AnnotationStatus.Submitted;
             }
 
-            Status = AnnotationStatus.Accepted;
-            DecidedAt = luc;
-            return true;
+            return bai.DatCuoiCung ? AnnotationStatus.Accepted : AnnotationStatus.Excluded;
         }
     }
 }

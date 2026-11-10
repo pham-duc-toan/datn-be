@@ -27,7 +27,9 @@ namespace Crowd.Project.Api.Dtos
 
         public required RawJson Metadata { get; init; }
 
-        /// <summary>Cau tra loi da luu (nhap) — null = chua lam.</summary>
+        /// <summary>
+        /// Cau tra loi DA NOP (chi co khi bai da nop) — bai dang lam luon null: nhap nam o localStorage cua frontend.
+        /// </summary>
         public RawJson? Answer { get; init; }
 
         public DateTimeOffset? AnsweredAt { get; init; }
@@ -68,22 +70,19 @@ namespace Crowd.Project.Api.Dtos
     }
 
     /// <summary>PUT /tasks/attempts/{id}/answers/{sampleId} — {"data": {...}} (nhap, chua kiem luat) hoac {"data": null} (xoa).</summary>
-    public sealed class SaveAnswerRequest
+    /// <summary>Mot cau tra loi trong bai nop.</summary>
+    public sealed class SubmittedAnswer
     {
+        public required Guid SampleId { get; init; }
+
+        /// <summary>Object JSON theo ten cong cu, vd {"label":{"labelIds":["do"]}}. null = bo trong cau nay.</summary>
         public JsonElement? Data { get; init; }
     }
 
-    public sealed class SaveAnswerResponse
+    /// <summary>POST /tasks/attempts/{id}/submit — ca bai trong mot lan (nhap nam o localStorage cua frontend).</summary>
+    public sealed class SubmitAttemptRequest
     {
-        public required Guid AttemptId { get; init; }
-
-        public required Guid SampleId { get; init; }
-
-        public required bool Answered { get; init; }
-
-        public required int AnsweredCount { get; init; }
-
-        public DateTimeOffset? SavedAt { get; init; }
+        public List<SubmittedAnswer>? Answers { get; init; }
     }
 
     /// <summary>Mot cau sai dinh dang khi nop (frontend nhay toi cau do).</summary>
@@ -331,9 +330,6 @@ namespace Crowd.Project.Api.Dtos
         public required DateTimeOffset PurgedAt { get; init; }
 
         public required bool PurgedNow { get; init; }
-
-        /// <summary>Cau tra loi nhap con sot (bai dang lam do khi du an dong).</summary>
-        public required int DeletedDrafts { get; init; }
 
         public required int DeletedReports { get; init; }
     }

@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tro_giup import (  # noqa: E402
     G, GOC, KQ, TAG, admin, cho, dang_ky, dat, dat_va_cho, kiem, sql, tham_gia, vi,
 )
+import tro_giup  # noqa: E402
 
 LOP = ("a", "b")
 
@@ -72,8 +73,9 @@ def bat_dau(u, pid, giay=20):
 
 
 def luu(u, aid, sid, lop):
+    """Luu nhap CUC BO (nhu localStorage cua frontend) — backend khong giu nhap."""
     data = None if lop is None else {"nhan": {"labelIds": [lop]}}
-    return requests.put(G + f"/tasks/attempts/{aid}/answers/{sid}", headers=u["h"], json={"data": data})
+    return tro_giup.luu(u, aid, sid, data)
 
 
 def lam_bai(u, bai, dap_an):
@@ -85,7 +87,8 @@ def lam_bai(u, bai, dap_an):
 
 
 def nop(u, aid):
-    return requests.post(G + f"/tasks/attempts/{aid}/submit", headers=u["h"])
+    """Nop CA BAI: moi cau da luu nhap di trong body."""
+    return tro_giup.nop_bai(u, aid)
 
 
 def bai_cua_toi(u, pid):
@@ -158,23 +161,26 @@ try:
     luu(lab["l1"], b1["attemptId"], q0["sampleId"], "b" if DUNG[q0["content"]["text"]] == "a" else "a").raise_for_status()
     lam_bai(lab["l1"], b1, lambda t: DUNG[t])
     lai = requests.get(G + f"/tasks/attempts/{b1['attemptId']}", headers=lab["l1"]["h"]).json()
-    kiem("quay lai sua cau dau: dap an moi ghi de, du 7/7 cau", lai["answeredCount"] == 7
-         and lai["questions"][0]["answer"]["nhan"]["labelIds"] == [DUNG[q0["content"]["text"]]], lai)
+    kiem("mo lai bai dang lam: backend KHONG giu nhap (answer null, answeredCount 0) — nhap o frontend",
+         lai["answeredCount"] == 0 and all(q["answer"] is None for q in lai["questions"]), lai)
+    kiem("nhap cuc bo: sua cau dau ghi de, du 7/7 cau", len(tro_giup.cau_tra_loi(b1["attemptId"])) == 7)
     kiem("labeler khac xem bai cua l1 → 404", requests.get(G + f"/tasks/attempts/{b1['attemptId']}", headers=lab["l2"]["h"]).status_code == 404)
 
-    sai_dinh_dang = requests.put(G + f"/tasks/attempts/{b1['attemptId']}/answers/{q0['sampleId']}", headers=lab["l1"]["h"],
-                                 json={"data": {"nhan": {"labelIds": ["zzz"]}}})
-    if sai_dinh_dang.status_code == 200:
-        r = nop(lab["l1"], b1["attemptId"])
-        kiem("nop bai co cau sai dinh dang → 400 bai_chua_hop_le kem danh sach cau",
-             r.status_code == 400 and "bai_chua_hop_le" in r.text and "invalidAnswers" in r.text, r.text)
-    else:
-        kiem("luu cau sai dinh dang → 400 ngay", sai_dinh_dang.status_code == 400, sai_dinh_dang.text)
+    luu(lab["l1"], b1["attemptId"], q0["sampleId"], "zzz")
+    r = nop(lab["l1"], b1["attemptId"])
+    kiem("nop bai co cau sai dinh dang → 400 bai_chua_hop_le kem danh sach cau",
+         r.status_code == 400 and "bai_chua_hop_le" in r.text and "invalidAnswers" in r.text, r.text)
+    tl = tro_giup.cau_tra_loi(b1["attemptId"])
+    r = tro_giup.nop_bai(lab["l1"], b1["attemptId"], answers=tl + tl[:1])
+    kiem("nop bai gui trung mot cau → 400 cau_tra_loi_trung", r.status_code == 400 and "cau_tra_loi_trung" in r.text, r.text)
+    r = tro_giup.nop_bai(lab["l1"], b1["attemptId"], answers=[{"sampleId": str(uuid.uuid4()), "data": {"nhan": {"labelIds": ["a"]}}}])
+    kiem("nop cau khong thuoc bai → 400 cau_khong_thuoc_bai", r.status_code == 400 and "cau_khong_thuoc_bai" in r.text, r.text)
     luu(lab["l1"], b1["attemptId"], q0["sampleId"], DUNG[q0["content"]["text"]]).raise_for_status()
     r = nop(lab["l1"], b1["attemptId"])
     kiem("l1 nop ca bai (7/7)", r.status_code == 200 and r.json()["answeredCount"] == 7, r.text)
     kiem("nop lai → 409", nop(lab["l1"], b1["attemptId"]).status_code == 409)
-    kiem("sua cau sau khi nop → 409", luu(lab["l1"], b1["attemptId"], q0["sampleId"], "a").status_code == 409)
+    r = tro_giup.nop_bai(lab["l1"], b1["attemptId"], answers=[{"sampleId": q0["sampleId"], "data": {"nhan": {"labelIds": ["a"]}}}])
+    kiem("nop lai voi dap an khac (sua sau khi nop) → 409", r.status_code == 409, r.text)
 
     # l2: sai 1/5 cau that (80%) — dat dung nguong. l3: sai 1, bo trong 1 (60%) — truot.
     b2 = bat_dau(lab["l2"], A).json()

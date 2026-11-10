@@ -120,28 +120,33 @@ namespace Crowd.Project.Api.Services
         {
             await KiemQuyenXemAsync(projectId, caller, ct);
 
-            IQueryable<LabelAnnotation> q = _db.Annotations.AsNoTracking().Where(a => a.ProjectId == projectId);
-            if (status.HasValue)
-            {
-                AnnotationStatus s = status.Value;
-                q = q.Where(a => a.Status == s);
-            }
-
+            IQueryable<LabelAnnotation> nhan = _db.Annotations.AsNoTracking().Where(a => a.ProjectId == projectId);
             if (attemptId.HasValue)
             {
                 Guid bai = attemptId.Value;
-                q = q.Where(a => a.AttemptId == bai);
+                nhan = nhan.Where(a => a.AttemptId == bai);
             }
 
-            return await TaoTrangAsync(q.OrderByDescending(a => a.SubmittedAt).ThenByDescending(a => a.Id), page, pageSize, GocXemDuAn(caller), ct);
+            IQueryable<NhanKemBai> q = KemBai(nhan);
+            if (status.HasValue)
+            {
+                AnnotationStatus s = status.Value;
+                q = q.Where(x => x.TrangThai == s);
+            }
+
+            return await TaoTrangAsync(SapXepMoiNhat(q), page, pageSize, GocXemDuAn(caller), ct);
         }
 
-        public async Task<IReadOnlyList<HistoryEntryResponse>> LichSuAsync(Guid annotationId, Caller caller, CancellationToken ct)
+        /// <summary>
+        /// GET /annotations/attempts/{attemptId}/history — vong doi cua BAI chua nhan (attempt_history: nop, cham dat /
+        /// truot, khieu nai). Moi nhan cua bai co chung lich su nay. Chu bai, chu du an hoac admin.
+        /// </summary>
+        public async Task<IReadOnlyList<HistoryEntryResponse>> LichSuAsync(Guid attemptId, Caller caller, CancellationToken ct)
         {
-            LabelAnnotation? a = await _db.Annotations.AsNoTracking().FirstOrDefaultAsync(x => x.Id == annotationId, ct);
+            Attempt? a = await _db.Attempts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == attemptId, ct);
             if (a == null)
             {
-                throw new NotFoundException("Không tìm thấy nhãn.");
+                throw new NotFoundException("Không tìm thấy bài làm.");
             }
 
             bool laCuaMinh = caller.UserId != null && a.LabelerId == caller.UserId;
@@ -150,19 +155,12 @@ namespace Crowd.Project.Api.Services
                 await KiemQuyenXemAsync(a.ProjectId, caller, ct);
             }
 
-            // Lich su ghi theo CA BAI (attempt_history): nop, cham dat / truot, khieu nai — moi nhan cua bai deu
-            // co cung lich su nay. Nhan cong link khong thuoc bai nao: chi co moc nop.
             List<AttemptHistoryEntry> lichSu = await _db.AttemptHistory.AsNoTracking()
-                .Where(h => h.AttemptId == a.AttemptId)
+                .Where(h => h.AttemptId == a.Id)
                 .OrderBy(h => h.At).ThenBy(h => h.Id)
                 .ToListAsync(ct);
 
             List<HistoryEntryResponse> ds = new List<HistoryEntryResponse>();
-            if (lichSu.Count == 0)
-            {
-                ds.Add(new HistoryEntryResponse { Action = AttemptHistoryEntry.DaNop, ActorId = a.LabelerId, Note = null, At = a.SubmittedAt });
-            }
-
             foreach (AttemptHistoryEntry h in lichSu)
             {
                 ds.Add(new HistoryEntryResponse { Action = h.Action, ActorId = h.ActorId, Note = h.Note, At = h.At });
@@ -195,30 +193,28 @@ namespace Crowd.Project.Api.Services
 
             List<Guid> duAnIds = await baiCuaToi.Select(a => a.ProjectId).Distinct().ToListAsync(ct);
             List<Guid> baiIds = await baiCuaToi.Select(a => a.Id).ToListAsync(ct);
-            IQueryable<LabelAnnotation> cuaToi = _db.Annotations.AsNoTracking()
-                .Where(a => duAnIds.Contains(a.ProjectId) && baiIds.Contains(a.AttemptId) && a.LabelerId == uid);
+            IQueryable<NhanKemBai> cuaToi = KemBai(_db.Annotations.AsNoTracking()
+                .Where(a => duAnIds.Contains(a.ProjectId) && baiIds.Contains(a.AttemptId) && a.LabelerId == uid));
 
-            Dictionary<AnnotationStatus, int> dem = await cuaToi
-                .GroupBy(a => a.Status)
-                .Select(g => new { g.Key, SoLuong = g.Count() })
-                .ToDictionaryAsync(x => x.Key, x => x.SoLuong, ct);
+            int daNop = await cuaToi.CountAsync(x => x.TrangThai == AnnotationStatus.Submitted, ct);
+            int chapNhan = await cuaToi.CountAsync(x => x.TrangThai == AnnotationStatus.Accepted, ct);
+            int biLoai = await cuaToi.CountAsync(x => x.TrangThai == AnnotationStatus.Excluded, ct);
 
-            IQueryable<LabelAnnotation> q = cuaToi;
+            IQueryable<NhanKemBai> q = cuaToi;
             if (status.HasValue)
             {
                 AnnotationStatus s = status.Value;
-                q = q.Where(a => a.Status == s);
+                q = q.Where(x => x.TrangThai == s);
             }
 
-            PagedResponse<AnnotationResponse> trang = await TaoTrangAsync(
-                q.OrderByDescending(a => a.SubmittedAt), page, pageSize, GocXem.CuaLabeler(uid), ct);
+            PagedResponse<AnnotationResponse> trang = await TaoTrangAsync(SapXepMoiNhat(q), page, pageSize, GocXem.CuaLabeler(uid), ct);
 
             return new MyAnnotationsResponse
             {
                 Annotations = trang,
-                SubmittedCount = LayDem(dem, AnnotationStatus.Submitted),
-                AcceptedCount = LayDem(dem, AnnotationStatus.Accepted),
-                ExcludedCount = LayDem(dem, AnnotationStatus.Excluded),
+                SubmittedCount = daNop,
+                AcceptedCount = chapNhan,
+                ExcludedCount = biLoai,
             };
         }
 
@@ -240,8 +236,14 @@ namespace Crowd.Project.Api.Services
 
             LabelSchema tapNhan = duAn.LabelSchema;
 
-            List<LabelAnnotation> daDuyet = await _db.Annotations.AsNoTracking()
-                .Where(a => a.ProjectId == projectId && a.Status == AnnotationStatus.Accepted)
+            // Nhan DA CHOT = bai dat / khieu nai duoc chap nhan / cong link (suy ra tu bai). Thu tu: bai nop som
+            // truoc, nhan cong link (khong co luc nop) sau cung — on dinh cho dau van tay va thu tu nhan tra ra.
+            List<LabelAnnotation> daDuyet = await KemBai(_db.Annotations.AsNoTracking().Where(a => a.ProjectId == projectId))
+                .Where(x => x.TrangThai == AnnotationStatus.Accepted)
+                .OrderBy(x => x.NopLuc == null)
+                .ThenBy(x => x.NopLuc)
+                .ThenBy(x => x.Nhan.AttemptId)
+                .Select(x => x.Nhan)
                 .ToListAsync(ct);
 
             List<Guid> coNhan = daDuyet.Select(a => a.SampleId).Distinct().ToList();
@@ -272,7 +274,7 @@ namespace Crowd.Project.Api.Services
                     ApprovedCount = r.ApprovedCount,
                     Disputed = r.Disputed,
                     Tools = RawJson.Tu(r.Tools),
-                    Labels = r.Approved.Select(a => RawJson.Tu(a.Payload.DataJson)).ToList(),
+                    Labels = r.Approved.Select(a => RawJson.Tu(a.DataJson)).ToList(),
                     ConsensusStatus = r.Disputed ? "disputed" : "agreed",
                     ConsensusFinal = KetQuaGop(r.Tools),
                 });
@@ -328,9 +330,11 @@ namespace Crowd.Project.Api.Services
             Dictionary<Guid, string> dauMoi = new Dictionary<Guid, string>();
             foreach (IGrouping<Guid, LabelAnnotation> nhom in daDuyet.GroupBy(a => a.SampleId))
             {
-                List<LabelAnnotation> ds = nhom.OrderBy(a => a.SubmittedAt).ToList();
+                // Nhan da theo thu tu nop (truy van o KetQuaAsync). Trong MOT mau, moi bai mot nhan → attempt_id dinh
+                // danh nhan cho dau van tay.
+                List<LabelAnnotation> ds = nhom.ToList();
                 string dau = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(
-                    dauChung + "|" + string.Join(",", ds.Select(a => a.Id.ToString("N")).OrderBy(s => s, StringComparer.Ordinal)))));
+                    dauChung + "|" + string.Join(",", ds.Select(a => a.AttemptId.ToString("N")).OrderBy(s => s, StringComparer.Ordinal)))));
                 KetQuaMauDem? cu;
                 JsonObject? tools = null;
                 if (dem.TryGetValue(nhom.Key, out cu) && cu.Fingerprint == dau)
@@ -523,8 +527,44 @@ namespace Crowd.Project.Api.Services
             return RawJson.Tu(kq.ToJsonString());
         }
 
+        /// <summary>
+        /// Gan cho moi nhan trang thai / moc thoi gian SUY RA tu bai lam — cung luat voi LabelAnnotation.TrangThai,
+        /// viet bang bieu thuc de Postgres tinh (CASE) va loc / dem / sap xep duoc. LEFT JOIN vi nhan cong link
+        /// khong thuoc bai lam nao.
+        /// </summary>
+        private IQueryable<NhanKemBai> KemBai(IQueryable<LabelAnnotation> nhan)
+        {
+            return from a in nhan
+                   join t in _db.Attempts.AsNoTracking() on a.AttemptId equals t.Id into bai
+                   from t in bai.DefaultIfEmpty()
+                   select new NhanKemBai
+                   {
+                       Nhan = a,
+                       TrangThai = a.Source == LabelSource.LinkGateway
+                           ? AnnotationStatus.Accepted
+                           : (t == null || t.GradedAt == null
+                               ? AnnotationStatus.Submitted
+                               : (t.Passed == true || t.AppealState == AppealState.Accepted
+                                   ? AnnotationStatus.Accepted
+                                   : AnnotationStatus.Excluded)),
+                       NopLuc = t == null ? null : t.SubmittedAt,
+                       ChotLuc = t == null
+                           ? null
+                           : (t.AppealState == AppealState.Accepted || t.AppealState == AppealState.Rejected ? t.AppealResolvedAt : t.GradedAt),
+                   };
+        }
+
+        /// <summary>Moi nhat truoc: bai nop sau truoc, nhan cong link (khong co luc nop) cuoi.</summary>
+        private static IQueryable<NhanKemBai> SapXepMoiNhat(IQueryable<NhanKemBai> q)
+        {
+            return q.OrderBy(x => x.NopLuc == null)
+                .ThenByDescending(x => x.NopLuc)
+                .ThenByDescending(x => x.Nhan.AttemptId)
+                .ThenBy(x => x.Nhan.SampleId);
+        }
+
         private async Task<PagedResponse<AnnotationResponse>> TaoTrangAsync(
-            IQueryable<LabelAnnotation> q, int page, int pageSize, GocXem goc, CancellationToken ct)
+            IQueryable<NhanKemBai> q, int page, int pageSize, GocXem goc, CancellationToken ct)
         {
             if (page < 1)
             {
@@ -537,19 +577,24 @@ namespace Crowd.Project.Api.Services
             }
 
             int tong = await q.CountAsync(ct);
-            List<LabelAnnotation> ds = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+            List<NhanKemBai> ds = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
 
             List<AnnotationResponse> items = new List<AnnotationResponse>();
-            List<Guid> duAnIds = ds.Select(a => a.ProjectId).Distinct().ToList();
-            List<Guid> mauIds = ds.Select(a => a.SampleId).Distinct().ToList();
+            List<Guid> duAnIds = ds.Select(x => x.Nhan.ProjectId).Distinct().ToList();
+            List<Guid> mauIds = ds.Select(x => x.Nhan.SampleId).Distinct().ToList();
             Dictionary<Guid, Sample> mau = await _db.Samples.AsNoTracking()
                 .Where(m => duAnIds.Contains(m.ProjectId) && mauIds.Contains(m.Id))
                 .ToDictionaryAsync(m => m.Id, ct);
-            foreach (LabelAnnotation a in ds)
+
+            // Loai du lieu cua nhan = loai du lieu du an (bang annotations khong luu task_type).
+            Dictionary<Guid, string> loaiDuLieu = await _db.Projects.AsNoTracking()
+                .Where(p => duAnIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.Modality, ct);
+            foreach (NhanKemBai x in ds)
             {
                 Sample? m;
-                mau.TryGetValue(a.SampleId, out m);
-                items.Add(TaoResponse(a, goc, m));
+                mau.TryGetValue(x.Nhan.SampleId, out m);
+                items.Add(TaoResponse(x, loaiDuLieu[x.Nhan.ProjectId], goc, m));
             }
 
             return new PagedResponse<AnnotationResponse> { Items = items, Page = page, PageSize = pageSize, Total = tong };
@@ -562,8 +607,9 @@ namespace Crowd.Project.Api.Services
             return caller.IsAdmin ? GocXem.CuaAdmin(uid) : new GocXem(NguoiXem.ChuDuAn(uid), CheDoXem.Goc);
         }
 
-        private AnnotationResponse TaoResponse(LabelAnnotation a, GocXem goc, Sample? thongTinMau)
+        private AnnotationResponse TaoResponse(NhanKemBai x, string modality, GocXem goc, Sample? thongTinMau)
         {
+            LabelAnnotation a = x.Nhan;
             string? fileUrl = null;
             if (thongTinMau != null && thongTinMau.StorageKey != null)
             {
@@ -572,14 +618,13 @@ namespace Crowd.Project.Api.Services
                     SampleId = a.SampleId,
                     ProjectId = a.ProjectId,
                     StorageKey = thongTinMau.StorageKey,
-                    Modality = a.Payload.TaskType,
+                    Modality = modality,
                 };
                 fileUrl = _media.TaoLink(mau, goc.Nguoi, goc.CheDo);
             }
 
             return new AnnotationResponse
             {
-                Id = a.Id,
                 ProjectId = a.ProjectId,
                 SampleId = a.SampleId,
                 Source = a.Source,
@@ -587,24 +632,30 @@ namespace Crowd.Project.Api.Services
                 SampleContent = thongTinMau == null ? null : thongTinMau.Content,
                 SampleMetadata = thongTinMau == null ? SampleMetadata.Rong.ToRawJson() : thongTinMau.Metadata,
                 LabelerId = a.LabelerId,
-                Payload = a.Payload,
-                Status = a.Status,
-                SubmittedAt = a.SubmittedAt,
+                Payload = a.LayPayload(modality),
+                Status = x.TrangThai,
+                SubmittedAt = x.NopLuc,
                 AttemptId = a.AttemptId,
-                DecidedAt = a.DecidedAt,
+                DecidedAt = x.TrangThai == AnnotationStatus.Submitted ? null : x.ChotLuc,
             };
         }
+    }
 
-        private static int LayDem(Dictionary<AnnotationStatus, int> dem, AnnotationStatus s)
-        {
-            int n;
-            if (dem.TryGetValue(s, out n))
-            {
-                return n;
-            }
+    /// <summary>
+    /// Mot nhan kem trang thai va moc thoi gian SUY RA tu bai lam (bang annotations chi luu cau tra loi). Dung
+    /// trong truy van EF — cac thuoc tinh co setter de EF dung duoc bieu thuc khoi tao.
+    /// </summary>
+    internal sealed class NhanKemBai
+    {
+        public LabelAnnotation Nhan { get; set; } = null!;
 
-            return 0;
-        }
+        public AnnotationStatus TrangThai { get; set; }
+
+        /// <summary>attempts.submitted_at; null voi nhan cong link.</summary>
+        public DateTimeOffset? NopLuc { get; set; }
+
+        /// <summary>Luc phan xu khieu nai neu co, khong thi luc cham.</summary>
+        public DateTimeOffset? ChotLuc { get; set; }
     }
 
     /// <summary>Mot file xuat ra: noi dung + kieu + ten goi y khi tai ve.</summary>

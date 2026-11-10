@@ -107,8 +107,8 @@ namespace Crowd.Project.Api.Helpers
                 int coDong = dong.MetadataJson.Length;
                 foreach (LabelAnnotation a in m.Nhan)
                 {
-                    dong.LabelDataJson.Add(a.Payload.DataJson);
-                    coDong = coDong + a.Payload.DataJson.Length;
+                    dong.LabelDataJson.Add(a.DataJson);
+                    coDong = coDong + a.DataJson.Length;
                 }
 
                 if (lo != null && coLo + coDong > CoLo)

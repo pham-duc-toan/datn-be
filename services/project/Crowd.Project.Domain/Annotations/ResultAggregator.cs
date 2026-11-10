@@ -180,7 +180,7 @@ namespace Crowd.Project.Domain.Annotations
                     {
                         foreach (LabelAnnotation a in r.Approved)
                         {
-                            JsonArray? muc = a.Payload.KetQua(t.Name) as JsonArray;
+                            JsonArray? muc = a.KetQua(t.Name) as JsonArray;
                             if (muc == null)
                             {
                                 continue;

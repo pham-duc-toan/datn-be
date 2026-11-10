@@ -73,7 +73,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `api-gateway` | 8080 | redis-gateway | C# | — | Edge: authN, rate limit, Turnstile, correlationId |
 | `web-bff` | 8081 | — | C# | — | Gộp đa nguồn cho dashboard; nơi DUY NHẤT được biết nhiều service |
 | `identity-svc` | 8101 | identity_db | C# | users, credentials, sessions, roles, 2fa, profiles, reputation, badges | Bảo mật: DB chứa hash mật khẩu tách khỏi mọi thứ |
-| `project-svc` | 8102 | project_db | C# | projects, label_schemas, guidelines, datasets, samples, gold_items, entrance_tests, **project_members**; làm bài: project_collections, attempts, attempt_drafts, attempt_history, sample_reports; nhãn: annotations, sample_results — bảng đệm kết quả gộp, quality-svc gộp qua gRPC (mục 3.21, 3.24) | State machine vòng đời dự án — bài làm và nhãn cùng vòng đời nên cùng database (trước là task-svc :8103 và annotation-svc :8104) |
+| `project-svc` | 8102 | project_db | C# | projects, label_schemas, guidelines, datasets, samples, gold_items, entrance_tests, **project_members**; làm bài: project_collections, attempts, attempt_history, sample_reports; nhãn: annotations (6 cột — mục 3.25), sample_results — bảng đệm kết quả gộp, quality-svc gộp qua gRPC (mục 3.21, 3.24) | State machine vòng đời dự án — bài làm và nhãn cùng vòng đời nên cùng database (trước là task-svc :8103 và annotation-svc :8104) |
 | `ledger-svc` | 8105 | ledger_db | C# | accounts, journal_entries, holds, escrows | **Nhất quán tuyệt đối** |
 | `payment-svc` | 8106 | payment_db | C# | payment_intents, payouts, provider_txns, reconciliations | Tích hợp ngoài, webhook + retry, cô lập rủi ro |
 | `link-svc` | 8107 | link_db | C# | links, campaigns, api_keys, referral_codes, referrals, blocked_domains, link_reports | Bounded context của Sharer (**đã có**, mục 3.6) |
@@ -892,7 +892,7 @@ Thiết kế cũ xoay quanh **từng nhãn**: labeler giữ một task 15 phút,
                  project-svc                    task-svc                       quality-svc            ledger-svc
 publish ───► PendingEscrow ─ ký quỹ = S × (R + phí) + ngân sách cổng link ──────────────────────────► giữ ký quỹ
 admin duyệt ► Running ── project.published ──► mở thu bài
-                          labeler: POST attempt → PUT answers/{câu} (nháp, lưu ở task-svc) → POST submit
+                          labeler: POST attempt → (nháp ở localStorage, 3.25) → POST submit {answers}
                                                attempt.submitted (cả bài) ──► lưu bài + xét gian lận
                                                                          └──► annotation-svc: nhãn "Submitted"
   đủ S bài nộp │ hết hạn chót │ POST /finish (project.finish_requested)
@@ -953,7 +953,7 @@ Câu vàng được **task-svc chấm ngay lúc nộp** (`KhopDapAn` của Crowd
 
 - **Lease 15 phút** (mục 3.5), **redundancy thích ứng** (mục 3.7), **duyệt / từ chối / khiếu nại / tranh chấp từng nhãn**, **tỉ lệ câu vàng chèn vào luồng task**, **ép nghỉ giải lao** — gỡ khỏi code, setting (`task.lease_*`, `project.redundancy_max`, `project.gold_check_percent_*`, `annotation.appeal_window`, `annotation.bulk_approve_max`, `annotation.auto_approve_agreed`, `welfare.*`, `quality.redundancy_policy`, `quality.posterior_target`, `quality.voi_value_ratio`…) và catalog.
 - [NC-D-01](thi-nghiem/nc-d-01-redundancy-thich-ung.md) (khi nào dừng mua nhãn) không còn được dùng trong hệ thống: số người làm giờ do doanh nghiệp chọn bằng số suất. Kết quả thí nghiệm vẫn đúng như một nghiên cứu độc lập; hàm `redundancy.py` giữ lại cùng test.
-- [NC-B-06](thi-nghiem/nc-b-06-hieu-nang.md#2-phân-phối-task) đo phân phối task theo lease — đường nóng đó không còn; đường nóng mới là **lưu nháp câu trả lời** (một `UPDATE` theo khoá chính `(attempt_id, sample_id)`), nhẹ hơn nhiều.
+- [NC-B-06](thi-nghiem/nc-b-06-hieu-nang.md#2-phân-phối-task) đo phân phối task theo lease — đường nóng đó không còn; đường nóng lưu nháp sau đó cũng bỏ khỏi backend (mục 3.25: nháp ở localStorage, chỉ còn một lần nộp cả bài).
 - [NC-B-01](thi-nghiem/nc-b-01-tla.md) mô hình hoá luồng cũ; tính chất được chứng minh ("labeler đủ điều kiện được trả không bị mất tiền khi đóng dự án") vẫn giữ nhờ quyết định 18-9.
 - Kiểm thử: `tests/e2e/e2e_du_an_trung_tam.py` phủ luồng chính (51 kiểm tra: ngưỡng ngoài khoảng, ký quỹ theo suất, lưu nháp / quay lại / bỏ trống / câu sai định dạng, hết suất, kết thúc sớm, chấm đa số + câu vàng, trả thưởng, loại nhãn bài trượt, khiếu nại được chấp nhận, chốt và hoàn suất thừa, < 3 bài, huỷ). Luật chấm có unit test thuần ở `services/quality/tests/test_cham.py`.
 
@@ -1015,8 +1015,7 @@ Giữ lại có chủ đích: `labeler_cache` (dữ liệu của identity/qualit
 
 | Quyết định | Lý do |
 |---|---|
-| Nháp và nhãn **hai bảng**: `attempt_drafts` (sửa liên tục) và `annotations` (ghi một lần lúc nộp) | Đường nóng lưu nháp là `UPDATE` theo khoá chính trên bảng **nhỏ** (nháp bị xoá lúc nộp); `fillfactor = 70` để được HOT update, autovacuum sớm. Bảng lớn `annotations` gần như chỉ INSERT, không bị phình vì UPDATE |
-| Không ghi nháp qua RabbitMQ (write-behind) | Nháp phải đọc lại được ngay (mở lại bài trên máy khác) và không được mất; hàng đợi thêm độ trễ + một nơi mất dữ liệu mà không giảm ghi DB |
+| ~~Nháp và nhãn hai bảng (`attempt_drafts` + `annotations`)~~ → **đã bỏ `attempt_drafts` (mục 3.25)** | Nháp nằm ở localStorage của frontend, nộp gửi cả bài; backend chỉ còn `annotations` và bảng này chỉ INSERT |
 | `annotations`, `samples` phân vùng **HASH(`project_id`) × 64** | Mọi truy vấn (nộp, chấm, kết quả, xuất) đều theo dự án → chỉ chạm một phân vùng (đã kiểm `EXPLAIN`); chỉ mục mỗi phân vùng nhỏ, VACUUM song song. Khoá chính `(project_id, id)` vì PK của bảng phân vùng phải chứa cột phân vùng |
 | jsonb nén **lz4**, **không GIN** trên `payload` | lz4 nén/giải nén nhanh hơn pglz nhiều lần; không truy vấn nào lọc bên trong JSON nên GIN chỉ tốn ghi và dung lượng |
 | `attempt_history` theo **bài**, không theo nhãn | Một bài 50 câu sinh 1 dòng lịch sử thay vì 50 |
@@ -1107,6 +1106,33 @@ Khoá nội bộ gRPC dùng chung một interceptor (`shared/auth/Internal/Inter
 - **Phép đo độ giống** (IoU, CER, Kendall...) vẫn có ở cả C# (`HinhHoc.cs` — chấm câu vàng **ngay lúc nộp**, bài test đầu vào, câu vàng ở đường nóng của gate: không được gọi service khác) và Python (ghép cụm khi gộp). Đây là phần duy nhất còn viết hai lần; bộ ví dụ `gop.vectors.json` nay là test hồi quy của `app/gop.py`.
 
 **Còn giữ (vẫn đúng sau khi rà):** bản sao của gate (đường nóng ~100 lần), `ledger.project_escrows` điều khoản tiền chốt lúc ký quỹ, `ledger.referrals` (đọc dưới khoá sổ cái mỗi lượt click), `notification.contacts` (gửi thông báo cho toàn hệ thống), `settings_replica`, read model của admin, `identity.labeler_stats.reputation` (bản sao uy tín để tính cấp — quality chưa phục vụ gRPC uy tín), `quality.project_reports` (ảnh chụp trước khi dọn).
+
+### 3.25. Nháp ở frontend, nhãn chỉ lưu thứ người dùng chọn (11/2026)
+
+**Vấn đề.** Backend lưu câu trả lời ở hai chỗ: `attempt_drafts` (mỗi lần labeler sửa một câu là một `PUT /tasks/attempts/{a}/answers/{sample}` → một `UPDATE`) và `annotations` (12 cột: `id`, `task_type`, `schema_version`, `status`, `submitted_at`, `decided_at`… bên cạnh câu trả lời). Phần lớn các cột đó **suy ra được** từ chỗ khác, còn nháp thì chỉ người đang làm cần.
+
+**Quyết định (người dùng chốt).**
+
+1. **Bỏ `attempt_drafts` và API lưu nháp.** Frontend giữ nháp trong `localStorage` (`crowd:attempt-draft:{attemptId}` — `src/lib/attempt-draft.ts` của frontend), mở lại bài thì khôi phục từ đó. Nộp bài gửi **cả bài trong một request**: `POST /tasks/attempts/{a}/submit {"answers":[{"sampleId","data"}]}`. Server kiểm body trước khi khoá (trùng câu → `cau_tra_loi_trung`, câu không thuộc bài → `cau_khong_thuoc_bai`, không phải object → `cau_tra_loi_sai_dinh_dang`, quá `task.attempt_max_bytes` → `bai_qua_lon`) rồi kiểm từng câu theo tập nhãn như trước.
+2. **`annotations` chỉ còn 6 cột:** `project_id` (khoá phân vùng), `attempt_id`, `sample_id`, `labeler_id` (null = khách cổng link), `source`, `payload`. Khoá chính `(project_id, attempt_id, sample_id)` — chính là UNIQUE cũ, bỏ cột `id`.
+
+| Cột bỏ | Suy ra từ |
+|---|---|
+| `id` | Khoá ghép (một bài một nhãn mỗi câu). Lịch sử: `GET /annotations/attempts/{attemptId}/history` (theo bài — vốn ghi theo bài) thay cho `/annotations/{id}/history` |
+| `task_type`, `schema_version` | `projects.modality` + `LabelPayload.PhienBanHienTai`: tập nhãn chỉ đổi được khi Nháp (`DatLabelSchema` → `ChiKhiNhap`), nên mọi nhãn của một dự án cùng một định dạng |
+| `status` | `LabelAnnotation.TrangThai`: cổng link → Accepted; bài chưa chấm → Submitted; `passed` hoặc khiếu nại chấp nhận → Accepted; còn lại Excluded. Truy vấn viết lại cùng luật bằng `LEFT JOIN attempts` + `CASE` (`AnnotationService.KemBai`) |
+| `submitted_at`, `decided_at` | `attempts.submitted_at`, `graded_at` / `appeal_resolved_at` |
+
+**Hệ quả.** Chấm bài (`project.graded`) và phân xử khiếu nại chỉ sửa **một dòng `attempts`**, không còn `UPDATE` hàng loạt nhãn — `annotations` thành bảng chỉ INSERT. Bỏ chỉ mục `ix_annotations_project_status` / `ix_annotations_project_sample` (truy vấn theo dự án dùng tiền tố khoá chính). Dấu vân tay `sample_results` tính theo `attempt_id` thay cho id nhãn. gRPC `StreamLabels` lấy `submitted_at` từ bài, hợp đồng proto không đổi (quality-svc không phải sửa).
+
+**Đánh đổi.**
+
+- Nháp mất khi đổi máy / xoá dữ liệu trình duyệt; trình duyệt chặn lưu trữ thì frontend báo "đừng tải lại trang trước khi nộp". Bài hết hạn vốn không tự nộp nháp, nên không mất hành vi nào ở backend.
+- Chủ dự án không còn thấy "đang làm x/N câu" của bài chưa nộp (`answeredCount` của bài đang làm = 0); bài đã nộp vẫn có số chụp lúc nộp.
+- Đọc danh sách nhãn / kết quả phải JOIN thêm `attempts` theo khoá chính — rẻ, đổi lấy việc không phải giữ hai bản trạng thái khớp nhau.
+- Kích thước: nhãn là JSON gọn (mặt nạ nén RLE), một bài vài trăm câu dưới 1 MB — xa giới hạn localStorage (~5 MB) và `task.attempt_max_bytes` (mặc định 8 MB).
+
+Migration `NhanToiGian` (project-svc): Postgres cho `DROP COLUMN` / đổi khoá chính trên bảng cha phân vùng vì khoá mới vẫn chứa `project_id`.
 
 ## 4. Dữ liệu chéo — ba luật cứng
 

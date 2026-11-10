@@ -8,7 +8,6 @@ using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Project;
 using Crowd.Contracts.Quality;
 using Crowd.Contracts.Tasking;
-using Crowd.Project.Domain.Annotations;
 using Crowd.Project.Domain.Attempts;
 using Crowd.Project.Domain.Collections;
 using Crowd.Project.Domain.Projects;
@@ -134,7 +133,7 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// project.graded: ghi ket qua vao tung bai, chot nhan (bai dat → Accepted vao ket qua, truot → Excluded),
+        /// project.graded: ghi ket qua vao tung bai (nhan cua bai dat → Accepted vao ket qua, truot → Excluded — suy ra tu bai),
         /// mo han khieu nai (task.appeal_window). Han = 0 thi chot luon. Giao lai → khong lam gi.
         /// </summary>
         /// <param name="dot">Dot thu bai DA KHOA FOR UPDATE.</param>
@@ -159,11 +158,9 @@ namespace Crowd.Project.Api.Services
             Dictionary<Guid, Attempt> bai = await _db.Attempts
                 .Where(a => ids.Contains(a.Id) && a.ProjectId == p.ProjectId)
                 .ToDictionaryAsync(a => a.Id, ct);
-            List<LabelAnnotation> nhan = await _db.Annotations
-                .Where(a => a.ProjectId == p.ProjectId && ids.Contains(a.AttemptId))
-                .ToListAsync(ct);
-            Dictionary<Guid, bool> dat = p.Attempts.ToDictionary(a => a.AttemptId, a => a.Passed);
 
+            // Chi ghi ket qua vao BAI: trang thai cua tung nhan (Accepted / Excluded) suy ra tu bai
+            // (LabelAnnotation.TrangThai), nen khong UPDATE nhan nao.
             foreach (GradedAttempt g in p.Attempts)
             {
                 Attempt? a;
@@ -178,12 +175,6 @@ namespace Crowd.Project.Api.Services
                 {
                     _logger.LogWarning("project.graded co bai {AttemptId} khong thuoc du an {ProjectId} — bo qua", g.AttemptId, p.ProjectId);
                 }
-            }
-
-            // Nhan cung transaction voi bai nop nen luon co san — khong con cho attempt.submitted toi annotation-svc.
-            foreach (LabelAnnotation a in nhan)
-            {
-                a.ChotTheoKetQua(dat[a.AttemptId], p.GradedAt);
             }
 
             // identity tinh lai cap tu so cau duoc chap nhan (gRPC LabelerStatsData, 3.24) — chi dung khi ket qua da

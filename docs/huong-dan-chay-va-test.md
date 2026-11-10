@@ -1165,7 +1165,7 @@ docker exec datn-db-project psql -U project_user -d project_db -c \
 
 # Dọn NGAY một dự án đã hoàn thành / huỷ (không đợi 90 ngày) — admin
 curl -s -X POST http://localhost:8080/tasks/admin/projects/<projectId>/purge -H "Authorization: Bearer <token-admin>"
-#   → {"purgedNow":true,"deletedDrafts":0,"deletedReports":1,...}; dự án chưa đóng → 409 du_an_chua_dong
+#   → {"purgedNow":true,"deletedReports":1,...}; dự án chưa đóng → 409 du_an_chua_dong
 curl -s -X POST http://localhost:8080/quality/admin/projects/<projectId>/archive -H "Authorization: Bearer <token-admin>"
 #   → {"purgedNow":true,"deleted":{"labels":6,"consensus_rounds":3,"task_targets":3,"ds_state":1}}
 # Sau đó tiến độ và báo cáo chất lượng vẫn xem được (bản chụp), nhãn đã duyệt và uy tín labeler không đổi:
@@ -1344,12 +1344,10 @@ curl -s http://localhost:8080/tasks/projects/$P1/slots -H "Authorization: Bearer
 # rev1 bắt đầu bài (gọi lại thì trả về đúng bài đang làm). questions[] xáo trộn theo người, câu vàng nằm lẫn
 curl -s -X POST http://localhost:8080/tasks/projects/$P1/attempt -H "Authorization: Bearer <token-rev1>"
 
-# Lưu từng câu (nháp, làm theo thứ tự tuỳ ý, sửa lại được). data = null là bỏ trống câu đó
-curl -s -X PUT http://localhost:8080/tasks/attempts/<attemptId>/answers/<sampleId> -H "Authorization: Bearer <token-rev1>" \
-  -H "Content-Type: application/json" -d '{"data":{"label":{"labelIds":["do"]}}}'
-
-# Nộp CẢ BÀI. Câu sai định dạng → 400 bai_chua_hop_le + invalidAnswers, bài vẫn mở để sửa
-curl -s -X POST http://localhost:8080/tasks/attempts/<attemptId>/submit -H "Authorization: Bearer <token-rev1>"
+# Nháp từng câu nằm ở localStorage của frontend (backend không lưu). Nộp CẢ BÀI một lần: mỗi câu đã trả lời một
+# phần tử, câu bỏ trống thì không gửi. Câu sai định dạng → 400 bai_chua_hop_le + invalidAnswers, bài vẫn mở để sửa
+curl -s -X POST http://localhost:8080/tasks/attempts/<attemptId>/submit -H "Authorization: Bearer <token-rev1>" \
+  -H "Content-Type: application/json" -d '{"answers":[{"sampleId":"<sampleId>","data":{"label":{"labelIds":["do"]}}}]}'
 
 # Doanh nghiệp kết thúc sớm (không đợi đủ suất / hết hạn chót) → dự án sang grading, quality-svc chấm
 curl -s -X POST http://localhost:8080/projects/$P1/finish -H "Authorization: Bearer <token-biz1>"

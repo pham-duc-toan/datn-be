@@ -1980,7 +1980,7 @@ POST /quality/admin/fraud-cases/{id}/resolve   { "action": "dismiss" | "confirm"
 
 ### 7.7 Nhật ký hệ thống và báo cáo (FP-06, FM-09)
 
-admin-svc ghi lại **các thao tác nghiệp vụ quan trọng** (ai làm gì, lúc nào: tài khoản, KYB, dự án, nạp / rút, tranh chấp, gian lận, setting…) — giữ 365 ngày (`admin.audit_retention_days`). Sự kiện phát sinh theo **từng lượt nộp / từng nhãn / từng click** (`annotation.submitted`, `annotation.approved`, `consensus.reached`, `funds.held`…) **không lưu chi tiết** ở đây (danh sách: setting `admin.audit_excluded_types`) nhưng vẫn được **đếm** cho báo cáo bên dưới; muốn xem lịch sử một nhãn thì dùng `GET /annotations/{id}/history`.
+admin-svc ghi lại **các thao tác nghiệp vụ quan trọng** (ai làm gì, lúc nào: tài khoản, KYB, dự án, nạp / rút, tranh chấp, gian lận, setting…) — giữ 365 ngày (`admin.audit_retention_days`). Sự kiện phát sinh theo **từng lượt nộp / từng nhãn / từng click** (`annotation.submitted`, `annotation.approved`, `consensus.reached`, `funds.held`…) **không lưu chi tiết** ở đây (danh sách: setting `admin.audit_excluded_types`) nhưng vẫn được **đếm** cho báo cáo bên dưới; muốn xem lịch sử một nhãn thì dùng `GET /annotations/attempts/{attemptId}/history` (lịch sử theo bài chứa nhãn — nhãn không có id riêng).
 
 ```http
 GET /admin/audit?actorId=&eventType=project.published&correlationId=&from=2026-10-01T00:00:00Z&to=&page=1&pageSize=50
@@ -2829,9 +2829,9 @@ PUT /projects/{id}/channels
 ```http
 GET  /tasks/projects/{projectId}/slots                  → suất còn lại + bài của tôi (mine)
 POST /tasks/projects/{projectId}/attempt                → bắt đầu, hoặc trả lại bài đang làm (idempotent); header X-Device-Id
-GET  /tasks/attempts/{attemptId}                        → bài + mọi câu + câu trả lời đã lưu
-PUT  /tasks/attempts/{attemptId}/answers/{sampleId}     { "data": { "<tên công cụ>": ... } }   data = null: bỏ trống câu
-POST /tasks/attempts/{attemptId}/submit                 → nộp CẢ BÀI (một lần)
+GET  /tasks/attempts/{attemptId}                        → bài + mọi câu (bài đã nộp: kèm câu trả lời đã nộp)
+POST /tasks/attempts/{attemptId}/submit                 { "answers": [ { "sampleId", "data": { "<tên công cụ>": ... } } ] }
+                                                        → nộp CẢ BÀI (một lần); câu bỏ trống thì không gửi
 POST /tasks/attempts/{attemptId}/abandon                → bỏ bài, trả suất
 POST /tasks/attempts/{attemptId}/reports                { "sampleId", "reason", "note" }   báo lỗi một câu
 POST /tasks/attempts/{attemptId}/appeal                 { "message" }   khiếu nại cả bài (sau khi chấm, trong hạn)
@@ -2840,7 +2840,8 @@ GET  /tasks/me/attempts                                 → AttemptSummary[] c�
 
 `AttemptResponse`: `attemptId`, `projectId`, `state` (`inProgress` / `submitted` / `expired` / `cancelled`), `startedAt`, `expiresAt` (≤ hạn chót dự án), `submittedAt`, `labelSchema`, `schemaVersion`, `rewardVnd`, `passThresholdPercent`, `sensitiveContent`, `questionCount`, `answeredCount`, `questions[]` = `{ index, sampleId, modality, fileUrl, content, metadata, answer, answeredAt }` — **xáo trộn theo từng người**, câu vàng nằm lẫn và không có dấu hiệu nào.
 
-- **Lưu nháp từng câu**: `PUT answers` sau mỗi thay đổi (frontend tham khảo debounce ~1 giây và lưu ngay khi chuyển câu). Lưu nháp **không** kiểm định dạng nhãn — được lưu câu làm dở.
+- **Nháp ở trình duyệt**: backend **không lưu nháp**. Frontend giữ câu trả lời trong `localStorage` (khoá `crowd:attempt-draft:{attemptId}`, `src/lib/attempt-draft.ts`), mở lại bài thì khôi phục từ đó; bài đang làm luôn có `answer = null`, `answeredCount = 0`. Đổi máy / xoá dữ liệu trình duyệt thì mất nháp. Nộp xong thì xoá nháp.
+- **Body nộp**: trùng `sampleId` → 400 `cau_tra_loi_trung`; câu không thuộc bài → 400 `cau_khong_thuoc_bai`; `data` không phải object → 400 `cau_tra_loi_sai_dinh_dang`; cả bài vượt `task.attempt_max_bytes` → 400 `bai_qua_lon`.
 - **Nộp**: server kiểm mọi câu đã trả lời bằng đúng bộ kiểm của Crowd.Labeling. Sai → 400 `bai_chua_hop_le`, body có `invalidAnswers: [{ index (1-based), sampleId, code, message }]`, bài **vẫn mở** để sửa. Câu bỏ trống được phép (tính là không giống đa số; câu vàng bỏ trống tính là sai).
 - Dự án tạm dừng → nộp bài trả 409 `du_an_tam_dung` (bài vẫn giữ, nộp lại khi dự án chạy tiếp). Hết suất → `het_suat`; đã đóng thu bài → `du_an_da_dong_thu_bai`; đã nộp bài cho dự án → `da_nop_bai`.
 - Link xem file sống ngắn: lỗi tải ảnh / âm thanh thì `GET /tasks/attempts/{id}` lấy link mới, **giữ** câu trả lời đang sửa trên máy.

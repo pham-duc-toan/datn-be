@@ -142,25 +142,22 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
                     b.Property<Guid>("AttemptId")
                         .HasColumnType("uuid")
                         .HasColumnName("attempt_id");
 
-                    b.Property<DateTimeOffset?>("DecidedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("decided_at");
+                    b.Property<Guid>("SampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sample_id");
+
+                    b.Property<string>("DataJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
 
                     b.Property<Guid?>("LabelerId")
                         .HasColumnType("uuid")
                         .HasColumnName("labeler_id");
-
-                    b.Property<Guid>("SampleId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("sample_id");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -168,42 +165,7 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("source");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<DateTimeOffset>("SubmittedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("submitted_at");
-
-                    b.Property<string>("_payloadJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("payload");
-
-                    b.Property<int>("_payloadSchemaVersion")
-                        .HasColumnType("integer")
-                        .HasColumnName("schema_version");
-
-                    b.Property<string>("_payloadTaskType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("task_type");
-
-                    b.HasKey("ProjectId", "Id");
-
-                    b.HasIndex("ProjectId", "SampleId")
-                        .HasDatabaseName("ix_annotations_project_sample");
-
-                    b.HasIndex("ProjectId", "Status")
-                        .HasDatabaseName("ix_annotations_project_status");
-
-                    b.HasIndex("ProjectId", "AttemptId", "SampleId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_annotations_attempt_sample");
+                    b.HasKey("ProjectId", "AttemptId", "SampleId");
 
                     b.ToTable("annotations", (string)null);
                 });
@@ -367,30 +329,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_attempts_project_state");
 
                     b.ToTable("attempts", (string)null);
-                });
-
-            modelBuilder.Entity("Crowd.Project.Domain.Attempts.AttemptDraft", b =>
-                {
-                    b.Property<Guid>("AttemptId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("attempt_id");
-
-                    b.Property<Guid>("SampleId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("sample_id");
-
-                    b.Property<string>("DataJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("data");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("AttemptId", "SampleId");
-
-                    b.ToTable("attempt_drafts", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Project.Domain.Attempts.AttemptHistoryEntry", b =>
@@ -1462,15 +1400,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Crowd.Project.Domain.Attempts.AttemptDraft", b =>
-                {
-                    b.HasOne("Crowd.Project.Domain.Attempts.Attempt", null)
-                        .WithMany()
-                        .HasForeignKey("AttemptId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

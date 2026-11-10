@@ -207,13 +207,12 @@ try:
     b = bat_dau(l2, PN, 20)
     aid = b["attemptId"]
     q0, q1 = b["questions"][0]["sampleId"], b["questions"][1]["sampleId"]
-    r = requests.put(G + f"/tasks/attempts/{aid}/answers/{q0}", headers=l2["h"], json={"data": "chuoi"})
-    kiem("cau tra loi khong phai object → 400", r.status_code == 400, r.text)
-    r = luu(l2, aid, q0, {"nhan": {"labelIds": ["b"]}})
-    kiem("luu cau → 200", r.status_code == 200, r.text)
+    r = nop_bai(l2, aid, answers=[{"sampleId": q0, "data": "chuoi"}])
+    kiem("nop cau tra loi khong phai object → 400", r.status_code == 400 and "cau_tra_loi_sai_dinh_dang" in r.text, r.text)
+    luu(l2, aid, q0, {"nhan": {"labelIds": ["b"]}})
     lai = bat_dau(l2, PN)
-    kiem("mo lai → cung bai, giu cau da luu", lai["attemptId"] == aid and next(
-        q for q in lai["questions"] if q["sampleId"] == q0)["answer"] == {"nhan": {"labelIds": ["b"]}}, lai)
+    kiem("mo lai → cung bai; backend khong giu nhap (nhap o frontend)", lai["attemptId"] == aid and next(
+        q for q in lai["questions"] if q["sampleId"] == q0)["answer"] is None, lai)
     r = requests.post(G + f"/tasks/attempts/{aid}/reports", headers=l2["h"], json={"reason": "broken"})
     kiem("bao loi khong kem sampleId → 400 thieu_mau", r.status_code == 400 and code(r) == "thieu_mau", r.text)
     r = requests.post(G + f"/tasks/attempts/{aid}/reports", headers=l2["h"], json={"sampleId": q1, "reason": "other"})
@@ -295,7 +294,7 @@ try:
 
     def nop_tu_thiet_bi(u, tra_loi):
         bai, _ = lam_bai(u, PF, tra_loi, nop=False)
-        requests.post(G + f"/tasks/attempts/{bai['attemptId']}/submit", headers=dict(u["h"], **{"X-Device-Id": thiet_bi})).raise_for_status()
+        nop_bai(u, bai["attemptId"], headers=dict(u["h"], **{"X-Device-Id": thiet_bi})).raise_for_status()
     nop_tu_thiet_bi(lx, xen_ke)
     # Bai cua lx da duoc xet (quality doc nhan qua gRPC) truoc khi lf nop — lf so voi dap an da dang cua lx.
     cho(lambda: sql("quality", f"select count(*) from pending_attempts where project_id = '{PF}' and fraud_checked_at is null") == "0", 30)
