@@ -60,11 +60,11 @@ try:
     print("\n[1] Chu du an: link qua media-svc, nhan DUNG ban goc")
     r = requests.post(G + "/projects", headers=biz["h"], json={"name": f"[e2e-bvdl] anh {TAG}", "description": "e2e", "modality": "image", "visibility": "public"})
     P = r.json()["id"]
-    requests.put(G + f"/projects/{P}/label-schema", headers=biz["h"], json={"modality": "image", "tools": [
-        {"name": "nhan", "kind": "classification", "classes": ["co_nguoi", "khong"]}]}).raise_for_status()
-    requests.put(G + f"/projects/{P}/guideline", headers=biz["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
-    requests.put(G + f"/projects/{P}/pricing", headers=biz["h"], json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
-                                                                       "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
+    requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"labelSchema": {"modality": "image", "tools": [
+        {"name": "nhan", "kind": "classification", "classes": ["co_nguoi", "khong"]}]}}).raise_for_status()
+    requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
+    requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
+                                                                       "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
     r = requests.post(G + f"/projects/{P}/samples/zip", headers=biz["h"], files={"file": ("anh.zip", zip_anh(["mat.jpg", "canh.png"]), "application/zip")}, data={"name": "anh"})
     kiem("nap 2 anh (ZIP)", r.status_code in (200, 201), r.text)
     mau = {m["originalName"]: m for m in requests.get(G + f"/projects/{P}/samples?pageSize=100", headers=biz["h"]).json()["items"]}

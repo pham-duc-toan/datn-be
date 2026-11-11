@@ -63,15 +63,15 @@ try:
     # =================================================================================
     print("\n[2b] Cong link chi cho cong cu lam nhanh (gate.allowed_tools)")
     C, _ = tao_du_an(biz, "cong link mask", {f"m{i}": f"cau m{i} {TAG}" for i in range(2)}, 1, 1, 1000)
-    requests.put(G + f"/projects/{C}/label-schema", headers=biz["h"], json={"modality": "text", "tools": [
+    requests.patch(G + f"/projects/{C}", headers=biz["h"], json={"labelSchema": {"modality": "text", "tools": [
         {"name": "nhan", "kind": "classification", "classes": ["a", "b"]},
-        {"name": "chep", "kind": "freeText"}]}).raise_for_status()
-    requests.put(G + f"/projects/{C}/channels", headers=biz["h"], json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False}).raise_for_status()
+        {"name": "chep", "kind": "freeText"}]}}).raise_for_status()
+    requests.patch(G + f"/projects/{C}", headers=biz["h"], json={"channels": {"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False}}).raise_for_status()
     rd = requests.get(G + f"/projects/{C}/readiness", headers=biz["h"]).json()
     kiem("checklist bao cong_cu_khong_hop_cong_link", "cong_cu_khong_hop_cong_link" in json.dumps(rd), rd)
     r = requests.post(G + f"/projects/{C}/publish", headers=biz["h"])
     kiem("publish → 409 kem ten cong cu (chep)", r.status_code == 409 and "cong_cu_khong_hop_cong_link" in r.text and "chep" in r.text, r.text)
-    requests.put(G + f"/projects/{C}/channels", headers=biz["h"], json={"allowProfessional": True, "allowLinkGateway": False, "allowCollaborative": False}).raise_for_status()
+    requests.patch(G + f"/projects/{C}", headers=biz["h"], json={"channels": {"allowProfessional": True, "allowLinkGateway": False, "allowCollaborative": False}}).raise_for_status()
     kiem("tat cong link → het vuong", "cong_cu_khong_hop_cong_link" not in json.dumps(requests.get(G + f"/projects/{C}/readiness", headers=biz["h"]).json()))
 
     # =================================================================================
@@ -143,7 +143,7 @@ try:
     m1 = requests.get(G + f"/templates/{mid}", headers=biz["h"]).json()
     nhap = requests.post(G + "/projects", headers=biz["h"], json={"name": f"[e2e] tu mau {TAG}", "description": m1["description"],
                                                                "modality": m1["modality"], "visibility": "public"}).json()["id"]
-    r = requests.put(G + f"/projects/{nhap}/label-schema", headers=biz["h"], json=m1["labelSchema"])
+    r = requests.patch(G + f"/projects/{nhap}", headers=biz["h"], json={"labelSchema": m1["labelSchema"]})
     kiem("tap nhan cua mau ap thang vao du an nhap → 200 (cung dinh dang)", r.status_code == 200, r.text)
     r = requests.put(G + f"/admin/templates/{mid}", headers=admin, json=dict(mau, name="NER v2"))
     kiem("sua mau → version 2", r.status_code == 200 and r.json()["version"] == 2 and r.json()["name"] == "NER v2", r.text)

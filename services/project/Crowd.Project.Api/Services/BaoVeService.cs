@@ -50,20 +50,6 @@ namespace Crowd.Project.Api.Services
             _clock = clock;
         }
 
-        /// <summary>PUT /projects/{id}/protection — chu du an, chi khi Nhap.</summary>
-        public async Task<ProjectTermsResponse> CauHinhAsync(Guid projectId, ProtectionRequest body, Caller caller, CancellationToken ct)
-        {
-            if (body == null)
-            {
-                throw new ArgumentNullException(nameof(body));
-            }
-
-            LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
-            duAn.DatBaoVe(body.SensitiveContent, body.ContentWarning, body.NdaRequired, body.NdaText, body.RequireVerifiedIdentity, _clock.GetUtcNow());
-            await _db.SaveChangesAsync(ct);
-            return TaoTerms(duAn, null);
-        }
-
         /// <summary>GET /projects/{id}/terms — ai xem duoc du an deu doc duoc dieu khoan + trang thai dong y cua minh.</summary>
         public async Task<ProjectTermsResponse> DieuKhoanAsync(Guid projectId, Caller caller, CancellationToken ct)
         {

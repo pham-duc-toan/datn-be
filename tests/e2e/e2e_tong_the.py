@@ -71,11 +71,11 @@ try:
     r = requests.post(G + "/projects", headers=lab["lab1"]["h"], json={"name": "x", "description": "x", "modality": "text", "visibility": "public"})
     kiem("labeler tao du an → 403", r.status_code == 403, r.text)
     A, mau_a = tao_du_an(biz, "Chinh", MAU_A, thuong=THUONG_A, suat=3, nguong=70)
-    r = requests.put(G + f"/projects/{A}/pricing", headers=biz["h"], json={"rewardVnd": 0, "slots": 3, "passThresholdPercent": 70,
-                                                                          "deadline": "2027-12-31T00:00:00Z"})
+    r = requests.patch(G + f"/projects/{A}", headers=biz["h"], json={"pricing": {"rewardVnd": 0, "slots": 3, "passThresholdPercent": 70,
+                                                                          "deadline": "2027-12-31T00:00:00Z"}})
     kiem("thuong 0 → 400 thuong_khong_hop_le", r.status_code == 400 and "thuong_khong_hop_le" in r.text, r.text)
-    r = requests.put(G + f"/projects/{A}/pricing", headers=biz["h"], json={"rewardVnd": THUONG_A, "slots": 1, "passThresholdPercent": 70,
-                                                                          "deadline": "2027-12-31T00:00:00Z"})
+    r = requests.patch(G + f"/projects/{A}", headers=biz["h"], json={"pricing": {"rewardVnd": THUONG_A, "slots": 1, "passThresholdPercent": 70,
+                                                                          "deadline": "2027-12-31T00:00:00Z"}})
     rdy = requests.get(G + f"/projects/{A}/readiness", headers=biz["h"]).json()
     kiem("1 suat < toi thieu 3 → bi chan (400 hoac readiness thieu)",
          r.status_code == 400 or (not rdy["ready"] and rdy["missing"]), (r.status_code, r.text, rdy))
@@ -84,8 +84,8 @@ try:
     phi = rdy["platformFeePerPassVnd"]
     ky_quy_a = 3 * (THUONG_A + phi)
     kiem("ky quy = 3 suat x (60.000 + phi san), san sang publish", rdy["estimatedCostVnd"] == ky_quy_a and rdy["ready"] and phi > 0, rdy)
-    kiem("biz2 sua du an cua biz → 404 (BOLA)", requests.put(G + f"/projects/{A}/guideline", headers=biz2["h"],
-                                                             json={"markdown": "hack", "examples": []}).status_code == 404)
+    kiem("biz2 sua du an cua biz → 404 (BOLA)", requests.patch(G + f"/projects/{A}", headers=biz2["h"],
+                                                             json={"guideline": {"markdown": "hack", "examples": []}}).status_code == 404)
     kiem("labeler xem du an nhap cua nguoi khac → 404", requests.get(G + f"/projects/{A}", headers=lab["lab1"]["h"]).status_code == 404)
     requests.post(G + f"/projects/{A}/publish", headers=biz["h"]).raise_for_status()
     ok = cho(lambda: requests.get(G + f"/projects/{A}", headers=biz["h"]).json()["status"] == "pendingApproval", 30)
@@ -297,8 +297,8 @@ try:
     kiem("labeler doi setting → 403", requests.put(G + "/admin/settings/project.pass_threshold_min", headers=l1["h"],
                                                    json={"value": 50, "reason": "x"}).status_code == 403)
     # T (cua biz2) van la nhap sau khi ky quy that bai.
-    r = requests.put(G + f"/projects/{T}/pricing", headers=biz2["h"], json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 50,
-                                                                           "deadline": "2027-12-31T00:00:00Z"})
+    r = requests.patch(G + f"/projects/{T}", headers=biz2["h"], json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 50,
+                                                                           "deadline": "2027-12-31T00:00:00Z"}})
     rdy = requests.get(G + f"/projects/{T}/readiness", headers=biz2["h"]).json()
     kiem("doanh nghiep dat t = 50 < x = 60 → bi chan", r.status_code == 400 or not rdy["ready"], (r.status_code, r.text, rdy))
 
@@ -379,9 +379,9 @@ try:
     def du_an_cong_cu(modality, cong_cu, rows):
         r = requests.post(G + "/projects", headers=biz["h"], json={"name": f"[e2e-tong] {modality} {TAG}", "description": "e2e", "modality": modality, "visibility": "public"})
         p = r.json()["id"]
-        r = requests.put(G + f"/projects/{p}/label-schema", headers=biz["h"], json={"modality": modality, "tools": cong_cu})
+        r = requests.patch(G + f"/projects/{p}", headers=biz["h"], json={"labelSchema": {"modality": modality, "tools": cong_cu}})
         assert r.status_code == 200, r.text
-        requests.put(G + f"/projects/{p}/guideline", headers=biz["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
+        requests.patch(G + f"/projects/{p}", headers=biz["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
         dat_gia(biz, p, 10000, 3)
         nap_mau(p, biz["h"], rows)
         publish_va_duyet(biz, p)

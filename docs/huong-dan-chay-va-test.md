@@ -664,14 +664,14 @@ EOF
 curl -s -X POST http://localhost:8080/projects -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
   -d '{"name":"Thu thieu tien","description":"x","modality":"image","visibility":"public"}'
 
-curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/label-schema -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
-  -d '{"modality":"image","tools":[{"name":"label","kind":"classification","classes":["do","xanh_la","vang"]}]}'
+curl -s -X PATCH http://localhost:8080/projects/<id-du-an-moi> -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
+  -d '{"labelSchema":{"modality":"image","tools":[{"name":"label","kind":"classification","classes":["do","xanh_la","vang"]}]}}'
 
-curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/guideline -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
-  -d '{"markdown":"Chon theo mau.","examples":[]}'
+curl -s -X PATCH http://localhost:8080/projects/<id-du-an-moi> -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
+  -d '{"guideline":{"markdown":"Chon theo mau.","examples":[]}}'
 
-curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/pricing -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
-  -d '{"unitPriceVnd":10000,"redundancy":1,"budgetVnd":100000,"deadline":"2027-12-31T00:00:00Z"}'
+curl -s -X PATCH http://localhost:8080/projects/<id-du-an-moi> -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
+  -d '{"pricing":{"unitPriceVnd":10000,"redundancy":1,"budgetVnd":100000,"deadline":"2027-12-31T00:00:00Z"}}'
 
 curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/samples/zip -H "Authorization: Bearer <token-biz2>" -F "file=@anh.zip"
 
@@ -744,8 +744,8 @@ Truy cập tài nguyên của người khác trả **404** chứ không phải 4
 
 ```bash
 # 404: biz2 không sửa được dự án P3 của biz1
-curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/projects/32cdcbe6-837a-5c7c-929d-607db130deba/guideline \
-  -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" -d '{"markdown":"hack","examples":[]}'
+curl -s -o /dev/null -w "%{http_code}\n" -X PATCH http://localhost:8080/projects/32cdcbe6-837a-5c7c-929d-607db130deba \
+  -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" -d '{"guideline":{"markdown":"hack","examples":[]}}'
 
 # 404: biz1 không xem được lệnh nạp của biz2
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/payments/deposits/8d241233-a997-5c1a-9f2f-2924b419164c -H "Authorization: Bearer <token-biz1>"
@@ -819,8 +819,8 @@ Ví dụ trọn vẹn một dự án âm thanh cắt đoạn 10 giây (cần m�
 ```bash
 curl -s -X POST http://localhost:8080/projects -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
   -d '{"name":"Chep loi cuoc goi","description":"x","modality":"audio","visibility":"public"}'
-curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/label-schema -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
-  -d '{"modality":"audio","segmentSeconds":10,"tools":[{"name":"chep","kind":"transcription"},{"name":"doan","kind":"temporalSegment","classes":["noi","im"],"required":false}]}'
+curl -s -X PATCH http://localhost:8080/projects/<id-du-an-moi> -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"labelSchema":{"modality":"audio","segmentSeconds":10,"tools":[{"name":"chep","kind":"transcription"},{"name":"doan","kind":"temporalSegment","classes":["noi","im"],"required":false}]}}'
 
 # 1. Xin link upload → copy "key" và "uploadUrl"
 curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/uploads -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
@@ -840,8 +840,8 @@ Sau đó cấu hình hướng dẫn, giá, publish, admin duyệt, labeler tham 
 Dự án **ảnh có khung** dùng tập nhãn như sau; task trả `metadata.width/height` để vẽ khung, và kết quả xuất được COCO:
 
 ```bash
-curl -s -X PUT http://localhost:8080/projects/<id-du-an-anh>/label-schema -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
-  -d '{"modality":"image","tools":[{"name":"loai","kind":"classification","classes":["ngoai_troi","trong_nha"]},{"name":"vat","kind":"bbox","classes":["xe","nguoi"],"required":false},{"name":"vung","kind":"polygon","classes":["duong"],"required":false}]}'
+curl -s -X PATCH http://localhost:8080/projects/<id-du-an-anh> -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"labelSchema":{"modality":"image","tools":[{"name":"loai","kind":"classification","classes":["ngoai_troi","trong_nha"]},{"name":"vat","kind":"bbox","classes":["xe","nguoi"],"required":false},{"name":"vung","kind":"polygon","classes":["duong"],"required":false}]}}'
 
 # Nộp: khung tràn ra ngoài ảnh → 400; polygon dưới 3 đỉnh → 400
 curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H "Authorization: Bearer <token-lab1>" -H "Content-Type: application/json" \
@@ -882,8 +882,8 @@ Dự án seed **P7** (cặp câu trả lời, `12d52faa-09b4-5cd1-b21d-16984c952
 
 ```bash
 # Giá: redundancy 2, trần 3 → readiness.estimatedCostVnd tính theo 3 người
-curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/pricing -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
-  -d '{"unitPriceVnd":1000,"redundancy":2,"maxRedundancy":3,"budgetVnd":50000,"deadline":"2027-12-31T00:00:00Z"}'
+curl -s -X PATCH http://localhost:8080/projects/<id-du-an-moi> -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"pricing":{"unitPriceVnd":1000,"redundancy":2,"maxRedundancy":3,"budgetVnd":50000,"deadline":"2027-12-31T00:00:00Z"}}'
 
 # Tỉ lệ câu vàng kiểm tra trộn vào task (0–50%). Thêm câu vàng purpose "qualityCheck" như mục 6.11.
 curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/quality-control -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
@@ -1023,8 +1023,8 @@ Chia sẻ link là chức năng của **labeler**, không phải vai trò riêng
 
 ```bash
 # Trên một dự án nháp (mục 6.11): bật kênh cổng link, thêm câu vàng qualityCheck, rồi publish và duyệt như mục 6.4–6.5
-curl -s -X PUT http://localhost:8080/projects/<id>/channels -H "Authorization: Bearer <token-biz1>" \
-  -H "Content-Type: application/json" -d '{"allowProfessional":true,"allowLinkGateway":true,"allowCollaborative":false}'
+curl -s -X PATCH http://localhost:8080/projects/<id> -H "Authorization: Bearer <token-biz1>" \
+  -H "Content-Type: application/json" -d '{"channels":{"allowProfessional":true,"allowLinkGateway":true,"allowCollaborative":false}}'
 # Sau publish: ngân sách cổng = ngân sách − số mẫu × trần redundancy × (đơn giá + phí)
 docker exec datn-db-gate psql -U gate_user -d gate_db -c "select * from gate_budgets"
 ```
@@ -1212,8 +1212,8 @@ Tám công cụ thêm sau, dùng y như các công cụ ở mục 6.14 (khai tro
 # Dự án xếp hạng: tạo dự án list → tập nhãn → nạp một mẫu 4 mục (rồi đặt giá, publish, duyệt như mục 6.11, 6.4, 6.5)
 curl -s -X POST http://localhost:8080/projects -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
   -d '{"name":"Xep hang cau tra loi","description":"thu","modality":"list","visibility":"public"}'          # → copy "id"
-curl -s -X PUT http://localhost:8080/projects/<projectId>/label-schema -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
-  -d '{"modality":"list","tools":[{"name":"xep","kind":"ranking"},{"name":"diem","kind":"number","integer":true,"min":1,"max":5,"tolerance":1}]}'
+curl -s -X PATCH http://localhost:8080/projects/<projectId> -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"labelSchema":{"modality":"list","tools":[{"name":"xep","kind":"ranking"},{"name":"diem","kind":"number","integer":true,"min":1,"max":5,"tolerance":1}]}}'
 curl -s -X POST http://localhost:8080/projects/<projectId>/samples -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
   -d '{"rows":[{"prompt":"Cau tra loi nao tot nhat?","items":["Tra loi A","Tra loi B","Tra loi C","Tra loi D"]}]}'
 
@@ -1284,7 +1284,7 @@ curl -s -X POST http://localhost:8080/projects/join-by-code -H "Authorization: B
 # 409 ma_moi_het_luot / ma_moi_het_han / ma_moi_da_thu_hoi / da_la_thanh_vien; 404 mã không tồn tại
 ```
 
-Chế độ `approval`: tạo dự án với `"visibility":"approval"` (hoặc `PUT /projects/{id}` khi còn Nháp), publish như thường.
+Chế độ `approval`: tạo dự án với `"visibility":"approval"` (hoặc `PATCH /projects/{id}` nhóm `info` khi còn Nháp), publish như thường.
 
 ```bash
 # Labeler: join thẳng → 409 can_xin_duyet; gửi đơn
@@ -1367,7 +1367,7 @@ curl -s -X POST http://localhost:8080/tasks/admin/attempts/<attemptId>/appeal/re
 
 Kiểm tra thêm:
 - Nộp lại / sửa câu sau khi nộp → 409 `bai_da_nop`. Người thứ `S + 1` bắt đầu bài khi đã đủ suất → `het_suat`; sau khi đóng thu bài → `du_an_da_dong_thu_bai`.
-- `PUT /projects/{id}/pricing` với `t` ngoài `[x, y]` (setting `project.pass_threshold_min` / `max`, mặc định 60–95) → bị chặn; thưởng dưới `project.min_reward_vnd` → bị chặn.
+- `PATCH /projects/{id}` nhóm `pricing` với `t` ngoài `[x, y]` (setting `project.pass_threshold_min` / `max`, mặc định 60–95) → bị chặn; thưởng dưới `project.min_reward_vnd` → bị chặn.
 - Huỷ dự án đã có bài nộp → 409 `chua_the_dong` (`da_co_bai_nop`); chưa có bài (đã tạm dừng) → hoàn **toàn bộ** ký quỹ.
 - Hết hạn khiếu nại mà không còn khiếu nại mở → `project.settled` → dự án `completed` → ledger hoàn ký quỹ của các suất không có bài đạt. Muốn thử nhanh: admin đặt `task.appeal_window` = 15 giây và `task.reaper_interval` = 2 giây (bộ E2E làm đúng vậy rồi trả lại).
 - Ít hơn 3 bài nộp: chỉ xét câu vàng (`/quality/projects/{id}/summary` → `majorityUsed: false`).

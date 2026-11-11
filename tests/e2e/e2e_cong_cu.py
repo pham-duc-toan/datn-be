@@ -44,11 +44,11 @@ def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, suat=3, dieu_kien
     r = requests.post(G + "/projects", headers=chu["h"], json={"name": f"[e2e-cong-cu] {ten} {TAG}", "description": "e2e", "modality": modality, "visibility": "public"})
     assert r.status_code in (200, 201), r.text
     pid = r.json()["id"]
-    r = requests.put(G + f"/projects/{pid}/label-schema", headers=chu["h"], json=tap_nhan)
+    r = requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"labelSchema": tap_nhan})
     assert r.status_code == 200, r.text
-    requests.put(G + f"/projects/{pid}/guideline", headers=chu["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
     if dieu_kien:
-        requests.put(G + f"/projects/{pid}/eligibility", headers=chu["h"], json=dieu_kien).raise_for_status()
+        requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"eligibility": dieu_kien}).raise_for_status()
 
     if files is not None:
         r = requests.post(G + f"/projects/{pid}/uploads", headers=chu["h"],
@@ -136,12 +136,12 @@ try:
          ls["tools"][0]["attributes"][0] == {"name": "noi_dung", "type": "text", "required": True, "maxLength": 50}
          and ls["tools"][4] == {"name": "so_dong", "kind": "number", "required": True, "integer": True, "tolerance": 0, "min": 0, "max": 20}, ls)
 
-    r = requests.put(G + f"/projects/{P1}/label-schema", headers=biz["h"], json={"modality": "image", "tools": [{"name": "xep", "kind": "ranking"}]})
+    r = requests.patch(G + f"/projects/{P1}", headers=biz["h"], json={"labelSchema": {"modality": "image", "tools": [{"name": "xep", "kind": "ranking"}]}})
     kiem("cong cu ranking cho du an anh → 400", r.status_code == 400, r.text)
-    r = requests.put(G + f"/projects/{P1}/label-schema", headers=biz["h"], json={"modality": "image", "tools": [
-        {"name": "v", "kind": "bbox", "classes": ["a"], "attributes": [{"name": "x", "type": "choice"}]}]})
+    r = requests.patch(G + f"/projects/{P1}", headers=biz["h"], json={"labelSchema": {"modality": "image", "tools": [
+        {"name": "v", "kind": "bbox", "classes": ["a"], "attributes": [{"name": "x", "type": "choice"}]}]}})
     kiem("thuoc tinh choice thieu options → 400", r.status_code == 400, r.text)
-    requests.put(G + f"/projects/{P1}/label-schema", headers=biz["h"], json=TAP_NHAN_ANH).raise_for_status()
+    requests.patch(G + f"/projects/{P1}", headers=biz["h"], json={"labelSchema": TAP_NHAN_ANH}).raise_for_status()
 
     publish_va_duyet(biz, P1)
     for u in (l1, l2):
@@ -260,8 +260,8 @@ try:
         {"name": "ner", "kind": "span", "classes": ["PER", "ORG", "LOC"]},
         {"name": "qh", "kind": "relation", "classes": ["lam_tai", "o_tai"], "spanTool": "ner", "required": False}]},
         rows=[{"text": CAU, "name": "cau1"}])
-    r = requests.put(G + f"/projects/{P3}/label-schema", headers=biz["h"], json={"modality": "text", "tools": [
-        {"name": "ner", "kind": "span", "classes": ["PER"]}, {"name": "qh", "kind": "relation", "classes": ["x"], "spanTool": "khong_co"}]})
+    r = requests.patch(G + f"/projects/{P3}", headers=biz["h"], json={"labelSchema": {"modality": "text", "tools": [
+        {"name": "ner", "kind": "span", "classes": ["PER"]}, {"name": "qh", "kind": "relation", "classes": ["x"], "spanTool": "khong_co"}]}})
     kiem("relation tro toi cong cu span khong ton tai → 400",
          r.status_code == 400 and "tap_nhan_khong_hop_le" in r.text and "Đoạn văn bản" in r.text, r.text)
     publish_va_duyet(biz, P3)
@@ -298,7 +298,7 @@ try:
          lo["sampleCount"] == 1 and lo["skippedCount"] == 3 and "items" in (lo.get("errorSummary") or ""), lo)
     kiem("mau danh sach: content co items + prompt, metadata co itemCount",
          mau["xh1"]["content"]["items"][3] == "Tra loi D" and mau["xh1"]["content"]["prompt"] and mau["xh1"]["metadata"] == {"itemCount": 4}, mau)
-    r = requests.put(G + f"/projects/{P4}/label-schema", headers=biz["h"], json={"modality": "list", "tools": [{"name": "v", "kind": "bbox", "classes": ["a"]}]})
+    r = requests.patch(G + f"/projects/{P4}", headers=biz["h"], json={"labelSchema": {"modality": "list", "tools": [{"name": "v", "kind": "bbox", "classes": ["a"]}]}})
     kiem("cong cu khung cho du lieu danh sach → 400", r.status_code == 400, r.text)
     publish_va_duyet(biz, P4)
     for u in (l1, l2, l3):

@@ -29,8 +29,8 @@ def mc(*args, du=None):
 
 def tao_du_an_anh(chu, ten):
     pid = requests.post(G + "/projects", headers=chu["h"], json={"name": f"[e2e] {ten} {TAG}", "description": "x", "modality": "image", "visibility": "public"}).json()["id"]
-    requests.put(G + f"/projects/{pid}/label-schema", headers=chu["h"], json={"modality": "image", "tools": [
-        {"name": "nhan", "kind": "classification", "classes": ["a", "b"]}]}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"labelSchema": {"modality": "image", "tools": [
+        {"name": "nhan", "kind": "classification", "classes": ["a", "b"]}]}}).raise_for_status()
     return pid
 
 
@@ -117,9 +117,9 @@ try:
     Q = tao_du_an_anh(biz, "Giu file")
     rq = requests.post(G + f"/projects/{Q}/samples/import", headers=biz["h"], json={"source": "urls", "urls": [f"http://minio:9000/{BUCKET}/url/4.png"]})
     cho_xong(biz, Q)
-    r = requests.put(G + f"/projects/{P}/retention", headers=biz["h"], json={"deleteFilesAfterClose": True})
+    r = requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"retention": {"deleteFilesAfterClose": True}})
     kiem("doanh nghiep dong y xoa file sau khi dong", r.status_code == 200 and r.json()["deleteFilesAfterClose"] is True, r.text)
-    kiem("labeler khong doi duoc", requests.put(G + f"/projects/{P}/retention", headers=lab["h"], json={"deleteFilesAfterClose": True}).status_code in (403, 404))
+    kiem("labeler khong doi duoc", requests.patch(G + f"/projects/{P}", headers=lab["h"], json={"retention": {"deleteFilesAfterClose": True}}).status_code in (403, 404))
     for pid in (P, Q):
         requests.post(G + f"/projects/{pid}/cancel", headers=biz["h"], json={"reason": "e2e"}).raise_for_status()
         sql("project", f"update projects set closed_at = now() - interval '200 days' where id = '{pid}'")

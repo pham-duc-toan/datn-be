@@ -53,11 +53,11 @@ try:
     DUNG = {"Tuyet voi": "a", "Qua te": "b", "Rat hai long": "a"}
     r = requests.post(G + "/projects", headers=biz["h"], json={"name": f"[e2e-suat] {TAG}", "description": "e2e", "modality": "text", "visibility": "public"})
     P = r.json()["id"]
-    requests.put(G + f"/projects/{P}/label-schema", headers=biz["h"], json={"modality": "text", "tools": [
-        {"name": "nhan", "kind": "classification", "classes": ["a", "b"]}]}).raise_for_status()
-    requests.put(G + f"/projects/{P}/guideline", headers=biz["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
-    requests.put(G + f"/projects/{P}/pricing", headers=biz["h"], json={"rewardVnd": 30000, "slots": 3, "passThresholdPercent": 60,
-                                                                      "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
+    requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"labelSchema": {"modality": "text", "tools": [
+        {"name": "nhan", "kind": "classification", "classes": ["a", "b"]}]}}).raise_for_status()
+    requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
+    requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"pricing": {"rewardVnd": 30000, "slots": 3, "passThresholdPercent": 60,
+                                                                      "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
     nap_mau(P, biz["h"], [{"text": v, "name": k} for k, v in MAU.items()])
     rdy = requests.get(G + f"/projects/{P}/readiness", headers=biz["h"]).json()
     kiem("readiness bao he so tran nguoi lam = 2", rdy["limits"]["participantMultiplier"] == 2, rdy["limits"])

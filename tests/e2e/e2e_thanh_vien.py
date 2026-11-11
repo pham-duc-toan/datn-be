@@ -43,7 +43,7 @@ def dat_cap(u, cap, uy_tin=None):
 
 
 def che_do(chu, pid, ten, vis):
-    r = requests.put(G + f"/projects/{pid}", headers=chu["h"], json={"name": ten, "description": "e2e", "visibility": vis})
+    r = requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"info": {"name": ten, "description": "e2e", "visibility": vis}})
     assert r.status_code == 200, r.text
 
 

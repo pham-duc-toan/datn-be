@@ -37,11 +37,11 @@ def tao_du_an(chu, ten, mau, thuong=20000, suat=3, nguong=60):
                                                                 "modality": "text", "visibility": "public"})
     assert r.status_code in (200, 201), r.text
     pid = r.json()["id"]
-    requests.put(G + f"/projects/{pid}/label-schema", headers=chu["h"], json={"modality": "text", "tools": [
-        {"name": "mo_ta", "kind": "freeText", "maxLength": 500}]}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/guideline", headers=chu["h"], json={"markdown": "Mo ta noi dung bang mot cau.", "examples": []}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/pricing", headers=chu["h"], json={
-        "rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"labelSchema": {"modality": "text", "tools": [
+        {"name": "mo_ta", "kind": "freeText", "maxLength": 500}]}}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"guideline": {"markdown": "Mo ta noi dung bang mot cau.", "examples": []}}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"pricing": {
+        "rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
     nap_mau(pid, chu["h"], [{"text": v, "name": k} for k, v in mau.items()])
     return pid
 

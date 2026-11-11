@@ -109,7 +109,7 @@ namespace Crowd.Admin.Api.Dtos
 
         public string? Description { get; init; }
 
-        /// <summary>Tap nhan (cung dinh dang PUT /projects/{id}/label-schema), co modality.</summary>
+        /// <summary>Tap nhan (cung dinh dang nhom labelSchema cua PATCH /projects/{id}), co modality.</summary>
         public JsonElement LabelSchema { get; init; }
 
         public string? GuidelineMarkdown { get; init; }

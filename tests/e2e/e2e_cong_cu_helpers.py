@@ -36,11 +36,11 @@ def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, red=2, tran=3, go
     r = requests.post(G + "/projects", headers=chu["h"], json={"name": f"[e2e-cong-cu] {ten} {TAG}", "description": "e2e", "modality": modality, "visibility": "public"})
     assert r.status_code in (200, 201), r.text
     pid = r.json()["id"]
-    r = requests.put(G + f"/projects/{pid}/label-schema", headers=chu["h"], json=tap_nhan)
+    r = requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"labelSchema": tap_nhan})
     assert r.status_code == 200, r.text
-    requests.put(G + f"/projects/{pid}/guideline", headers=chu["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
     if dieu_kien:
-        requests.put(G + f"/projects/{pid}/eligibility", headers=chu["h"], json=dieu_kien).raise_for_status()
+        requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"eligibility": dieu_kien}).raise_for_status()
 
     if files is not None:
         r = requests.post(G + f"/projects/{pid}/uploads", headers=chu["h"],
@@ -56,7 +56,7 @@ def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, red=2, tran=3, go
     mau = {m["originalName"]: m for m in requests.get(G + f"/projects/{pid}/samples?pageSize=200", headers=chu["h"]).json()["items"]}
 
     so = max(1, len(mau))
-    requests.put(G + f"/projects/{pid}/pricing", headers=chu["h"], json={
+    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"pricing": {
         "rewardVnd": max(10000, GIA * so), "slots": suat if suat is not None else max(3, tran), "passThresholdPercent": nguong,
-        "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
+        "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
     return pid, lo, mau

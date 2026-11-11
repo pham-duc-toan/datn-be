@@ -130,14 +130,14 @@ try:
     print("\n[1] Doanh nghiep tao du an van ban BAT cong link, ngan sach vuot muc toi thieu")
     r = requests.post(G + "/projects", headers=biz, json={"name": "[e2e-p2] Cong link", "description": "p2", "modality": "text", "visibility": "public"})
     pid = r.json()["id"]
-    requests.put(G + f"/projects/{pid}/label-schema", headers=biz, json={"modality": "text", "tools": [
-        {"name": "loai", "kind": "classification", "classes": ["cho", "meo"]}]}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/guideline", headers=biz, json={"markdown": "p2", "examples": []}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=biz, json={"labelSchema": {"modality": "text", "tools": [
+        {"name": "loai", "kind": "classification", "classes": ["cho", "meo"]}]}}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=biz, json={"guideline": {"markdown": "p2", "examples": []}}).raise_for_status()
     # Gia CA DU AN (3.18): 3 suat x (10.000 + 3.000) danh cho labeler; cong link don gia RIENG 1.000 / nhan khach gan,
     # ngan sach rieng 12.200 (cung nam trong ky quy).
-    requests.put(G + f"/projects/{pid}/pricing", headers=biz, json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/channels", headers=biz, json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False,
-                                                                    "gateBudgetVnd": 12200}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=biz, json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=biz, json={"channels": {"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False,
+                                                                    "gateBudgetVnd": 12200}}).raise_for_status()
     nap_mau(pid, biz, [{"text": v[0], "name": k} for k, v in CAU.items()])
     mau = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid}/samples?pageSize=50", headers=biz).json()["items"]}
     r = requests.post(G + f"/projects/{pid}/gold-items", headers=biz, json={"items": [
@@ -376,12 +376,12 @@ try:
     cc.nap(chu, 100000)
     r = requests.post(G + "/projects", headers=chu["h"], json={"name": "[e2e-p2] Cong link tu du an", "description": "p2", "modality": "text", "visibility": "public"})
     pid2 = r.json()["id"]
-    requests.put(G + f"/projects/{pid2}/label-schema", headers=chu["h"], json={"modality": "text", "tools": [
-        {"name": "loai", "kind": "classification", "classes": ["cho", "meo"]}]}).raise_for_status()
-    requests.put(G + f"/projects/{pid2}/guideline", headers=chu["h"], json={"markdown": "p2", "examples": []}).raise_for_status()
-    requests.put(G + f"/projects/{pid2}/pricing", headers=chu["h"], json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
-    requests.put(G + f"/projects/{pid2}/channels", headers=chu["h"], json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False,
-                                                                    "gateBudgetVnd": 12200}).raise_for_status()
+    requests.patch(G + f"/projects/{pid2}", headers=chu["h"], json={"labelSchema": {"modality": "text", "tools": [
+        {"name": "loai", "kind": "classification", "classes": ["cho", "meo"]}]}}).raise_for_status()
+    requests.patch(G + f"/projects/{pid2}", headers=chu["h"], json={"guideline": {"markdown": "p2", "examples": []}}).raise_for_status()
+    requests.patch(G + f"/projects/{pid2}", headers=chu["h"], json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
+    requests.patch(G + f"/projects/{pid2}", headers=chu["h"], json={"channels": {"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False,
+                                                                    "gateBudgetVnd": 12200}}).raise_for_status()
     nap_mau(pid2, chu["h"], [{"text": v[0], "name": k} for k, v in CAU.items()])
     mau2 = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid2}/samples?pageSize=50", headers=chu["h"]).json()["items"]}
     requests.post(G + f"/projects/{pid2}/gold-items", headers=chu["h"], json={"items": [

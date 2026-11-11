@@ -200,7 +200,7 @@ Lưu ý: mốc thu hồi tính theo **giây** — token cấp trong cùng giây 
 | Doanh nghiệp | Hồ sơ doanh nghiệp (KYB) — **phải được duyệt mới publish được** | `GET/PUT /kyb/me`, `POST /kyb/me/license`, `POST /kyb/me/submit` (mục 13) |
 | | Ví, nạp tiền | `GET /ledger/me/balance`, `POST /payments/deposits`, `GET /payments/deposits/{id}` |
 | | Danh sách dự án của tôi | `GET /projects?mine=true` |
-| | Wizard tạo dự án | `POST /projects`, `PUT /projects/{id}/label-schema`, `/guideline`, `/pricing`, `/channels`, `/eligibility` |
+| | Wizard tạo dự án | `POST /projects`, `PATCH /projects/{id}` (mỗi bước gửi một nhóm: `labelSchema`, `guideline`, `pricing`, `channels`, `eligibility`… — mục 21) |
 | | Nạp dữ liệu | `POST /projects/{id}/samples/zip` (ZIP), `POST /projects/{id}/uploads` + `POST /projects/{id}/samples` (file đã upload / dòng JSON), `POST /projects/{id}/samples/import` (nguồn ngoài), `GET /projects/{id}/samples` (+ `/status`), `DELETE /projects/{id}/samples/failed` |
 | | Câu hỏi vàng | `GET/POST /projects/{id}/gold-items`, `DELETE /projects/{id}/gold-items/{goldItemId}` |
 | | Checklist + publish | `GET /projects/{id}/readiness`, `POST /projects/{id}/publish` |
@@ -352,18 +352,20 @@ Không có `mine`: mọi dự án người gọi xem được, gồm dự án c�
 
 ### 4.4 Tập nhãn (label schema)
 
+> **Đổi (mục 21):** mọi thao tác sửa cấu hình dự án đi qua **một** API `PATCH /projects/{id}`, body `{ "<nhóm>": <nội dung nhóm> }`. Các khối `PUT /projects/{id}/...` dưới đây giữ lại để mô tả **nội dung** từng nhóm — gửi nội dung đó làm giá trị của nhóm tương ứng.
+
 Tập nhãn = loại dữ liệu + danh sách **công cụ**. Mỗi công cụ là một "câu hỏi" trên màn hình gán nhãn. Một dự án có thể có nhiều công cụ (tối đa 20).
 
 ```http
-PUT /projects/{id}/label-schema
-{
+PATCH /projects/{id}
+{ "labelSchema": {
   "modality": "image",
   "tools": [
     { "name": "loai", "kind": "classification", "classes": ["ngoai_troi", "trong_nha"] },
     { "name": "vat",  "kind": "bbox", "classes": ["xe", "nguoi"], "required": false },
     { "name": "vung", "kind": "polygon", "classes": ["duong"], "required": false }
   ]
-}
+} }
 → 200 ProjectResponse (labelSchema đã được điền đủ giá trị mặc định)
 ```
 
@@ -1317,7 +1319,7 @@ Ngưỡng đổi được bằng `matchThreshold` của công cụ; không khai 
 
 ### 6.6 Ví dụ trọn vẹn theo từng bài toán
 
-Mỗi ví dụ đi đủ bốn bước: **(a)** doanh nghiệp đặt tập nhãn (`PUT /projects/{id}/label-schema`), **(b)** một dòng manifest khi nạp dữ liệu, **(c)** phần đáng chú ý của task FE nhận từ `POST /tasks/projects/{id}/next`, **(d)** body FE gửi lên `POST /tasks/assignments/{assignmentId}/submit`, kèm các lỗi hay gặp. Mọi ví dụ (cả các ca sai) đã được chạy qua thư viện kiểm nhãn của backend.
+Mỗi ví dụ đi đủ bốn bước: **(a)** doanh nghiệp đặt tập nhãn (`PATCH /projects/{id}` nhóm `labelSchema`), **(b)** một dòng manifest khi nạp dữ liệu, **(c)** phần đáng chú ý của task FE nhận từ `POST /tasks/projects/{id}/next`, **(d)** body FE gửi lên `POST /tasks/assignments/{assignmentId}/submit`, kèm các lỗi hay gặp. Mọi ví dụ (cả các ca sai) đã được chạy qua thư viện kiểm nhãn của backend.
 
 Câu vàng (`expectedPayload`) và câu trả lời bài test đầu vào (`payload`) dùng **đúng hình dạng ở bước (d)**.
 
@@ -2330,7 +2332,7 @@ Lượt vượt chỉ sinh tiền khi đạt câu vàng, không phải chính ch
 
 ### 12.3 Doanh nghiệp: bật cổng link cho dự án
 
-- Wizard: `PUT /projects/{id}/channels { "allowProfessional": true, "allowLinkGateway": true, "allowCollaborative": false }`.
+- Wizard: `PATCH /projects/{id} { "channels": { "allowProfessional": true, "allowLinkGateway": true, "allowCollaborative": false } }`.
 - Dự án chỉ lên cổng khi dữ liệu là **ảnh / văn bản / cặp**, mọi công cụ là **phân loại chọn một** hoặc **so sánh cặp**, và có câu vàng mục đích `qualityCheck`. Nên cảnh báo ở wizard nếu bật cổng mà không thoả.
 - Cổng **chỉ tiêu phần ngân sách vượt** mức ký quỹ tối thiểu (`estimatedCostVnd` ở `readiness`). Ví dụ tối thiểu 7.800đ, đặt 20.000đ → cổng được tiêu 12.200đ. Gợi ý ở bước giá: "Ngân sách cho cổng link = ngân sách − ký quỹ tối thiểu".
 - Mỗi nhãn từ cổng tốn ký quỹ `đơn giá + phí` (như nhãn chuyên nghiệp). Nhãn hiện ở màn hình duyệt với `source: "linkGateway"` (mục 4.10).
@@ -2650,7 +2652,7 @@ Phí nền tảng đã thu là giá **đã gồm thuế**; hoá đơn tách ti�
 **Nội dung nhạy cảm / NDA / yêu cầu xác minh (mục 2.9)** — cấu hình khi dự án còn nháp:
 
 ```http
-PUT  /projects/{id}/protection   { sensitiveContent, contentWarning, ndaRequired, ndaText, requireVerifiedIdentity }
+PATCH /projects/{id}  { protection: { sensitiveContent, contentWarning, ndaRequired, ndaText, requireVerifiedIdentity } }
 GET  /projects/{id}/terms        → văn bản cảnh báo / NDA + trạng thái đồng ý của tôi
 POST /projects/{id}/consent      { acceptContentWarning, acceptNda, fullName }
 GET  /projects/{id}/consents     (chủ dự án: ai đã đồng ý / ký NDA)
@@ -2683,14 +2685,14 @@ POST   /projects/{id}/members/invite-preferred          → mời cả danh sác
 PUT    /projects/{id}/ratings/{labelerId}  { stars: 1-5, comment }
 GET    /projects/{id}/ratings
 GET    /projects/labelers/{labelerId}/rating-summary
-PUT    /projects/{id}/tags   { domains: [...], languages: [...] }
+PATCH  /projects/{id}   { tags: { domains: [...], languages: [...] } }
 GET    /projects/recommended?limit=10                   → dự án hợp hồ sơ kỹ năng của labeler
-PUT    /projects/{id}/retention   { deleteFilesAfterClose }   → đồng ý xoá file gốc khi dự án đóng quá hạn giữ
+PATCH  /projects/{id}   { retention: { deleteFilesAfterClose } }   → đồng ý xoá file gốc khi dự án đóng quá hạn giữ
 ```
 
 Labeler trong danh sách chặn của doanh nghiệp không tham gia được mọi dự án của doanh nghiệp đó; danh sách ưu tiên được duyệt đơn tự động.
 
-**Đơn giá tối thiểu (FM-04):** `PUT /projects/{id}/pricing` với đơn giá < `project.min_unit_price_vnd` → `400 don_gia_duoi_toi_thieu`; checklist publish cũng báo mã này khi admin nâng mức sau.
+**Đơn giá tối thiểu (FM-04):** `PATCH /projects/{id}` nhóm `pricing` với đơn giá < `project.min_unit_price_vnd` → `400 don_gia_duoi_toi_thieu`; checklist publish cũng báo mã này khi admin nâng mức sau.
 
 **Nhập dữ liệu từ nguồn ngoài (FB-11):**
 
@@ -2785,7 +2787,7 @@ PUT  /admin/templates/{id}
 POST /admin/templates/{id}/deactivate | /activate
 ```
 
-Tạo dự án từ mẫu: frontend tạo dự án với `modality` của mẫu rồi gọi `PUT /projects/{id}/label-schema` với `labelSchema` của mẫu và `PUT /projects/{id}/guideline` với `guidelineMarkdown` — dự án **không** tham chiếu mẫu (sửa mẫu không đổi dự án đã tạo).
+Tạo dự án từ mẫu: frontend tạo dự án với `modality` của mẫu rồi gọi **một** `PATCH /projects/{id}` `{ labelSchema: <labelSchema của mẫu>, guideline: { markdown: <guidelineMarkdown>, examples: [] } }` — dự án **không** tham chiếu mẫu (sửa mẫu không đổi dự án đã tạo).
 
 **Tình trạng hệ thống** (kiến trúc 3.29): `GET /admin/system-health` → `{ status: "ok" | "co_loi" | "khong_ro", failedCount, affectedAreas, checkedAt, techTeamNotified }` — chỉ đếm lỗi KỸ THUẬT (việc hệ thống không tự xử lý được); trang Tổng quan hiện thẻ bằng lời ("Có N việc hệ thống không tự xử lý được — đội kỹ thuật đã được báo"), không nút thao tác, không tên hàng đợi. Chi tiết lỗi dev tra ở Kibana. **Duyệt dự án đầy đủ:** trang `/admin/du-an/{id}` ghép `GET /projects/{id}`, `/readiness`, `/samples` (+ `/status`), `/gold-items`, `/members` — admin đọc được mọi API này của dự án chờ duyệt; không có endpoint riêng.
 
@@ -2811,12 +2813,10 @@ Từ đợt này **tiền, bài làm và kết quả đi theo cả dự án**, k
 ### 18.1 Doanh nghiệp: giá cả dự án, kênh, checklist
 
 ```http
-PUT /projects/{id}/pricing
-{ "rewardVnd": 50000, "slots": 10, "passThresholdPercent": 80, "deadline": "2027-01-31T00:00:00Z" }
-
-PUT /projects/{id}/channels
-{ "allowProfessional": true, "allowLinkGateway": true, "allowCollaborative": false,
-  "gateBudgetVnd": 200000 }
+PATCH /projects/{id}
+{ "pricing":  { "rewardVnd": 50000, "slots": 10, "passThresholdPercent": 80, "deadline": "2027-01-31T00:00:00Z" },
+  "channels": { "allowProfessional": true, "allowLinkGateway": true, "allowCollaborative": false,
+                "gateBudgetVnd": 200000 } }
 ```
 
 - `rewardVnd`: thưởng cho **một bài đạt** (cả bài, không theo câu), ≥ `limits.minRewardVnd`. `slots`: số suất — tối đa bao nhiêu bài đạt được thưởng (`limits.minSlots`–`limits.maxSlots`).
@@ -2916,7 +2916,7 @@ Công cụ `freeText` (payload `{"text": "..."}`) giờ được **chấm**: lú
 
 **Khác:**
 - Dự án chưa được admin duyệt: thêm thành viên / tạo mã mời → 409 `du_an_chua_duoc_duyet`; FE ẩn phần mời và ẩn tab Kết quả / Chất lượng / Câu bị báo lỗi.
-- `PUT /projects/{id}/protection` trả **điều khoản**, không phải dự án — FE tải lại dự án sau khi lưu.
+- ~~`PUT /projects/{id}/protection` trả điều khoản~~ — đã thay bằng nhóm `protection` của `PATCH /projects/{id}` (mục 21), trả về dự án như mọi nhóm khác.
 - Bỏ cảnh báo `khong_co_cau_vang_kiem_tra`.
 - Cổng thanh toán thử nghiệm (sandbox / VNPay / MoMo, chỉ Development): mở `checkoutUrl` bằng trình duyệt ra trang thanh toán có nút Thanh toán / Huỷ (trước đây 404 / 405 / JSON).
 - `GET /admin/settings` thêm `name` (tên hiển thị có dấu); mô tả, nhóm, đơn vị đều có dấu.
@@ -2924,3 +2924,31 @@ Công cụ `freeText` (payload `{"text": "..."}`) giờ được **chấm**: lú
 - Thông báo lỗi backend trả cho người dùng là tiếng Việt có dấu; FE ưu tiên hiện nguyên văn câu của backend khi câu đó có dấu (giữ chi tiết như “Mật khẩu link phải từ 4 đến 100 ký tự.”).
 - Link xem giấy phép KYB / giấy tờ xác minh danh tính tự lấy lại mỗi 4 phút (hết hạn sau 5 phút) và khi ảnh tải lỗi. Không có nút bấm.
 - Danh sách labeler ưu tiên / chặn thêm theo username: `PUT /projects/labeler-lists/by-username/{username} { kind, note }` (404 khi không có tài khoản, 400 khi là chính mình). Đường cũ theo `{labelerId}` vẫn dùng được.
+
+## 21. Một API sửa cấu hình dự án: `PATCH /projects/{id}` (11/2026)
+
+Thay **chín** route cũ: `PUT /projects/{id}` (thông tin), `PUT /projects/{id}/label-schema`, `/guideline`, `/pricing`, `/channels`, `/eligibility`, `/protection`, `/tags`, `/retention`. Các route cũ đã **xoá** (gọi vào → 404).
+
+```http
+PATCH /projects/{id}
+{
+  "info":        { "name": "...", "description": "...", "visibility": "public" },
+  "labelSchema": { "tools": [ ... ], "segmentSeconds": 30 },          // "modality" có thể bỏ
+  "guideline":   { "markdown": "...", "examples": [ ... ] },
+  "pricing":     { "rewardVnd": 200000, "slots": 5, "passThresholdPercent": 80, "fillSlotsMinPercent": null, "deadline": "2027-01-31T00:00:00Z" },
+  "channels":    { "allowProfessional": true, "allowLinkGateway": false, "allowCollaborative": false, "gateBudgetVnd": null },
+  "eligibility": { "minLevel": null, "minReputation": null, "requireEntranceTest": false, "entranceQuestionCount": 10, "entrancePassPercent": 80 },
+  "protection":  { "sensitiveContent": false, "contentWarning": null, "ndaRequired": false, "ndaText": null, "requireVerifiedIdentity": false },
+  "tags":        { "domains": ["y-te"], "languages": ["vi"] },
+  "retention":   { "deleteFilesAfterClose": true }
+}
+→ 200 ProjectResponse
+```
+
+- **Sửa theo NHÓM, không theo từng trường.** Chỉ gửi nhóm muốn đổi; nhóm có mặt thì gửi **đủ** trường của nhóm (nội dung mỗi nhóm giữ nguyên như route cũ). Nhóm vắng mặt hoặc `null` = giữ nguyên. Không có nhóm nào → `400 khong_co_gi_de_sua`.
+- **Tất cả hoặc không gì:** một nhóm lỗi thì cả request không lưu (vd `{ info, pricing }` mà `pricing` sai → tên cũng không đổi).
+- Luật trạng thái vẫn **theo từng nhóm** như trước: phần lớn chỉ khi `draft`; `guideline` sửa được cả khi `paused`; `tags` và `retention` sửa được tới khi dự án kết thúc. Sai trạng thái → `409 chuyen_trang_thai_khong_hop_le`.
+- Gửi nhiều nhóm một lần thì `labelSchema` được áp **trước** `guideline` (ví dụ trong hướng dẫn kiểm theo tập nhãn mới).
+- `protection` nay trả **dự án** như các nhóm khác (route cũ trả điều khoản). Điều khoản cho labeler vẫn đọc ở `GET /projects/{id}/terms`.
+- Quyền không đổi: chủ dự án (hoặc admin); dự án người khác → 404.
+

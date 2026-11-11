@@ -64,11 +64,11 @@ async def chuan_bi(c: httpx.AsyncClient, so_labeler: int, so_mau: int) -> tuple[
 
     r = await c.post(G + "/projects", headers=biz, json={"name": "[bench] Lay task", "description": "b06", "modality": "text", "visibility": "public"})
     pid = r.json()["id"]
-    await c.put(G + f"/projects/{pid}/label-schema", headers=biz, json={"modality": "text", "tools": [
-        {"name": "loai", "kind": "classification", "classes": ["a", "b"]}]})
-    await c.put(G + f"/projects/{pid}/guideline", headers=biz, json={"markdown": "bench", "examples": []})
-    await c.put(G + f"/projects/{pid}/pricing", headers=biz, json={"unitPriceVnd": 100, "redundancy": 3, "maxRedundancy": 3,
-                                                                    "budgetVnd": so_mau * 3 * 130, "deadline": "2027-12-31T00:00:00Z"})
+    await c.patch(G + f"/projects/{pid}", headers=biz, json={"labelSchema": {"modality": "text", "tools": [
+        {"name": "loai", "kind": "classification", "classes": ["a", "b"]}]}})
+    await c.patch(G + f"/projects/{pid}", headers=biz, json={"guideline": {"markdown": "bench", "examples": []}})
+    await c.patch(G + f"/projects/{pid}", headers=biz, json={"pricing": {"unitPriceVnd": 100, "redundancy": 3, "maxRedundancy": 3,
+                                                                    "budgetVnd": so_mau * 3 * 130, "deadline": "2027-12-31T00:00:00Z"}})
     await c.put(G + f"/projects/{pid}/quality-control", headers=biz, json={"goldCheckPercent": 0})
     for lo in range(so_mau // 1000):
         rows = [{"text": f"mau {lo}-{i} {uuid.uuid4().hex[:8]}", "name": f"{lo}-{i}"} for i in range(1000)]

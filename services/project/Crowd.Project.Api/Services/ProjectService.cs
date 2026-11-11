@@ -160,42 +160,118 @@ namespace Crowd.Project.Api.Services
             return TaoResponse(duAn, caller);
         }
 
-        public async Task<ProjectResponse> CapNhatThongTinAsync(
-            Guid id, UpdateProjectInfoRequest body, Caller caller, CancellationToken ct)
+        /// <summary>
+        /// PATCH /projects/{id} — sua cau hinh du an THEO NHOM (info, labelSchema, guideline, pricing, channels,
+        /// eligibility, protection, tags, retention). Body chi mang nhom muon doi; moi nhom goi DUNG ham domain cua
+        /// no, nen luat theo trang thai giu nguyen (vd du an Tam dung: sua guideline duoc, sua pricing → 409).
+        ///
+        /// Mot nhom loi → KHONG luu gi: domain nem loi truoc SaveChanges, request la tat ca hoac khong gi.
+        /// Thu tu co dinh: tap nhan TRUOC huong dan — vi du trong huong dan duoc kiem theo tap nhan moi.
+        /// </summary>
+        public async Task<ProjectResponse> CapNhatAsync(Guid id, PatchProjectRequest body, Caller caller, CancellationToken ct)
         {
             if (body == null)
             {
                 throw new ArgumentNullException(nameof(body));
             }
 
+            if (KhongCoNhomNao(body))
+            {
+                throw new InvalidValueException(
+                    "khong_co_gi_de_sua",
+                    "Cần ít nhất một nhóm cấu hình để sửa (info, labelSchema, guideline, pricing, channels, eligibility, protection, tags, retention).");
+            }
+
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.CapNhatThongTin(
-                body.Name ?? string.Empty,
-                body.Description,
-                body.Visibility ?? duAn.Visibility,
-                _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            QuyDinhDuAn quyDinh = QuyDinhTuSetting.DuAn(_settings);
+
+            if (body.Info != null)
+            {
+                ApThongTin(duAn, body.Info, bayGio, quyDinh);
+            }
+
+            if (body.LabelSchema.HasValue)
+            {
+                await ApTapNhanAsync(duAn, body.LabelSchema.Value, bayGio, ct);
+            }
+
+            if (body.Guideline != null)
+            {
+                await ApHuongDanAsync(duAn, body.Guideline, bayGio, quyDinh, ct);
+            }
+
+            if (body.Pricing != null)
+            {
+                ApGia(duAn, body.Pricing, bayGio, quyDinh);
+            }
+
+            if (body.Channels != null)
+            {
+                ApKenh(duAn, body.Channels, bayGio);
+            }
+
+            if (body.Eligibility != null)
+            {
+                ApDieuKien(duAn, body.Eligibility, bayGio, quyDinh);
+            }
+
+            if (body.Protection != null)
+            {
+                ApBaoVe(duAn, body.Protection, bayGio);
+            }
+
+            if (body.Tags != null)
+            {
+                duAn.DatNhan(VeMaThe(body.Tags.Domains, "Lĩnh vực"), VeMaThe(body.Tags.Languages, "Ngôn ngữ"), bayGio);
+            }
+
+            if (body.Retention != null)
+            {
+                // Dong y xoa file goc sau khi dong (muc 3.14) — doi duoc ca khi du an da chay.
+                duAn.DatXoaFileSauKhiDong(body.Retention.DeleteFilesAfterClose, bayGio);
+            }
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
         }
 
+        private static bool KhongCoNhomNao(PatchProjectRequest b)
+        {
+            return b.Info == null
+                   && !b.LabelSchema.HasValue
+                   && b.Guideline == null
+                   && b.Pricing == null
+                   && b.Channels == null
+                   && b.Eligibility == null
+                   && b.Protection == null
+                   && b.Tags == null
+                   && b.Retention == null;
+        }
+
+        private static void ApThongTin(LabelingProject duAn, UpdateProjectInfoRequest b, DateTimeOffset luc, QuyDinhDuAn quyDinh)
+        {
+            duAn.CapNhatThongTin(
+                b.Name ?? string.Empty,
+                b.Description,
+                b.Visibility ?? duAn.Visibility,
+                luc, quyDinh);
+        }
+
         /// <summary>
-        /// Dat tap nhan: body la chinh tap nhan {"tools":[...], "segmentSeconds"?: ...}.
-        /// "modality" co the bo — lay theo du an; neu gui thi phai trung.
-        /// Kiem hinh dang bang JSON Schema roi ngu nghia (Crowd.Labeling.LabelSchema).
+        /// Tap nhan: {"tools":[...], "segmentSeconds"?: ...}. "modality" co the bo — lay theo du an; neu gui thi
+        /// phai trung. Kiem hinh dang bang JSON Schema roi ngu nghia (Crowd.Labeling.LabelSchema).
         /// </summary>
-        public async Task<ProjectResponse> DatLabelSchemaAsync(
-            Guid id, JsonElement body, Caller caller, CancellationToken ct)
+        private async Task ApTapNhanAsync(LabelingProject duAn, JsonElement body, DateTimeOffset luc, CancellationToken ct)
         {
             if (body.ValueKind != JsonValueKind.Object)
             {
                 throw new InvalidValueException("tap_nhan_sai_dinh_dang", "Tập nhãn phải là một object JSON.");
             }
 
-            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-
             // Doi tap nhan sau khi da co cau hoi vang se lam dap an vang tro vao
             // lop khong con ton tai. Bat xoa cau hoi vang truoc.
+            Guid id = duAn.Id;
             bool coCauVang = await _db.GoldItems.AnyAsync(g => g.ProjectId == id, ct);
             if (coCauVang)
             {
@@ -211,28 +287,18 @@ namespace Crowd.Project.Api.Services
             }
 
             LabelSchema schema = LabelSchema.Doc(o.ToJsonString());
-            duAn.DatLabelSchema(schema, _clock.GetUtcNow());
-
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
+            duAn.DatLabelSchema(schema, luc);
         }
 
-        public async Task<ProjectResponse> DatHuongDanAsync(
-            Guid id, GuidelineRequest body, Caller caller, CancellationToken ct)
+        private async Task ApHuongDanAsync(
+            LabelingProject duAn, GuidelineRequest b, DateTimeOffset luc, QuyDinhDuAn quyDinh, CancellationToken ct)
         {
-            if (body == null)
-            {
-                throw new ArgumentNullException(nameof(body));
-            }
-
-            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-
             List<GuidelineExample> viDu = new List<GuidelineExample>();
             List<Guid> mauCanKiem = new List<Guid>();
 
-            if (body.Examples != null)
+            if (b.Examples != null)
             {
-                foreach (GuidelineExampleDto e in body.Examples)
+                foreach (GuidelineExampleDto e in b.Examples)
                 {
                     viDu.Add(new GuidelineExample(e.SampleId, e.Label, e.IsCorrect, e.Explanation ?? string.Empty));
 
@@ -245,95 +311,57 @@ namespace Crowd.Project.Api.Services
 
             // Vi du chi duoc tro toi mau CUA CHINH du an nay — khong thi chu du an
             // A nhet id anh cua du an B vao huong dan de xem trom (BOLA).
-            await KiemMauThuocDuAnAsync(id, mauCanKiem, ct);
+            await KiemMauThuocDuAnAsync(duAn.Id, mauCanKiem, ct);
 
-            duAn.DatHuongDan(Guideline.Tao(body.Markdown ?? string.Empty, viDu, QuyDinhTuSetting.DuAn(_settings)), _clock.GetUtcNow());
-
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
+            duAn.DatHuongDan(Guideline.Tao(b.Markdown ?? string.Empty, viDu, quyDinh), luc);
         }
 
-        public async Task<ProjectResponse> DatCauHinhGiaAsync(
-            Guid id, PricingRequest body, Caller caller, CancellationToken ct)
+        private static void ApGia(LabelingProject duAn, PricingRequest b, DateTimeOffset luc, QuyDinhDuAn quyDinh)
         {
-            if (body == null)
-            {
-                throw new ArgumentNullException(nameof(body));
-            }
-
-            if (body.Deadline == null)
+            if (b.Deadline == null)
             {
                 throw new InvalidValueException("thieu_deadline", "Phải có hạn chót.");
             }
 
-            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
             duAn.DatCauHinhGia(
-                body.RewardVnd,
-                body.Slots,
-                body.PassThresholdPercent,
-                body.FillSlotsMinPercent,
-                body.Deadline.Value,
-                _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
-
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
+                b.RewardVnd,
+                b.Slots,
+                b.PassThresholdPercent,
+                b.FillSlotsMinPercent,
+                b.Deadline.Value,
+                luc, quyDinh);
         }
 
-        public async Task<ProjectResponse> DatKenhAsync(
-            Guid id, ChannelsRequest body, Caller caller, CancellationToken ct)
+        /// <summary>
+        /// Kenh phan phoi kem ngan sach cong link. Don gia nhan khach vang lai do ADMIN dat (setting
+        /// gate.unit_price_vnd): doanh nghiep khong gui duoc, chi dat ngan sach.
+        /// </summary>
+        private void ApKenh(LabelingProject duAn, ChannelsRequest b, DateTimeOffset luc)
         {
-            if (body == null)
-            {
-                throw new ArgumentNullException(nameof(body));
-            }
-
-            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            // Don gia nhan khach vang lai do admin dat (setting) — doanh nghiep chi dat ngan sach.
             duAn.DatKenhPhanPhoi(
-                body.AllowProfessional, body.AllowLinkGateway, body.AllowCollaborative, _settings.SoLon(SettingKeys.GateUnitPriceVnd), body.GateBudgetVnd, _clock.GetUtcNow());
-
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
+                b.AllowProfessional, b.AllowLinkGateway, b.AllowCollaborative, _settings.SoLon(SettingKeys.GateUnitPriceVnd), b.GateBudgetVnd, luc);
         }
 
-        public async Task<ProjectResponse> DatDieuKienAsync(
-            Guid id, EligibilityRequest body, Caller caller, CancellationToken ct)
+        private static void ApDieuKien(LabelingProject duAn, EligibilityRequest b, DateTimeOffset luc, QuyDinhDuAn quyDinh)
         {
-            if (body == null)
-            {
-                throw new ArgumentNullException(nameof(body));
-            }
-
-            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
             duAn.DatDieuKienThamGia(
-                body.MinLevel,
-                body.MinReputation,
-                body.RequireEntranceTest,
-                body.EntranceQuestionCount,
-                body.EntrancePassPercent,
-                _clock.GetUtcNow(), QuyDinhTuSetting.DuAn(_settings));
+                b.MinLevel,
+                b.MinReputation,
+                b.RequireEntranceTest,
+                b.EntranceQuestionCount,
+                b.EntrancePassPercent,
+                luc, quyDinh);
+        }
 
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
+        /// <summary>Canh bao noi dung, NDA, yeu cau xac minh (muc 2.9, FP-01, FP-05) — chi khi Nhap.</summary>
+        private static void ApBaoVe(LabelingProject duAn, ProtectionRequest b, DateTimeOffset luc)
+        {
+            duAn.DatBaoVe(b.SensitiveContent, b.ContentWarning, b.NdaRequired, b.NdaText, b.RequireVerifiedIdentity, luc);
         }
 
         // =====================================================================
         // DOC
         // =====================================================================
-
-        /// <summary>PUT /projects/{id}/retention { deleteFilesAfterClose } — dong y xoa file goc sau khi dong (muc 3.14).</summary>
-        public async Task<ProjectResponse> DatLuuTruAsync(Guid id, RetentionRequest body, Caller caller, CancellationToken ct)
-        {
-            if (body == null)
-            {
-                throw new ArgumentNullException(nameof(body));
-            }
-
-            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.DatXoaFileSauKhiDong(body.DeleteFilesAfterClose, _clock.GetUtcNow());
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
-        }
 
         /// <summary>
         /// Worker: xoa file trong kho cua cac du an da dong qua project.closed_data_retention ma doanh nghiep
@@ -377,20 +405,6 @@ namespace Crowd.Project.Api.Services
             }
 
             return n;
-        }
-
-        /// <summary>PUT /projects/{id}/tags { domains, languages } — nhan goi y du an (FL-02).</summary>
-        public async Task<ProjectResponse> DatNhanAsync(Guid id, TagsRequest body, Caller caller, CancellationToken ct)
-        {
-            if (body == null)
-            {
-                throw new ArgumentNullException(nameof(body));
-            }
-
-            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.DatNhan(VeMaThe(body.Domains, "Lĩnh vực"), VeMaThe(body.Languages, "Ngôn ngữ"), _clock.GetUtcNow());
-            await _db.SaveChangesAsync(ct);
-            return TaoResponse(duAn, caller);
         }
 
         /// <summary>

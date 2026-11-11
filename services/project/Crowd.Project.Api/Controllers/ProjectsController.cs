@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
@@ -81,50 +80,18 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.KiemTraSanSangAsync(id, ChuDuAn(), ct));
         }
 
-        // ---- Cau hinh (chi khi Nhap) ----
-
-        [HttpPut("{id:guid}")]
-        public async Task<IActionResult> CapNhat(Guid id, [FromBody] UpdateProjectInfoRequest body, CancellationToken ct)
-        {
-            return Ok(await _service.CapNhatThongTinAsync(id, body, ChuDuAn(), ct));
-        }
-
-        /// <summary>PUT /projects/{id}/label-schema (FB-12)</summary>
-        [HttpPut("{id:guid}/label-schema")]
-        public async Task<IActionResult> DatTapNhan(Guid id, [FromBody] JsonElement body, CancellationToken ct)
-        {
-            return Ok(await _service.DatLabelSchemaAsync(id, body, ChuDuAn(), ct));
-        }
-
-        /// <summary>PUT /projects/{id}/guideline (FB-13)</summary>
-        [HttpPut("{id:guid}/guideline")]
-        public async Task<IActionResult> DatHuongDan(Guid id, [FromBody] GuidelineRequest body, CancellationToken ct)
-        {
-            return Ok(await _service.DatHuongDanAsync(id, body, ChuDuAn(), ct));
-        }
-
-        /// <summary>PUT /projects/{id}/pricing (FB-14)</summary>
-        [HttpPut("{id:guid}/pricing")]
-        public async Task<IActionResult> DatGia(Guid id, [FromBody] PricingRequest body, CancellationToken ct)
-        {
-            return Ok(await _service.DatCauHinhGiaAsync(id, body, ChuDuAn(), ct));
-        }
+        // ---- Cau hinh ----
 
         /// <summary>
-        /// PUT /projects/{id}/channels (FB-17) — kem ngan sach cong link. Don gia nhan khach vang lai do ADMIN dat (setting
-        /// gate.unit_price_vnd): doanh nghiep khong gui duoc, chi nhan thong bao (readiness.gateUnitPriceVnd).
+        /// PATCH /projects/{id} — sua cau hinh du an THEO NHOM, mot API cho moi nhom: info, labelSchema (FB-12),
+        /// guideline (FB-13), pricing (FB-14), channels (FB-17), eligibility (FB-15), protection, tags, retention.
+        /// Chi gui nhom muon doi, moi nhom gui du truong. Luat trang thai van theo tung nhom (phan lon chi khi Nhap;
+        /// huong dan sua duoc khi Tam dung; tags / retention sua duoc toi khi ket thuc). Mot nhom loi → khong luu gi.
         /// </summary>
-        [HttpPut("{id:guid}/channels")]
-        public async Task<IActionResult> DatKenh(Guid id, [FromBody] ChannelsRequest body, CancellationToken ct)
+        [HttpPatch("{id:guid}")]
+        public async Task<IActionResult> CapNhat(Guid id, [FromBody] PatchProjectRequest body, CancellationToken ct)
         {
-            return Ok(await _service.DatKenhAsync(id, body, ChuDuAn(), ct));
-        }
-
-        /// <summary>PUT /projects/{id}/eligibility (FB-15)</summary>
-        [HttpPut("{id:guid}/eligibility")]
-        public async Task<IActionResult> DatDieuKien(Guid id, [FromBody] EligibilityRequest body, CancellationToken ct)
-        {
-            return Ok(await _service.DatDieuKienAsync(id, body, ChuDuAn(), ct));
+            return Ok(await _service.CapNhatAsync(id, body, ChuDuAn(), ct));
         }
 
         // ---- Vong doi (FB-18) ----

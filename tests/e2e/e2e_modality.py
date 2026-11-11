@@ -169,9 +169,9 @@ def du_an_moi(ten, modality, tap_nhan, so_mau_du_kien_toi_thieu=1):
     r = requests.post(G + "/projects", headers=biz1, json={"name": ten, "description": "e2e", "modality": modality, "visibility": "public"})
     kiem("tao du an " + modality, r.status_code in (200, 201), r.text)
     pid = r.json()["id"]
-    r = requests.put(G + "/projects/%s/label-schema" % pid, headers=biz1, json=tap_nhan)
+    r = requests.patch(G + "/projects/%s" % pid, headers=biz1, json={"labelSchema": tap_nhan})
     kiem("dat tap nhan", r.status_code == 200, r.text)
-    r = requests.put(G + "/projects/%s/guideline" % pid, headers=biz1, json={"markdown": "e2e", "examples": []})
+    r = requests.patch(G + "/projects/%s" % pid, headers=biz1, json={"guideline": {"markdown": "e2e", "examples": []}})
     kiem("dat huong dan", r.status_code == 200, r.text)
     return pid
 
@@ -213,8 +213,8 @@ def mau(pid):
 
 
 def chay_du_an(pid, so_mau, ngan_sach=None, chon=None):
-    r = requests.put(G + "/projects/%s/pricing" % pid, headers=biz1,
-                     json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"})
+    r = requests.patch(G + "/projects/%s" % pid, headers=biz1,
+                     json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}})
     kiem("dat gia (ca du an)", r.status_code == 200, r.text)
     # Video vua nap: cho media-svc chuan hoa xong (video.prepared) moi publish duoc.
     cho(lambda: requests.get(G + "/projects/%s/readiness" % pid, headers=biz1).json().get("videoPreparingCount", 0) == 0, 300)

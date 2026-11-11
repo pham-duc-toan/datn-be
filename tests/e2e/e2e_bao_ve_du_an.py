@@ -47,8 +47,8 @@ try:
     dat_va_cho("project.min_reward_vnd", 20000, ["project"])
     r = requests.post(G + "/projects", headers=biz["h"], json={"name": f"[e2e] gia {TAG}", "description": "x", "modality": "text", "visibility": "public"})
     p0 = r.json()["id"]
-    gia = lambda thuong: requests.put(G + f"/projects/{p0}/pricing", headers=biz["h"], json={
-        "rewardVnd": thuong, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"})
+    gia = lambda thuong: requests.patch(G + f"/projects/{p0}", headers=biz["h"], json={"pricing": {
+        "rewardVnd": thuong, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}})
     r = gia(15000)
     kiem("thuong 15.000 < toi thieu 20.000 → bi chan (luu hoac checklist)",
          (r.status_code == 400 and "thuong" in r.text) or "thuong_duoi_toi_thieu" in requests.get(G + f"/projects/{p0}/readiness", headers=biz["h"]).json()["missing"], r.text)
@@ -62,13 +62,13 @@ try:
     # =================================================================================
     print("\n[2] Du an noi dung nhay cam + NDA (muc 2.9, FP-01)")
     P, _ = tao_du_an(biz, "Nhay cam", {f"n{i}": f"Mau nhay cam {i}" for i in range(1, 9)}, 1, 1, 5000)
-    r = requests.put(G + f"/projects/{P}/protection", headers=biz["h"], json={"sensitiveContent": True, "ndaRequired": True, "ndaText": "Khong sao chep, khong tiet lo."})
+    r = requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"protection": {"sensitiveContent": True, "ndaRequired": True, "ndaText": "Khong sao chep, khong tiet lo."}})
     kiem("nhay cam ma thieu loi canh bao → 400", r.status_code == 400 and "thieu_canh_bao" in r.text, r.text)
-    r = requests.put(G + f"/projects/{P}/protection", headers=biz["h"], json={"sensitiveContent": True, "contentWarning": "Co hinh anh bao luc.", "ndaRequired": True, "ndaText": "Khong sao chep, khong tiet lo."})
+    r = requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"protection": {"sensitiveContent": True, "contentWarning": "Co hinh anh bao luc.", "ndaRequired": True, "ndaText": "Khong sao chep, khong tiet lo."}})
     kiem("cau hinh bao ve → consentRequired, ndaVersion 1", r.status_code == 200 and r.json()["consentRequired"] and r.json()["ndaVersion"] == 1, r.text)
     publish_va_duyet(biz, P)
-    kiem("sua bao ve sau publish → 409", requests.put(G + f"/projects/{P}/protection", headers=biz["h"],
-         json={"sensitiveContent": False, "ndaRequired": False}).status_code == 409)
+    kiem("sua bao ve sau publish → 409", requests.patch(G + f"/projects/{P}", headers=biz["h"],
+         json={"protection": {"sensitiveContent": False, "ndaRequired": False}}).status_code == 409)
 
     chua = dang_ky(["labeler"], "bv-chua")
     r = requests.post(G + f"/projects/{P}/join", headers=chua["h"])
@@ -165,7 +165,7 @@ try:
     kiem("doi sang uu tien → mo lai o Q", r.json()["affectedProjects"] == 1 and thanh_vien(biz, Q)[l2["id"]]["state"] == "active", r.text)
 
     A, _ = tao_du_an(biz, "Duyet", {f"a{i}": f"Mau duyet {i}" for i in range(1, 4)}, 1, 1, 5000)
-    requests.put(G + f"/projects/{A}", headers=biz["h"], json={"name": f"[e2e] Duyet {TAG}", "description": "x", "visibility": "approval"}).raise_for_status()
+    requests.patch(G + f"/projects/{A}", headers=biz["h"], json={"info": {"name": f"[e2e] Duyet {TAG}", "description": "x", "visibility": "approval"}}).raise_for_status()
     publish_va_duyet(biz, A)
     r = requests.post(G + f"/projects/{A}/join-requests", headers=l2["h"], json={"message": "xin vao"})
     kiem("labeler uu tien gui don → tu duyet, vao luon", r.status_code in (200, 201) and r.json()["status"] == "approved" and l2["id"] in thanh_vien(biz, A), r.text)
@@ -190,7 +190,7 @@ try:
     print("\n[7] FL-02 goi y du an")
     ky = dang_ky(["labeler"], "bv-ky")
     requests.put(G + "/me/skills", headers=ky["h"], json={"domains": ["Y te"], "languages": ["vi"], "modalities": ["text"]}).raise_for_status()
-    requests.put(G + f"/projects/{R}/tags", headers=biz["h"], json={"domains": ["y te", "giao thong"], "languages": ["vi"]}).raise_for_status()
+    requests.patch(G + f"/projects/{R}", headers=biz["h"], json={"tags": {"domains": ["y te", "giao thong"], "languages": ["vi"]}}).raise_for_status()
     g = requests.get(G + "/projects/recommended?limit=50", headers=ky["h"]).json()
     rr = [x for x in g if x["id"] == R]
     kiem("du an R duoc goi y voi diem 7 (text +3, y te +2, vi +2)", rr and rr[0]["score"] == 7 and "domain:y-te" in rr[0]["reasons"], rr)

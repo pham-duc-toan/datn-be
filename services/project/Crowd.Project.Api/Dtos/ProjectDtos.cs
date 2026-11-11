@@ -21,6 +21,37 @@ namespace Crowd.Project.Api.Dtos
         public ProjectVisibility? Visibility { get; init; }
     }
 
+    /// <summary>
+    /// PATCH /projects/{id} — sua cau hinh THEO NHOM. Chi gui nhom muon doi; nhom nao co mat thi gui DU truong
+    /// cua nhom do (vd pricing gui ca thuong, so suat, nguong, han chot) vi domain kiem cac truong trong nhom cung
+    /// nhau. Nhom vang mat (hoac null) = giu nguyen.
+    /// </summary>
+    public sealed class PatchProjectRequest
+    {
+        /// <summary>Ten, mo ta, che do hien thi.</summary>
+        public UpdateProjectInfoRequest? Info { get; init; }
+
+        /// <summary>Tap nhan {"tools":[...], "segmentSeconds"?: ...}; "modality" co the bo (lay theo du an).</summary>
+        public System.Text.Json.JsonElement? LabelSchema { get; init; }
+
+        public GuidelineRequest? Guideline { get; init; }
+
+        public PricingRequest? Pricing { get; init; }
+
+        public ChannelsRequest? Channels { get; init; }
+
+        public EligibilityRequest? Eligibility { get; init; }
+
+        /// <summary>Canh bao noi dung, NDA, yeu cau xac minh danh tinh.</summary>
+        public ProtectionRequest? Protection { get; init; }
+
+        /// <summary>The linh vuc / ngon ngu (goi y du an).</summary>
+        public TagsRequest? Tags { get; init; }
+
+        /// <summary>Dong y xoa file goc sau khi dong.</summary>
+        public RetentionRequest? Retention { get; init; }
+    }
+
     public sealed class UpdateProjectInfoRequest
     {
         public string? Name { get; init; }

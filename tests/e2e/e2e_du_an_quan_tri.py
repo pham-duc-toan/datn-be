@@ -58,12 +58,12 @@ try:
     Q, _ = tao_du_an(biz, "Gia cong", {"a": "mot", "b": "hai", "c": "ba"}, 1, 1, 1000)
     rd = requests.get(G + f"/projects/{Q}/readiness", headers=biz["h"]).json()
     kiem("readiness thong bao don gia cong link hien hanh 1.500", rd["gateUnitPriceVnd"] == 1500, rd)
-    r = requests.put(G + f"/projects/{Q}/channels", headers=biz["h"], json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False, "gateUnitPriceVnd": 99999, "gateBudgetVnd": 20000})
+    r = requests.patch(G + f"/projects/{Q}", headers=biz["h"], json={"channels": {"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False, "gateUnitPriceVnd": 99999, "gateBudgetVnd": 20000}})
     kiem("doanh nghiep gui gateUnitPriceVnd = 99.999 → bi bo qua, du an lay 1.500 cua admin", r.status_code == 200 and r.json()["gateUnitPriceVnd"] == 1500 and r.json()["gateBudgetVnd"] == 20000, r.text)
     kiem("doanh nghiep khong doi duoc setting (403)", requests.put(G + "/admin/settings/gate.unit_price_vnd", headers=biz["h"], json={"value": 1, "reason": "x"}).status_code == 403)
     dat_va_cho("gate.unit_price_vnd", 2500, ["project"])
     nap(biz, 600000)
-    requests.put(G + f"/projects/{Q}/guideline", headers=biz["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
+    requests.patch(G + f"/projects/{Q}", headers=biz["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
     # cong link can cau vang kiem tra: them 2 cau vang qualityCheck
     ids = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{Q}/samples?pageSize=50", headers=biz["h"]).json()["items"]}
     rv = requests.post(G + f"/projects/{Q}/gold-items", headers=biz["h"], json={"items": [

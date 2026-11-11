@@ -165,13 +165,13 @@ def tao_du_an(chu, ten, mau, red=None, tran=None, gia=None, gold_pct=0, dieu_kie
     r = requests.post(G + "/projects", headers=chu["h"], json={"name": f"[e2e-tong] {ten} {TAG}", "description": "e2e", "modality": "text", "visibility": "public"})
     assert r.status_code in (200, 201), r.text
     pid = r.json()["id"]
-    requests.put(G + f"/projects/{pid}/label-schema", headers=chu["h"], json={"modality": "text", "tools": [
-        {"name": "nhan", "kind": "classification", "classes": list(classes)}]}).raise_for_status()
-    requests.put(G + f"/projects/{pid}/guideline", headers=chu["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"labelSchema": {"modality": "text", "tools": [
+        {"name": "nhan", "kind": "classification", "classes": list(classes)}]}}).raise_for_status()
+    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
     dat_gia(chu, pid, thuong if thuong is not None else max(10000, (gia or 1000) * len(mau)),
             suat if suat is not None else max(3, tran or 0, red or 0), nguong)
     if dieu_kien:
-        requests.put(G + f"/projects/{pid}/eligibility", headers=chu["h"], json=dieu_kien).raise_for_status()
+        requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"eligibility": dieu_kien}).raise_for_status()
     nap_mau(pid, chu["h"], [{"text": v, "name": k} for k, v in mau.items()], ma=202)
     ids = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid}/samples?pageSize=200", headers=chu["h"]).json()["items"]}
     if vang:
@@ -182,8 +182,8 @@ def tao_du_an(chu, ten, mau, red=None, tran=None, gia=None, gold_pct=0, dieu_kie
 
 
 def dat_gia(chu, pid, thuong, suat, nguong=60, deadline="2027-12-31T00:00:00Z"):
-    r = requests.put(G + f"/projects/{pid}/pricing", headers=chu["h"],
-                     json={"rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": deadline})
+    r = requests.patch(G + f"/projects/{pid}", headers=chu["h"],
+                     json={"pricing": {"rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": deadline}})
     assert r.status_code == 200, r.text
     return r
 

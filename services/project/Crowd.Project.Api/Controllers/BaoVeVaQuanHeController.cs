@@ -22,20 +22,14 @@ namespace Crowd.Project.Api.Controllers
     public sealed class BaoVeController : ControllerBase
     {
         private readonly BaoVeService _baoVe;
-        private readonly ProjectService _projects;
         private readonly GoiYService _goiY;
         private readonly InvitationService _loiMoi;
 
-        public BaoVeController(BaoVeService baoVe, ProjectService projects, GoiYService goiY, InvitationService loiMoi)
+        public BaoVeController(BaoVeService baoVe, GoiYService goiY, InvitationService loiMoi)
         {
             if (baoVe == null)
             {
                 throw new ArgumentNullException(nameof(baoVe));
-            }
-
-            if (projects == null)
-            {
-                throw new ArgumentNullException(nameof(projects));
             }
 
             if (goiY == null)
@@ -49,17 +43,8 @@ namespace Crowd.Project.Api.Controllers
             }
 
             _baoVe = baoVe;
-            _projects = projects;
             _goiY = goiY;
             _loiMoi = loiMoi;
-        }
-
-        /// <summary>PUT /projects/{id}/protection — canh bao noi dung, NDA, yeu cau xac minh (chi khi Nhap).</summary>
-        [HttpPut("{projectId:guid}/protection")]
-        [Authorize(Roles = CrowdRoles.Business + "," + CrowdRoles.Admin)]
-        public async Task<IActionResult> CauHinh(Guid projectId, [FromBody] ProtectionRequest body, CancellationToken ct)
-        {
-            return Ok(await _baoVe.CauHinhAsync(projectId, body, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
         }
 
         /// <summary>GET /projects/{id}/terms — van ban canh bao / NDA + trang thai dong y cua toi.</summary>
@@ -83,22 +68,6 @@ namespace Crowd.Project.Api.Controllers
         public async Task<IActionResult> DanhSachDongY(Guid projectId, CancellationToken ct)
         {
             return Ok(await _baoVe.DanhSachAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
-        }
-
-        /// <summary>PUT /projects/{id}/tags { domains, languages } — nhan de goi y du an.</summary>
-        [HttpPut("{projectId:guid}/tags")]
-        [Authorize(Roles = CrowdRoles.Business + "," + CrowdRoles.Admin)]
-        public async Task<IActionResult> DatNhan(Guid projectId, [FromBody] TagsRequest body, CancellationToken ct)
-        {
-            return Ok(await _projects.DatNhanAsync(projectId, body, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
-        }
-
-        /// <summary>PUT /projects/{id}/retention { deleteFilesAfterClose } — dong y xoa file goc khi du an dong qua han giu.</summary>
-        [HttpPut("{projectId:guid}/retention")]
-        [Authorize(Roles = CrowdRoles.Business + "," + CrowdRoles.Admin)]
-        public async Task<IActionResult> DatLuuTru(Guid projectId, [FromBody] RetentionRequest body, CancellationToken ct)
-        {
-            return Ok(await _projects.DatLuuTruAsync(projectId, body, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
         }
 
         /// <summary>GET /projects/recommended?limit=10 — goi y du an hop ho so ky nang (FL-02).</summary>

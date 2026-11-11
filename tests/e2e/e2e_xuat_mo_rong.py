@@ -48,8 +48,8 @@ try:
         {"name": "diem", "kind": "keypoint", "classes": ["mui", "mat"]},
     ]}
     r = requests.post(G + "/projects", headers=biz["h"], json={"name": f"[e2e] sai {TAG}", "description": "x", "modality": "image", "visibility": "public"})
-    r = requests.put(G + f"/projects/{r.json()['id']}/label-schema", headers=biz["h"], json={"modality": "text", "tools": [
-        {"name": "x", "kind": "span", "classes": ["a"], "rotatable": True}]})
+    r = requests.patch(G + f"/projects/{r.json()['id']}", headers=biz["h"], json={"labelSchema": {"modality": "text", "tools": [
+        {"name": "x", "kind": "span", "classes": ["a"], "rotatable": True}]}})
     kiem("rotatable cho cong cu khac bbox → 400", r.status_code == 400, r.text)
 
     P, _, _ = h.du_an(biz, "Anh xoay", "image", tap_nhan, files=[anh], red=3, tran=3)

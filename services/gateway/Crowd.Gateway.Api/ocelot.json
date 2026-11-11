@@ -38,7 +38,8 @@
     },
     {
       "UpstreamPathTemplate": "/projects/{everything}",
-      "UpstreamHttpMethod": ["Get", "Post", "Put", "Delete"],
+      // Patch: PATCH /projects/{id} — sua cau hinh du an theo nhom.
+      "UpstreamHttpMethod": ["Get", "Post", "Put", "Patch", "Delete"],
       "DownstreamPathTemplate": "/projects/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8102 }],
