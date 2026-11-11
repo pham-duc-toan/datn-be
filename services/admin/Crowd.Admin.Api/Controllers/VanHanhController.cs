@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Crowd.Admin.Api.Controllers
 {
-    /// <summary>Hang doi duyet chung, quan ly mau bai toan (FM-03), do sau DLQ. Chi admin.</summary>
+    /// <summary>Hang doi duyet chung (ca viec can xu ly tay), tinh trang he thong, mau bai toan (FM-03). Chi admin.</summary>
     [ApiController]
     [Route("admin")]
     [Authorize(Roles = CrowdRoles.Admin)]
@@ -23,20 +23,16 @@ namespace Crowd.Admin.Api.Controllers
     {
         private readonly HangDoiDuyet _hangDoi;
         private readonly MauBaiToanService _mau;
+        private readonly ViecTayService _viecTay;
         private readonly TrangThaiDlq _dlq;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
 
-        public VanHanhController(HangDoiDuyet hangDoi, MauBaiToanService mau, TrangThaiDlq dlq, ISettings settings, TimeProvider clock)
+        public VanHanhController(HangDoiDuyet hangDoi, MauBaiToanService mau, ViecTayService viecTay, TrangThaiDlq dlq, ISettings settings, TimeProvider clock)
         {
-            if (hangDoi == null)
+            if (viecTay == null)
             {
-                throw new ArgumentNullException(nameof(hangDoi));
-            }
-
-            if (mau == null)
-            {
-                throw new ArgumentNullException(nameof(mau));
+                throw new ArgumentNullException(nameof(viecTay));
             }
 
             if (dlq == null)
@@ -49,6 +45,16 @@ namespace Crowd.Admin.Api.Controllers
                 throw new ArgumentNullException(nameof(settings));
             }
 
+            if (hangDoi == null)
+            {
+                throw new ArgumentNullException(nameof(hangDoi));
+            }
+
+            if (mau == null)
+            {
+                throw new ArgumentNullException(nameof(mau));
+            }
+
             if (clock == null)
             {
                 throw new ArgumentNullException(nameof(clock));
@@ -56,6 +62,7 @@ namespace Crowd.Admin.Api.Controllers
 
             _hangDoi = hangDoi;
             _mau = mau;
+            _viecTay = viecTay;
             _dlq = dlq;
             _settings = settings;
             _clock = clock;
@@ -78,12 +85,34 @@ namespace Crowd.Admin.Api.Controllers
             return Ok(await _hangDoi.TomTatAsync(_clock.GetUtcNow(), ct));
         }
 
-        /// <summary>POST /admin/approvals/rebuild — dung lai hang doi tu nhat ky audit.</summary>
-        [HttpPost("approvals/rebuild")]
-        public async Task<IActionResult> DungLai(CancellationToken ct)
+        /// <summary>POST /admin/approvals/manual/{actionId}/resolve — viec can xu ly tay: admin da xu ly xong (kem ghi chu).</summary>
+        [HttpPost("approvals/manual/{actionId:guid}/resolve")]
+        public async Task<IActionResult> XuLyXong(Guid actionId, [FromBody] ResolveManualRequest body, CancellationToken ct)
         {
-            int so = await _hangDoi.DungLaiAsync(ct);
-            return Ok(new { appliedEvents = so });
+            Caller caller = Caller.TuHttp(HttpContext, ActorRole.Admin);
+            await _viecTay.DanhDauDaXuLyAsync(actionId, body == null ? null : body.Note, caller.LayUserId(), caller.CorrelationId, ct);
+            return NoContent();
+        }
+
+        /// <summary>
+        /// GET /admin/system-health — the "Tinh trang he thong": so viec he thong khong tu xu ly duoc (loi ky thuat,
+        /// tong message trong DLQ o lan kiem tra gan nhat cua DlqMonitorWorker). Khong lo ten hang doi.
+        /// </summary>
+        [HttpGet("system-health")]
+        public IActionResult TinhTrang()
+        {
+            var doc = _dlq.Doc();
+            long tong = doc.HangDoi.Sum(q => q.Value);
+            int soNoi = doc.HangDoi.Count(q => q.Value > 0);
+            string trangThai = !doc.DocDuoc || doc.Luc == null ? "khong_ro" : tong > 0 ? "co_loi" : "ok";
+            return Ok(new SystemHealthResponse
+            {
+                Status = trangThai,
+                FailedCount = tong,
+                AffectedAreas = soNoi,
+                CheckedAt = doc.Luc,
+                TechTeamNotified = _settings.Chuoi(SettingKeys.OpsAlertEmail).Trim().Length > 0,
+            });
         }
 
         // ---- Mau bai toan ----
@@ -131,24 +160,6 @@ namespace Crowd.Admin.Api.Controllers
         private Guid AdminId()
         {
             return Caller.TuHttp(HttpContext, ActorRole.Admin).LayUserId();
-        }
-
-        // ---- Van hanh ----
-
-        /// <summary>GET /admin/ops/queues — do sau cac DLQ o lan kiem tra gan nhat (DlqMonitorWorker).</summary>
-        [HttpGet("ops/queues")]
-        public IActionResult HangDoiDlq()
-        {
-            var doc = _dlq.Doc();
-            int nguong = _settings.SoNguyen(SettingKeys.OpsDlqAlertThreshold);
-            List<QueueDepthResponse> ds = doc.HangDoi.Select(q => new QueueDepthResponse
-            {
-                Queue = q.Key,
-                Messages = q.Value,
-                IsDeadLetter = true,
-                OverThreshold = q.Value >= nguong,
-            }).ToList();
-            return Ok(new OpsQueuesResponse { Reachable = doc.DocDuoc, CheckedAt = doc.Luc, Threshold = nguong, DeadLetterQueues = ds });
         }
     }
 

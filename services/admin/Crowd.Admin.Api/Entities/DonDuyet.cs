@@ -20,7 +20,7 @@ namespace Crowd.Admin.Api.Entities
 
         public Guid Id { get; private set; }
 
-        /// <summary>kyb | identity | project | withdrawal | appeal | link | referral</summary>
+        /// <summary>kyb | identity | project | withdrawal | appeal | link | referral | manual</summary>
         public string Kind { get; private set; }
 
         /// <summary>Id ban ghi o service chu (businessId, userId, projectId, withdrawalId, attemptId, linkId, referredId).</summary>
@@ -37,6 +37,12 @@ namespace Crowd.Admin.Api.Entities
 
         /// <summary>Ly do tu choi / ket qua phan xu / ghi chu.</summary>
         public string? Note { get; private set; }
+
+        /// <summary>Du an lien quan (muc "manual" — viec can xu ly tay) de admin mo xem.</summary>
+        public Guid? ProjectId { get; private set; }
+
+        /// <summary>Mo ta viec can xu ly (muc "manual"); giu nguyen khi admin ghi chu luc xu ly xong.</summary>
+        public string? Detail { get; private set; }
 
         public DateTimeOffset OpenedAt { get; private set; }
 

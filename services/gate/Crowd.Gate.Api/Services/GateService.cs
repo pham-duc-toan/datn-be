@@ -141,6 +141,8 @@ namespace Crowd.Gate.Api.Services
                 CountdownSeconds = (int)Math.Ceiling(_settings.ThoiGian(SettingKeys.GateCountdown).TotalSeconds),
                 TurnstileEnabled = _turnstile.BatBuoc,
                 TurnstileSiteKey = _turnstile.SiteKey,
+                MaxFailsBeforeBlock = _settings.SoNguyen(SettingKeys.GateMaxFailsBeforeBlock),
+                BlockSeconds = (int)Math.Ceiling(_settings.ThoiGian(SettingKeys.GateBlockDuration).TotalSeconds),
             };
         }
 
@@ -156,6 +158,9 @@ namespace Crowd.Gate.Api.Services
             }
 
             LinkCong l = LayLinkPhucVu(code);
+
+            // IP dang bi chan / da truot link nay: dung ngay, truoc ca mat khau va Turnstile (khong ton tai nguyen).
+            await KiemTraChanAsync(khach, l);
 
             if (l.PasswordHash != null)
             {
@@ -329,6 +334,8 @@ namespace Crowd.Gate.Api.Services
                 throw new GateException(410, "phien_het_han", "Bộ câu hỏi đã hết hạn hoặc đã nộp. Tải lại trang.");
             }
 
+            await KiemTraChanAsync(khach, null);
+
             DateTimeOffset bayGio = _clock.GetUtcNow();
             if (bayGio < p.AnswerableAt)
             {
@@ -353,8 +360,7 @@ namespace Crowd.Gate.Api.Services
             if (d != null && !LuatCongLink.DatCauVang(p.GoldIds, traLoi, d.DapAnVang, d.TapNhan, nguong))
             {
                 await GhiNopAsync(p, l, KetQuaLuot.TruotCauVang, 0, null, null, bayGio);
-                PhienVuot moi = await PhatPhienAsync(l, khach);
-                return new SubmitResponse { Passed = false, NewSession = await TaoResponseAsync(moi) };
+                return await XuLyTruotAsync(l, khach, bayGio);
             }
 
             bool coCauHoi = d != null && p.RealIds.Count > 0;
@@ -412,6 +418,98 @@ namespace Crowd.Gate.Api.Services
                 RedirectUrl = "/go/" + Uri.EscapeDataString(l.Code) + "?t=" + Uri.EscapeDataString(token),
                 RedirectExpiresAt = hetHan,
             };
+        }
+
+        // =====================================================================
+        // TRUOT CAU VANG: khoa link cu, chuyen sang link khac, qua so lan thi chan IP
+        // =====================================================================
+
+        /// <summary>IP dang bi chan, hoac (khi biet link) IP da truot link nay roi → khong cho tiep.</summary>
+        private async Task KiemTraChanAsync(KhachVangLai khach, LinkCong? l)
+        {
+            TimeSpan? con = await _redis.IpBiChanConAsync(khach.IpHash);
+            if (con.HasValue && con.Value > TimeSpan.Zero)
+            {
+                throw new GateException(
+                    403,
+                    "ip_bi_chan",
+                    "Bạn đã trả lời sai quá nhiều lần nên IP của bạn tạm thời bị chặn. Hãy thử lại sau.")
+                    .Voi("retryAfterSeconds", (int)Math.Ceiling(con.Value.TotalSeconds))
+                    .Voi("blockedUntil", _clock.GetUtcNow() + con.Value);
+            }
+
+            if (l != null && await _redis.LinkBiKhoaAsync(l.LinkId, khach.IpHash))
+            {
+                throw new GateException(
+                    403,
+                    "link_da_truot",
+                    "Bạn đã trả lời chưa đạt ở link này nên không làm lại được. Hãy dùng link khác.");
+            }
+        }
+
+        /// <summary>
+        /// Truot cau vang: link nay bi khoa voi IP (khong bat lam lai link cu); dem lan truot cua IP — du
+        /// gate.max_fails_before_block thi chan IP gate.block_duration, chua du thi tra LINK KHAC de lam bo cau hoi moi.
+        /// </summary>
+        private async Task<SubmitResponse> XuLyTruotAsync(LinkCong l, KhachVangLai khach, DateTimeOffset bayGio)
+        {
+            int gioiHan = _settings.SoNguyen(SettingKeys.GateMaxFailsBeforeBlock);
+            TimeSpan khoa = _settings.ThoiGian(SettingKeys.GateBlockDuration);
+
+            await _redis.KhoaLinkVoiIpAsync(l.LinkId, khach.IpHash, khoa);
+            long lan = await _redis.TangLanTruotAsync(khach.IpHash, khoa);
+
+            if (lan >= gioiHan)
+            {
+                await _redis.ChanIpAsync(khach.IpHash, khoa);
+                _logger.LogWarning("Chan IP {IpHash} {ThoiGian} vi truot cong link {Lan} lan (link {Code})", khach.IpHash, khoa, lan, l.Code);
+                return new SubmitResponse
+                {
+                    Passed = false,
+                    FailCount = (int)lan,
+                    FailLimit = gioiHan,
+                    Blocked = true,
+                    BlockedUntil = bayGio + khoa,
+                };
+            }
+
+            LinkCong? khac = await ChonLinkKhacAsync(l, khach, bayGio);
+            return new SubmitResponse
+            {
+                Passed = false,
+                FailCount = (int)lan,
+                FailLimit = gioiHan,
+                NextLinkCode = khac == null ? null : khac.Code,
+                NextLinkUrl = khac == null ? null : "/g/" + Uri.EscapeDataString(khac.Code),
+            };
+        }
+
+        /// <summary>
+        /// Link khac de khach lam tiep: dang phuc vu, khong co mat khau, IP chua truot, khac chinh link vua truot; uu tien
+        /// link cua chu KHAC (khach khong quay lai dung nguoi chia se vua truot).
+        /// </summary>
+        private async Task<LinkCong?> ChonLinkKhacAsync(LinkCong dangTruot, KhachVangLai khach, DateTimeOffset bayGio)
+        {
+            LinkCong? cungChu = null;
+            foreach (LinkCong c in _catalog.LinkDangPhucVu(bayGio))
+            {
+                if (c.LinkId == dangTruot.LinkId || c.PasswordHash != null || await _redis.LinkBiKhoaAsync(c.LinkId, khach.IpHash))
+                {
+                    continue;
+                }
+
+                if (c.OwnerId != dangTruot.OwnerId)
+                {
+                    return c;
+                }
+
+                if (cungChu == null)
+                {
+                    cungChu = c;
+                }
+            }
+
+            return cungChu;
         }
 
         private static Dictionary<Guid, LabelPayload> DocTraLoi(PhienVuot p, DuAnPhucVu d, SubmitRequest? body)

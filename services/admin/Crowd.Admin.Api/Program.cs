@@ -49,8 +49,10 @@ builder.Services.AddHostedService<AuditConsumer>();
 builder.Services.AddHostedService<AuditRetentionWorker>();
 builder.Services.AddHostedService<SnapshotWorker>();
 
-// Hang doi duyet chung (read model tu event), mau bai toan (FM-03), canh bao do sau DLQ (VD-D-06/12).
+// Hang doi duyet chung (read model tu event, ca viec can xu ly tay — kien truc 3.29), mau bai toan (FM-03).
+// Loi ky thuat (message vao DLQ): DlqMonitorWorker dem → the "Tinh trang he thong" + email doi ky thuat; chi tiet o Kibana.
 builder.Services.AddScoped<HangDoiDuyet>();
+builder.Services.AddScoped<ViecTayService>();
 builder.Services.AddScoped<MauBaiToanService>();
 builder.Services.AddScoped<TheChuDeService>();
 builder.Services.AddSingleton<TrangThaiDlq>();

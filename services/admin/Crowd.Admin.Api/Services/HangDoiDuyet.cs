@@ -46,6 +46,11 @@ namespace Crowd.Admin.Api.Services
 
         public string? Note { get; init; }
 
+        /// <summary>Muc "manual": du an lien quan + mo ta viec (khong bi ghi chu luc xu ly xong ghi de).</summary>
+        public Guid? ProjectId { get; init; }
+
+        public string? Detail { get; init; }
+
         /// <summary>
         /// Dong ma chua thay dong mo (event den nguoc thu tu) thi van ghi dong da dong — de event mo den tre
         /// (cu hon) khong mo lai. Chi bat cho event CHI xay ra voi don (khong bat cho payout.requested,
@@ -57,7 +62,7 @@ namespace Crowd.Admin.Api.Services
     /// <summary>
     /// Hang doi duyet chung (kien truc muc 5): chieu event cua 7 luong duyet vao bang approval_requests.
     /// AuditConsumer goi ApDungAsync trong CUNG transaction ghi audit, chi khi event lan dau thay (khong lam
-    /// hai lan khi bus giao lai). Bang luon dung lai duoc tu audit_events (DungLaiAsync).
+    /// hai lan khi bus giao lai). Bang la read model cua event; khong co duong dung lai tu tay.
     ///
     ///   kyb        business.kyb_submitted → business.verified / business.kyb_rejected
     ///   identity   user.identity_verification_submitted → user.identity_verified / user.identity_rejected
@@ -67,12 +72,13 @@ namespace Crowd.Admin.Api.Services
     ///   appeal     attempt.appeal_opened → attempt.appeal_resolved (khieu nai CA BAI, docs 3.18)
     ///   link       link.review_requested → link.disabled (admin = bao cao dung) / link.review_dismissed
     ///   referral   referral.flagged → referral.registered (chap nhan) / referral.rejected
+    ///   manual     manual_action.required (viec can xu ly tay, kien truc 3.29) → manual_action.resolved
     /// </summary>
     public sealed class HangDoiDuyet
     {
-        public static readonly string[] LoaiDon = new string[] { "kyb", "identity", "project", "withdrawal", "appeal", "link", "referral" };
+        public static readonly string[] LoaiDon = new string[] { "kyb", "identity", "project", "withdrawal", "appeal", "link", "referral", "manual" };
 
-        /// <summary>Moi loai event lam thay doi hang doi — DungLaiAsync chi doc lai cac loai nay.</summary>
+        /// <summary>Moi loai event lam thay doi hang doi.</summary>
         public static readonly string[] LoaiEvent = new string[]
         {
             "business.kyb_submitted", "business.verified", "business.kyb_rejected",
@@ -82,6 +88,7 @@ namespace Crowd.Admin.Api.Services
             "attempt.appeal_opened", "attempt.appeal_resolved",
             "link.review_requested", "link.disabled", "link.review_dismissed",
             "referral.flagged", "referral.registered", "referral.rejected",
+            "manual_action.required", "manual_action.resolved",
         };
 
         private readonly AdminDbContext _db;
@@ -167,6 +174,21 @@ namespace Crowd.Admin.Api.Services
                 case "referral.rejected":
                     return Dong("referral", Id(p, "referredId"), "rejected", Chuoi(p, "reason"), true);
 
+                case "manual_action.required":
+                    return new ThayDoiDon
+                    {
+                        Kind = "manual",
+                        SubjectId = Id(p, "actionId"),
+                        Kieu = KieuThayDoi.Mo,
+                        Title = Chuoi(p, "title"),
+                        RequesterId = IdHoacNull(p, "userId"),
+                        AmountVnd = So(p, "amountVnd"),
+                        ProjectId = IdHoacNull(p, "projectId"),
+                        Detail = Chuoi(p, "description"),
+                    };
+                case "manual_action.resolved":
+                    return Dong("manual", Id(p, "actionId"), "resolved", Chuoi(p, "note"), true);
+
                 default:
                     return null;
             }
@@ -202,6 +224,12 @@ namespace Crowd.Admin.Api.Services
         private static Guid Id(JsonElement p, string ten)
         {
             return p.GetProperty(ten).GetGuid();
+        }
+
+        private static Guid? IdHoacNull(JsonElement p, string ten)
+        {
+            JsonElement v;
+            return p.TryGetProperty(ten, out v) && v.ValueKind == JsonValueKind.String ? v.GetGuid() : null;
         }
 
         private static string? Chuoi(JsonElement p, string ten)
@@ -258,17 +286,20 @@ namespace Crowd.Admin.Api.Services
 
             string? tieuDe = t.Title != null && t.Title.Length > 300 ? t.Title.Substring(0, 300) : t.Title;
             string? ghiChu = t.Note != null && t.Note.Length > 1000 ? t.Note.Substring(0, 1000) : t.Note;
+            string? chiTiet = t.Detail != null && t.Detail.Length > 1000 ? t.Detail.Substring(0, 1000) : t.Detail;
             switch (t.Kieu)
             {
                 case KieuThayDoi.Mo:
                 case KieuThayDoi.ChoKyQuy:
                     string trangThai = t.Kieu == KieuThayDoi.Mo ? "pending" : "waiting";
                     return await db.Database.ExecuteSqlInterpolatedAsync($@"
-                        INSERT INTO approval_requests (id, kind, subject_id, status, title, requester_id, amount_vnd, note, opened_at, last_event_at)
-                        VALUES ({Guid.CreateVersion7()}, {t.Kind}, {t.SubjectId}, {trangThai}, {tieuDe}, {t.RequesterId}, {t.AmountVnd}, {ghiChu}, {luc}, {luc})
+                        INSERT INTO approval_requests (id, kind, subject_id, status, title, requester_id, amount_vnd, note, project_id, detail, opened_at, last_event_at)
+                        VALUES ({Guid.CreateVersion7()}, {t.Kind}, {t.SubjectId}, {trangThai}, {tieuDe}, {t.RequesterId}, {t.AmountVnd}, {ghiChu}, {t.ProjectId}, {chiTiet}, {luc}, {luc})
                         ON CONFLICT (kind, subject_id) DO UPDATE SET
                             status = EXCLUDED.status,
                             title = COALESCE(EXCLUDED.title, approval_requests.title),
+                            project_id = COALESCE(EXCLUDED.project_id, approval_requests.project_id),
+                            detail = COALESCE(EXCLUDED.detail, approval_requests.detail),
                             requester_id = COALESCE(EXCLUDED.requester_id, approval_requests.requester_id),
                             amount_vnd = COALESCE(EXCLUDED.amount_vnd, approval_requests.amount_vnd),
                             note = EXCLUDED.note,
@@ -302,39 +333,6 @@ namespace Crowd.Admin.Api.Services
                             decided_at = EXCLUDED.decided_at, decided_by = EXCLUDED.decided_by, last_event_at = EXCLUDED.last_event_at
                         WHERE approval_requests.last_event_at < EXCLUDED.last_event_at", ct) > 0;
             }
-        }
-
-        /// <summary>
-        /// Dung lai toan bo hang doi tu audit_events (vd lan dau trien khai, hoac sau khi sua cach chieu).
-        /// Event cu hon admin.audit_retention_days da bi xoa thi khong con — don cu nhu vay coi nhu da xong.
-        /// </summary>
-        public async Task<int> DungLaiAsync(CancellationToken ct)
-        {
-            int so = 0;
-            var tx = await _db.Database.BeginTransactionAsync(ct);
-            try
-            {
-                await _db.Database.ExecuteSqlRawAsync("DELETE FROM approval_requests", ct);
-                List<AuditEvent> ds = await _db.AuditEvents.AsNoTracking()
-                    .Where(e => LoaiEvent.Contains(e.EventType))
-                    .OrderBy(e => e.OccurredAt).ThenBy(e => e.EventId)
-                    .ToListAsync(ct);
-                foreach (AuditEvent e in ds)
-                {
-                    if (await ApDungAsync(_db, e.EventType, e.PayloadJson, e.OccurredAt, e.ActorId, e.ActorRole, ct))
-                    {
-                        so++;
-                    }
-                }
-
-                await tx.CommitAsync(ct);
-            }
-            finally
-            {
-                await tx.DisposeAsync();
-            }
-
-            return so;
         }
 
         // =====================================================================
@@ -417,6 +415,8 @@ namespace Crowd.Admin.Api.Services
                 RequesterId = d.RequesterId,
                 AmountVnd = d.AmountVnd,
                 Note = d.Note,
+                ProjectId = d.ProjectId,
+                Detail = d.Detail,
                 OpenedAt = d.OpenedAt,
                 DecidedAt = d.DecidedAt,
                 DecidedBy = d.DecidedBy,

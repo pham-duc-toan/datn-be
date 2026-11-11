@@ -32,7 +32,6 @@ namespace Crowd.Seeding.Tests
             foreach (SeedProject p in KichBanSeed.Projects)
             {
                 ids.Add(p.Id);
-                ids.Add(p.DatasetId);
                 ids.AddRange(p.Samples.Select(s => s.Id));
                 ids.AddRange(p.Gold.Select(g => g.Id));
                 ids.AddRange(p.Attempts.Select(b => b.AttemptId));

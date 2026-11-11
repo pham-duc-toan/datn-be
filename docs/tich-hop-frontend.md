@@ -201,7 +201,7 @@ Lưu ý: mốc thu hồi tính theo **giây** — token cấp trong cùng giây 
 | | Ví, nạp tiền | `GET /ledger/me/balance`, `POST /payments/deposits`, `GET /payments/deposits/{id}` |
 | | Danh sách dự án của tôi | `GET /projects?mine=true` |
 | | Wizard tạo dự án | `POST /projects`, `PUT /projects/{id}/label-schema`, `/guideline`, `/pricing`, `/channels`, `/eligibility` |
-| | Nạp dữ liệu | `POST /projects/{id}/datasets` (ZIP), `POST /projects/{id}/uploads` + `POST /projects/{id}/datasets/manifest`, `GET /projects/{id}/datasets`, `GET /projects/{id}/samples` |
+| | Nạp dữ liệu | `POST /projects/{id}/samples/zip` (ZIP), `POST /projects/{id}/uploads` + `POST /projects/{id}/samples` (file đã upload / dòng JSON), `POST /projects/{id}/samples/import` (nguồn ngoài), `GET /projects/{id}/samples` (+ `/status`), `DELETE /projects/{id}/samples/failed` |
 | | Câu hỏi vàng | `GET/POST /projects/{id}/gold-items`, `DELETE /projects/{id}/gold-items/{goldItemId}` |
 | | Checklist + publish | `GET /projects/{id}/readiness`, `POST /projects/{id}/publish` |
 | | Kiểm soát chất lượng | `PUT /projects/{id}/quality-control`, `GET /quality/projects/{id}/summary`, `GET /quality/projects/{id}/labelers` |
@@ -443,34 +443,42 @@ PUT /projects/{id}/eligibility
 
 ### 4.6 Nạp dữ liệu
 
-Có hai đường. Kết quả đều là các **mẫu** (sample); mỗi mẫu thành một task khi dự án chạy.
+Kết quả đều là các **mẫu** (sample); mỗi mẫu thành một câu hỏi trong bài khi dự án chạy. **Không có khái niệm "lô nạp"**: tiến trình nạp nằm trên **từng mẫu**, `ingestState`:
 
-**Đường A — ZIP ảnh (chỉ dự án `image`, file ≤ 200 MB):**
+```
+queued ──(worker nhận)──► processing ──► ready      (vào bài làm)
+  │                          └────────► failed      (kèm ingestError)
+```
+
+Giao diện hiển thị cho từng file: **đang upload (%) → đã upload, chờ xử lý → đang xử lý file → đã xử lý** (hoặc **lỗi** kèm lý do). Video còn thêm bước "đang chuẩn bị video" (`mediaState: preparing`) sau khi đã xử lý. Chỉ mẫu `ready` mới tính vào số mẫu của dự án, vào bài làm và gate.
+
+**Đường A — ZIP ảnh (chỉ dự án `image`, file ≤ 200 MB, xử lý xong ngay trong request):**
 
 ```http
-POST /projects/{id}/datasets          (multipart/form-data: name, file)
-→ 201 DatasetResponse  (xử lý xong ngay trong request)
+POST /projects/{id}/samples/zip        (multipart/form-data: file)
+→ 201 { "received": 120, "ready": 117, "queued": 0, "skipped": 3, "errors": [], "accepted": [] }
 ```
 
-Chỉ nhận jpg / png / webp trong ZIP; ảnh trùng nội dung bị bỏ. Dự án khác `image` → 409 `zip_chi_cho_anh`.
+Chỉ nhận jpg / png / webp trong ZIP; ảnh trùng nội dung bị bỏ (đếm vào `skipped`). Dự án khác `image` → 409 `zip_chi_cho_anh`. Thanh tiến độ upload dùng `XMLHttpRequest` (có `upload.onprogress`); khi byte cuối đã gửi thì chuyển sang "đang xử lý" cho tới khi response về.
 
-**Đường B — upload thẳng lên kho file + manifest (mọi loại dữ liệu, file lớn):**
+**Đường B — upload thẳng lên kho file rồi đăng ký (ảnh, âm thanh, video, file lớn):**
 
 ```
-① POST /projects/{id}/uploads           xin link upload
-② PUT  <uploadUrl>  (thân = nội dung file)   trình duyệt đẩy THẲNG lên MinIO, không qua backend
-③ POST /projects/{id}/datasets/manifest  khai báo các mẫu → 202, lô ở trạng thái pending
-④ GET  /projects/{id}/datasets           hỏi lại đến khi status = ready | failed
+① POST /projects/{id}/uploads     xin link upload
+② PUT  <uploadUrl>                trình duyệt đẩy THẲNG lên MinIO, không qua backend (có % tiến độ)
+③ POST /projects/{id}/samples     đăng ký các file đã upload → 202, mỗi file một mẫu `queued`
+④ GET  /projects/{id}/samples?ids=...   hỏi tiến trình của đúng các mẫu vừa đăng ký, tới khi ready | failed
+   GET  /projects/{id}/samples/status   (hoặc đếm tổng: queued / processing / ready / failed)
 ```
 
 ```http
 ① POST /projects/{id}/uploads
-{ "files": [ { "name": "cuoc-goi.wav", "sizeBytes": 736078 }, { "name": "danh-sach.jsonl", "sizeBytes": 2048 } ] }
+{ "files": [ { "name": "cuoc-goi.wav", "sizeBytes": 736078 } ] }
 → 200 [ { "name": "cuoc-goi.wav", "key": "<projectId>/raw/<uuid>.wav", "uploadUrl": "http://localhost:9000/...", "expiresAt": "..." }, ... ]
 ```
 
 - Tối đa 100 file mỗi lần xin, mỗi file ≤ 5 GB, link sống 1 giờ.
-- Đuôi file được lọc theo loại dữ liệu (`.jpg .jpeg .png .webp` / `.wav .mp3 .m4a .ogg .flac .aac` / `.mp4 .mov .webm .mkv`), cộng `.jsonl` / `.json` cho file manifest. Sai → 400 `duoi_file_khong_hop_le`.
+- Đuôi file được lọc theo loại dữ liệu (`.jpg .jpeg .png .webp` / `.wav .mp3 .m4a .ogg .flac .aac` / `.mp4 .mov .webm .mkv`). Sai → 400 `duoi_file_khong_hop_le`. Dự án văn bản / cặp / danh sách **không upload file** (gửi thẳng dòng JSON, đường C).
 - `key` do hệ thống đặt; giữ lại để dùng ở bước ③.
 
 ```js
@@ -482,14 +490,38 @@ xhr.send(file);           // KHÔNG gắn header Authorization — link đã đ�
 ```
 
 ```http
-③ POST /projects/{id}/datasets/manifest
-{ "name": "lo-1", "rows": [ { "file": "<key>", "name": "cuoc-goi.wav" } ] }
-  hoặc
-{ "name": "lo-1", "manifestKey": "<key của file .jsonl đã upload>" }
-→ 202 DatasetResponse { "status": "pending", ... }
+③ POST /projects/{id}/samples
+{ "rows": [ { "file": "<key>", "name": "cuoc-goi.wav" } ] }
+→ 202 { "received": 1, "ready": 0, "queued": 1, "skipped": 0, "errors": [],
+        "accepted": [ { "index": 0, "sampleId": "<id>", "name": "cuoc-goi.wav" } ] }
 ```
 
-Một dòng manifest theo loại dữ liệu:
+`accepted[].index` là vị trí dòng trong `rows` → ghép với file tương ứng và theo dõi tiếp bằng `sampleId`. Dòng bị bỏ qua (không có trong `accepted`) có lý do ở `errors` dạng `"dòng 3: ..."` (khóa thuộc dự án khác, đã đăng ký rồi, thiếu `file`...).
+
+```http
+④ GET /projects/{id}/samples?ids=<id1>,<id2>,...
+→ { "items": [ { "id", "modality", "originalName", "ingestState": "processing", "ingestError": null,
+                 "fileUrl": null,           // chỉ có khi ingestState = ready
+                 "mediaState": null, ... } ] }
+
+GET /projects/{id}/samples/status
+→ { "queued": 2, "processing": 1, "ready": 40, "failed": 1, "preparingVideo": 0 }
+```
+
+- Hỏi lại mỗi 1–2 giây khi còn `queued` / `processing`; rời trang rồi quay lại vẫn thấy (`/status` cho tổng, `GET /samples` cho từng mẫu — mẫu mới nhất ở đầu).
+- Mẫu **lỗi không làm hỏng các file khác**: ở lại danh sách với `ingestState: "failed"` + `ingestError`. Lý do thường gặp: file chưa upload xong / không tồn tại, nội dung không đúng loại (ảnh giả, file âm thanh không có hình khi nạp vào dự án video), ảnh quá lớn, không đọc được thời lượng, **trùng nội dung** với mẫu đã có. `DELETE /projects/{id}/samples/failed` xoá các mẫu lỗi (chỉ khi dự án còn Nháp) để nạp lại.
+- Còn mẫu `queued` / `processing` thì **chưa publish được** (readiness báo "đang xử lý dữ liệu").
+- Lọc: `GET .../samples?trangThai=dang_xu_ly|loi|san_sang` (bỏ trống = tất cả).
+
+**Đường C — dòng JSON (văn bản, cặp, danh sách; xử lý ngay):**
+
+```http
+POST /projects/{id}/samples
+{ "rows": [ { "text": "...", "name": "tùy chọn" } ] }
+→ 202 { "received": 4, "ready": 3, "queued": 0, "skipped": 1, "errors": ["dòng 4: trùng nội dung với mẫu đã có."], "accepted": [...] }
+```
+
+Một dòng theo loại dữ liệu:
 
 | modality | Dòng | Ghi chú |
 |---|---|---|
@@ -498,26 +530,16 @@ Một dòng manifest theo loại dữ liệu:
 | pair | `{ "prompt": "tùy chọn", "a": "...", "b": "..." }` | |
 | list | `{ "prompt": "tùy chọn", "items": ["...", "...", "..."] }` | 2–50 mục, mỗi mục là chuỗi không rỗng. Thứ tự trong `items` là **chỉ số mục** (từ 0) dùng khi xếp hạng |
 
-`rows` tối đa 1.000 dòng; nhiều hơn thì ghép thành file `.jsonl` (mỗi dòng một object, ≤ 50.000 dòng) rồi gửi `manifestKey`.
-
-```http
-④ GET /projects/{id}/datasets
-→ [ { "id", "name", "status": "ready", "sampleCount": 3, "skippedCount": 1,
-      "errorSummary": "dong 2: file khong phai anh png / jpeg / webp hop le.", "createdAt", "finishedAt" } ]
-```
-
-- `status`: `pending` → `ingesting` → `ready` | `failed`. Hỏi lại mỗi 2 giây.
-- Dòng sai **không làm hỏng cả lô**: bị bỏ qua, đếm vào `skippedCount`, lý do (tối đa 20 dòng đầu) trong `errorSummary`. Lý do thường gặp: file không tồn tại / chưa upload xong, file thuộc dự án khác, nội dung không đúng loại (ảnh giả, file âm thanh không có hình khi nạp vào dự án video), trùng nội dung với mẫu đã có.
-- `failed` = không có mẫu hợp lệ nào, hoặc lỗi hệ thống.
-- Đang có lô `pending` / `ingesting` thì **chưa publish được**.
+Mỗi lần gửi tối đa 1.000 dòng (`dataset.manifest_inline_max_rows`); nhiều hơn thì **chia thành nhiều lần gửi** (không còn file manifest `.jsonl`). Văn bản / cặp / danh sách thành `ready` ngay trong response (không qua hàng đợi), dòng sai bị bỏ qua kèm lý do trong `errors`.
 
 Xem mẫu:
 
 ```http
 GET /projects/{id}/samples?page=1&pageSize=50
 GET /projects/{id}/samples?ids=<id1>,<id2>,...      ← chỉ các mẫu này (tối đa 100; sai định dạng → 400 ma_mau_khong_hop_le, quá 100 → 400 qua_nhieu_mau)
-→ { "items": [ { "id", "datasetId", "modality", "originalName", "sizeBytes",
-                 "fileUrl": "http://localhost:9000/...",   // null với text / pair / list
+→ { "items": [ { "id", "modality", "originalName", "sizeBytes",
+                 "ingestState": "ready", "ingestError": null,
+                 "fileUrl": "http://localhost:9000/...",   // null với text / pair / list, hoặc khi chưa ready
                  "content": null,                         // {"text"}, {"prompt","a","b"} hoặc {"prompt","items"} với text / pair / list
                  "metadata": { "width": 300, "height": 200 } } ], ... }
 ```
@@ -565,6 +587,10 @@ Sau đó hỏi lại `GET /projects/{id}` mỗi 1–2 giây trong tối đa ~30 
 
 - `pendingApproval`: đã giữ tiền, chờ admin duyệt (quá 72 giờ không ai duyệt thì tự hủy, hoàn tiền).
 - `draft` kèm `statusReason`: thiếu tiền. Hiện lý do + nút nạp tiền.
+
+### 4.8b Xoá dự án nháp
+
+`DELETE /projects/{id}` → 204. Chỉ dự án **Nháp** hoặc đã **huỷ mà chưa từng publish / ký quỹ**; dự án đã publish → 409 `khong_the_xoa_du_an` (hãy huỷ / kết thúc). Xoá hẳn kèm mẫu, file, câu vàng, thành viên — không khôi phục được, nên hỏi xác nhận. Nút ở danh sách dự án (hàng nháp) và ở tab Tổng quan.
 
 ### 4.9 Vận hành
 
@@ -2025,7 +2051,7 @@ Các service trao đổi với nhau qua hàng đợi sự kiện, nên một s�
 | Sau khi | Chờ thấy ở | Cách làm |
 |---|---|---|
 | `POST /publish` | `GET /projects/{id}` chuyển `pendingApproval` hoặc về `draft` | Hỏi lại mỗi 1–2 giây, tối đa ~30 giây |
-| `POST /datasets/manifest` | `GET /datasets` có `status` `ready` / `failed` | Mỗi 2 giây; lô lớn có thể vài phút, cho người dùng rời trang |
+| `POST /samples` (file), `POST /samples/import` | `GET /samples?ids=...` hoặc `GET /samples/status`: hết `queued` / `processing` | Mỗi 1–2 giây; nhiều file có thể vài phút, cho người dùng rời trang (mở lại vẫn thấy tiến trình) |
 | Admin duyệt dự án, labeler `join` | `POST /tasks/.../next` hết trả 403 | Gặp 403 `khong_phai_thanh_vien` / `du_an_chua_san_sang` / `du_an_khong_chay` ngay sau hành động đó thì thử lại 2–3 lần, cách 1 giây |
 | Nộp nhãn | Nhãn xuất hiện trong `GET /annotations/...` | Thường < 1 giây |
 | Mẫu đủ người gán | `consensusAgrees` trên nhãn; mẫu tranh chấp được mở lại cho thêm người | Vài giây (đi qua quality-svc) |
@@ -2060,7 +2086,8 @@ Danh sách các `code` thường gặp để frontend dịch. Mã không có tro
 | `ti_le_cau_vang_khong_hop_le` | 400 | `goldCheckPercent` ngoài 0–50 |
 | `zip_chi_cho_anh`, `khong_phai_zip`, `zip_qua_lon` | 409 / 400 | Upload ZIP sai |
 | `duoi_file_khong_hop_le`, `qua_nhieu_file`, `dung_luong_khong_hop_le` | 400 | Xin link upload sai |
-| `manifest_khong_hop_le`, `manifest_qua_dai` | 400 | Manifest sai |
+| `dong_khong_hop_le`, `thieu_truong`, `file_khong_thuoc_du_an`, `file_da_co`, `noi_dung_trung` | 400 | Dòng JSON sai (chỉ làm dòng đó bị bỏ qua — nằm trong `errors`, không làm hỏng cả lần gửi; `dong_khong_hop_le` ở mức request khi `rows` không phải mảng 1–1.000 dòng) |
+| `khong_tim_thay_file`, `khong_phai_anh`, `khong_phai_video`, `khong_phai_am_thanh`, `anh_qua_lon`, `khong_doc_duoc_thoi_luong` | — | Lý do một mẫu **nạp lỗi** (nằm trong `ingestError` của mẫu `failed`, không phải mã HTTP) |
 | `mau_khong_thuoc_du_an`, `da_la_cau_vang`, `qua_nhieu_cau_vang` | 400 / 409 | Câu vàng sai |
 | `thieu_nhan` | 400 | Thiếu trường `payload` |
 | `nhan_sai_dinh_dang` | 400 | Nhãn sai hình dạng (thiếu công cụ bắt buộc, thừa khóa, sai kiểu) |
@@ -2153,7 +2180,7 @@ Các con số dưới đây là **giá trị mặc định** — admin đổi đ
 | Tên dự án / mô tả | 200 / 5.000 ký tự (`project.name_max_length`, `project.description_max_length`) |
 | File ZIP | 200 MB (`dataset.zip_max_bytes`) |
 | Xin link upload | 100 file mỗi lần, mỗi file ≤ 5 GB (`upload.max_files`, `upload.max_file_bytes`) |
-| Manifest | `rows` ≤ 1.000 dòng; file `.jsonl` ≤ 50.000 dòng; ảnh qua manifest ≤ 50 MB (`dataset.manifest_inline_max_rows`, `dataset.manifest_file_max_rows`, `dataset.image_max_bytes`) |
+| Dòng dữ liệu | `rows` ≤ 1.000 dòng mỗi lần gửi; ảnh upload thẳng ≤ 50 MB (`dataset.manifest_inline_max_rows`, `dataset.image_max_bytes`) |
 | Văn bản một mẫu | 100.000 ký tự (`dataset.text_max_chars`) |
 | Nạp tiền | 10.000 – 500.000.000đ mỗi lần (`payment.deposit_min_vnd`, `payment.deposit_max_vnd`) |
 | Rút tiền | tối thiểu 50.000đ; thuế 10% từ 2.000.000đ (`ledger.withdraw_*`) |
@@ -2270,7 +2297,8 @@ Thống kê có độ trễ khoảng 1–2 giây.
 
 ```http
 GET /g/{code}
-→ { "code", "requiresPassword": false, "countdownSeconds": 8, "turnstileEnabled": true, "turnstileSiteKey": "1x00000000000000000000AA" }
+→ { "code", "requiresPassword": false, "countdownSeconds": 8, "turnstileEnabled": true, "turnstileSiteKey": "1x00000000000000000000AA",
+    "maxFailsBeforeBlock": 3, "blockSeconds": 86400 }
 
 POST /g/{code}/sessions   { "turnstileToken": "<token widget Turnstile>", "password": "<nếu requiresPassword>" }
 → { "sessionId", "answerableAt", "expiresAt",
@@ -2279,7 +2307,9 @@ POST /g/{code}/sessions   { "turnstileToken": "<token widget Turnstile>", "passw
 
 POST /g/sessions/{sessionId}/submit   { "answers": { "<sampleId>": { "loai": { "labelIds": ["cho"] } }, ... } }
 → đạt:   { "passed": true,  "redirectUrl": "/go/{code}?t=…", "redirectExpiresAt" }
-→ trượt: { "passed": false, "newSession": { …như trên… } }
+→ trượt: { "passed": false, "failCount": 1, "failLimit": 3, "blocked": false,
+            "nextLinkUrl": "/g/<mã link khác>", "nextLinkCode": "<mã link khác>" }     (không còn newSession)
+→ trượt đủ số lần: { "passed": false, "failCount": 3, "failLimit": 3, "blocked": true, "blockedUntil": "…" }
 
 GET /go/{code}?t=…    → 302 tới link đích
 ```
@@ -2291,7 +2321,7 @@ Luồng giao diện:
 3. Bắt đầu đếm ngược tới `answerableAt` (giờ server). Trong lúc đếm, hiện câu hỏi và banner. Nộp sớm → 409 `chua_het_dem_nguoc`, nên khoá nút cho tới khi hết giờ.
 4. Vẽ từng câu bằng **đúng quy ước workspace** (mục 6): `labelSchema` + `content` / `fileUrl` + `metadata`. Cổng chỉ dùng phân loại **chọn một** và so sánh cặp, giao diện nên là nút bấm lớn, làm một tay được. Câu vàng và câu thật **trộn lẫn**, không có cờ nào phân biệt — frontend không cần và không được đoán.
 5. Phải trả lời **mọi** câu. 400 (`thieu_cau_tra_loi`, `nhan_sai_dinh_dang`) → phiên còn nguyên, sửa rồi nộp lại.
-6. `passed: false` → thay bằng `newSession`, kèm thông báo "Trả lời chưa chính xác, thử lại" (bộ mới có đếm ngược riêng).
+6. **Cảnh báo luôn hiện** (trang bắt đầu và phía trên câu hỏi): "trượt `maxFailsBeforeBlock` lần thì IP bị chặn `blockSeconds`". `passed: false` → **không làm lại link cũ** (link đó đã khoá với IP này): hiện "Trả lời chưa chính xác, đã trượt `failCount`/`failLimit`", rồi chuyển sang `nextLinkUrl` (tự động sau vài giây + nút bấm ngay; `nextLinkUrl` rỗng = chưa có link khác, báo khách quay lại sau). `blocked: true` → màn hình chặn IP tới `blockedUntil`, không còn câu hỏi. Lỗi khi tạo phiên / nộp: `403 ip_bi_chan` (kèm `retryAfterSeconds`, `blockedUntil`) và `403 link_da_truot` (link này đã trượt với IP của bạn) → hiện màn hình tương ứng chứ không phải dòng lỗi nhỏ.
 7. `passed: true` → nút **"Lấy link"** điều hướng trình duyệt tới `redirectUrl` (gateway trả 302 tới link đích). Token sống 3 phút và **dùng một lần**: mở lại → 410 `token_da_dung`, khi đó cho vượt lại.
 8. `questions: []` → không có câu hỏi (hết ngân sách, hoặc không có dự án phù hợp). Chỉ đếm ngược rồi nộp `{"answers":{}}` để lấy link.
 9. Nút **"Báo cáo link vi phạm"** (không cần đăng nhập): `POST /links/r/{code}/report {"reason":"..."}` → 202. Mỗi IP chỉ tính một lần.
@@ -2665,14 +2695,14 @@ Labeler trong danh sách chặn của doanh nghiệp không tham gia được m�
 **Nhập dữ liệu từ nguồn ngoài (FB-11):**
 
 ```http
-POST /projects/{id}/datasets/import
-{ "name": "lo s3", "source": "s3",  "s3": { "endpoint": null, "region": "ap-southeast-1", "bucket": "…", "prefix": "anh/", "accessKey": "…", "secretKey": "…" } }
-{ "name": "lo url", "source": "urls", "urls": [ "https://…/a.jpg", … ] }
-{ "name": "lo drive", "source": "googleDrive", "googleDrive": { "links": [ "https://drive.google.com/file/d/…" ] } }
-→ 202 { id, status: "pending" }   (theo dõi như lô manifest — mục 4.6)
+POST /projects/{id}/samples/import
+{ "source": "s3",  "s3": { "endpoint": null, "region": "ap-southeast-1", "bucket": "…", "prefix": "anh/", "accessKey": "…", "secretKey": "…" } }
+{ "source": "urls", "urls": [ "https://…/a.jpg", … ] }
+{ "source": "gdrive", "googleDrive": { "links": [ "https://drive.google.com/file/d/…" ] } }
+→ 202 { received, queued, skipped, errors, accepted: [ { index, sampleId, name } ] }   (theo dõi từng mẫu như mục 4.6)
 ```
 
-Chỉ tải từ địa chỉ công khai (chặn IP nội bộ — SSRF); tối đa `dataset.import_max_files` file mỗi lô. Khoá bí mật S3 chỉ lưu dạng mã hoá tới khi nhập xong rồi xoá.
+Server **liệt kê nguồn ngay trong request** (S3: liệt kê bucket + ký link GET cho từng file; Drive: mở thư mục ra từng file; URL: dùng nguyên danh sách) rồi mỗi file thành một mẫu `queued` kèm link tải; worker tải về kho và xử lý như file đã upload. Liệt kê hỏng (sai khoá S3, endpoint nội bộ, link Drive lạ…) → 400 ngay, không tạo mẫu nào. Chỉ tải từ địa chỉ công khai (chặn IP nội bộ — SSRF; lỗi từng file nằm ở `ingestError` của mẫu); tối đa `dataset.import_max_files` file mỗi lần. **Khoá bí mật S3 chỉ dùng trong chính request này** để liệt kê và ký link — không lưu vào database (chỉ còn link ký sẵn hết hạn sau 6 ngày, xoá khi mẫu xử lý xong).
 
 **Cổng link chỉ cho công cụ làm nhanh — (đổi) mục 12.3:** dự án bật cổng link mà tập nhãn có công cụ ngoài `gate.allowed_tools` (mặc định `classification, pairwise, number, bbox, keypoint, span`) → checklist có `cong_cu_khong_hop_cong_link`, publish trả `409` kèm tên công cụ. Frontend: khi bật kênh cổng link, cảnh báo ngay nếu tập nhãn có công cụ khác.
 
@@ -2726,10 +2756,9 @@ Loại thông báo mới (mục 14): `bao_mat` (bật / tắt 2FA — email bắ
 ```http
 GET  /admin/approvals?kind=&status=pending&page=&pageSize=
 GET  /admin/approvals/summary            → { totalPending, kinds: [ { kind, pending, oldestOpenedAt, oldestWaitingHours } ] }
-POST /admin/approvals/rebuild            → dựng lại từ nhật ký audit
 ```
 
-Mỗi mục `{ id, kind, subjectId, status, title, requesterId, amountVnd, note, openedAt, decidedAt, decidedBy }`; `status`: `pending`, `waiting` (dự án chờ ký quỹ), `approved`, `rejected`, `cancelled`, `resolved`. Bấm vào mục thì gọi API duyệt của service chủ theo `kind`:
+Mỗi mục `{ id, kind, subjectId, status, title, requesterId, amountVnd, note, projectId, detail, openedAt, decidedAt, decidedBy }` (`projectId`, `detail` chỉ có ở `manual`); `status`: `pending`, `waiting` (dự án chờ ký quỹ), `approved`, `rejected`, `cancelled`, `resolved`. Bấm vào mục thì gọi API duyệt của service chủ theo `kind`:
 
 | kind | subjectId | Xem / duyệt |
 |---|---|---|
@@ -2741,6 +2770,7 @@ Mỗi mục `{ id, kind, subjectId, status, title, requesterId, amountVnd, note,
 | `dispute` | disputeId | `POST /ledger/admin/disputes/{id}/resolve` |
 | `link` | linkId | `POST /links/admin/{id}/disable`, `POST /links/admin/{id}/dismiss-reports` |
 | `referral` | referredId | `POST /links/admin/referrals/{id}/approve`, `…/reject { reason }` |
+| `manual` | id việc | **Việc cần xử lý tay** (kiến trúc 3.29): hệ thống không tự làm được (vd thưởng không chi được vì ký quỹ đã hoàn). Hiện `title` + `detail` (đã viết bằng lời), link `/admin/du-an/{projectId}` nếu có. Admin xử lý ngoài hệ thống rồi `POST /admin/approvals/manual/{id}/resolve { note }` (ghi chú bắt buộc, 1–1000 ký tự) → `204`; mục chuyển `resolved` ngay, `note` = ghi chú, `detail` giữ nguyên. Lỗi: `400 ghi_chu_khong_hop_le`, `404 khong_tim_thay_viec`, `409 viec_da_xu_ly` |
 
 **Giới thiệu nghi lạm dụng (FS-08):** `GET /links/admin/referrals/flagged` → `[ { referrerId, referredId, reasons, createdAt } ]`; `reasons` gồm `trung_ip_nguoi_gioi_thieu`, `nhieu_tai_khoan_cung_ip`, `dot_bien`. Người dùng nhập mã vẫn nhận `204` (không chặn), nhưng hoa hồng chỉ tính sau khi admin chấp nhận.
 
@@ -2757,7 +2787,7 @@ POST /admin/templates/{id}/deactivate | /activate
 
 Tạo dự án từ mẫu: frontend tạo dự án với `modality` của mẫu rồi gọi `PUT /projects/{id}/label-schema` với `labelSchema` của mẫu và `PUT /projects/{id}/guideline` với `guidelineMarkdown` — dự án **không** tham chiếu mẫu (sửa mẫu không đổi dự án đã tạo).
 
-**Vận hành:** `GET /admin/ops/queues` → `{ reachable, checkedAt, threshold, deadLetterQueues: [ { queue, messages, overThreshold } ] }`. DLQ vượt `ops.dlq_alert_threshold` thì gửi email tới `ops.alert_email`.
+**Tình trạng hệ thống** (kiến trúc 3.29): `GET /admin/system-health` → `{ status: "ok" | "co_loi" | "khong_ro", failedCount, affectedAreas, checkedAt, techTeamNotified }` — chỉ đếm lỗi KỸ THUẬT (việc hệ thống không tự xử lý được); trang Tổng quan hiện thẻ bằng lời ("Có N việc hệ thống không tự xử lý được — đội kỹ thuật đã được báo"), không nút thao tác, không tên hàng đợi. Chi tiết lỗi dev tra ở Kibana. **Duyệt dự án đầy đủ:** trang `/admin/du-an/{id}` ghép `GET /projects/{id}`, `/readiness`, `/samples` (+ `/status`), `/gold-items`, `/members` — admin đọc được mọi API này của dự án chờ duyệt; không có endpoint riêng.
 
 ### 17.11 Mã lỗi mới
 
@@ -2786,7 +2816,7 @@ PUT /projects/{id}/pricing
 
 PUT /projects/{id}/channels
 { "allowProfessional": true, "allowLinkGateway": true, "allowCollaborative": false,
-  "gateUnitPriceVnd": 300, "gateBudgetVnd": 200000 }
+  "gateBudgetVnd": 200000 }
 ```
 
 - `rewardVnd`: thưởng cho **một bài đạt** (cả bài, không theo câu), ≥ `limits.minRewardVnd`. `slots`: số suất — tối đa bao nhiêu bài đạt được thưởng (`limits.minSlots`–`limits.maxSlots`).
@@ -2799,10 +2829,11 @@ PUT /projects/{id}/channels
 ```json
 { "ready": true, "missing": [], "warnings": ["khong_co_cau_vang_kiem_tra"],
   "sampleCount": 12, "questionCount": 10, "qualityGoldCount": 2, "entranceGoldCount": 0,
-  "platformFeePercent": 30, "platformFeePerPassVnd": 15000, "estimatedCostVnd": 650000,
+  "platformFeePercent": 30, "platformFeePerPassVnd": 15000, "gateUnitPriceVnd": 1000, "estimatedCostVnd": 650000,
   "limits": { "passThresholdMin": 60, "passThresholdMax": 95, "minSlots": 3, "maxSlots": 50, "maxQuestions": 500, "minRewardVnd": 10000 } }
 ```
 
+- `gateUnitPriceVnd`: đơn giá mỗi nhãn khách vãng lai — **do admin đặt** (setting `gate.unit_price_vnd`), doanh nghiệp chỉ được thông báo (ô chỉ đọc); chốt vào dự án lúc bật kênh và lúc publish.
 - `estimatedCostVnd` = ký quỹ khi publish = `slots × (rewardVnd + platformFeePerPassVnd) + gateBudgetVnd`.
 - `questionCount` = số câu THẬT (mẫu không phải câu vàng); câu vàng `qualityCheck` được chèn vào **mọi** bài, labeler không phân biệt được.
 - `warnings` không chặn publish. `missing` mới: `chua_cau_hinh_gia`, `thuong_duoi_toi_thieu`, `so_suat_khong_hop_le`, `nguong_dat_ngoai_khoang`, `qua_nhieu_cau`, `chua_cau_hinh_cong_link`.

@@ -505,7 +505,7 @@ namespace Crowd.Project.Tests
         public void Loai_mau_mot_lan_va_phai_co_ly_do()
         {
             Sample s = Sample.TaoTuNoiDung(
-                Guid.NewGuid(), Guid.NewGuid(), Modalities.Text, RawJson.Tu("{\"text\":\"x\"}"), "dong 1", "abc", SampleMetadata.Rong, Luc, QuyDinhMau.DuLieu);
+                Guid.NewGuid(), Modalities.Text, RawJson.Tu("{\"text\":\"x\"}"), "dong 1", "abc", SampleMetadata.Rong, Luc, QuyDinhMau.DuLieu);
 
             Assert.Throws<ArgumentException>(() => s.LoaiBo(" ", Luc));
             Assert.True(s.LoaiBo(BaoLoiService.LoaiDoChuDuAn, Luc));

@@ -119,41 +119,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
         }
     }
 
-    public sealed class DatasetConfiguration : IEntityTypeConfiguration<Dataset>
-    {
-        public void Configure(EntityTypeBuilder<Dataset> builder)
-        {
-            if (builder == null)
-            {
-                throw new ArgumentNullException(nameof(builder));
-            }
-
-            builder.ToTable("datasets");
-            builder.Property(x => x.ImportSource).HasColumnName("import_source").HasMaxLength(20);
-            builder.Property(x => x.ImportSpec).HasColumnName("import_spec").HasColumnType("jsonb");
-
-            builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
-            builder.HasKey(x => x.Id);
-
-            builder.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
-            builder.Property(x => x.Name).HasColumnName("name").HasMaxLength(CotDb.TenLo).IsRequired();
-            builder.Property(x => x.SampleCount).HasColumnName("sample_count").IsRequired();
-            builder.Property(x => x.SkippedCount).HasColumnName("skipped_count").IsRequired();
-            builder.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
-            builder.Property(x => x.ErrorSummary).HasColumnName("error_summary").HasMaxLength(CotDb.TomTatLoi);
-            builder.Property(x => x.Manifest).HasColumnName("manifest").HasColumnType("jsonb").HasConversion(JsonColumns.RawJsonCotNull);
-            builder.Property(x => x.ManifestKey).HasColumnName("manifest_key").HasMaxLength(300);
-            builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
-            builder.Property(x => x.FinishedAt).HasColumnName("finished_at");
-
-            // Worker tim lo cho xu ly.
-            builder.HasIndex(x => x.Status).HasFilter("status IN ('Pending','Ingesting')").HasDatabaseName("ix_datasets_dang_xu_ly");
-
-            builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
-            builder.HasIndex(x => x.ProjectId).HasDatabaseName("ix_datasets_project");
-        }
-    }
-
     public sealed class SampleConfiguration : IEntityTypeConfiguration<Sample>
     {
         public void Configure(EntityTypeBuilder<Sample> builder)
@@ -172,7 +137,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.HasKey(x => new { x.ProjectId, x.Id });
 
             builder.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
-            builder.Property(x => x.DatasetId).HasColumnName("dataset_id").IsRequired();
             builder.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
 
             // File (image/audio/video) co storage_key; noi dung (text/pair) co content.
@@ -182,20 +146,29 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.OriginalName).HasColumnName("original_name").HasMaxLength(CotDb.TenMau).IsRequired();
             builder.Property(x => x.ContentType).HasColumnName("content_type").HasMaxLength(100);
             builder.Property(x => x.SizeBytes).HasColumnName("size_bytes");
-            builder.Property(x => x.Sha256).HasColumnName("sha256").HasMaxLength(64).IsRequired();
+            // null khi mau chua doc xong (dang cho / dang xu ly) hoac bi loi — UNIQUE theo du an cho nhieu NULL.
+            builder.Property(x => x.Sha256).HasColumnName("sha256").HasMaxLength(64);
             builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.IngestState).HasColumnName("ingest_state").HasMaxLength(20).IsRequired().HasDefaultValue(TrangThaiNap.SanSang);
+            builder.Property(x => x.IngestError).HasColumnName("ingest_error").HasMaxLength(CotDb.TomTatLoi);
+            builder.Property(x => x.IngestSource).HasColumnName("ingest_source").HasMaxLength(2048);
             builder.Property(x => x.MediaState).HasColumnName("media_state").HasMaxLength(20);
             builder.Property(x => x.MediaError).HasColumnName("media_error").HasMaxLength(CotDb.LoiMedia);
             builder.Property(x => x.ExcludedAt).HasColumnName("excluded_at");
             builder.Property(x => x.ExcludedReason).HasColumnName("excluded_reason").HasMaxLength(20);
 
             builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
-            builder.HasOne<Dataset>().WithMany().HasForeignKey(x => x.DatasetId).OnDelete(DeleteBehavior.Cascade);
 
             // Cung mot anh chi la MOT mau trong du an. UNIQUE o database de hai
             // lan nap song song cung khong lot duoc.
             builder.HasIndex(x => new { x.ProjectId, x.Sha256 }).IsUnique().HasDatabaseName("ux_samples_project_sha256");
-            builder.HasIndex(x => x.DatasetId).HasDatabaseName("ix_samples_dataset");
+
+            // Worker tim mau cho nap / dang nap.
+            builder.HasIndex(x => x.IngestState).HasFilter("ingest_state IN ('queued','processing')").HasDatabaseName("ix_samples_dang_nap");
+
+            // Mau chua nap xong / bi loi KHONG phai cau hoi: moi truy van nghiep vu (dung de, nop bai, xuat file,
+            // dem san sang publish...) chi thay mau ready. Cho chu du an xem tien trinh nap thi IgnoreQueryFilters().
+            builder.HasQueryFilter(x => x.IngestState == TrangThaiNap.SanSang);
 
             // Moi mau la file HOAC noi dung, khong bao gio ca hai hay khong co gi.
             builder.ToTable(t => t.HasCheckConstraint("ck_samples_file_hoac_noi_dung", "(storage_key IS NULL) <> (content IS NULL)"));

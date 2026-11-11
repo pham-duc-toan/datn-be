@@ -423,14 +423,14 @@ namespace Crowd.Notification.Api.Services
             return new NoiDung(tieuDe, noiDung, null);
         }
 
-        // ---- van hanh (VD-D-06) ----
+        // ---- loi he thong cho doi ky thuat (kien truc 3.29, loai 3) ----
 
         public static NoiDung EmailCanhBaoDlq(string hangDoi, long soMessage, int nguong)
         {
-            return new NoiDung("[Crowd Label] DLQ " + hangDoi + " có " + soMessage + " message",
-                "Hàng đợi lỗi " + hangDoi + " đang có " + soMessage + " message (ngưỡng " + nguong + ").\n"
-                + "Message vào DLQ là event không xử lý được sau nhiều lần thử — tiền / trạng thái có thể đang đứng.\n"
-                + "Xem log service tương ứng, sửa nguyên nhân rồi đưa message lại hàng đợi chính.\n\n— admin-svc",
+            return new NoiDung("[Crowd Label] Lỗi hệ thống: DLQ " + hangDoi + " có " + soMessage + " message",
+                "Hàng lỗi " + hangDoi + " đang có " + soMessage + " message (ngưỡng " + nguong + ").\n"
+                + "Đây là event lỗi KỸ THUẬT đã thử lại nhiều lần không được (ca nghiệp vụ cần người xử lý nằm ở hàng đợi duyệt của admin, không vào DLQ).\n"
+                + "Tra log Error của service tương ứng trên Kibana (app.LogLevel : Error and app.Message : DLQ), sửa nguyên nhân rồi đưa message lại hàng đợi chính.\n\n— admin-svc",
                 null);
         }
 

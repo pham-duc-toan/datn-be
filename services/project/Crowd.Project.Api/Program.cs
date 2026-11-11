@@ -100,22 +100,21 @@ builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<QuanHeLabelerService>();
 builder.Services.AddScoped<GoiYService>();
 builder.Services.AddHostedService<DonDepThanhVienWorker>();
-builder.Services.AddScoped<DatasetService>();
+builder.Services.AddScoped<MauService>();
 builder.Services.AddScoped<GioiHanZipFilter>();
 builder.Services.AddScoped<UploadService>();
 builder.Services.Configure<MediaOptions>(builder.Configuration.GetSection(MediaOptions.SectionName));
 builder.Services.AddSingleton<IMediaProbe, FfprobeMediaProbe>();
-builder.Services.AddScoped<DatasetIngestor>();
+builder.Services.AddScoped<SampleIngestor>();
 
-// Nhap tu nguon ngoai (FB-11): HttpClient rieng di qua cua chong SSRF (ChanSsrf), bi mat S3 ma hoa tam.
+// Nhap tu nguon ngoai (FB-11): HttpClient rieng di qua cua chong SSRF (ChanSsrf); link S3 ky san, khong luu khoa bi mat.
 builder.Services.Configure<NhapNgoaiOptions>(builder.Configuration.GetSection(NhapNgoaiOptions.SectionName));
 NhapNgoaiOptions nhapNgoai = new NhapNgoaiOptions();
 builder.Configuration.GetSection(NhapNgoaiOptions.SectionName).Bind(nhapNgoai);
 builder.Services.AddHttpClient(NhapNguonNgoaiService.TenHttpClient)
     .ConfigurePrimaryHttpMessageHandler(() => ChanSsrf.TaoHandler(nhapNgoai.AllowedPrivateHosts));
-builder.Services.AddSingleton<BiMatNguon>();
 builder.Services.AddScoped<NhapNguonNgoaiService>();
-builder.Services.AddHostedService<DatasetIngestWorker>();
+builder.Services.AddHostedService<SampleIngestWorker>();
 builder.Services.AddScoped<GoldSetService>();
 builder.Services.AddScoped<EntranceTestService>();
 builder.Services.AddHostedService<PendingApprovalTimeoutWorker>();

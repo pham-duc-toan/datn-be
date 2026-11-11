@@ -52,6 +52,7 @@ namespace Crowd.Project.Infrastructure.Import
         private readonly AmazonS3Client _client;
         private readonly string _bucket;
         private readonly string _prefix;
+        private readonly bool _http;
 
         public NguonS3(ThongSoS3 s, IReadOnlyCollection<string> hostChoPhep)
         {
@@ -82,6 +83,7 @@ namespace Crowd.Project.Infrastructure.Import
             cfg.MaxErrorRetry = 1;
             cfg.Timeout = TimeSpan.FromSeconds(60);
 
+            _http = !string.IsNullOrWhiteSpace(cfg.ServiceURL) && cfg.ServiceURL.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
             _client = new AmazonS3Client(new BasicAWSCredentials(s.AccessKey, s.SecretKey), cfg);
             _bucket = s.Bucket;
             _prefix = s.Prefix ?? string.Empty;
@@ -136,6 +138,36 @@ namespace Crowd.Project.Infrastructure.Import
             }
 
             return ds;
+        }
+
+        /// <summary>
+        /// Link GET ky san het han sau <paramref name="han" />: worker tai file bang link nay nen KHONG phai giu khoa
+        /// bi mat cua doanh nghiep sau khi request ket thuc (link chi cho doc dung mot file va tu het han).
+        /// </summary>
+        public string TaoLinkTai(MucNguon muc, TimeSpan han)
+        {
+            if (muc == null || muc.KhoaS3 == null)
+            {
+                throw new ArgumentException("muc khong phai doi tuong S3", nameof(muc));
+            }
+
+            GetPreSignedUrlRequest req = new GetPreSignedUrlRequest
+            {
+                BucketName = _bucket,
+                Key = muc.KhoaS3,
+                Verb = HttpVerb.GET,
+                Expires = DateTime.UtcNow.Add(han),
+                Protocol = _http ? Protocol.HTTP : Protocol.HTTPS,
+            };
+
+            try
+            {
+                return _client.GetPreSignedURL(req);
+            }
+            catch (AmazonClientException ex)
+            {
+                throw new NguonNgoaiException("s3_khong_ky_duoc", "Không tạo được link tải S3: " + ex.Message);
+            }
         }
 
         public async Task<TepTaiVe> TaiAsync(MucNguon muc, long toiDaByte, CancellationToken ct)

@@ -53,13 +53,10 @@ namespace Crowd.Project.Api.Consumers
                 .Where(s => s.ProjectId == p.ProjectId && s.StorageKey == p.StorageKey)
                 .ToListAsync(ct);
 
-            // Du an da xoa / mau khong con: khong nem loi (nem thi message quay vong roi vao DLQ vo ich).
+            // Du an da xoa / mau da xoa: ca binh thuong (loai 1, kien truc 3.29).
             if (mau.Count == 0)
             {
-                _logger.LogWarning(
-                    "video.prepared {EventId}: khong co mau nao cua du an {ProjectId} dung file {StorageKey} — bo qua",
-                    envelope.EventId, p.ProjectId, p.StorageKey);
-                return;
+                throw new BoQuaEventException("khong con mau nao cua du an " + p.ProjectId + " dung file " + p.StorageKey + " (du an / mau da xoa)");
             }
 
             foreach (Sample s in mau)

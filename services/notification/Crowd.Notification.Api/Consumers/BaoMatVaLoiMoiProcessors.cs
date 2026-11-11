@@ -101,7 +101,10 @@ namespace Crowd.Notification.Api.Consumers
         }
     }
 
-    /// <summary>ops.dlq_alert (admin-svc) → email toi ops.alert_email (trong = khong gui, admin xem /admin/ops/queues).</summary>
+    /// <summary>
+    /// ops.dlq_alert (admin-svc, kien truc 3.29 — loai 3: loi ky thuat, message vao DLQ) → email toi ops.alert_email
+    /// (doi ky thuat). Trong = khong gui; admin van thay the "Tinh trang he thong".
+    /// </summary>
     public sealed class OpsDlqAlertProcessor : ThongBaoProcessor<OpsDlqAlert>
     {
         private readonly ISettings _settings;
@@ -125,7 +128,7 @@ namespace Crowd.Notification.Api.Consumers
                 return Task.CompletedTask;
             }
 
-            return Writer.GhiEmailGiaoDichAsync(null, toi, "Van hanh", NoiDungThongBao.EmailCanhBaoDlq(p.Queue, p.Depth, p.Threshold), ct);
+            return Writer.GhiEmailGiaoDichAsync(null, toi, "Đội kỹ thuật", NoiDungThongBao.EmailCanhBaoDlq(p.Queue, p.Depth, p.Threshold), ct);
         }
     }
 }

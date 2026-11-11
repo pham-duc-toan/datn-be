@@ -32,9 +32,19 @@ x-dotnet-env: &dotnet-env
   # Link xem mau qua media-svc (FP-03): khoa ma hoa token dung chung voi media-svc.
   MediaLinks__PublicUrl: http://localhost:18080
   MediaLinks__GrantKey: ${MEDIA_GRANT_KEY:?chay python deploy/tao_env.py}
+  # Log: MOT dong JSON moi ban ghi ra stdout → Filebeat gom vao Elasticsearch (dev tra o Kibana).
+  Logging__Console__FormatterName: json
+  Logging__Console__FormatterOptions__TimestampFormat: "yyyy-MM-ddTHH:mm:ss.fffZ"
+  Logging__Console__FormatterOptions__UseUtcTimestamp: "true"
+  Logging__Console__FormatterOptions__JsonWriterOptions__Indented: "false"
+
+# Nhan de Filebeat chi gom log cua cac service he thong (khong gom MinIO, Postgres... va chinh ELK).
+x-log-labels: &log-labels
+  co.elastic.logs/enabled: "true"
 
 x-dotnet-service: &dotnet-service
   restart: unless-stopped
+  labels: *log-labels
   depends_on:
     rabbitmq: { condition: service_healthy }
     minio-init: { condition: service_completed_successfully }
@@ -352,6 +362,7 @@ services:
     image: datn/quality:demo
     container_name: datn-demo-quality
     restart: unless-stopped
+    labels: *log-labels
     build: { context: ., dockerfile: deploy/docker/quality.Dockerfile }
     depends_on:
       rabbitmq: { condition: service_healthy }
@@ -368,24 +379,28 @@ services:
       QUALITY_GRPC_PORT: "9201"
       # Cham cau tra loi mo theo nghia (3.19). ml-svc sap → quality-svc cho roi ha xuong so chu.
       QUALITY_ML_URL: http://ml:8202
+      LOG_FORMAT: json
 
   ml:
     # AI ho tro (3.19): nhung cau tra loi mo cho quality-svc. Chi trong mang noi bo, khong qua gateway.
     image: datn/ml:demo
     container_name: datn-demo-ml
     restart: unless-stopped
+    labels: *log-labels
     build: { context: ., dockerfile: deploy/docker/ml.Dockerfile }
     depends_on:
       db-ml: { condition: service_healthy }
     environment:
       ML_DATABASE_URL: postgresql+asyncpg://ml_user:${DB_ML_PASSWORD:?chay python deploy/tao_env.py}@db-ml:5432/ml_db
       ML_INTERNAL_API_KEY: ${INTERNAL_API_KEY:?chay python deploy/tao_env.py}
+      LOG_FORMAT: json
 
   media:
     # Bao ve du lieu (FP-02, FP-03): phat file mau qua token, watermark chim nhung thang nguoi xem. Khong co DB.
     image: datn/media:demo
     container_name: datn-demo-media
     restart: unless-stopped
+    labels: *log-labels
     build: { context: ., dockerfile: deploy/docker/media.Dockerfile }
     depends_on:
       rabbitmq: { condition: service_healthy }
@@ -400,6 +415,7 @@ services:
       MEDIA_WATERMARK_KEY: ${MEDIA_WATERMARK_KEY:?chay python deploy/tao_env.py}
       # Bo dem ban chuan / ban da nhung watermark cua am thanh, video: volume rieng, tao lai container khong mat.
       MEDIA_AV_CACHE_DIR: /var/cache/media-wm
+      LOG_FORMAT: json
     volumes: [media-cache:/var/cache/media-wm]
 
   gateway:
@@ -431,7 +447,57 @@ services:
       Cors__AllowedOrigins__0: http://localhost:3000
       Cors__AllowedOrigins__1: http://localhost:5173
 
+  # ------------------------------------------------------------------ log (Elasticsearch + Kibana + Filebeat)
+  # Thay man hinh "hang doi loi" tren admin: dev tra log o Kibana http://localhost:15601 (Discover, data view
+  # "Crowd logs"). Loi he thong (ke ca message roi vao DLQ) deu la log muc Warning / Error o day.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: datn-demo-elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+    ports: ["19200:9200"]
+    volumes: [esdata:/usr/share/elasticsearch/data]
+    healthcheck: { test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"], interval: 10s, timeout: 5s, retries: 30 }
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    container_name: datn-demo-kibana
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports: ["15601:5601"]
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+
+  kibana-init:
+    image: curlimages/curl:8.10.1
+    container_name: datn-demo-kibana-init
+    restart: "no"
+    entrypoint: ["sh", "/init.sh"]
+    volumes: ["./deploy/elk/kibana-init.sh:/init.sh:ro"]
+    depends_on:
+      - kibana
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.15.3
+    container_name: datn-demo-filebeat
+    restart: unless-stopped
+    user: root
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    volumes:
+      - ./deploy/elk/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./deploy/elk/ilm-policy.json:/usr/share/filebeat/ilm-policy.json:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+
 volumes:
+  esdata:
   rabbitdata:
   miniodata:
   redis-gate-data:

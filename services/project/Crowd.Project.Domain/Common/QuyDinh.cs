@@ -45,8 +45,6 @@ namespace Crowd.Project.Domain.Common
     /// <summary>Quy dinh khi nap du lieu.</summary>
     public sealed class QuyDinhDuLieu
     {
-        public required int DoDaiTenLoToiDa { get; init; }
-
         public required int DoDaiLoiToiDa { get; init; }
 
         public required int DoDaiTenMauToiDa { get; init; }
@@ -82,8 +80,6 @@ namespace Crowd.Project.Domain.Common
         public const int TenDuAn = 200;
 
         public const int MoTaDuAn = 5000;
-
-        public const int TenLo = 200;
 
         public const int TomTatLoi = 4000;
 

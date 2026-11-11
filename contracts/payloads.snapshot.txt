@@ -58,13 +58,6 @@ click.validated v1  (ClickValidated)
     SharerId                 Guid                 required
     ValidatedAt              DateTimeOffset       required
 
-dataset.ingested v1  (DatasetIngested)
-    BatchCount               Int32                required
-    BatchIndex               Int32                required
-    DatasetId                Guid                 required
-    ProjectId                Guid                 required
-    Samples                  IReadOnlyList<IngestedSample> required
-
 deposit.confirmed v1  (DepositConfirmed)
     AmountVnd                Int64                required
     BusinessId               Guid                 required
@@ -161,6 +154,21 @@ link.review_requested v1  (LinkReviewRequested)
     LinkId                   Guid                 required
     OwnerId                  Guid                 required
     ReportCount              Int32                required
+
+manual_action.required v1  (ManualActionRequired)
+    ActionId                 Guid                 required
+    AmountVnd                Int64?               nullable
+    Description              String               required
+    Kind                     String               required
+    ProjectId                Guid?                nullable
+    SourceEventId            Guid                 required
+    SourceEventType          String               required
+    Title                    String               required
+    UserId                   Guid?                nullable
+
+manual_action.resolved v1  (ManualActionResolved)
+    ActionId                 Guid                 required
+    Note                     String?              nullable
 
 member.added v1  (MemberAdded)
     ProjectId                Guid                 required
@@ -304,6 +312,10 @@ refund.issued v1  (RefundIssued)
 reputation.changed v1  (ReputationChanged)
     Reputation               Int32                required
     UserId                   Guid                 required
+
+samples.ingested v1  (SamplesIngested)
+    ProjectId                Guid                 required
+    Samples                  IReadOnlyList<IngestedSample> required
 
 sensitive_document.viewed v1  (SensitiveDocumentViewed)
     DocumentKind             String               required

@@ -189,28 +189,27 @@ def upload(pid, files):
     return keys
 
 
-def nap_manifest(pid, rows=None, manifest_key=None):
-    body = {"name": "lo-e2e"}
-    if rows is not None:
-        body["rows"] = rows
-    if manifest_key is not None:
-        body["manifestKey"] = manifest_key
-    r = requests.post(G + "/projects/%s/datasets/manifest" % pid, headers=biz1, json=body)
-    kiem("tao lo manifest → 202 Pending", r.status_code == 202 and r.json()["status"] == "pending", r.text)
-    did = r.json()["id"]
+def nap_manifest(pid, rows):
+    """Gui dong du lieu, cho worker nap xong, tra ve tom tat kieu cu (sampleCount = ready, skippedCount, errorSummary)."""
+    r = requests.post(G + "/projects/%s/samples" % pid, headers=biz1, json={"rows": rows})
+    kiem("them mau → 202", r.status_code == 202, r.text)
+    body = r.json()
 
     def xong():
-        ds = requests.get(G + "/projects/%s/datasets" % pid, headers=biz1).json()
-        d = [x for x in ds if x["id"] == did][0]
-        return d if d["status"] in ("ready", "failed") else None
+        t = requests.get(G + "/projects/%s/samples/status" % pid, headers=biz1).json()
+        return t if t["queued"] + t["processing"] == 0 else None
 
-    d = cho(xong, 60)
-    kiem("worker xu ly xong lo", d is not None, d)
-    return d
+    t = cho(xong, 60)
+    kiem("worker nap xong het mau", t is not None, t)
+    ds = requests.get(G + "/projects/%s/samples?page=1&pageSize=100" % pid, headers=biz1).json()["items"]
+    san = [m for m in ds if m["ingestState"] == "ready"]
+    loi = [m for m in ds if m["ingestState"] == "failed"]
+    ly_do = list(body["errors"]) + [m["ingestError"] for m in loi]
+    return {"sampleCount": len(san), "skippedCount": body["skipped"] + len(loi), "errorSummary": "\n".join(ly_do) or None}
 
 
 def mau(pid):
-    return requests.get(G + "/projects/%s/samples?page=1&pageSize=100" % pid, headers=biz1).json()["items"]
+    return requests.get(G + "/projects/%s/samples?page=1&pageSize=100&trangThai=san_sang" % pid, headers=biz1).json()["items"]
 
 
 def chay_du_an(pid, so_mau, ngan_sach=None, chon=None):
@@ -259,7 +258,7 @@ pid = du_an_moi("[e2e] Anh khung", "image", {
 r = requests.post(G + "/projects/%s/uploads" % pid, headers=biz1, json={"files": [{"name": "virus.exe", "sizeBytes": 10}]})
 kiem("upload duoi .exe cho du an anh → 400", r.status_code == 400, r.text)
 keys = upload(pid, [os.path.join(M, "anh.png"), os.path.join(M, "anh2.png"), os.path.join(M, "gia-mao.png")])
-d = nap_manifest(pid, rows=[{"file": keys[0], "name": "do.png"}, {"file": keys[1], "name": "xanh.png"},
+d = nap_manifest(pid, [{"file": keys[0], "name": "do.png"}, {"file": keys[1], "name": "xanh.png"},
                             {"file": keys[2], "name": "gia-mao.png"}, {"file": "khac-du-an/x.png"}])
 kiem("2 mau, bo qua 2 (gia mao + khac du an)", d and d["sampleCount"] == 2 and d["skippedCount"] == 2, d)
 kiem("ErrorSummary neu ro ly do", d and "không phải ảnh" in (d.get("errorSummary") or "") and "không thuộc dự án" in d["errorSummary"], d)
@@ -309,10 +308,10 @@ print("\n[6] Du an AM THANH moi: cat doan 10 giay (file 23 giay)")
 pid = du_an_moi("[e2e] Am thanh cat doan", "audio", {
     "modality": "audio", "segmentSeconds": 10,
     "tools": [{"name": "chep", "kind": "transcription"}, {"name": "doan", "kind": "temporalSegment", "classes": ["noi", "im"], "required": False}]})
-r = requests.post(G + "/projects/%s/datasets" % pid, headers=biz1, files={"file": ("a.zip", b"PK\x03\x04", "application/zip")}, data={"name": "zip"})
+r = requests.post(G + "/projects/%s/samples/zip" % pid, headers=biz1, files={"file": ("a.zip", b"PK\x03\x04", "application/zip")}, data={"name": "zip"})
 kiem("ZIP cho du an audio → tu choi (zip_chi_cho_anh)", r.status_code in (400, 409) and "zip_chi_cho_anh" in r.text, r.text)
 keys = upload(pid, [os.path.join(M, "cuoc-goi.wav")])
-d = nap_manifest(pid, rows=[{"file": keys[0], "name": "cuoc-goi.wav"}])
+d = nap_manifest(pid, [{"file": keys[0], "name": "cuoc-goi.wav"}])
 kiem("23 giay → 3 doan (0-10, 10-20, 20-23)", d and d["sampleCount"] == 3, d)
 ms = sorted(mau(pid), key=lambda m: m["metadata"].get("segmentStart", 0))
 kiem("metadata doan dung (ffprobe that)", [(m["metadata"].get("segmentStart"), m["metadata"].get("segmentEnd")) for m in ms] == [(0, 10), (10, 20), (20, 23)], [m["metadata"] for m in ms])
@@ -338,7 +337,7 @@ pid = du_an_moi("[e2e] Video", "video", {
 r = requests.post(G + "/projects/%s/uploads" % pid, headers=biz1, json={"files": [{"name": "a.wav", "sizeBytes": 10}]})
 kiem("xin link .wav cho du an video → 400 (loc so bo theo duoi)", r.status_code == 400, r.text)
 keys = upload(pid, [os.path.join(M, "clip.mp4"), os.path.join(M, "am-thanh-gia.mp4")])
-d = nap_manifest(pid, rows=[{"file": keys[0]}, {"file": keys[1]}])
+d = nap_manifest(pid, [{"file": keys[0]}, {"file": keys[1]}])
 kiem("mp4 that nhan, WAV doi ten .mp4 bi ffprobe loai (khong co hinh)", d and d["sampleCount"] == 1 and "không phải video" in (d.get("errorSummary") or ""), d)
 ms = mau(pid)
 kiem("metadata video 320x240, ~12 giay", ms and ms[0]["metadata"]["width"] == 320 and ms[0]["metadata"]["height"] == 240 and abs(ms[0]["metadata"]["durationSec"] - 12) < 0.5, ms and ms[0]["metadata"])
@@ -348,18 +347,15 @@ if t:
     kiem("nop video hop le", r.status_code == 200, r.text)
 
 # =====================================================================
-print("\n[8] Du an TEXT moi qua file manifest .jsonl trong MinIO")
-pid = du_an_moi("[e2e] Van ban jsonl", "text", {
+print("\n[8] Du an TEXT moi: gui dong JSON (trung noi dung / dong khong phai object bi bo qua)")
+pid = du_an_moi("[e2e] Van ban dong json", "text", {
     "modality": "text", "tools": [{"name": "y_dinh", "kind": "classification", "classes": ["hoi", "khen", "che"]}]})
-p = os.path.join(M, "cau.jsonl")
-with open(p, "w", encoding="utf-8") as f:
-    for c in ["San pham tot qua", "Giao hang cham", "Shop mo cua may gio?", "San pham tot qua", "khong phai json"]:
-        f.write((json.dumps({"text": c}, ensure_ascii=False) if c != "khong phai json" else c) + "\n")
-keys = upload(pid, [p])
-d = nap_manifest(pid, manifest_key=keys[0])
+r = requests.post(G + "/projects/%s/uploads" % pid, headers=biz1, json={"files": [{"name": "cau.jsonl", "sizeBytes": 10}]})
+kiem("du an van ban khong upload file (khong con manifest .jsonl) → 400", r.status_code == 400, r.text)
+d = nap_manifest(pid, [{"text": "San pham tot qua"}, {"text": "Giao hang cham"}, {"text": "Shop mo cua may gio?"}, {"text": "San pham tot qua"}, "khong phai object"])
 kiem("4 dong hop le → 3 mau (1 trung), 2 bo qua", d and d["sampleCount"] == 3 and d["skippedCount"] == 2, d)
 ms = mau(pid)
-kiem("mau text co content + length", all(m["content"]["text"] and m["metadata"]["length"] == len(m["content"]["text"]) for m in ms), ms)
+kiem("mau text co content + length, ready ngay (khong qua hang doi)", all(m["content"]["text"] and m["metadata"]["length"] == len(m["content"]["text"]) and m["ingestState"] == "ready" for m in ms), ms)
 
 print("\nTONG: %d PASS, %d FAIL" % (KET_QUA["pass"], KET_QUA["fail"]))
 sys.exit(1 if KET_QUA["fail"] else 0)

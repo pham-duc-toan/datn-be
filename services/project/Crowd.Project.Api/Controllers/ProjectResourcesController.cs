@@ -243,16 +243,16 @@ namespace Crowd.Project.Api.Controllers
         }
     }
 
-    /// <summary>Dataset va mau (FB-11).</summary>
+    /// <summary>Nap va xem mau (FB-11).</summary>
     [ApiController]
     [Route("projects/{projectId:guid}")]
     [Authorize]
-    public sealed class DatasetsController : ControllerBase
+    public sealed class MauController : ControllerBase
     {
-        private readonly DatasetService _service;
+        private readonly MauService _service;
         private readonly UploadService _uploads;
 
-        public DatasetsController(DatasetService service, UploadService uploads)
+        public MauController(MauService service, UploadService uploads)
         {
             if (service == null)
             {
@@ -270,7 +270,7 @@ namespace Crowd.Project.Api.Controllers
 
         /// <summary>
         /// POST /projects/{id}/uploads — xin link ky san de PUT file THANG len MinIO
-        /// (audio / video / anh lon / file manifest .jsonl). Moi file mot { key, uploadUrl }.
+        /// (audio / video / anh lon). Moi file mot { key, uploadUrl }.
         /// </summary>
         [HttpPost("uploads")]
         public async Task<IActionResult> XinLinkUpload(Guid projectId, [FromBody] CreateUploadsRequest body, CancellationToken ct)
@@ -279,41 +279,38 @@ namespace Crowd.Project.Api.Controllers
         }
 
         /// <summary>
-        /// POST /projects/{id}/datasets/manifest — tao lo tu manifest (moi loai du lieu):
-        /// {"name":..., "rows":[...]} hoac {"name":..., "manifestKey":"&lt;key file .jsonl&gt;"}.
-        /// Tra 202: lo o trang thai Pending, worker xu ly nen — xem GET /datasets.
+        /// POST /projects/{id}/samples — them mau bang dong JSON: {"rows":[...]}. File da upload (khoa tu /uploads) thanh
+        /// mau "queued" cho worker xu ly nen (202); text / pair / list ready ngay. Theo doi o GET samples/status.
         /// </summary>
+        [HttpPost("samples")]
+        public async Task<IActionResult> ThemMau(Guid projectId, [FromBody] ThemMauRequest body, CancellationToken ct)
+        {
+            NapMauResponse r = await _service.ThemMauAsync(projectId, body, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
+            return Accepted("/projects/" + projectId + "/samples/status", r);
+        }
+
         /// <summary>
-        /// POST /projects/{id}/datasets/import — nhap tu nguon ngoai (FB-11): { name, source: urls|s3|gdrive,
+        /// POST /projects/{id}/samples/import — nhap tu nguon ngoai (FB-11): { source: urls|s3|gdrive,
         /// urls | s3 {endpoint?, region?, bucket, prefix?, accessKey, secretKey} | googleDrive {links} }.
-        /// 202: lo Pending, worker tai ve roi nap; theo doi o GET datasets.
+        /// 202: moi file la mot mau "queued" kem link tai; worker tai ve roi nap. Theo doi o GET samples/status.
         /// </summary>
-        [HttpPost("datasets/import")]
+        [HttpPost("samples/import")]
         public async Task<IActionResult> NhapNguonNgoai(
-            Guid projectId, [FromBody] ImportDatasetRequest body, [FromServices] NhapNguonNgoaiService nhap, CancellationToken ct)
+            Guid projectId, [FromBody] ImportMauRequest body, [FromServices] NhapNguonNgoaiService nhap, CancellationToken ct)
         {
-            DatasetResponse lo = await _service.TaoTuNguonNgoaiAsync(projectId, body, nhap, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
-            return Accepted(lo);
-        }
-
-        [HttpPost("datasets/manifest")]
-        public async Task<IActionResult> NapManifest(Guid projectId, [FromBody] CreateManifestDatasetRequest body, CancellationToken ct)
-        {
-            DatasetResponse d = await _service.TaoTuManifestAsync(
-                projectId, body, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
-
-            return Accepted("/projects/" + projectId + "/datasets", d);
+            NapMauResponse r = await _service.NhapNguonNgoaiAsync(projectId, body, nhap, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
+            return Accepted("/projects/" + projectId + "/samples/status", r);
         }
 
         /// <summary>
-        /// POST /projects/{id}/datasets — multipart/form-data: name + file (ZIP anh).
+        /// POST /projects/{id}/samples/zip — multipart/form-data: file (ZIP anh), xu ly NGAY trong request.
         ///
         /// GioiHanZipFilter NANG tran cho RIENG endpoint nay theo setting
         /// dataset.zip_max_bytes; moi endpoint khac van giu tran mac dinh 30 MB cua Kestrel.
         /// </summary>
-        [HttpPost("datasets")]
+        [HttpPost("samples/zip")]
         [ServiceFilter(typeof(GioiHanZipFilter))]
-        public async Task<IActionResult> Nap(Guid projectId, [FromForm] string? name, IFormFile? file, CancellationToken ct)
+        public async Task<IActionResult> NapZip(Guid projectId, IFormFile? file, CancellationToken ct)
         {
             if (file == null || file.Length == 0)
             {
@@ -322,29 +319,34 @@ namespace Crowd.Project.Api.Controllers
 
             using (System.IO.Stream luong = file.OpenReadStream())
             {
-                DatasetResponse d = await _service.NapZipAsync(
-                    projectId,
-                    name ?? file.FileName,
-                    luong,
-                    Caller.TuHttp(HttpContext, ActorRole.Business),
-                    ct);
-
-                return Created("/projects/" + projectId + "/datasets", d);
+                NapMauResponse r = await _service.NapZipAsync(projectId, luong, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
+                return Created("/projects/" + projectId + "/samples", r);
             }
         }
 
-        [HttpGet("datasets")]
-        public async Task<IActionResult> DanhSach(Guid projectId, CancellationToken ct)
+        /// <summary>GET /projects/{id}/samples/status — dem mau: queued | processing | ready | failed (+ video dang chuan bi).</summary>
+        [HttpGet("samples/status")]
+        public async Task<IActionResult> TrangThaiNap(Guid projectId, CancellationToken ct)
         {
-            return Ok(await _service.DanhSachAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
+            return Ok(await _service.TrangThaiNapAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
+        }
+
+        /// <summary>DELETE /projects/{id}/samples/failed — xoa cac mau nap loi (de nap lai). Chi khi du an con Nhap.</summary>
+        [HttpDelete("samples/failed")]
+        public async Task<IActionResult> XoaMauLoi(Guid projectId, CancellationToken ct)
+        {
+            int so = await _service.XoaMauLoiAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
+            return Ok(new { deleted = so });
         }
 
         /// <summary>
-        /// GET /projects/{id}/samples?page=&amp;pageSize=&amp;ids=a,b,c — kem ten file goc va link xem file
-        /// 5 phut (hoac noi dung text). ids: chi lay cac mau nay (toi da 100).
+        /// GET /projects/{id}/samples?page=&amp;pageSize=&amp;ids=a,b,c&amp;trangThai= — kem ten file goc va link xem file
+        /// 5 phut (hoac noi dung text). ids: chi lay cac mau nay (toi da 100). trangThai: dang_xu_ly | loi | san_sang
+        /// (bo trong = tat ca, ke ca mau chua nap xong / loi).
         /// </summary>
         [HttpGet("samples")]
-        public async Task<IActionResult> Mau(Guid projectId, [FromQuery] int page, [FromQuery] int pageSize, [FromQuery] string? ids, CancellationToken ct)
+        public async Task<IActionResult> Mau(
+            Guid projectId, [FromQuery] int page, [FromQuery] int pageSize, [FromQuery] string? ids, [FromQuery] string? trangThai, CancellationToken ct)
         {
             List<Guid>? loc = null;
             if (!string.IsNullOrWhiteSpace(ids))
@@ -363,7 +365,7 @@ namespace Crowd.Project.Api.Controllers
             }
 
             return Ok(await _service.DanhSachMauAsync(
-                projectId, page, pageSize, loc, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
+                projectId, page, pageSize, loc, trangThai, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
         }
     }
 

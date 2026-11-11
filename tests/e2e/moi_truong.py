@@ -24,6 +24,9 @@ G = _url("E2E_GATEWAY", 8080)
 URL_LINK = _url("E2E_LINK_URL", 8107)
 URL_GATE = _url("E2E_GATE_URL", 8108)
 RABBIT_MGMT = _url("E2E_RABBIT_MGMT", 15672)
+# Elasticsearch / Kibana (log tap trung, docker-compose.demo.yml): dev tra log o day thay cho man hinh DLQ.
+URL_ES = _url("E2E_ES_URL", 9200)
+URL_KIBANA = _url("E2E_KIBANA_URL", 5601)
 MAILPIT = _url("E2E_MAILPIT", 8025)   # xem email thong bao (API /api/v1/search)
 TIEN_TO_CONTAINER = os.environ.get("E2E_CONTAINER_PREFIX", _TIEN_TO)
 

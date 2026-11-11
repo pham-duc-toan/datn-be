@@ -153,10 +153,7 @@ namespace Crowd.Project.Api.Seeding
 
             _db.Projects.Add(duAn);
 
-            // ---- 2. Dataset + mau ----
-            Dataset lo = Dataset.Tao(sp.Id, "Lo du lieu mau (seed)", lucTao, QuyDinhTuSetting.DuLieu(_settings));
-            SeedIds.GanId(lo, sp.DatasetId);
-
+            // ---- 2. Mau (seed tao san o trang thai ready) ----
             foreach (SeedSample s in sp.Samples)
             {
                 Sample mau = await TaoMauAsync(sp, s, lucTao, fileDaDay, ct);
@@ -171,8 +168,6 @@ namespace Crowd.Project.Api.Seeding
                 _db.Samples.Add(mau);
             }
 
-            lo.GhiNhanKetQuaNap(sp.Samples.Count, 0);
-            _db.Datasets.Add(lo);
 
             // ---- 3. Cau hoi vang — kiem bang tap nhan + metadata nhu API that ----
             foreach (SeedGold g in sp.Gold)
@@ -339,7 +334,7 @@ namespace Crowd.Project.Api.Seeding
                     await _storage.LuuAsync(s.StorageKey!, png, AnhMauPng.ContentType, ct);
 
                     return Sample.TaoAnhTrongZip(
-                        sp.Id, sp.DatasetId, s.FileName, AnhMauPng.ContentType, ".png", png.Length, Bam(png), s.Metadata, luc, QuyDinhTuSetting.DuLieu(_settings));
+                        sp.Id, s.FileName, AnhMauPng.ContentType, ".png", png.Length, Bam(png), s.Metadata, luc, QuyDinhTuSetting.DuLieu(_settings));
                 }
 
                 case Modalities.Audio:
@@ -351,7 +346,7 @@ namespace Crowd.Project.Api.Seeding
                         await _storage.LuuAsync(s.StorageKey!, wav, AmThanhMau.ContentType, ct);
                     }
 
-                    // Dau van tay doan = bam(file + "#" + diem bat dau) — cung cong thuc DatasetIngestor.
+                    // Dau van tay doan = bam(file + "#" + diem bat dau) — cung cong thuc SampleIngestor.
                     string sha = Bam(wav);
                     if (s.Metadata.SegmentStart.HasValue)
                     {
@@ -359,14 +354,14 @@ namespace Crowd.Project.Api.Seeding
                     }
 
                     return Sample.TaoTuFile(
-                        sp.Id, sp.DatasetId, Modalities.Audio, s.StorageKey!, s.FileName, AmThanhMau.ContentType, wav.Length, sha, s.Metadata, luc, QuyDinhTuSetting.DuLieu(_settings));
+                        sp.Id, Modalities.Audio, s.StorageKey!, s.FileName, AmThanhMau.ContentType, wav.Length, sha, s.Metadata, luc, QuyDinhTuSetting.DuLieu(_settings));
                 }
 
                 default:
                 {
                     string noiDung = s.ContentJson!;
                     return Sample.TaoTuNoiDung(
-                        sp.Id, sp.DatasetId, s.Modality, RawJson.Tu(noiDung), s.FileName, Bam(Encoding.UTF8.GetBytes(noiDung)), s.Metadata, luc, QuyDinhTuSetting.DuLieu(_settings));
+                        sp.Id, s.Modality, RawJson.Tu(noiDung), s.FileName, Bam(Encoding.UTF8.GetBytes(noiDung)), s.Metadata, luc, QuyDinhTuSetting.DuLieu(_settings));
                 }
             }
         }

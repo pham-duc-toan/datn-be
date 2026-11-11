@@ -213,6 +213,52 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
+        public void Don_gia_cong_link_do_admin_dat_va_chot_lai_luc_publish()
+        {
+            LabelingProject p = DuAnSanSang();
+            p.DatKenhPhanPhoi(true, true, false, 1000, 50000, Luc);
+            Assert.Equal(1000, p.GateUnitPriceVnd);
+
+            // Admin doi setting sau khi doanh nghiep bat kenh: luc publish gia duoc chot lai theo muc moi.
+            p.GhimGiaCongLink(1500, Luc.AddHours(1));
+            Assert.Equal(1500, p.GateUnitPriceVnd);
+
+            Assert.Throws<InvalidValueException>(() => p.GhimGiaCongLink(0, Luc));
+
+            // Khong bat cong link thi khong co gia de chot.
+            LabelingProject khong = DuAnSanSang();
+            khong.DatKenhPhanPhoi(true, false, false, null, null, Luc);
+            khong.GhimGiaCongLink(1500, Luc);
+            Assert.Equal(0, khong.GateUnitPriceVnd);
+        }
+
+        [Fact]
+        public void Chi_xoa_han_duoc_du_an_nhap_hoac_da_huy_chua_tung_publish()
+        {
+            DuAnMoi().KiemTraCoTheXoa();
+
+            LabelingProject huyNhap = DuAnMoi();
+            huyNhap.Huy("doi y", Luc);
+            huyNhap.KiemTraCoTheXoa();
+
+            // Da publish (co tien ky quy) → huy duoc nhung khong xoa han duoc.
+            LabelingProject daKyQuy = DuAnSanSang();
+            Publish(daKyQuy, 100);
+            daKyQuy.XacNhanDaKyQuy(Luc);
+            Assert.Throws<RuleViolationException>(() => daKyQuy.KiemTraCoTheXoa());
+
+            LabelingProject chay = DuAnDangChay();
+            RuleViolationException loi = Assert.Throws<RuleViolationException>(() => chay.KiemTraCoTheXoa());
+            Assert.Equal("khong_the_xoa_du_an", loi.Code);
+
+            LabelingProject huySauKyQuy = DuAnSanSang();
+            Publish(huySauKyQuy, 100);
+            huySauKyQuy.XacNhanDaKyQuy(Luc);
+            huySauKyQuy.Huy("khong lam nua", Luc);
+            Assert.Throws<RuleViolationException>(() => huySauKyQuy.KiemTraCoTheXoa());
+        }
+
+        [Fact]
         public void Bat_cong_link_ma_chua_dat_gia_thi_chua_publish_duoc()
         {
             LabelingProject p = DuAnSanSang();

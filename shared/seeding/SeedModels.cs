@@ -183,8 +183,6 @@ namespace Crowd.Seeding
 
         public required Guid OwnerId { get; init; }
 
-        public required Guid DatasetId { get; init; }
-
         public required string Name { get; init; }
 
         public required string Description { get; init; }

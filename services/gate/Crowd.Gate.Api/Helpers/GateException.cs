@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.Labeling;
@@ -16,6 +17,16 @@ namespace Crowd.Gate.Api.Helpers
         {
             Status = status;
             Code = code;
+            Extra = new Dictionary<string, object?>();
+        }
+
+        /// <summary>Truong them vao ProblemDetails (vd retryAfterSeconds, blockedUntil) de frontend hien dung canh bao.</summary>
+        public Dictionary<string, object?> Extra { get; }
+
+        public GateException Voi(string ten, object? giaTri)
+        {
+            Extra[ten] = giaTri;
+            return this;
         }
 
         public int Status { get; }
@@ -70,6 +81,13 @@ namespace Crowd.Gate.Api.Helpers
             chiTiet.Title = code;
             chiTiet.Detail = exception.Message;
             chiTiet.Extensions["code"] = code;
+            if (g != null)
+            {
+                foreach (KeyValuePair<string, object?> e in g.Extra)
+                {
+                    chiTiet.Extensions[e.Key] = e.Value;
+                }
+            }
 
             return await _problemDetails.TryWriteAsync(new ProblemDetailsContext
             {

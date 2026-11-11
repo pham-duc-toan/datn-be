@@ -137,6 +137,8 @@ namespace Crowd.Admin.Api.Persistence
                 b.Property(x => x.RequesterId).HasColumnName("requester_id");
                 b.Property(x => x.AmountVnd).HasColumnName("amount_vnd");
                 b.Property(x => x.Note).HasColumnName("note").HasMaxLength(1000);
+                b.Property(x => x.ProjectId).HasColumnName("project_id");
+                b.Property(x => x.Detail).HasColumnName("detail").HasMaxLength(1000);
                 b.Property(x => x.OpenedAt).HasColumnName("opened_at").IsRequired();
                 b.Property(x => x.DecidedAt).HasColumnName("decided_at");
                 b.Property(x => x.DecidedBy).HasColumnName("decided_by");

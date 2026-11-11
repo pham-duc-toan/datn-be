@@ -65,7 +65,7 @@ try:
     requests.put(G + f"/projects/{P}/guideline", headers=biz["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
     requests.put(G + f"/projects/{P}/pricing", headers=biz["h"], json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
                                                                        "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
-    r = requests.post(G + f"/projects/{P}/datasets", headers=biz["h"], files={"file": ("anh.zip", zip_anh(["mat.jpg", "canh.png"]), "application/zip")}, data={"name": "anh"})
+    r = requests.post(G + f"/projects/{P}/samples/zip", headers=biz["h"], files={"file": ("anh.zip", zip_anh(["mat.jpg", "canh.png"]), "application/zip")}, data={"name": "anh"})
     kiem("nap 2 anh (ZIP)", r.status_code in (200, 201), r.text)
     mau = {m["originalName"]: m for m in requests.get(G + f"/projects/{P}/samples?pageSize=100", headers=biz["h"]).json()["items"]}
     kiem("link xem di qua gateway /media/v/, khong lo MinIO",

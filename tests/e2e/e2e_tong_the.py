@@ -383,8 +383,7 @@ try:
         assert r.status_code == 200, r.text
         requests.put(G + f"/projects/{p}/guideline", headers=biz["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
         dat_gia(biz, p, 10000, 3)
-        requests.post(G + f"/projects/{p}/datasets/manifest", headers=biz["h"], json={"name": "lo", "rows": rows}).raise_for_status()
-        cho(lambda: [d for d in requests.get(G + f"/projects/{p}/datasets", headers=biz["h"]).json() if d["status"] == "ready"], 40)
+        nap_mau(p, biz["h"], rows)
         publish_va_duyet(biz, p)
         requests.post(G + f"/projects/{p}/join", headers=l1["h"]).raise_for_status()
         return p

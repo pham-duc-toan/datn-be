@@ -44,6 +44,9 @@ namespace Crowd.Gate.Infrastructure.Redis
     ///   gate:jti:{jti}              token mo link chua dung (TTL gate.token_ttl) — VD-L-02
     ///   gate:ip:{link}:{ipNgay}     IP da tinh tien cho link trong cua so — dac ta "1 luot/IP/24h"
     ///   gate:sample:{id}:n          so nhan cong link da thu cho mau (gioi han gate.max_labels_per_sample)
+    ///   gate:fail:{ip}              so lan IP truot cau vang (TTL = cua so gate.block_duration, tinh tu lan truot dau)
+    ///   gate:block:{ip}             IP bi chan (TTL gate.block_duration)
+    ///   gate:linklock:{link}:{ip}   IP da truot link nay → khong lam lai link cu, phai sang link khac
     ///   gate:events                 Redis Stream: luot xem / nop — relay chuyen sang outbox + ClickHouse
     /// </summary>
     public sealed class RedisGateStore
@@ -124,6 +127,48 @@ namespace Crowd.Gate.Infrastructure.Redis
             }
 
             return await Db.StringSetAsync("gate:ip:" + linkId.ToString("N") + ":" + ipHashNgay, "1", cuaSo, When.NotExists);
+        }
+
+        // ---------------- Truot cau vang: chan IP, khoa link ----------------
+
+        /// <summary>Tang so lan IP truot; lan dau dat TTL = cua so. Tra so lan truot hien tai.</summary>
+        public async Task<long> TangLanTruotAsync(string ipHash, TimeSpan cuaSo)
+        {
+            string khoa = "gate:fail:" + ipHash;
+            long n = await Db.StringIncrementAsync(khoa);
+            if (n == 1)
+            {
+                await Db.KeyExpireAsync(khoa, cuaSo);
+            }
+
+            return n;
+        }
+
+        public async Task<long> DocLanTruotAsync(string ipHash)
+        {
+            RedisValue v = await Db.StringGetAsync("gate:fail:" + ipHash);
+            return v.IsNullOrEmpty ? 0 : (long)v;
+        }
+
+        public async Task ChanIpAsync(string ipHash, TimeSpan thoiGian)
+        {
+            await Db.StringSetAsync("gate:block:" + ipHash, "1", thoiGian);
+        }
+
+        /// <summary>Con bi chan bao lau (null = khong bi chan).</summary>
+        public async Task<TimeSpan?> IpBiChanConAsync(string ipHash)
+        {
+            return await Db.KeyTimeToLiveAsync("gate:block:" + ipHash);
+        }
+
+        public async Task KhoaLinkVoiIpAsync(Guid linkId, string ipHash, TimeSpan thoiGian)
+        {
+            await Db.StringSetAsync("gate:linklock:" + linkId.ToString("N") + ":" + ipHash, "1", thoiGian);
+        }
+
+        public async Task<bool> LinkBiKhoaAsync(Guid linkId, string ipHash)
+        {
+            return await Db.KeyExistsAsync("gate:linklock:" + linkId.ToString("N") + ":" + ipHash);
         }
 
         // ---------------- Dem nhan moi mau ----------------

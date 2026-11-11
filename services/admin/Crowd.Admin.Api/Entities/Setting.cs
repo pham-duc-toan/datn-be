@@ -29,10 +29,19 @@ namespace Crowd.Admin.Api.Entities
 
         public static Setting KhoiTao(string key, string valueJson, DateTimeOffset luc)
         {
+            return KhoiTao(key, valueJson, 1, luc);
+        }
+
+        /// <summary>
+        /// version > 1: khoa tung bi bo khoi danh muc roi duoc them lai — danh so TIEP lich su cu (ban sao o cac
+        /// service chi nhan version moi hon ban dang giu, va setting_history duy nhat theo (key, version)).
+        /// </summary>
+        public static Setting KhoiTao(string key, string valueJson, long version, DateTimeOffset luc)
+        {
             Setting s = new Setting();
             s.Key = key;
             s.ValueJson = valueJson;
-            s.Version = 1;
+            s.Version = version;
             s.UpdatedAt = luc;
             return s;
         }

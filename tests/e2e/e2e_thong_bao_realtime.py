@@ -1,6 +1,6 @@
 # E2E THONG BAO: ngon ngu thong bao / email (FC-08); day realtime qua WebSocket (ve dung mot lan, qua gateway);
 # 2FA → thong bao + email BAT BUOC; loi moi email chua co tai khoan → email kem link dang ky;
-# canh bao DLQ → email van hanh; han giu thong bao.
+# han giu thong bao.
 # Chay: python e2e_thong_bao_realtime.py   (stack demo: E2E_PROFILE=demo)
 import base64, hashlib, hmac, json, os, struct, sys, time, uuid
 import requests
@@ -93,22 +93,7 @@ try:
     noi = requests.get(f"{MAILPIT_URL}/api/v1/message/{thu[0]['ID']}").json()["Text"] if thu else ""
     kiem("email loi moi co link dang ky kem email + ma loi moi", "/dang-ky?email=" in noi and "invitation=" in noi, noi[:300])
 
-    # =================================================================================
-    print("\n[4] Canh bao DLQ → email van hanh")
-    ops = f"ops-{TAG}@crowd.local"
-    dat_va_cho("ops.alert_email", ops, ["notification"])
-    dat_va_cho("ops.dlq_check_interval", 10, [])
-    dat_va_cho("ops.alert_repeat", 60, [])
-    q = "notification-svc.ops-dlq-alert.dlq"
-    requests.post(f"{RABBIT_MGMT}/api/exchanges/%2F/datn.dlx/publish", auth=(RABBIT_USER, RABBIT_PASSWORD), json={
-        "properties": {}, "routing_key": "notification-svc.ops-dlq-alert", "payload": "{}", "payload_encoding": "string"}).raise_for_status()
-    thu = cho(lambda: (lambda m: m if m else None)(
-        requests.get(f"{MAILPIT_URL}/api/v1/search", params={"query": f'to:"{ops}"', "limit": 5}).json().get("messages")), 60)
-    kiem("email canh bao DLQ toi dia chi van hanh", bool(thu) and q in thu[0]["Subject"], thu and thu[0]["Subject"])
-    requests.delete(f"{RABBIT_MGMT}/api/queues/%2F/{q}/contents", auth=(RABBIT_USER, RABBIT_PASSWORD))
-
-    # =================================================================================
-    print("\n[5] Han giu thong bao")
+    print("\n[4] Han giu thong bao")
     cu = str(uuid.uuid4())
     sql("notification", f"insert into notifications (id, user_id, type, title, body, created_at, email_state, email_attempts, merged_count) "
                         f"values ('{cu}', '{u['id']}', 'he_thong', 'cu', 'cu', now() - interval '400 days', 'Skipped', 0, 1)")

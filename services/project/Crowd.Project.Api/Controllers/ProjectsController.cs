@@ -110,7 +110,10 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.DatCauHinhGiaAsync(id, body, ChuDuAn(), ct));
         }
 
-        /// <summary>PUT /projects/{id}/channels (FB-17) — kem gia / ngan sach cong link.</summary>
+        /// <summary>
+        /// PUT /projects/{id}/channels (FB-17) — kem ngan sach cong link. Don gia nhan khach vang lai do ADMIN dat (setting
+        /// gate.unit_price_vnd): doanh nghiep khong gui duoc, chi nhan thong bao (readiness.gateUnitPriceVnd).
+        /// </summary>
         [HttpPut("{id:guid}/channels")]
         public async Task<IActionResult> DatKenh(Guid id, [FromBody] ChannelsRequest body, CancellationToken ct)
         {
@@ -153,6 +156,16 @@ namespace Crowd.Project.Api.Controllers
         public async Task<IActionResult> KetThucSom(Guid id, CancellationToken ct)
         {
             return Ok(await _service.KetThucSomAsync(id, ChuDuAn(), ct));
+        }
+
+        /// <summary>
+        /// DELETE /projects/{id} — xoa han du an nhap (hoac da huy chua tung publish). Du an da publish thi huy / ket thuc.
+        /// </summary>
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> Xoa(Guid id, [FromServices] Crowd.BuildingBlocks.Storage.IObjectStorage kho, CancellationToken ct)
+        {
+            await _service.XoaAsync(id, kho, ChuDuAn(), ct);
+            return NoContent();
         }
 
         [HttpPost("{id:guid}/cancel")]

@@ -52,7 +52,6 @@ namespace Crowd.Admin.Api.Services
             (SettingKeys.IdentityPasswordMinLength, SettingKeys.IdentityPasswordMaxLength),
             (SettingKeys.IdentityAccessTokenLifetime, SettingKeys.IdentityRefreshTokenLifetime),
             (SettingKeys.DatasetZipImageMaxBytes, SettingKeys.DatasetZipTotalMaxBytes),
-            (SettingKeys.DatasetManifestInlineMaxRows, SettingKeys.DatasetManifestFileMaxRows),
         };
 
         private readonly AdminDbContext _db;
@@ -260,6 +259,15 @@ namespace Crowd.Admin.Api.Services
                 _logger.LogInformation("Setting: xoa {So} khoa khong con trong danh muc: {Khoa}", thua.Count, string.Join(", ", thua));
             }
 
+            // Khoa tung bi bo roi them lai van con lich su cu: danh so TIEP (khong trung (key, version), va ban sao
+            // o cac service — chi nhan version moi hon — khong bo qua gia tri moi).
+            List<string> moi = SettingCatalog.TatCa.Select(d => d.Key).Where(k => !co.Contains(k)).ToList();
+            Dictionary<string, long> lichSuCu = await _db.SettingHistory
+                .Where(h => moi.Contains(h.Key))
+                .GroupBy(h => h.Key)
+                .Select(g => new { Key = g.Key, Max = g.Max(h => h.Version) })
+                .ToDictionaryAsync(x => x.Key, x => x.Max, ct);
+
             foreach (SettingDefinition d in SettingCatalog.TatCa)
             {
                 if (co.Contains(d.Key))
@@ -270,9 +278,12 @@ namespace Crowd.Admin.Api.Services
                 JsonNode? dev;
                 JsonNode giaTri = giaTriDev.TryGetValue(d.Key, out dev) ? dev : d.DefaultValue;
                 string json = giaTri.ToJsonString();
+                long cu;
+                long version = lichSuCu.TryGetValue(d.Key, out cu) ? cu + 1 : 1;
 
-                _db.Settings.Add(Setting.KhoiTao(d.Key, json, bayGio));
-                _db.SettingHistory.Add(SettingHistory.Tao(d.Key, null, json, 1, null, bayGio, "Khoi tao tu danh muc"));
+                _db.Settings.Add(Setting.KhoiTao(d.Key, json, version, bayGio));
+                _db.SettingHistory.Add(SettingHistory.Tao(d.Key, null, json, version, null, bayGio,
+                    version == 1 ? "Khoi tao tu danh muc" : "Them lai vao danh muc"));
                 so++;
             }
 

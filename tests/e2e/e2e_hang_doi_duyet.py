@@ -1,6 +1,6 @@
 # E2E VAN HANH ADMIN:
 #   hang doi duyet chung (KYB, du an, khieu nai, link bi bao cao) dung tu event; mau bai toan (FM-03);
-#   nhat ky audit chi ghi them o muc CSDL (P-03); do sau DLQ + canh bao ops.dlq_alert (VD-D-06/12).
+#   nhat ky audit chi ghi them o muc CSDL (P-03); log loi di Elasticsearch (khong con man hinh DLQ).
 # Chay: python e2e_hang_doi_duyet.py   (stack demo: E2E_PROFILE=demo)
 import json, os, sys, time, uuid
 import requests
@@ -24,8 +24,7 @@ def cho_don(kind, subject, status, giay=30):
 try:
     # =================================================================================
     print("\n[1] Hang doi duyet: KYB")
-    r = requests.post(G + "/admin/approvals/rebuild", headers=admin)
-    kiem("dung lai hang doi tu audit → 200", r.status_code == 200 and r.json()["appliedEvents"] >= 0, r.text)
+    kiem("khong con endpoint dung lai hang doi (giao dien bo nut Dung lai)", requests.post(G + "/admin/approvals/rebuild", headers=admin).status_code in (404, 405))
     biz = dang_ky(["business"], "hdd", xac_minh=False)
     nop_kyb(biz, "Cong ty Hang Doi").raise_for_status()
     d = cho_don("kyb", biz["id"], "pending")
@@ -170,16 +169,12 @@ try:
     kiem("TRUNCATE bi chan", sql("admin", "select count(*) from audit_events") not in ("", "0"))
 
     # =================================================================================
-    print("\n[7] Do sau DLQ + canh bao")
-    dat_va_cho("ops.dlq_check_interval", 10, [])
-    q = "admin-svc.audit.dlq"
-    requests.post(f"{RABBIT_MGMT}/api/exchanges/%2F/datn.dlx/publish", auth=MGMT, json={
-        "properties": {}, "routing_key": "admin-svc.audit", "payload": "{\"thu\":\"message hong e2e\"}", "payload_encoding": "string"}).raise_for_status()
-    ops = cho(lambda: (lambda j: j if any(x["queue"] == q and x["overThreshold"] for x in j["deadLetterQueues"]) else None)(
-        requests.get(G + "/admin/ops/queues", headers=admin).json()), 40)
-    kiem("admin thay DLQ co message, vuot nguong", ops is not None and ops["reachable"], ops)
-    kiem("phat ops.dlq_alert (audit)", cho(lambda: sql("admin", f"select count(*) from audit_events where event_type = 'ops.dlq_alert' and payload->>'queue' = '{q}' and occurred_at > now() - interval '5 minutes'") not in ("", "0"), 30))
-    requests.delete(f"{RABBIT_MGMT}/api/queues/%2F/{q}/contents", auth=MGMT)
+    print("\n[7] Loi he thong: khong co man hinh DLQ tho; chi the 'Tinh trang he thong' bang loi (3.29 — xem e2e_ba_loai_loi.py)")
+    kiem("GET /admin/ops/queues (ten hang doi tho) khong con", requests.get(G + "/admin/ops/queues", headers=admin).status_code in (404, 405))
+    tt = requests.get(G + "/admin/system-health", headers=admin)
+    kiem("GET /admin/system-health tra trang thai bang ma de hien loi thuong", tt.status_code == 200 and tt.json()["status"] in ("ok", "co_loi", "khong_ro"), tt.text)
+    st = requests.get(G + "/admin/settings/ops.dlq_check_interval", headers=admin)
+    kiem("setting theo doi loi he thong nam o nhom Ky thuat (muc Nang cao)", st.status_code == 200 and st.json()["group"] == "Kỹ thuật", st.text[:200])
 finally:
     for k, v in GOC.items():
         requests.put(G + f"/admin/settings/{k}", headers=admin, json={"value": v, "reason": "tra lai sau e2e"})

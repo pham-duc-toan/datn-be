@@ -40,7 +40,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `project.cancelled` **v2** | ledger, quality, gate, notification | Chi khi CHUA co bai nop (khong con `ApprovedAnnotationCount`) — huy bai dang lam + hoan TOAN BO ky quy; bao doanh nghiep neu da ky quy. quality: moc bat dau dem `project.closed_data_retention` (don du lieu van hanh); gate: xoa mau cua du an |
 | `project.grading_applied` | identity | 3.24: project-svc DA GHI ket qua cham (`project.graded`) vao bai lam — `ApprovedLabelerIds` = labeler co bai dat. identity xep vao hang cho `level_dirty`, worker doc so cau qua gRPC roi tinh cap. Tach khoi `project.graded` vi luc quality phat event do project-svc co the chua ghi, tong doc ve se thieu du an vua cham |
 | `project.completed` **v2** | ledger, quality, gate, notification | `PassedAttemptCount` = so bai dat cuoi cung: ledger tra du so bai do roi hoan phan con lai (con thieu → `Closing`, NC-B-01). quality: moc bat dau dem `project.closed_data_retention`; gate: xoa mau cua du an |
-| `dataset.ingested` | media | media chuan hoa san video (ban chuan watermark, ghi MinIO). gate KHONG nghe nua (3.23): keo mau + cau vang qua gRPC `GateData` khi du an publish bat cong link |
+| `samples.ingested` | media | media chuan hoa san video (chi phat cho video; moi event la MOT file + cac doan cat cua no) (ban chuan watermark, ghi MinIO). gate KHONG nghe nua (3.23): keo mau + cau vang qua gRPC `GateData` khi du an publish bat cong link |
 | ~~`gold_set.updated`~~ | — | **DA BO (3.23)**: chi gate nghe; gate keo cau vang qua gRPC luc publish (cau vang khoa tu luc roi Draft) |
 | `video.prepared` (media phat) | project | media-svc chuan bi xong ban chuan cua mot FILE video (`succeeded`, `error`). project ghi `samples.media_state`; con video dang chuan bi thi chua publish / duyet |
 | `member.added` / `member.blocked` / `member.unblocked` / `member.removed` | admin (audit) | Phan lam bai / nhan doc thang `project_members` (cung database) nen khong con ban sao `*_members_cache`; event van phat de audit |
@@ -175,7 +175,9 @@ admin-svc nghe **moi** event (routing key `#`, queue `admin-svc.audit`): ghi nha
 | Event | Consumer | Muc dich |
 |---|---|---|
 | `system.announcement` | notification | FM-09: thong bao toan he thong theo doi tuong (`all` / `labeler` / `business`), tuy chon gui email |
-| `ops.dlq_alert` | notification | VD-D-06 / D-12: DLQ vuot `ops.dlq_alert_threshold` (admin-svc doc RabbitMQ management API) — email toi `ops.alert_email` |
+| `manual_action.required` | admin | Kien truc 3.29 (loai 2): EventConsumer dung chung phat thay handler nem `CanXuLyTayException` — `{actionId, kind, title, description, projectId?, userId?, amountVnd?, sourceEventType, sourceEventId}`; admin dua vao hang doi duyet kind `manual`. Producer = service cua consumer |
+| `manual_action.resolved` | admin (audit) | Admin bam "Da xu ly" (`POST /admin/approvals/manual/{id}/resolve`) — `{actionId, note}`, actor = admin |
+| `ops.dlq_alert` | notification | VD-D-06 / D-12, kien truc 3.29 (loai 3): DLQ vuot `ops.dlq_alert_threshold` (admin-svc doc RabbitMQ management API) — email toi `ops.alert_email` (doi ky thuat). Nay DLQ chi con loi ky thuat |
 | `setting.changed` | moi service (+ gateway, quality) | Admin doi mot setting: `{key, value, settingVersion, changedBy, changedAt}`. Ban sao chi ghi khi version MOI hon |
 | `settings.snapshot` | moi service | Toan bo setting (`items[]`). Phat luc khoi dong, dinh ky, va khi co service xin |
 | `settings.snapshot_requested` *(nguoc chieu: moi service -> admin)* | admin | Service vua khoi dong xin phat lai toan bo |
@@ -219,7 +221,7 @@ do roi moi dua lai co the bi xu ly lan hai — dua lai som, hoac tang `consumers
 
    *Ngoai le thu hai (2026-10-06, cung ly do):* ho tro nhieu loai du lieu —
    `project.published` bo `TaskType`/`LabelClasses`/`AllowMultipleLabels`, them `Modality` +
-   `LabelSchema`; `dataset.ingested` (`IngestedSample`) them `Modality`, `Content`,
+   `LabelSchema`; `dataset.ingested` (nay la `samples.ingested`; `IngestedSample`) them `Modality`, `Content`,
    `Metadata`, `StorageKey` thanh nullable; `assignment.submitted` them `SampleContent`,
    `SampleMetadata`, `StorageKey` nullable; `LabelPayload.taskType` doi tu
    `imageClassification` sang loai du lieu (`image`...). Du lieu cu duoc chuyen bang

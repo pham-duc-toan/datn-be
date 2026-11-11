@@ -417,6 +417,43 @@ namespace Crowd.Project.Domain.Projects
             UpdatedAt = luc;
         }
 
+        /// <summary>
+        /// Don gia nhan khach vang lai do ADMIN dat (setting gate.unit_price_vnd), doanh nghiep khong co quyen sua. Goi luc
+        /// doanh nghiep bat kenh cong link va chot lai luc publish (nhu phi nen tang): du an dang chay giu muc da chot.
+        /// </summary>
+        public void GhimGiaCongLink(long giaVnd, DateTimeOffset luc)
+        {
+            ChiKhiNhap("chốt đơn giá cổng link");
+
+            if (!AllowLinkGateway)
+            {
+                return;
+            }
+
+            if (giaVnd <= 0)
+            {
+                throw new InvalidValueException("gia_cong_link_khong_hop_le", "Đơn giá cổng link (do admin đặt) phải lớn hơn 0.");
+            }
+
+            GateUnitPriceVnd = giaVnd;
+            UpdatedAt = luc;
+        }
+
+        /// <summary>
+        /// Xoa han du an: chi du an CHUA TUNG co tien — con Nhap, hoac da huy ma chua tung ky quy. Du an da publish
+        /// (co so cai, bai lam, nhan) la du lieu cua nhieu ben, chi huy chu khong xoa.
+        /// </summary>
+        public void KiemTraCoTheXoa()
+        {
+            bool duoc = Status == ProjectStatus.Draft || (Status == ProjectStatus.Cancelled && !WasEscrowed && PublishedAt == null);
+            if (!duoc)
+            {
+                throw new RuleViolationException(
+                    "khong_the_xoa_du_an",
+                    "Chỉ xoá được dự án nháp (hoặc đã huỷ mà chưa từng publish). Dự án đã publish phải huỷ / kết thúc, dữ liệu được giữ theo quy định.");
+            }
+        }
+
         public void DatDieuKienThamGia(
             int? minLevel,
             int? minReputation,

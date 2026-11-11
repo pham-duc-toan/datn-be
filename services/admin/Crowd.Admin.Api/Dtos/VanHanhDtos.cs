@@ -22,10 +22,10 @@ namespace Crowd.Admin.Api.Dtos
     {
         public required Guid Id { get; init; }
 
-        /// <summary>kyb | identity | project | withdrawal | appeal | link | referral</summary>
+        /// <summary>kyb | identity | project | withdrawal | appeal | link | referral | manual</summary>
         public required string Kind { get; init; }
 
-        /// <summary>Id o service chu — dung goi API duyet cua service do (xem tich-hop-frontend).</summary>
+        /// <summary>Id o service chu — dung goi API duyet cua service do (xem tich-hop-frontend). manual: id viec.</summary>
         public required Guid SubjectId { get; init; }
 
         public required string Status { get; init; }
@@ -37,6 +37,12 @@ namespace Crowd.Admin.Api.Dtos
         public long? AmountVnd { get; init; }
 
         public string? Note { get; init; }
+
+        /// <summary>manual: du an lien quan (co the null).</summary>
+        public Guid? ProjectId { get; init; }
+
+        /// <summary>manual: mo ta viec can xu ly (loi thuong, cho admin).</summary>
+        public string? Detail { get; init; }
 
         public required DateTimeOffset OpenedAt { get; init; }
 
@@ -62,6 +68,34 @@ namespace Crowd.Admin.Api.Dtos
         public required int TotalPending { get; init; }
 
         public required IReadOnlyList<ApprovalKindSummary> Kinds { get; init; }
+    }
+
+    /// <summary>POST /admin/approvals/manual/{actionId}/resolve</summary>
+    public sealed class ResolveManualRequest
+    {
+        /// <summary>Da lam gi (vd "Da chuyen tay 50.000 d cho nguoi lam"). Bat buoc.</summary>
+        public string? Note { get; init; }
+    }
+
+    /// <summary>
+    /// GET /admin/system-health — the "Tinh trang he thong" tren trang tong quan admin (kien truc 3.29). Chi dem
+    /// loi KY THUAT (message trong DLQ); ca nghiep vu can nguoi xu ly nam o hang doi duyet (kind manual).
+    /// </summary>
+    public sealed class SystemHealthResponse
+    {
+        /// <summary>ok | co_loi | khong_ro (chua doc duoc / RabbitMQ khong tra loi).</summary>
+        public required string Status { get; init; }
+
+        /// <summary>Tong so viec he thong khong tu xu ly duoc (tong message trong moi DLQ).</summary>
+        public required long FailedCount { get; init; }
+
+        /// <summary>So luong xu ly dang co loi (so DLQ co message).</summary>
+        public required int AffectedAreas { get; init; }
+
+        public DateTimeOffset? CheckedAt { get; init; }
+
+        /// <summary>Doi ky thuat da duoc bao qua email chua (setting ops.alert_email co dat).</summary>
+        public required bool TechTeamNotified { get; init; }
     }
 
     // ---- Mau bai toan (FM-03) ----
@@ -110,30 +144,5 @@ namespace Crowd.Admin.Api.Dtos
         public required int Version { get; init; }
 
         public required DateTimeOffset UpdatedAt { get; init; }
-    }
-
-    // ---- Van hanh: DLQ ----
-
-    public sealed class QueueDepthResponse
-    {
-        public required string Queue { get; init; }
-
-        public required long Messages { get; init; }
-
-        public required bool IsDeadLetter { get; init; }
-
-        public required bool OverThreshold { get; init; }
-    }
-
-    public sealed class OpsQueuesResponse
-    {
-        /// <summary>false = khong doc duoc management API (RabbitMQ sap / sai cau hinh) — chinh no la mot canh bao.</summary>
-        public required bool Reachable { get; init; }
-
-        public DateTimeOffset? CheckedAt { get; init; }
-
-        public required int Threshold { get; init; }
-
-        public required IReadOnlyList<QueueDepthResponse> DeadLetterQueues { get; init; }
     }
 }

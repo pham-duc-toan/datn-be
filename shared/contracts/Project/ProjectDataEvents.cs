@@ -6,18 +6,18 @@ using Crowd.Labeling;
 namespace Crowd.Contracts.Project
 {
     /// <summary>
-    /// Mot LO mau vua nap vao du an. media-svc chuan hoa san video (ban chuan). gate-svc KHONG nghe nua:
-    /// no keo mau qua gRPC (GateData) luc du an publish bat cong link.
+    /// Cac mau VIDEO vua xu ly xong (ready): mot file video + cac doan cat cua no. media-svc chuan hoa san ban
+    /// chuan (watermark chi nhung khung dau + cuoi). Chi video moi can nghe nen project-svc chi phat cho video;
+    /// anh / am thanh / van ban khong ai nghe. gate-svc KHONG nghe: no keo mau qua gRPC (GateData) luc du an
+    /// publish bat cong link.
     ///
-    /// Chia lo vi mot dataset co the vai chuc nghin mau — nhet het vao mot
-    /// message thi message nang vai MB, vuot xa kich thuoc hop ly cua bus.
-    /// Consumer biet da nhan du khi dem du BatchCount lo cua cung DatasetId.
+    /// Moi event la MOT file (kem cac doan cat) — worker xu ly tung file mot nen message luon nho.
     /// </summary>
-    public sealed record DatasetIngested : IEventPayload
+    public sealed record SamplesIngested : IEventPayload
     {
         public static string EventType
         {
-            get { return "dataset.ingested"; }
+            get { return "samples.ingested"; }
         }
 
         public static int Version
@@ -27,18 +27,11 @@ namespace Crowd.Contracts.Project
 
         public required Guid ProjectId { get; init; }
 
-        public required Guid DatasetId { get; init; }
-
-        /// <summary>Bat dau tu 0.</summary>
-        public required int BatchIndex { get; init; }
-
-        public required int BatchCount { get; init; }
-
         public required IReadOnlyList<IngestedSample> Samples { get; init; }
     }
 
     /// <summary>
-    /// Mot mau trong lo. Mang du thong tin de service nghe phat viec ma khong phai
+    /// Mot mau trong event. Mang du thong tin de service nghe phat viec ma khong phai
     /// hoi lai project-svc: file (khoa MinIO) hoac noi dung (text), va metadata
     /// de kiem nhan (kich thuoc anh, thoi luong, do dai van ban).
     /// </summary>

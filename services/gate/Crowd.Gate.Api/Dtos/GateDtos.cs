@@ -17,6 +17,12 @@ namespace Crowd.Gate.Api.Dtos
         public required bool TurnstileEnabled { get; init; }
 
         public required string TurnstileSiteKey { get; init; }
+
+        /// <summary>Khach truot cau kiem tra bay nhieu lan (tinh theo IP) thi bi chan — de giao dien canh bao truoc.</summary>
+        public required int MaxFailsBeforeBlock { get; init; }
+
+        /// <summary>Thoi gian chan IP khi truot qua so lan (giay).</summary>
+        public required int BlockSeconds { get; init; }
     }
 
     public sealed class CreateSessionRequest
@@ -75,8 +81,23 @@ namespace Crowd.Gate.Api.Dtos
 
         public DateTimeOffset? RedirectExpiresAt { get; init; }
 
-        /// <summary>Truot: bo cau hoi MOI de lam lai.</summary>
-        public GateSessionResponse? NewSession { get; init; }
+        /// <summary>Truot: so lan IP nay da truot (trong gate.block_duration) / so lan cho phep truoc khi bi chan.</summary>
+        public int? FailCount { get; init; }
+
+        public int? FailLimit { get; init; }
+
+        /// <summary>Truot du so lan → IP bi chan toi BlockedUntil. Khong co link khac, khong lam lai.</summary>
+        public bool Blocked { get; init; }
+
+        public DateTimeOffset? BlockedUntil { get; init; }
+
+        /// <summary>
+        /// Truot (chua bi chan): LINK KHAC de lam bo cau hoi moi — khong bat lam lai link cu (link cu bi khoa voi IP nay).
+        /// null = hien chua co link nao khac phuc vu duoc.
+        /// </summary>
+        public string? NextLinkCode { get; init; }
+
+        public string? NextLinkUrl { get; init; }
     }
 
     public sealed class DailyStatResponse

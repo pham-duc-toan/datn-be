@@ -13,7 +13,7 @@ os.environ["E2E_HE_SO_NGUOI_LAM"] = "giu"  # tro_giup khong ep he so = 1
 import requests  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from tro_giup import G, GOC, KQ, TAG, admin, cho, dang_ky, dat, dat_va_cho, kiem, luu, nop_bai, tham_gia, vi  # noqa: E402,F401
+from tro_giup import G, GOC, KQ, TAG, admin, cho, dang_ky, dat, dat_va_cho, kiem, luu, nap_mau, nop_bai, tham_gia, vi  # noqa: E402,F401
 
 
 def nap(biz, so):
@@ -58,9 +58,7 @@ try:
     requests.put(G + f"/projects/{P}/guideline", headers=biz["h"], json={"markdown": "e2e", "examples": []}).raise_for_status()
     requests.put(G + f"/projects/{P}/pricing", headers=biz["h"], json={"rewardVnd": 30000, "slots": 3, "passThresholdPercent": 60,
                                                                       "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
-    requests.post(G + f"/projects/{P}/datasets/manifest", headers=biz["h"],
-                  json={"name": "lo", "rows": [{"text": v, "name": k} for k, v in MAU.items()]}).raise_for_status()
-    assert cho(lambda: [d for d in requests.get(G + f"/projects/{P}/datasets", headers=biz["h"]).json() if d["status"] == "ready"], 60)
+    nap_mau(P, biz["h"], [{"text": v, "name": k} for k, v in MAU.items()])
     rdy = requests.get(G + f"/projects/{P}/readiness", headers=biz["h"]).json()
     kiem("readiness bao he so tran nguoi lam = 2", rdy["limits"]["participantMultiplier"] == 2, rdy["limits"])
     requests.post(G + f"/projects/{P}/publish", headers=biz["h"]).raise_for_status()

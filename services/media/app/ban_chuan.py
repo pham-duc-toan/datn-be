@@ -2,7 +2,7 @@
 
 Moi nguoi xem chi nhung watermark vao khung dau + khung cuoi (vai giay), nhung ban chuan phai ma hoa lai CA
 video mot lan (video 8 phut 720p ~30 giay). Truoc day lam o lan mo dau tien → nguoi dau tien cho lau. Nay:
-  - nghe dataset.ingested: moi file video → MOT viec trong queue ben "media-svc.chuan-hoa" (khoi dong lai khong
+  - nghe samples.ingested: moi file video → MOT viec trong queue ben "media-svc.chuan-hoa" (khoi dong lai khong
     mat); worker lam lan luot tung viec: chuan hoa, ghi len MinIO canh file goc
     ("<projectId>/_wm/chuan-v2/<phan con lai>.mp4" — xoa du an xoa theo tien to "<projectId>/" la xoa luon),
     roi phat video.prepared (thanh cong / file hong) → project-svc moi cho publish / duyet;
@@ -20,17 +20,18 @@ from pathlib import Path, PurePosixPath
 
 import aio_pika
 
-from app import watermark_av
+from app import settings_store, watermark_av
 from app.config import settings
-from app.contracts import DatasetIngested, VideoPrepared
+from app.contracts import SamplesIngested, VideoPrepared
 from app.messaging import envelope as env_mod
+from app.messaging import thu_lai
 from app.messaging.envelope import LoiHopDong
 from app.storage import KhongCoFile, kho
 
 log = logging.getLogger(__name__)
 
 PHIEN_BAN = "chuan-v2"
-TEN_QUEUE = "media-svc.dataset-ingested"
+TEN_QUEUE = "media-svc.samples-ingested"
 TEN_VIEC = "media-svc.chuan-hoa"
 # Mot viec chuan hoa video dai co the lau hon han ack mac dinh cua RabbitMQ (30 phut).
 HAN_VIEC_MS = 4 * 3600 * 1000
@@ -87,7 +88,7 @@ def chuan_hoa_san(storage_key: str) -> None:
         dich.unlink(missing_ok=True)
 
 
-def cac_viec(p: DatasetIngested) -> list[str]:
+def cac_viec(p: SamplesIngested) -> list[str]:
     """Moi FILE video mot viec (cac doan cat tu mot file dung chung khoa)."""
     ra: list[str] = []
     for s in p.samples:
@@ -96,8 +97,21 @@ def cac_viec(p: DatasetIngested) -> list[str]:
     return ra
 
 
+async def tra_lai(message: aio_pika.abc.AbstractIncomingMessage, mo_ta: str) -> None:
+    """Loai 3 (kien truc 3.29, loi ky thuat): cho gian cach roi tra lai hang doi; lan cuoi (sap vao DLQ) log ERROR.
+    Goi trong khoi except — log kem traceback."""
+    da = thu_lai.so_lan_da_that_bai(message.headers)
+    if thu_lai.la_lan_cuoi(da, settings().delivery_limit):
+        log.exception("%s — that bai %d lan, chuyen vao DLQ, can dev xu ly", mo_ta, da + 1)
+    else:
+        cho = thu_lai.cho_truoc_khi_thu_lai(da, settings_store.giay(settings_store.CONSUMERS_RETRY_MAX_DELAY))
+        log.warning("%s (lan %d), thu lai sau %.0fs", mo_ta, da + 1, cho, exc_info=True)
+        await thu_lai.ngu(cho)
+    await message.nack(requeue=True)
+
+
 class ChuanHoaSan:
-    """Consumer dataset.ingested → queue viec ben → worker chuan hoa lan luot (khong chiem het CPU)."""
+    """Consumer samples.ingested → queue viec ben → worker chuan hoa lan luot (khong chiem het CPU)."""
 
     def __init__(self) -> None:
         self._kenh_nhan: aio_pika.abc.AbstractChannel | None = None
@@ -117,7 +131,7 @@ class ChuanHoaSan:
             dlq = await kenh.declare_queue(ten + ".dlq", durable=True)
             await dlq.bind(dlx, routing_key=ten)
         nhan = await kenh.declare_queue(TEN_QUEUE, durable=True, arguments={**dlx_args, "x-dead-letter-routing-key": TEN_QUEUE})
-        await nhan.bind(self._exchange, routing_key=DatasetIngested.EVENT_TYPE)
+        await nhan.bind(self._exchange, routing_key=SamplesIngested.EVENT_TYPE)
         await kenh.declare_queue(TEN_VIEC, durable=True, arguments={
             **dlx_args, "x-dead-letter-routing-key": TEN_VIEC, "x-consumer-timeout": HAN_VIEC_MS})
         await nhan.consume(self._nhan)
@@ -127,11 +141,11 @@ class ChuanHoaSan:
         await kenh_viec.set_qos(prefetch_count=1)
         viec = await kenh_viec.get_queue(TEN_VIEC)
         await viec.consume(self._lam)
-        log.info("Consumer %s dang nghe %s; worker %s san sang", TEN_QUEUE, DatasetIngested.EVENT_TYPE, TEN_VIEC)
+        log.info("Consumer %s dang nghe %s; worker %s san sang", TEN_QUEUE, SamplesIngested.EVENT_TYPE, TEN_VIEC)
 
     async def _nhan(self, message: aio_pika.abc.AbstractIncomingMessage) -> None:
         try:
-            env = env_mod.doc(message.body, DatasetIngested)
+            env = env_mod.doc(message.body, SamplesIngested)
         except LoiHopDong as ex:
             log.error("Queue %s: message sai hop dong → DLQ: %s", TEN_QUEUE, ex)
             await message.reject(requeue=False)
@@ -146,8 +160,7 @@ class ChuanHoaSan:
                                      delivery_mode=aio_pika.DeliveryMode.PERSISTENT),
                     routing_key=TEN_VIEC)
         except Exception:  # noqa: BLE001
-            log.exception("Queue %s: khong xep duoc viec chuan hoa, tra lai hang doi", TEN_QUEUE)
-            await message.nack(requeue=True)
+            await tra_lai(message, f"Queue {TEN_QUEUE}: khong xep duoc viec chuan hoa")
             return
         await message.ack()
 
@@ -172,16 +185,14 @@ class ChuanHoaSan:
             log.warning("Video %s hong, khong chuan hoa duoc: %s", key, ex)
             loi = str(ex)[:500]
         except Exception:  # noqa: BLE001 — MinIO / dia: thu lai (qua x-delivery-limit thi vao DLQ)
-            log.exception("Chuan hoa video %s that bai, tra lai hang doi", key)
-            await message.nack(requeue=True)
+            await tra_lai(message, f"Chuan hoa video {key} that bai")
             return
 
         try:
             await self._phat(VideoPrepared(project_id=du_an, storage_key=key, succeeded=loi is None, error=loi),
                              tuong_quan, nguyen_nhan)
         except Exception:  # noqa: BLE001
-            log.exception("Khong phat duoc video.prepared cho %s, tra lai hang doi", key)
-            await message.nack(requeue=True)
+            await tra_lai(message, f"Khong phat duoc video.prepared cho {key}")
             return
         await message.ack()
 

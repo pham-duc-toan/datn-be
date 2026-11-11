@@ -157,7 +157,7 @@ namespace Crowd.Project.Api.Services
                     SampleId = id,
                     FileUrl = s.StorageKey == null
                         ? null
-                        : _media.TaoLink(DatasetService.MauXem(s), NguoiXem.Labeler(userId), CheDoXem.Watermark),
+                        : _media.TaoLink(MauService.MauXem(s), NguoiXem.Labeler(userId), CheDoXem.Watermark),
                     Content = s.Content,
                     Metadata = s.Metadata,
                 });

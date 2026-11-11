@@ -74,9 +74,6 @@ namespace Crowd.Project.Api.Dtos
 
         public bool AllowCollaborative { get; init; }
 
-        /// <summary>Cong link: gia moi nhan khach vuot link gan (kenh phu, tinh theo luot).</summary>
-        public long? GateUnitPriceVnd { get; init; }
-
         /// <summary>Cong link: ngan sach rieng (nam trong ky quy).</summary>
         public long? GateBudgetVnd { get; init; }
     }
@@ -308,6 +305,9 @@ namespace Crowd.Project.Api.Dtos
 
         /// <summary>Phi tren MOI nguoi dat.</summary>
         public required long PlatformFeePerPassVnd { get; init; }
+
+        /// <summary>Don gia moi nhan khach vang lai (cong link) do ADMIN dat — doanh nghiep chi duoc thong bao.</summary>
+        public required long GateUnitPriceVnd { get; init; }
 
         /// <summary>Tien ky quy = so suat x (thuong + phi) + ngan sach cong link.</summary>
         public required long EstimatedCostVnd { get; init; }

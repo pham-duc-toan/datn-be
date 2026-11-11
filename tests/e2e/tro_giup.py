@@ -35,6 +35,34 @@ def cho(f, giay=30, buoc=0.5):
     return None
 
 
+def trang_thai_nap(pid, h):
+    """GET samples/status: dem mau theo tien trinh nap (queued / processing / ready / failed / preparingVideo)."""
+    return requests.get(G + f"/projects/{pid}/samples/status", headers=h).json()
+
+
+def cho_nap_xong(pid, h, giay=90):
+    """Cho het mau queued / processing; tra ve trang thai cuoi (hoac None neu het gio)."""
+    def xong():
+        t = trang_thai_nap(pid, h)
+        return t if t["queued"] + t["processing"] == 0 else None
+    return cho(xong, giay)
+
+
+def nap_mau(pid, h, rows, giay=90, ma=202):
+    """POST /projects/{pid}/samples roi cho nap xong. Tra ve tom tat tuong thich kieu cu: sampleCount (ready),
+    skippedCount (dong bi bo qua luc gui + file nap loi), errorSummary, status, kem response goc va cac mau loi."""
+    r = requests.post(G + f"/projects/{pid}/samples", headers=h, json={"rows": rows})
+    assert r.status_code == ma, r.text
+    body = r.json()
+    assert cho_nap_xong(pid, h, giay) is not None, "mau chua nap xong"
+    ds = requests.get(G + f"/projects/{pid}/samples?pageSize=100", headers=h).json()["items"]
+    san = [m for m in ds if m["ingestState"] == "ready"]
+    loi = [m for m in ds if m["ingestState"] == "failed"]
+    ly_do = list(body["errors"]) + [m["ingestError"] for m in loi]
+    return {"sampleCount": len(san), "skippedCount": body["skipped"] + len(loi), "errorSummary": "\n".join(ly_do) or None,
+            "status": "ready" if san else "failed", "response": body, "failed": loi}
+
+
 def sql(db, q):
     return subprocess.run(["docker", "exec", sql_container(db), "psql", "-U", f"{db}_user", "-d", f"{db}_db", "-tAc", q],
                           capture_output=True, text=True).stdout.strip()
@@ -144,9 +172,7 @@ def tao_du_an(chu, ten, mau, red=None, tran=None, gia=None, gold_pct=0, dieu_kie
             suat if suat is not None else max(3, tran or 0, red or 0), nguong)
     if dieu_kien:
         requests.put(G + f"/projects/{pid}/eligibility", headers=chu["h"], json=dieu_kien).raise_for_status()
-    requests.post(G + f"/projects/{pid}/datasets/manifest", headers=chu["h"],
-                  json={"name": "lo", "rows": [{"text": v, "name": k} for k, v in mau.items()]}).raise_for_status()
-    cho(lambda: [d for d in requests.get(G + f"/projects/{pid}/datasets", headers=chu["h"]).json() if d["status"] == "ready"], 40)
+    nap_mau(pid, chu["h"], [{"text": v, "name": k} for k, v in mau.items()], ma=202)
     ids = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid}/samples?pageSize=200", headers=chu["h"]).json()["items"]}
     if vang:
         r = requests.post(G + f"/projects/{pid}/gold-items", headers=chu["h"], json={"items": [

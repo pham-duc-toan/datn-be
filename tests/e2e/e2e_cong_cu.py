@@ -60,12 +60,7 @@ def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, suat=3, dieu_kien
                 requests.put(o["uploadUrl"], data=fh.read()).raise_for_status()
             rows.append({"file": o["key"], "name": os.path.basename(f)})
 
-    r = requests.post(G + f"/projects/{pid}/datasets/manifest", headers=chu["h"], json={"name": "lo", "rows": rows})
-    assert r.status_code == 202, r.text
-    did = r.json()["id"]
-    lo = cho(lambda: next((d for d in requests.get(G + f"/projects/{pid}/datasets", headers=chu["h"]).json()
-                           if d["id"] == did and d["status"] in ("ready", "failed")), None), 90)
-    assert lo is not None, "lo du lieu chua xu ly xong"
+    lo = nap_mau(pid, chu["h"], rows)
     mau = {m["originalName"]: m for m in requests.get(G + f"/projects/{pid}/samples?pageSize=200", headers=chu["h"]).json()["items"]}
     dat_gia(chu, pid, max(10000, GIA * max(1, len(mau))), suat)
     return pid, lo, mau

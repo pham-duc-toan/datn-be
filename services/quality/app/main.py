@@ -6,6 +6,7 @@ Chay dev:  .venv/Scripts/python -m app.main     (cong 8201 REST, 9201 gRPC)
 
 import asyncio
 import logging
+from app.log_json import cau_hinh_log
 from contextlib import asynccontextmanager
 
 import aio_pika
@@ -25,7 +26,7 @@ from app.errors import LoiApi, xu_ly_khong_goi_duoc, xu_ly_loi_api
 from app.messaging.consumer import Consumer
 from app.messaging.outbox import Dispatcher
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+cau_hinh_log()
 log = logging.getLogger("quality-svc")
 
 # Ten queue theo quy uoc "<service>.<event>" giong cac service C#. Khong nghe project.published nua: de bai

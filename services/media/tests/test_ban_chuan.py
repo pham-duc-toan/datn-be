@@ -1,11 +1,11 @@
-"""Ban chuan video: khoa MinIO, lay ban co san / chuan hoa tai cho, doc event dataset.ingested."""
+"""Ban chuan video: khoa MinIO, lay ban co san / chuan hoa tai cho, doc event samples.ingested."""
 
 import json
 import uuid
 from pathlib import Path
 
 from app import ban_chuan
-from app.contracts import DatasetIngested
+from app.contracts import SamplesIngested
 from app.messaging import envelope as env_mod
 from app.storage import KhongCoFile
 
@@ -47,21 +47,20 @@ def test_chua_co_thi_chuan_hoa_roi_ghi_len(tmp_path: Path, monkeypatch):
     assert k.da_len == ["p1/_wm/chuan-v2/v.mp4.mp4"]
 
 
-def test_doc_event_dataset_ingested():
+def test_doc_event_samples_ingested():
     env = {
-        "eventId": str(uuid.uuid4()), "eventType": "dataset.ingested", "version": 1,
+        "eventId": str(uuid.uuid4()), "eventType": "samples.ingested", "version": 1,
         "occurredAt": "2026-10-24T00:00:00Z", "producer": "project-svc", "correlationId": str(uuid.uuid4()),
         "causationId": None, "actor": None,
-        "payload": {"projectId": str(uuid.uuid4()), "datasetId": str(uuid.uuid4()), "batchIndex": 0, "batchCount": 1,
-                    "samples": [{"sampleId": str(uuid.uuid4()), "modality": "video", "storageKey": "p/x.mp4",
+        "payload": {"projectId": str(uuid.uuid4()), "samples": [{"sampleId": str(uuid.uuid4()), "modality": "video", "storageKey": "p/x.mp4",
                                  "content": None, "metadata": {"durationSec": 3}}]},
     }
-    p = env_mod.doc(json.dumps(env).encode(), DatasetIngested).payload
+    p = env_mod.doc(json.dumps(env).encode(), SamplesIngested).payload
     assert p.samples[0].storage_key == "p/x.mp4"
 
 
 def test_moi_file_video_mot_viec():
-    p = DatasetIngested(project_id=uuid.uuid4(), dataset_id=uuid.uuid4(), batch_index=0, batch_count=1, samples=[
+    p = SamplesIngested(project_id=uuid.uuid4(), samples=[
         {"sample_id": uuid.uuid4(), "modality": "video", "storage_key": "p/a.mp4", "content": None, "metadata": {}},
         {"sample_id": uuid.uuid4(), "modality": "video", "storage_key": "p/a.mp4", "content": None, "metadata": {}},
         {"sample_id": uuid.uuid4(), "modality": "video", "storage_key": "p/b.mp4", "content": None, "metadata": {}},

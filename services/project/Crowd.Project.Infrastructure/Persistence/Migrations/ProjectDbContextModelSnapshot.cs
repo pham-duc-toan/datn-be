@@ -431,79 +431,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.ToTable("project_collections", (string)null);
                 });
 
-            modelBuilder.Entity("Crowd.Project.Domain.Datasets.Dataset", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("ErrorSummary")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)")
-                        .HasColumnName("error_summary");
-
-                    b.Property<DateTimeOffset?>("FinishedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("finished_at");
-
-                    b.Property<string>("ImportSource")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("import_source");
-
-                    b.Property<string>("ImportSpec")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("import_spec");
-
-                    b.Property<string>("Manifest")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("manifest");
-
-                    b.Property<string>("ManifestKey")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("manifest_key");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("name");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
-                    b.Property<int>("SampleCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("sample_count");
-
-                    b.Property<int>("SkippedCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("skipped_count");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId")
-                        .HasDatabaseName("ix_datasets_project");
-
-                    b.HasIndex("Status")
-                        .HasDatabaseName("ix_datasets_dang_xu_ly")
-                        .HasFilter("status IN ('Pending','Ingesting')");
-
-                    b.ToTable("datasets", (string)null);
-                });
-
             modelBuilder.Entity("Crowd.Project.Domain.Datasets.Sample", b =>
                 {
                     b.Property<Guid>("ProjectId")
@@ -527,10 +454,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<Guid>("DatasetId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("dataset_id");
-
                     b.Property<DateTimeOffset?>("ExcludedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("excluded_at");
@@ -539,6 +462,24 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("excluded_reason");
+
+                    b.Property<string>("IngestError")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("ingest_error");
+
+                    b.Property<string>("IngestSource")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("ingest_source");
+
+                    b.Property<string>("IngestState")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("ready")
+                        .HasColumnName("ingest_state");
 
                     b.Property<string>("MediaError")
                         .HasMaxLength(500)
@@ -568,7 +509,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnName("original_name");
 
                     b.Property<string>("Sha256")
-                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("sha256");
@@ -584,8 +524,9 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
 
                     b.HasKey("ProjectId", "Id");
 
-                    b.HasIndex("DatasetId")
-                        .HasDatabaseName("ix_samples_dataset");
+                    b.HasIndex("IngestState")
+                        .HasDatabaseName("ix_samples_dang_nap")
+                        .HasFilter("ingest_state IN ('queued','processing')");
 
                     b.HasIndex("ProjectId", "Sha256")
                         .IsUnique()
@@ -1422,23 +1363,8 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Crowd.Project.Domain.Datasets.Dataset", b =>
-                {
-                    b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Crowd.Project.Domain.Datasets.Sample", b =>
                 {
-                    b.HasOne("Crowd.Project.Domain.Datasets.Dataset", null)
-                        .WithMany()
-                        .HasForeignKey("DatasetId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")

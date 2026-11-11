@@ -5,6 +5,7 @@ Chay dev:  .venv/Scripts/python -m app.main     (cong 8109)
 
 import asyncio
 import logging
+from app.log_json import cau_hinh_log
 from contextlib import asynccontextmanager
 
 import aio_pika
@@ -18,7 +19,7 @@ from app.config import settings
 from app.errors import LoiApi, xu_ly_loi_api
 from app.grant import doc_khoa
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+cau_hinh_log()
 log = logging.getLogger("media-svc")
 
 

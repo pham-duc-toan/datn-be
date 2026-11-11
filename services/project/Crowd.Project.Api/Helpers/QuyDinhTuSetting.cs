@@ -46,7 +46,6 @@ namespace Crowd.Project.Api.Helpers
 
             return new QuyDinhDuLieu
             {
-                DoDaiTenLoToiDa = Math.Min(s.SoNguyen(SettingKeys.DatasetNameMaxLength), CotDb.TenLo),
                 DoDaiLoiToiDa = Math.Min(s.SoNguyen(SettingKeys.DatasetErrorSummaryMaxLength), CotDb.TomTatLoi),
                 DoDaiTenMauToiDa = Math.Min(s.SoNguyen(SettingKeys.SampleNameMaxLength), CotDb.TenMau),
             };

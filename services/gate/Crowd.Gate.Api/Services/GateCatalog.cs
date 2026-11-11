@@ -91,6 +91,21 @@ namespace Crowd.Gate.Api.Services
             return Hien.LinkTheoMa.TryGetValue(code, out l) ? l : null;
         }
 
+        /// <summary>Cac link con phuc vu duoc, thu tu ngau nhien (de chon "link khac" cho khach vua truot).</summary>
+        public List<LinkCong> LinkDangPhucVu(DateTimeOffset luc)
+        {
+            List<LinkCong> ds = new List<LinkCong>();
+            foreach (LinkCong l in Hien.LinkTheoMa.Values)
+            {
+                if (l.PhucVuDuoc(luc))
+                {
+                    ds.Add(l);
+                }
+            }
+
+            return ds.OrderBy(x => Random.Shared.Next()).ToList();
+        }
+
         public MauCong? LayMau(Guid id)
         {
             MauCong? m;

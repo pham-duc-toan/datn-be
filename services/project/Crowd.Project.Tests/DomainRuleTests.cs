@@ -33,14 +33,14 @@ namespace Crowd.Project.Tests
         [Fact]
         public void Khong_khai_segmentSeconds_hoac_file_ngan_thi_khong_cat()
         {
-            Assert.Single(Crowd.Project.Api.Services.DatasetIngestor.CatDoan(25, null));
-            Assert.Single(Crowd.Project.Api.Services.DatasetIngestor.CatDoan(8, 10));
+            Assert.Single(Crowd.Project.Api.Services.SampleIngestor.CatDoan(25, null));
+            Assert.Single(Crowd.Project.Api.Services.SampleIngestor.CatDoan(8, 10));
         }
 
         [Fact]
         public void Cat_deu_va_doan_cuoi_ngan_hon()
         {
-            List<(double BatDau, double KetThuc)> d = Crowd.Project.Api.Services.DatasetIngestor.CatDoan(25, 10);
+            List<(double BatDau, double KetThuc)> d = Crowd.Project.Api.Services.SampleIngestor.CatDoan(25, 10);
 
             Assert.Equal(3, d.Count);
             Assert.Equal((0d, 10d), d[0]);
@@ -51,7 +51,7 @@ namespace Crowd.Project.Tests
         [Fact]
         public void Doan_cuoi_duoi_mot_giay_gop_vao_doan_truoc()
         {
-            List<(double BatDau, double KetThuc)> d = Crowd.Project.Api.Services.DatasetIngestor.CatDoan(20.4, 10);
+            List<(double BatDau, double KetThuc)> d = Crowd.Project.Api.Services.SampleIngestor.CatDoan(20.4, 10);
 
             Assert.Equal(2, d.Count);
             Assert.Equal((10d, 20.4d), d[1]);

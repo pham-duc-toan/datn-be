@@ -5,7 +5,9 @@ Topology GIONG HET C# (de cung van hanh mot kieu):
   - queue quorum "<service>.<ten>" bind routing key = eventType, x-delivery-limit,
     vuot nguong thi broker tu day sang DLX → queue "<ten>.dlq";
   - sai hop dong → reject khong requeue (vao DLQ ngay);
-  - loi xu ly → nack requeue (broker dem lan giao, qua tran thi vao DLQ).
+  - handler nem thu_lai.BoQuaEvent (loai 1, kien truc 3.29) → ack, khong thu lai;
+  - loi khac (loai 3) → cho gian cach roi nack requeue (broker dem lan giao, qua tran thi vao DLQ; lan cuoi
+    log ERROR).
 
 Idempotency: trong MOT transaction — kiem processed_events, chay xu ly, ghi
 processed_events, commit. Event giao lai lan hai thi bo qua.
@@ -24,6 +26,7 @@ from app import settings_store
 from app.config import settings
 from app.db import session_factory
 from app.messaging import envelope as env_mod
+from app.messaging import thu_lai
 from app.messaging.envelope import Envelope, LoiHopDong, Payload
 
 log = logging.getLogger(__name__)
@@ -78,8 +81,21 @@ class Consumer(Generic[P]):
 
         try:
             await self._xu_ly_mot_lan(env)
-        except Exception:  # noqa: BLE001
-            log.exception("Queue %s: xu ly event %s that bai, tra lai hang doi", self.ten_queue, env.event_id)
+        except thu_lai.BoQuaEvent as ex:
+            # Loai 1 (kien truc 3.29): ca binh thuong, khong phai loi.
+            log.info("Queue %s: bo qua event %s (%s): %s", self.ten_queue, env.event_id, self.loai.EVENT_TYPE, ex)
+            await message.ack()
+            return
+        except Exception:  # noqa: BLE001 — loai 3: loi ky thuat
+            da = thu_lai.so_lan_da_that_bai(message.headers)
+            if thu_lai.la_lan_cuoi(da, settings().delivery_limit):
+                log.exception("Queue %s: event %s (%s) that bai %d lan — chuyen vao DLQ, can dev xu ly",
+                              self.ten_queue, env.event_id, self.loai.EVENT_TYPE, da + 1)
+            else:
+                cho = thu_lai.cho_truoc_khi_thu_lai(da, settings_store.giay(settings_store.CONSUMERS_RETRY_MAX_DELAY))
+                log.warning("Queue %s: xu ly event %s that bai (lan %d), thu lai sau %.0fs",
+                            self.ten_queue, env.event_id, da + 1, cho, exc_info=True)
+                await thu_lai.ngu(cho)
             await message.nack(requeue=True)
             return
 

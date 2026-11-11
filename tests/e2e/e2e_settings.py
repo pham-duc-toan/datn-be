@@ -5,6 +5,7 @@ import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
+from tro_giup import nap_mau  # noqa: E402
 SO_KHOA = len(json.load(open(os.path.join(GOC_REPO, "shared", "settings", "catalog.json"), encoding="utf-8")))
 
 PW = "Matkhau@123"
@@ -96,8 +97,7 @@ try:
     requests.put(G + f"/projects/{pid}/pricing", headers=biz, json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
                                                                     "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
     rows = [{"text": "Hang dep, giao nhanh", "name": "a"}, {"text": "Chat luong te", "name": "b"}]
-    requests.post(G + f"/projects/{pid}/datasets/manifest", headers=biz, json={"name": "lo", "rows": rows}).raise_for_status()
-    cho(lambda: [d for d in requests.get(G + f"/projects/{pid}/datasets", headers=biz).json() if d["status"] == "ready"], 30)
+    nap_mau(pid, biz, rows)
     rd = requests.get(G + f"/projects/{pid}/readiness", headers=biz).json()
     kiem("readiness: phi 20%, 2.000d / bai dat, ky quy 3 suat x 12.000 = 36.000",
          rd["platformFeePercent"] == 20 and rd["platformFeePerPassVnd"] == 2000 and rd["estimatedCostVnd"] == 36000, rd)
@@ -171,7 +171,7 @@ try:
     print("\n[5] Gateway (khong DB) doi tran upload ZIP theo setting")
     dat("dataset.zip_max_bytes", 1048576)
     time.sleep(2)
-    r = requests.post(G + f"/projects/{pid2}/datasets", headers=biz, files={"file": ("x.zip", os.urandom(2 * 1048576))}, data={"name": "lon"})
+    r = requests.post(G + f"/projects/{pid2}/samples/zip", headers=biz, files={"file": ("x.zip", os.urandom(2 * 1048576))}, data={"name": "lon"})
     kiem("ZIP 2 MB khi tran 1 MB → 413", r.status_code == 413, (r.status_code, r.text[:200]))
 
     print("\n[6] Rut tien: tu duyet theo nguong, con lai cho admin duyet / tu choi")

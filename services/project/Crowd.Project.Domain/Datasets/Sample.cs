@@ -25,15 +25,13 @@ namespace Crowd.Project.Domain.Datasets
         {
             Modality = string.Empty;
             OriginalName = string.Empty;
-            Sha256 = string.Empty;
+            IngestState = TrangThaiNap.SanSang;
             Metadata = SampleMetadata.Rong.ToRawJson();
         }
 
         public Guid Id { get; private set; }
 
         public Guid ProjectId { get; private set; }
-
-        public Guid DatasetId { get; private set; }
 
         /// <summary>image | text | audio | video | pair — trung loai du lieu cua du an.</summary>
         public string Modality { get; private set; }
@@ -61,9 +59,25 @@ namespace Crowd.Project.Domain.Datasets
         /// nap hai lan chi thanh mot mau — khong tra tien gan nhan hai lan. Doan
         /// cat tu file dai: bam cua (file + vi tri doan).
         /// </summary>
-        public string Sha256 { get; private set; }
+        public string? Sha256 { get; private set; }
 
         public DateTimeOffset CreatedAt { get; private set; }
+
+        /// <summary>
+        /// Tien trinh NAP mau (TrangThaiNap): queued → processing → ready | failed. File upload xong chi moi
+        /// la mot dong "cho xu ly"; worker moi doc file, do thong tin, dedupe roi chot ready. Cac truy van
+        /// nghiep vu chi thay mau ready (bo loc toan cuc trong ProjectDbContext).
+        /// </summary>
+        public string IngestState { get; private set; }
+
+        /// <summary>Ly do khi IngestState = failed (file hong, sai loai, trung noi dung, khong tai duoc...).</summary>
+        public string? IngestError { get; private set; }
+
+        /// <summary>
+        /// Nap tu nguon ngoai (URL / Google Drive / S3 da ky san): worker tai file tu day vao StorageKey roi xoa
+        /// gia tri nay. null voi file client da upload thang len MinIO.
+        /// </summary>
+        public string? IngestSource { get; private set; }
 
         /// <summary>
         /// Video: media-svc chuan bi ban chuan (watermark chi nhung khung dau + cuoi) — TrangThaiMedia.
@@ -116,27 +130,93 @@ namespace Crowd.Project.Domain.Datasets
             }
         }
 
-        /// <summary>
-        /// Anh trong ZIP: he thong tu dat khoa "{projectId}/{sampleId}{duoi}" — khong
-        /// dung ten file cua nguoi dung (co the chua "../" hay ky tu la).
-        /// </summary>
-        public static Sample Tao(
-            Guid projectId,
-            Guid datasetId,
-            string originalName,
-            string contentType,
-            string extension,
-            long sizeBytes,
-            string sha256,
-            DateTimeOffset luc,
-            QuyDinhDuLieu quyDinh)
+        // =====================================================================
+        // TIEN TRINH NAP (queued → processing → ready | failed)
+        // =====================================================================
+
+        public bool DangCho()
         {
-            return TaoAnhTrongZip(projectId, datasetId, originalName, contentType, extension, sizeBytes, sha256, SampleMetadata.Rong, luc, quyDinh);
+            return IngestState == TrangThaiNap.ChoXuLy;
         }
 
+        /// <summary>Worker nhan viec (queued → processing).</summary>
+        public void BatDauNap()
+        {
+            if (IngestState != TrangThaiNap.ChoXuLy)
+            {
+                throw new RuleViolationException("mau_khong_cho_nap", "Mẫu không ở trạng thái chờ xử lý (" + IngestState + ").");
+            }
+
+            IngestState = TrangThaiNap.DangXuLy;
+        }
+
+        /// <summary>Service khoi dong lai giua chung: mau dang xu ly do duoc dua ve hang doi de lam lai.</summary>
+        public void VeHangDoi()
+        {
+            if (IngestState == TrangThaiNap.DangXuLy)
+            {
+                IngestState = TrangThaiNap.ChoXuLy;
+            }
+        }
+
+        /// <summary>Worker doc xong file: chot thong tin that cua mau → ready. Video con phai cho media-svc chuan hoa.</summary>
+        public void HoanTatNap(string sha256, long sizeBytes, string contentType, SampleMetadata metadata)
+        {
+            if (IngestState != TrangThaiNap.DangXuLy)
+            {
+                throw new RuleViolationException("mau_khong_dang_nap", "Mẫu không đang xử lý (" + IngestState + ").");
+            }
+
+            if (string.IsNullOrWhiteSpace(sha256))
+            {
+                throw new ArgumentException("Thieu dau van tay.", nameof(sha256));
+            }
+
+            if (metadata == null)
+            {
+                throw new ArgumentNullException(nameof(metadata));
+            }
+
+            Sha256 = sha256;
+            SizeBytes = sizeBytes;
+            ContentType = contentType;
+            Metadata = metadata.ToRawJson();
+            IngestState = TrangThaiNap.SanSang;
+            IngestError = null;
+            IngestSource = null;
+            if (Modality == Modalities.Video)
+            {
+                MediaState = TrangThaiMedia.DangChuanBi;
+            }
+        }
+
+        /// <summary>Mau goc giu doan cat dau tien: them "[bat dau-ket thuc s]" vao ten.</summary>
+        public void DatTen(string ten, QuyDinhDuLieu quyDinh)
+        {
+            string t = ten == null ? string.Empty : ten.Trim();
+            OriginalName = t.Length > quyDinh.DoDaiTenMauToiDa ? t.Substring(0, quyDinh.DoDaiTenMauToiDa) : t;
+        }
+
+        /// <summary>File hong / sai loai / trung noi dung / khong tai duoc: mau o lai de chu du an thay ly do.</summary>
+        public void NapLoi(string lyDo, int doDaiToiDa)
+        {
+            string ly = string.IsNullOrWhiteSpace(lyDo) ? "Không xử lý được file." : lyDo.Trim();
+            IngestError = ly.Length > doDaiToiDa ? ly.Substring(0, doDaiToiDa) : ly;
+            IngestState = TrangThaiNap.Loi;
+            IngestSource = null;
+            Sha256 = null;
+        }
+
+        // =====================================================================
+        // TAO MAU
+        // =====================================================================
+
+        /// <summary>
+        /// Anh trong ZIP: he thong tu dat khoa "{projectId}/{sampleId}{duoi}" — khong
+        /// dung ten file cua nguoi dung (co the chua "../" hay ky tu la). Xu ly ngay trong request → ready.
+        /// </summary>
         public static Sample TaoAnhTrongZip(
             Guid projectId,
-            Guid datasetId,
             string originalName,
             string contentType,
             string extension,
@@ -146,17 +226,17 @@ namespace Crowd.Project.Domain.Datasets
             DateTimeOffset luc,
             QuyDinhDuLieu quyDinh)
         {
-            Sample s = TaoKhung(projectId, datasetId, Modalities.Image, originalName, sha256, metadata, luc, quyDinh);
+            Sample s = TaoKhung(projectId, Modalities.Image, originalName, metadata, luc, quyDinh);
+            s.Sha256 = sha256;
             s.StorageKey = projectId.ToString() + "/" + s.Id.ToString() + extension;
             s.ContentType = contentType;
             s.SizeBytes = sizeBytes;
             return s;
         }
 
-        /// <summary>File da nam san trong MinIO (client upload thang bang link ky san).</summary>
+        /// <summary>File da nam san trong MinIO va da doc xong (doan cat cua file dai, du lieu seed) → ready.</summary>
         public static Sample TaoTuFile(
             Guid projectId,
-            Guid datasetId,
             string modality,
             string storageKey,
             string originalName,
@@ -167,18 +247,10 @@ namespace Crowd.Project.Domain.Datasets
             DateTimeOffset luc,
             QuyDinhDuLieu quyDinh)
         {
-            if (!Modalities.LaFile(modality))
-            {
-                throw new InvalidValueException("loai_du_lieu_khong_phai_file", "Dữ liệu " + modality + " không lưu thành file.");
-            }
+            KiemKhoaFile(projectId, modality, storageKey);
 
-            if (string.IsNullOrWhiteSpace(storageKey) || !storageKey.StartsWith(projectId.ToString() + "/", StringComparison.Ordinal))
-            {
-                // Chan dung file cua du an khac (BOLA).
-                throw new InvalidValueException("file_khong_thuoc_du_an", "File không thuộc dự án này.");
-            }
-
-            Sample s = TaoKhung(projectId, datasetId, modality, originalName, sha256, metadata, luc, quyDinh);
+            Sample s = TaoKhung(projectId, modality, originalName, metadata, luc, quyDinh);
+            s.Sha256 = sha256;
             s.StorageKey = storageKey;
             s.ContentType = contentType;
             s.SizeBytes = sizeBytes;
@@ -191,10 +263,60 @@ namespace Crowd.Project.Domain.Datasets
             return s;
         }
 
-        /// <summary>Text / pair: noi dung nam ngay trong database.</summary>
+        /// <summary>
+        /// File client DA upload thang len MinIO (link ky san) nhung chua doc: tao mau "cho xu ly". "goiY" la
+        /// thong tin client khai (durationSec, width...) — chi dung khi may khong do duoc (khong co ffprobe).
+        /// </summary>
+        public static Sample TaoChoNap(
+            Guid projectId,
+            string modality,
+            string storageKey,
+            string originalName,
+            SampleMetadata goiY,
+            DateTimeOffset luc,
+            QuyDinhDuLieu quyDinh)
+        {
+            KiemKhoaFile(projectId, modality, storageKey);
+
+            Sample s = TaoKhung(projectId, modality, originalName, goiY, luc, quyDinh);
+            s.StorageKey = storageKey;
+            s.IngestState = TrangThaiNap.ChoXuLy;
+            return s;
+        }
+
+        /// <summary>
+        /// File o NGUON NGOAI (URL / Drive / S3 da ky san): he thong tu dat khoa "{projectId}/import/{sampleId}{duoi}",
+        /// worker tai tu <paramref name="nguon" /> vao do roi xu ly nhu file da upload.
+        /// </summary>
+        public static Sample TaoChoTai(
+            Guid projectId,
+            string modality,
+            string originalName,
+            string extension,
+            string nguon,
+            DateTimeOffset luc,
+            QuyDinhDuLieu quyDinh)
+        {
+            if (!Modalities.LaFile(modality))
+            {
+                throw new InvalidValueException("loai_du_lieu_khong_phai_file", "Dữ liệu " + modality + " không lưu thành file.");
+            }
+
+            if (string.IsNullOrWhiteSpace(nguon))
+            {
+                throw new ArgumentException("Thieu nguon tai.", nameof(nguon));
+            }
+
+            Sample s = TaoKhung(projectId, modality, originalName, SampleMetadata.Rong, luc, quyDinh);
+            s.StorageKey = projectId.ToString() + "/import/" + s.Id.ToString() + extension;
+            s.IngestSource = nguon;
+            s.IngestState = TrangThaiNap.ChoXuLy;
+            return s;
+        }
+
+        /// <summary>Text / pair / list: noi dung nam ngay trong database → ready.</summary>
         public static Sample TaoTuNoiDung(
             Guid projectId,
-            Guid datasetId,
             string modality,
             RawJson content,
             string originalName,
@@ -213,13 +335,28 @@ namespace Crowd.Project.Domain.Datasets
                 throw new ArgumentNullException(nameof(content));
             }
 
-            Sample s = TaoKhung(projectId, datasetId, modality, originalName, sha256, metadata, luc, quyDinh);
+            Sample s = TaoKhung(projectId, modality, originalName, metadata, luc, quyDinh);
+            s.Sha256 = sha256;
             s.Content = content;
             return s;
         }
 
+        private static void KiemKhoaFile(Guid projectId, string modality, string storageKey)
+        {
+            if (!Modalities.LaFile(modality))
+            {
+                throw new InvalidValueException("loai_du_lieu_khong_phai_file", "Dữ liệu " + modality + " không lưu thành file.");
+            }
+
+            if (string.IsNullOrWhiteSpace(storageKey) || !storageKey.StartsWith(projectId.ToString() + "/", StringComparison.Ordinal))
+            {
+                // Chan dung file cua du an khac (BOLA).
+                throw new InvalidValueException("file_khong_thuoc_du_an", "File không thuộc dự án này.");
+            }
+        }
+
         private static Sample TaoKhung(
-            Guid projectId, Guid datasetId, string modality, string originalName, string sha256, SampleMetadata metadata, DateTimeOffset luc, QuyDinhDuLieu quyDinh)
+            Guid projectId, string modality, string originalName, SampleMetadata metadata, DateTimeOffset luc, QuyDinhDuLieu quyDinh)
         {
             if (metadata == null)
             {
@@ -235,14 +372,26 @@ namespace Crowd.Project.Domain.Datasets
             Sample s = new Sample();
             s.Id = Guid.CreateVersion7();
             s.ProjectId = projectId;
-            s.DatasetId = datasetId;
             s.Modality = modality;
             s.OriginalName = ten;
-            s.Sha256 = sha256;
             s.Metadata = metadata.ToRawJson();
             s.CreatedAt = luc;
             return s;
         }
+    }
+
+    /// <summary>Gia tri cua Sample.IngestState.</summary>
+    public static class TrangThaiNap
+    {
+        /// <summary>Da co dong trong database (file da len MinIO / da co link nguon), dang xep hang cho worker.</summary>
+        public const string ChoXuLy = "queued";
+
+        /// <summary>Worker dang tai / doc file, do thong tin.</summary>
+        public const string DangXuLy = "processing";
+
+        public const string SanSang = "ready";
+
+        public const string Loi = "failed";
     }
 
     /// <summary>Gia tri cua Sample.MediaState.</summary>

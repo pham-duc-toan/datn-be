@@ -1,0 +1,51 @@
+# Filebeat: gom log cua moi container co nhan "co.elastic.logs/enabled: true" (cac service cua he thong) vao Elasticsearch.
+# Moi service ghi MOT dong JSON moi log ra stdout (xem docker-compose.demo.yml: Logging__Console__FormatterName=json,
+# python: LOG_FORMAT=json) → decode vao truong "app.*" de loc theo LogLevel / Category / Message.
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+      # Mac dinh KHONG gom container nao; container co nhan co.elastic.logs/enabled=true moi duoc gom (hint ghi de enabled).
+      hints.default_config:
+        type: container
+        paths:
+          - /var/lib/docker/containers/${data.container.id}/*.log
+        enabled: false
+
+processors:
+  - add_docker_metadata: ~
+  - decode_json_fields:
+      fields: ["message"]
+      target: "app"
+      overwrite_keys: false
+      add_error_key: false
+      process_array: false
+      max_depth: 3
+  - drop_fields:
+      fields: ["agent", "ecs", "input", "host", "log.offset", "log.file", "stream"]
+      ignore_missing: true
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "crowd-logs"
+
+# Giu log 7 ngay (xoay vong moi ngay hoac 2 GB) — du de dev tra loi gan day, khong day o dia.
+setup.ilm.enabled: true
+setup.ilm.policy_name: "crowd-logs"
+setup.ilm.policy_file: /usr/share/filebeat/ilm-policy.json
+setup.ilm.overwrite: true
+setup.template.enabled: true
+setup.template.name: "crowd-logs"
+setup.template.pattern: "crowd-logs*"
+# Truong log cua ung dung: Message / Exception la text (tim theo tu trong Kibana), LogLevel / Category la keyword (loc chinh xac).
+setup.template.append_fields:
+  - name: app.Message
+    type: text
+  - name: app.Exception
+    type: text
+  - name: app.LogLevel
+    type: keyword
+  - name: app.Category
+    type: keyword
+
+logging.level: warning

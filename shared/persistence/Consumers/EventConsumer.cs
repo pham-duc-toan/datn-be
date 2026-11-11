@@ -6,6 +6,7 @@ using Crowd.BuildingBlocks.Messaging;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Settings;
+using Crowd.Contracts.Admin;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -27,12 +28,16 @@ namespace Crowd.BuildingBlocks.Persistence.Consumers
     ///                                                      ▼
     ///   datn.dlx (direct) ──routing key = ten queue──► [queue.dlq]
     ///
-    /// Ba ket cuc cua mot message:
-    ///   - Doc khong ra (sai hop dong)  → reject, vao DLQ NGAY. Thu lai vo ich.
-    ///   - Handler nem loi              → nack + requeue, thu lai toi DeliveryLimit
-    ///                                    lan roi vao DLQ. Loi tam thoi (DB mat
-    ///                                    ket noi) se tu het o lan sau.
+    /// Ket cuc cua mot message (ba loai, kien truc 3.29):
     ///   - Thanh cong / da xu ly roi    → ack.
+    ///   - LOAI 1 BoQuaEventException   → ack, log Information (ca binh thuong: doi
+    ///                                    tuong da doi trang thai / da xoa).
+    ///   - LOAI 2 CanXuLyTayException   → phat manual_action.required (admin xu ly
+    ///                                    trong hang doi duyet), ack.
+    ///   - LOAI 3 loi khac (ky thuat)   → cho gian cach (1s, 3s, 9s...) roi nack +
+    ///                                    requeue, thu lai toi DeliveryLimit lan roi
+    ///                                    vao DLQ; lan cuoi log Error.
+    ///   - Doc khong ra (sai hop dong)  → reject, vao DLQ NGAY. Thu lai vo ich.
     ///
     /// Khong bao gio drop im lang: moi message hoac duoc xu ly, hoac nam trong
     /// DLQ cho nguoi xem (VD-D-06).
@@ -301,17 +306,153 @@ namespace Crowd.BuildingBlocks.Persistence.Consumers
                 }
 
                 await kenh.BasicAckAsync(ea.DeliveryTag, false, ct).ConfigureAwait(false);
+                return;
+            }
+            catch (BoQuaEventException ex)
+            {
+                // LOAI 1: ca binh thuong (doi tuong da doi trang thai / da xoa). Khong phai loi.
+                _logger.LogInformation(
+                    "Queue {Queue}: bo qua event {EventId} ({EventType}): {LyDo}",
+                    _tenQueue,
+                    envelope.EventId,
+                    TPayload.EventType,
+                    ex.Message);
+
+                await kenh.BasicAckAsync(ea.DeliveryTag, false, ct).ConfigureAwait(false);
+                return;
+            }
+            catch (CanXuLyTayException ex)
+            {
+                // LOAI 2: can nguoi xu ly. Phat manual_action.required roi ack; phat that bai thi roi xuong loai 3.
+                try
+                {
+                    await BaoCanXuLyTayAsync(envelope, ex.Viec, ct).ConfigureAwait(false);
+                    _logger.LogWarning(
+                        "Queue {Queue}: event {EventId} ({EventType}) can xu ly tay — da dua vao hang doi duyet: {TieuDe}",
+                        _tenQueue,
+                        envelope.EventId,
+                        TPayload.EventType,
+                        ex.Viec.TieuDe);
+
+                    await kenh.BasicAckAsync(ea.DeliveryTag, false, ct).ConfigureAwait(false);
+                    return;
+                }
+                catch (Exception loiBao)
+                {
+                    await ThatBaiAsync(kenh, ea, envelope.EventId, loiBao, ct).ConfigureAwait(false);
+                    return;
+                }
             }
             catch (Exception ex)
             {
+                await ThatBaiAsync(kenh, ea, envelope.EventId, ex, ct).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// LOAI 3 — loi ky thuat: cho gian cach roi tra lai hang doi. Lan cuoi (broker se chuyen vao DLQ) ghi log
+        /// Error de dev tim thay tren Kibana; cac lan truoc chi Warning.
+        /// </summary>
+        private async Task ThatBaiAsync(IChannel kenh, BasicDeliverEventArgs ea, Guid eventId, Exception ex, CancellationToken ct)
+        {
+            long daThatBai = ThuLaiEvent.SoLanDaThatBai(ea.BasicProperties.Headers);
+            if (ThuLaiEvent.LaLanCuoi(daThatBai, _options.DeliveryLimit))
+            {
+                _logger.LogError(
+                    ex,
+                    "Queue {Queue}: event {EventId} ({EventType}) that bai {SoLan} lan — chuyen vao DLQ, can dev xu ly",
+                    _tenQueue,
+                    eventId,
+                    TPayload.EventType,
+                    daThatBai + 1);
+            }
+            else
+            {
+                TimeSpan cho = ThuLaiEvent.ChoTruocKhiThuLai(daThatBai, ChoThuLaiToiDa());
                 _logger.LogWarning(
                     ex,
-                    "Queue {Queue}: xu ly event {EventId} that bai, tra lai hang doi",
+                    "Queue {Queue}: xu ly event {EventId} that bai (lan {SoLan}), thu lai sau {Cho}",
                     _tenQueue,
-                    envelope.EventId);
+                    eventId,
+                    daThatBai + 1,
+                    cho);
 
-                await kenh.BasicNackAsync(ea.DeliveryTag, false, true, ct).ConfigureAwait(false);
+                try
+                {
+                    await Task.Delay(cho, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // ung dung dang tat: tra lai ngay
+                }
             }
+
+            await kenh.BasicNackAsync(ea.DeliveryTag, false, true, CancellationToken.None).ConfigureAwait(false);
+        }
+
+        /// <summary>Phat manual_action.required DUNG MOT LAN cho event nay (cung dau vet processed_events).</summary>
+        private async Task BaoCanXuLyTayAsync(EventEnvelope<TPayload> envelope, ViecCanXuLyTay viec, CancellationToken ct)
+        {
+            using (IServiceScope scope = _scopeFactory.CreateScope())
+            {
+                IIdempotencyGuard guard = scope.ServiceProvider.GetRequiredService<IIdempotencyGuard>();
+                IOutboxWriter? outbox = scope.ServiceProvider.GetService<IOutboxWriter>();
+                if (outbox == null)
+                {
+                    throw new InvalidOperationException("Service khong co outbox — khong bao duoc viec can xu ly tay.", new CanXuLyTayException(viec));
+                }
+
+                ManualActionRequired payload = new ManualActionRequired
+                {
+                    ActionId = Guid.CreateVersion7(),
+                    Kind = viec.Loai,
+                    Title = Cat(viec.TieuDe, 300),
+                    Description = Cat(viec.MoTa, 1000),
+                    ProjectId = viec.ProjectId,
+                    UserId = viec.UserId,
+                    AmountVnd = viec.AmountVnd,
+                    SourceEventType = TPayload.EventType,
+                    SourceEventId = envelope.EventId,
+                };
+
+                await guard.XuLyMotLanAsync(
+                        envelope.EventId,
+                        _tenQueue,
+                        token =>
+                        {
+                            outbox.Enqueue(EventEnvelope.Create(Producer(), envelope.CorrelationId, payload, envelope.EventId));
+                            return Task.CompletedTask;
+                        },
+                        ct)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>Ten service = phan truoc dau cham dau tien cua ten queue ("ledger-svc.project-graded" → "ledger-svc").</summary>
+        private string Producer()
+        {
+            int i = _tenQueue.IndexOf('.');
+            return i > 0 ? _tenQueue.Substring(0, i) : _tenQueue;
+        }
+
+        private static string Cat(string s, int toiDa)
+        {
+            return s.Length > toiDa ? s.Substring(0, toiDa) : s;
+        }
+
+        /// <summary>Setting consumers.retry_max_delay neu service co ISettings, khong thi EventConsumerOptions.</summary>
+        private TimeSpan ChoThuLaiToiDa()
+        {
+            using (IServiceScope scope = _scopeFactory.CreateScope())
+            {
+                ISettings? s = scope.ServiceProvider.GetService<ISettings>();
+                if (s != null)
+                {
+                    return s.ThoiGian(SettingKeys.ConsumersRetryMaxDelay);
+                }
+            }
+
+            return _options.RetryMaxDelay;
         }
 
         private async Task DongAsync()

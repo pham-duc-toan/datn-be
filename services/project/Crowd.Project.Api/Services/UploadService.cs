@@ -21,13 +21,13 @@ namespace Crowd.Project.Api.Services
     ///   1. POST /projects/{id}/uploads  {"files":[{"name":"a.wav","sizeBytes":...}]}
     ///      → moi file mot { key, uploadUrl }.
     ///   2. Client: PUT file len uploadUrl.
-    ///   3. POST /projects/{id}/datasets/manifest  {"rows":[{"file":"&lt;key&gt;"}...]}
+    ///   3. POST /projects/{id}/samples  {"rows":[{"file":"&lt;key&gt;"}...]}  → moi file thanh mot mau "queued", worker xu ly nen.
     ///
     /// KHOA do HE THONG dat: "{projectId}/raw/{guid}{duoi}" — khong dung ten file
-    /// nguoi dung (co the chua "../"), va nam duoi thu muc du an nen manifest cua
+    /// nguoi dung (co the chua "../"), va nam duoi thu muc du an nen dong du lieu cua
     /// du an khac khong tro toi duoc (Sample.TaoTuFile kiem tien to).
     ///
-    /// Duoi file chi la loc so bo; LOAI THAT duoc DatasetIngestor kiem lai bang
+    /// Duoi file chi la loc so bo; LOAI THAT duoc SampleIngestor kiem lai bang
     /// noi dung file (magic bytes / ffprobe).
     /// </summary>
     public sealed class UploadService
@@ -42,9 +42,6 @@ namespace Crowd.Project.Api.Services
             { Modalities.Pair, Array.Empty<string>() },
             { Modalities.List, Array.Empty<string>() },
         };
-
-        /// <summary>File manifest (.jsonl / .json) duoc upload cho moi loai du lieu.</summary>
-        private static readonly string[] DuoiManifest = new string[] { ".jsonl", ".json" };
 
         private readonly ProjectAccessService _access;
         private readonly IObjectStorage _storage;
@@ -118,8 +115,7 @@ namespace Crowd.Project.Api.Services
                     throw new InvalidValueException(
                         "duoi_file_khong_hop_le",
                         "File '" + ten + "' không hợp với dữ liệu " + duAn.Modality + ". Cho phép: "
-                        + string.Join(", ", DuoiChoPhep[duAn.Modality]) + (DuoiChoPhep[duAn.Modality].Length > 0 ? ", " : string.Empty)
-                        + string.Join(", ", DuoiManifest) + ".");
+                        + (DuoiChoPhep[duAn.Modality].Length > 0 ? string.Join(", ", DuoiChoPhep[duAn.Modality]) : "(không có — dữ liệu này gửi thẳng dòng JSON, không upload file)") + ".");
                 }
 
                 if (f.SizeBytes <= 0 || f.SizeBytes > _settings.SoLon(SettingKeys.UploadMaxFileBytes))
@@ -143,11 +139,6 @@ namespace Crowd.Project.Api.Services
 
         private static bool DuocPhep(string modality, string duoi)
         {
-            if (Array.IndexOf(DuoiManifest, duoi) >= 0)
-            {
-                return true;
-            }
-
             string[]? ds;
             return DuoiChoPhep.TryGetValue(modality, out ds) && Array.IndexOf(ds, duoi) >= 0;
         }

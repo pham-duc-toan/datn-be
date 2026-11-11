@@ -288,8 +288,9 @@ namespace Crowd.Project.Api.Services
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            // Don gia nhan khach vang lai do admin dat (setting) — doanh nghiep chi dat ngan sach.
             duAn.DatKenhPhanPhoi(
-                body.AllowProfessional, body.AllowLinkGateway, body.AllowCollaborative, body.GateUnitPriceVnd, body.GateBudgetVnd, _clock.GetUtcNow());
+                body.AllowProfessional, body.AllowLinkGateway, body.AllowCollaborative, _settings.SoLon(SettingKeys.GateUnitPriceVnd), body.GateBudgetVnd, _clock.GetUtcNow());
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);
@@ -551,6 +552,7 @@ namespace Crowd.Project.Api.Services
                 QualityGoldCount = soVangKiemTra,
                 EntranceGoldCount = soVangTest,
                 PlatformFeePercent = phi,
+                GateUnitPriceVnd = _settings.SoLon(SettingKeys.GateUnitPriceVnd),
                 PlatformFeePerPassVnd = LabelingProject.TinhPhiVnd(duAn.RewardVnd, phi),
                 EstimatedCostVnd = duAn.ChiPhiUocTinhVnd(phi),
                 Limits = new ProjectLimits
@@ -629,6 +631,9 @@ namespace Crowd.Project.Api.Services
                     "Cổng link chỉ cho công cụ làm nhanh (" + string.Join(", ", CongCuChoCongLink()) + "). Tắt cổng link hoặc bỏ công cụ: "
                     + string.Join(", ", congCuSai) + ".");
             }
+
+            // Chot don gia cong link theo setting hien hanh (admin co the da doi tu luc doanh nghiep bat kenh).
+            duAn.GhimGiaCongLink(_settings.SoLon(SettingKeys.GateUnitPriceVnd), bayGio);
 
             duAn.YeuCauPublish(
                 soCauThat, soVangTest, _settings.SoNguyen(SettingKeys.FeePlatformPercent), dangXuLy, QuyDinhTuSetting.DuAn(_settings),
@@ -853,6 +858,35 @@ namespace Crowd.Project.Api.Services
             }
         }
 
+        /// <summary>
+        /// Xoa han du an nhap (hoac da huy chua tung publish): xoa dong du an (khoa ngoai CASCADE don mau, cau vang, thanh
+        /// vien, loi moi...) roi don file trong kho theo tien to "{projectId}/". Khong co ky quy / bai lam nao de mat.
+        /// </summary>
+        public async Task XoaAsync(Guid id, IObjectStorage kho, Caller caller, CancellationToken ct)
+        {
+            if (kho == null)
+            {
+                throw new ArgumentNullException(nameof(kho));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
+            duAn.KiemTraCoTheXoa();
+
+            _db.Projects.Remove(duAn);
+            await _db.SaveChangesAsync(ct);
+
+            try
+            {
+                int soFile = await kho.XoaTheoTienToAsync(id + "/", ct);
+                _logger.LogInformation("Da xoa du an nhap {ProjectId} cung {SoFile} file", id, soFile);
+            }
+            catch (Exception ex)
+            {
+                // Dong du an da mat; file mo coi chi ton cho, khong chan nguoi dung.
+                _logger.LogWarning(ex, "Khong don het file cua du an da xoa {ProjectId}", id);
+            }
+        }
+
         public async Task<ProjectResponse> HuyAsync(Guid id, string? lyDo, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
@@ -1050,11 +1084,11 @@ namespace Crowd.Project.Api.Services
             return duAn;
         }
 
-        /// <summary>Con lo manifest dang cho / dang xu ly — chua biet het so mau.</summary>
+        /// <summary>Con file dang xep hang / dang xu ly — chua biet het so mau.</summary>
         private Task<bool> CoDuLieuDangXuLyAsync(Guid projectId, CancellationToken ct)
         {
-            return _db.Datasets.AnyAsync(
-                d => d.ProjectId == projectId && (d.Status == DatasetStatus.Pending || d.Status == DatasetStatus.Ingesting),
+            return _db.Samples.IgnoreQueryFilters().AnyAsync(
+                s => s.ProjectId == projectId && (s.IngestState == TrangThaiNap.ChoXuLy || s.IngestState == TrangThaiNap.DangXuLy),
                 ct);
         }
 

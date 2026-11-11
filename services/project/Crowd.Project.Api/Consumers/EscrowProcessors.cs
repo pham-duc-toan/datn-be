@@ -66,18 +66,26 @@ namespace Crowd.Project.Api.Consumers
 
             LabelingProject? duAn = await _db.Projects.FirstOrDefaultAsync(p => p.Id == envelope.Payload.ProjectId, ct);
 
-            // Event ve mot du an khong con o trang thai cho: KHONG nem loi. Nem
-            // loi thi message quay vong 5 lan roi vao DLQ ma khong sua duoc gi.
-            // Ghi log canh bao la du — day la tinh huong can nguoi xem (vd ledger
-            // giu tien cho du an da bi huy → can hoan tay).
-            if (duAn == null || duAn.Status != ProjectStatus.PendingEscrow)
+            // Kien truc 3.29. Du an da huy / da xoa ma ledger van giu ky quy: tien co the dang ket → LOAI 2 (admin
+            // kiem tra va hoan tay). Du an da qua buoc cho ky quy (duyet roi, dang chay...) → LOAI 1, bo qua.
+            if (duAn == null || duAn.Status == ProjectStatus.Cancelled)
             {
-                _logger.LogWarning(
-                    "escrow.reserved {EventId} cho du an {ProjectId} khong o trang thai PendingEscrow ({Status}) — bo qua",
-                    envelope.EventId,
-                    envelope.Payload.ProjectId,
-                    duAn == null ? "khong ton tai" : duAn.Status.ToString());
-                return;
+                string ten = duAn == null ? "(dự án đã bị xoá)" : "“" + duAn.Name + "”";
+                throw new CanXuLyTayException(new ViecCanXuLyTay
+                {
+                    Loai = "ky_quy_du_an_da_huy",
+                    TieuDe = "Kiểm tra tiền ký quỹ của dự án đã huỷ",
+                    MoTa = "Hệ thống đã giữ " + ViecCanXuLyTay.Tien(envelope.Payload.AmountVnd) + " tiền ký quỹ cho dự án " + ten
+                        + " nhưng dự án đã bị huỷ hoặc xoá trước khi ký quỹ xong. Mở ví của doanh nghiệp: nếu số tiền này chưa được hoàn thì hoàn lại cho doanh nghiệp.",
+                    ProjectId = duAn == null ? null : duAn.Id,
+                    UserId = duAn == null ? null : duAn.OwnerId,
+                    AmountVnd = envelope.Payload.AmountVnd,
+                });
+            }
+
+            if (duAn.Status != ProjectStatus.PendingEscrow)
+            {
+                throw new BoQuaEventException("du an " + duAn.Id + " da o trang thai " + duAn.Status + ", khong con cho ky quy");
             }
 
             duAn.XacNhanDaKyQuy(_clock.GetUtcNow());
@@ -130,13 +138,11 @@ namespace Crowd.Project.Api.Consumers
 
             LabelingProject? duAn = await _db.Projects.FirstOrDefaultAsync(p => p.Id == envelope.Payload.ProjectId, ct);
 
+            // Ky quy bi tu choi = ledger KHONG giu tien → du an da doi trang thai / da xoa thi khong con gi de lam (loai 1).
             if (duAn == null || duAn.Status != ProjectStatus.PendingEscrow)
             {
-                _logger.LogWarning(
-                    "escrow.rejected {EventId} cho du an {ProjectId} khong o trang thai PendingEscrow — bo qua",
-                    envelope.EventId,
-                    envelope.Payload.ProjectId);
-                return;
+                throw new BoQuaEventException("du an " + envelope.Payload.ProjectId + " khong con cho ky quy ("
+                    + (duAn == null ? "da xoa" : duAn.Status.ToString()) + ")");
             }
 
             duAn.KyQuyBiTuChoi(envelope.Payload.Reason, _clock.GetUtcNow());

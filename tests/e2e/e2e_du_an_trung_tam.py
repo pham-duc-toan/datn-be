@@ -14,7 +14,7 @@ import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tro_giup import (  # noqa: E402
-    G, GOC, KQ, TAG, admin, cho, dang_ky, dat, dat_va_cho, kiem, sql, tham_gia, vi,
+    G, GOC, KQ, TAG, admin, cho, dang_ky, dat, dat_va_cho, kiem, nap_mau, sql, tham_gia, vi,
 )
 import tro_giup  # noqa: E402
 
@@ -41,9 +41,7 @@ def tao_du_an(chu, ten, mau, thuong, suat, nguong, vang=()):
     r = requests.put(G + f"/projects/{pid}/pricing", headers=chu["h"], json={
         "rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": "2027-12-31T00:00:00Z"})
     assert r.status_code == 200, r.text
-    requests.post(G + f"/projects/{pid}/datasets/manifest", headers=chu["h"],
-                  json={"name": "lo", "rows": [{"text": v, "name": k} for k, v in mau.items()]}).raise_for_status()
-    assert cho(lambda: [d for d in requests.get(G + f"/projects/{pid}/datasets", headers=chu["h"]).json() if d["status"] == "ready"], 60)
+    nap_mau(pid, chu["h"], [{"text": v, "name": k} for k, v in mau.items()])
     ids = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid}/samples?pageSize=200", headers=chu["h"]).json()["items"]}
     if vang:
         r = requests.post(G + f"/projects/{pid}/gold-items", headers=chu["h"], json={"items": [

@@ -66,8 +66,7 @@ Quy ước: `PK` là khoá chính. `?` là cột cho phép null. Cột `xmin` xu
 | (tiếp) | `min_level?`, `min_reputation?`, `require_verified_identity`, `require_entrance_test`, `entrance_question_count`, `entrance_pass_percent` | Điều kiện tham gia |
 | (tiếp) | `nda_required`, `nda_text?`, `nda_version`, `sensitive_content`, `content_warning?`, `delete_files_after_close`, `files_purged_at?` | Bảo vệ dữ liệu nhạy cảm, NDA, xoá file sau khi đóng |
 | (tiếp) | `deadline?`, `submitted_for_approval_at?`, `published_at?`, `finish_requested_at?`, `grading_started_at?`, `closed_at?`, `was_escrowed`, `created_at`, `updated_at` | Mốc thời gian vòng đời. `was_escrowed` cho biết đã từng giữ ký quỹ, để biết có cần hoàn khi huỷ không |
-| `datasets` | `id`; `project_id`; `name`; `status`; `sample_count`, `skipped_count`; `import_source?`, `import_spec?` (nhập từ nguồn ngoài); `manifest?`, `manifest_key?`; `error_summary?`; `created_at`, `finished_at?` | Một lần nạp dữ liệu vào dự án |
-| `samples` | `(project_id, id)` PK; `dataset_id`; `modality`; `storage_key?` (file MinIO) hoặc `content?` (jsonb cho text/pair/list, nén lz4); `original_name`, `content_type?`, `size_bytes?`, `sha256`; `metadata` jsonb (lz4; kích thước ảnh, thời lượng…); `media_state?`, `media_error?` (chuẩn hoá video do media-svc); `excluded_at?`, `excluded_reason?` (`report_accepted`, `auto_reports`) | Một mẫu cần gán nhãn — cũng chính là **câu hỏi** của bài (không còn bảng `tasks` riêng). **Phân vùng HASH(`project_id`) 64 phần** (`samples_p00..p63`). UNIQUE `(project_id, sha256)` chống trùng |
+| `samples` | `(project_id, id)` PK; `modality`; `storage_key?` (file MinIO) hoặc `content?` (jsonb cho text/pair/list, nén lz4); `original_name`, `content_type?`, `size_bytes?`, `sha256?` (NULL tới khi đọc xong file); `metadata` jsonb (lz4; kích thước ảnh, thời lượng…); `ingest_state` (`queued`, `processing`, `ready`, `failed`), `ingest_error?`, `ingest_source?` (link tải của nhập nguồn ngoài, xoá khi xong); `media_state?`, `media_error?` (chuẩn hoá video do media-svc); `excluded_at?`, `excluded_reason?` (`report_accepted`, `auto_reports`) | Một mẫu cần gán nhãn — cũng chính là **câu hỏi** của bài (không còn bảng `tasks` riêng). **Không có bảng "lô nạp" (`datasets`)**: tiến trình nạp nằm ngay trên từng mẫu (`ingest_state`); mọi truy vấn nghiệp vụ chỉ thấy mẫu `ready` (bộ lọc toàn cục của EF), chủ dự án xem cả mẫu đang chờ / lỗi. **Phân vùng HASH(`project_id`) 64 phần** (`samples_p00..p63`). UNIQUE `(project_id, sha256)` chống trùng (NULL không đụng nhau) |
 | `gold_items` | `id`; `project_id`; `sample_id` (FK `samples (project_id, id)`); `purpose` (câu kiểm tra hoặc bài test đầu vào); `expected_payload` jsonb, `expected_task_type`, `expected_schema_version` | Câu vàng và đáp án đúng; chấm ngay lúc nộp bài |
 | `project_members` | `(project_id, user_id)` PK; `role` (`Owner, Labeler, Reviewer`); `state` (`Active, Blocked`); `blocked_by_owner_list`; `joined_at`, `updated_at` | Thành viên. Là cơ sở của phân quyền ngang (chống BOLA) |
 | `project_invitations` | `id`; `project_id`; `email`; `user_id?`; `by_email`; `role`; `status`; `invited_by`; `expires_at`; `decided_at?` | Lời mời. Có thể mời theo email chưa có tài khoản |
@@ -175,7 +174,7 @@ Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm 
 |---|---|---|
 | `settings` | `key` PK; `value` jsonb; `version`; `updated_by`, `updated_at` | Setting hệ thống. Đổi thì `version` tăng và phát `setting.changed` |
 | `setting_history` | `id`; `key`; `old_value?`, `new_value`; `version`; `changed_by`, `changed_at`; `reason?` | Lịch sử đổi setting |
-| `approval_requests` | `id`; `kind` (KYB, xác minh, publish, rút, khiếu nại, báo link…); `subject_id`; `requester_id`; `title?`; `amount_vnd?`; `status`; `opened_at`, `last_event_at`; `decided_by?`, `decided_at?`; `note?` | Read model gom **một hàng đợi duyệt** từ event của nhiều service. Dựng lại được qua `POST /admin/approvals/rebuild` |
+| `approval_requests` | `id`; `kind` (KYB, xác minh, publish, rút, khiếu nại, báo link, giới thiệu, `manual` = việc cần xử lý tay); `subject_id`; `requester_id`; `title?`; `amount_vnd?`; `status`; `opened_at`, `last_event_at`; `decided_by?`, `decided_at?`; `note?`; `project_id?`, `detail?` (mục `manual`) | Read model gom **một hàng đợi duyệt** từ event của nhiều service (kiến trúc mục 5, 3.29) |
 | `audit_events` | `event_id` PK; `event_type`; `producer`; `actor_id?`, `actor_role?`; `correlation_id`, `causation_id?`; `occurred_at`, `received_at`; `payload` jsonb | Nhật ký chỉ-ghi-thêm của mọi event |
 | `audit_counted` | `event_id` PK; `seen_at` | Đánh dấu event đã đưa vào thống kê |
 | `stats_daily` | `(day, event_type)` PK; `count`; `amount_vnd`; `fee_vnd` | Thống kê theo ngày cho `GET /admin/stats/overview` |
@@ -228,7 +227,7 @@ Mọi API client đi qua **gateway** (`:8080`, ở demo là `:18080`). Gateway k
 
 **identity** — đăng ký và phiên: `POST /auth/register`, `/auth/login`, `/auth/2fa/verify`, `/auth/refresh`, `/auth/logout`, `/auth/verify-email`, `/auth/forgot-password`, `/auth/reset-password`. Cá nhân: `GET /me`, `GET|PUT /me/profile`, `PUT /me/skills`, `POST /me/avatar/upload-url`, `PUT /me/avatar`, `POST /me/password`, `POST /me/logout-all`, `GET /me/level`, `GET|POST /me/2fa/*`, `GET|PUT /me/identity-verification` (+ `/upload-url`, `/submit`). KYB: `GET|PUT /kyb/me`, `POST /kyb/me/license`, `POST /kyb/me/submit`; admin `GET /kyb/admin`, `POST /kyb/admin/{id}/approve|reject`. Người dùng: `GET /users/public`, `/users/suggest`, `/users/leaderboard`; admin `GET /users/admin`, `POST /users/admin/{id}/block|unblock`, `/2fa/reset`, duyệt `/identity-verifications/{id}/approve|reject`. Nội bộ: `GET /internal/session-revocations`, `POST /internal/users/lookup`, `GET /internal/businesses/{id}`. Khác: `GET /.well-known/openid-configuration`, `GET /.well-known/jwks.json`.
 
-**project** — vòng đời: `POST /projects`, `GET /projects`, `GET /projects/{id}`, `GET /projects/{id}/readiness`, `PUT /projects/{id}`, `PUT .../label-schema|guideline|pricing|channels|eligibility|protection|tags|retention`, `POST .../publish|pause|resume|finish|cancel`; admin `GET /projects/pending-approval`, `POST /projects/{id}/approve|reject`. Dữ liệu: `POST .../uploads`, `POST .../datasets`, `.../datasets/manifest`, `.../datasets/import`, `GET .../datasets`, `GET .../samples`, `GET|POST|DELETE .../gold-items`. Thành viên: `GET|POST .../members`, `.../members/batch`, `POST .../members/{u}/block|unblock`, `DELETE .../members/{u}`, `POST .../join`, `.../leave`; mã mời: `POST|GET|DELETE .../invite-codes`, `POST /projects/join-by-code` (+ `/preview`); xin vào: `POST .../join-requests`, `GET .../join-requests`, `POST .../join-requests/{r}/approve|reject`; lời mời: `GET /projects/invitations/mine`, `POST .../invitations/{i}/accept|decline`; test đầu vào: `POST .../entrance-test/attempts` (+ `/{a}/submit`); NDA: `GET .../terms`, `POST .../consent`; danh sách riêng: `GET|PUT|DELETE /projects/labeler-lists/*`; đánh giá: `PUT .../ratings/{labelerId}`; gợi ý: `GET /projects/recommended`. Nội bộ: gRPC `QualityData` ở cổng 9102 cho quality (mục 4.1).
+**project** — vòng đời: `POST /projects`, `GET /projects`, `GET /projects/{id}`, `GET /projects/{id}/readiness`, `PUT /projects/{id}`, `PUT .../label-schema|guideline|pricing|channels|eligibility|protection|tags|retention`, `POST .../publish|pause|resume|finish|cancel`; admin `GET /projects/pending-approval`, `POST /projects/{id}/approve|reject`. Dữ liệu: `POST .../uploads` (xin link upload thẳng MinIO), `POST .../samples` (dòng JSON / file đã upload), `POST .../samples/zip` (ZIP ảnh), `POST .../samples/import` (nguồn ngoài), `GET .../samples` (+ `?trangThai=dang_xu_ly|loi|san_sang`, `?ids=`), `GET .../samples/status`, `DELETE .../samples/failed`, `GET|POST|DELETE .../gold-items`. Thành viên: `GET|POST .../members`, `.../members/batch`, `POST .../members/{u}/block|unblock`, `DELETE .../members/{u}`, `POST .../join`, `.../leave`; mã mời: `POST|GET|DELETE .../invite-codes`, `POST /projects/join-by-code` (+ `/preview`); xin vào: `POST .../join-requests`, `GET .../join-requests`, `POST .../join-requests/{r}/approve|reject`; lời mời: `GET /projects/invitations/mine`, `POST .../invitations/{i}/accept|decline`; test đầu vào: `POST .../entrance-test/attempts` (+ `/{a}/submit`); NDA: `GET .../terms`, `POST .../consent`; danh sách riêng: `GET|PUT|DELETE /projects/labeler-lists/*`; đánh giá: `PUT .../ratings/{labelerId}`; gợi ý: `GET /projects/recommended`. Nội bộ: gRPC `QualityData` ở cổng 9102 cho quality (mục 4.1).
 
 **project — làm bài** (giữ tiền tố `/tasks` cũ) — `POST /tasks/projects/{p}/attempt` (bắt đầu bài), `GET /tasks/attempts/{a}`, `POST .../submit` (body `{answers:[{sampleId, data}]}` — cả bài một lần; **nháp nằm ở localStorage của frontend**, backend không lưu), `.../abandon`, `.../appeal`, `.../reports`; `GET /tasks/me/attempts`, `GET /tasks/projects/{p}/slots|progress|attempts|reports`, `POST /tasks/reports/{r}/resolve`. Admin: `GET /tasks/admin/appeals`, `POST /tasks/admin/attempts/{a}/appeal/resolve`, `POST /tasks/admin/projects/{p}/purge` (xoá báo lỗi). Không còn `/internal/projects/{id}/close-check` (đóng dự án kiểm tại chỗ, cùng transaction).
 
@@ -246,7 +245,7 @@ Mọi API client đi qua **gateway** (`:8080`, ở demo là `:18080`). Gateway k
 
 **notification** — `GET /notifications/me`, `/unread-count`, `POST /{id}/read`, `/read-all`, `GET|PUT /preferences`, `GET|PUT /language`, `POST /notifications/me/realtime-ticket`, `GET /notifications/realtime` (WebSocket).
 
-**admin** — setting `GET|PUT /admin/settings[/{key}]`, `/{key}/history`; thẻ `GET|POST|PUT /admin/tags`, `/hide|show|merge`, `GET /tags`; mẫu `GET|POST|PUT /admin/templates`, `/activate|deactivate`, `GET /templates[/{id}]`; hàng đợi duyệt `GET /admin/approvals`, `/summary`, `POST /rebuild`; vận hành `GET /admin/audit`, `/admin/stats/overview`, `GET /admin/ops/queues` (độ sâu DLQ), thông báo `POST|GET /admin/announcements`.
+**admin** — setting `GET|PUT /admin/settings[/{key}]`, `/{key}/history`; thẻ `GET|POST|PUT /admin/tags`, `/hide|show|merge`, `GET /tags`; mẫu `GET|POST|PUT /admin/templates`, `/activate|deactivate`, `GET /templates[/{id}]`; hàng đợi duyệt `GET /admin/approvals`, `/summary`, `POST /admin/approvals/manual/{id}/resolve` (việc cần xử lý tay); vận hành `GET /admin/audit`, `/admin/stats/overview`, `GET /admin/system-health` (tình trạng hệ thống — số lỗi kỹ thuật trong DLQ), thông báo `POST|GET /admin/announcements`.
 
 **media** — `GET /media/v/{token}` (xem file đã watermark), `POST /media/admin/watermark/decode` (giải watermark), `GET /health`. **ml** (nội bộ) — `GET /internal/model`, `POST /internal/embeddings`.
 
@@ -292,7 +291,7 @@ Exchange `datn.events` (topic). Mỗi consumer có queue riêng, tên dạng `<s
 | `escrow.reserved` | ledger | project | Đủ tiền → `PendingApproval` |
 | `escrow.rejected` (v2, có `ownerId`) | ledger | project, notification | Thiếu tiền → về `Draft` |
 | `project.published` | project | ledger, gate, notification | Dự án chạy: các service tạo bản sao (phần làm bài mở đợt thu bài ngay trong transaction duyệt). quality không nghe nữa (3.22) |
-| `dataset.ingested` | project | media | Chuẩn hoá sẵn video (gate không nghe nữa — kéo mẫu qua gRPC lúc publish, 3.23) |
+| `samples.ingested` | project | media | Video vừa nạp xong: chuẩn hoá sẵn bản chuẩn (chỉ phát cho video; gate không nghe — kéo mẫu qua gRPC lúc publish, 3.23) |
 | `video.prepared` | media | project | Video đã chuẩn hoá, cho phép publish/duyệt |
 | `member.added/blocked/unblocked/removed` | project | notification (`added`), admin (audit) | Thông báo / nhật ký (phần làm bài đọc thẳng `project_members`) |
 | `join_request.submitted/decided`, `project.invitation_created` | project | notification | Xin vào / lời mời |
@@ -321,7 +320,9 @@ Exchange `datn.events` (topic). Mỗi consumer có queue riêng, tên dạng `<s
 | `settings.snapshot_requested` | các service | admin | Service khởi động xin phát lại toàn bộ setting |
 | `tag.merged` | admin | project, identity | Gộp thẻ |
 | `system.announcement` | admin | notification | Thông báo toàn hệ thống |
-| `ops.dlq_alert` | admin | notification | Cảnh báo hàng đợi lỗi (DLQ) sâu |
+| `manual_action.required` | mọi service (EventConsumer dùng chung) | admin | Việc cần xử lý tay (3.29) → hàng đợi duyệt `manual` |
+| `manual_action.resolved` | admin | admin (audit) | Admin đánh dấu đã xử lý việc tay |
+| `ops.dlq_alert` | admin | notification | Lỗi kỹ thuật trong DLQ vượt ngưỡng → email đội kỹ thuật (3.29) |
 | `sensitive_document.viewed` | identity | (admin ghi audit) | Admin xem giấy tờ nhạy cảm |
 
 **Lưu ý:** cột "Nhận" của `setting.changed` chỉ liệt kê quality vì các service C# đăng ký consumer setting bằng cơ chế dùng chung (`shared/settings`) mà quét tự động không bắt được. Thực tế mọi service đều nhận. `admin` còn có `AuditConsumer` bind routing key `#` (mọi event) để ghi `audit_events`, `stats_daily` và dựng `approval_requests`.
@@ -330,7 +331,7 @@ Exchange `datn.events` (topic). Mỗi consumer có queue riêng, tên dạng `<s
 
 - **Outbox**: ghi cùng transaction, nên không mất event dù broker đang lỗi.
 - **At-least-once** nên có `processed_events` ở phía nhận để chống trùng.
-- **Hợp đồng nghiêm ngặt**: trường lạ trong payload làm message vào DLQ. Admin có `GET /admin/ops/queues` và phát `ops.dlq_alert`.
+- **Hợp đồng nghiêm ngặt**: trường lạ trong payload làm message vào DLQ. Message hỏng vào DLQ để lại log `Error` đi Elasticsearch (Kibana) — không còn màn hình / cảnh báo DLQ trên admin (3.27).
 - Các event của cùng một dự án đi **nhiều queue khác nhau**, nên có thể đến lộn thứ tự. Vì vậy quality dùng `pg_advisory_xact_lock` theo `project_id` khi chấm, và các bản sao có cột `*_at` / `version` / `sequence` để bỏ qua dữ liệu cũ. Vòng đời thu bài (tạm dừng, kết thúc, huỷ, nộp) không còn qua event nữa — cùng database với dự án nên khoá dòng `project_collections` là đủ.
 
 ---
@@ -359,7 +360,7 @@ payment: xác minh HMAC, cập nhật intent ──deposit.confirmed──► le
 ### 5.3 Publish dự án (saga)
 ```
 POST /projects → PUT label-schema / guideline / pricing / channels / eligibility
-→ POST /projects/{id}/datasets (hoặc /uploads rồi /datasets/manifest): project lưu samples, phát dataset.ingested
+→ POST /projects/{id}/samples/zip (ảnh) | /uploads → PUT MinIO → POST /samples (mỗi file một mẫu `queued`; worker xử lý → `ready`/`failed`) | /samples/import (nguồn ngoài)
 → POST /projects/{id}/publish: Draft → PendingEscrow, phát project.publish_requested
 ledger: giữ ký quỹ S×(R+phí) + ngân sách cổng, idempotent theo projectId
    đủ tiền → escrow.reserved ──► project: PendingApproval
@@ -456,7 +457,7 @@ Frontend cần hiển thị ảnh / video / âm thanh của một mẫu
 → trình duyệt <img src=…> GET /media/v/{token} (qua gateway, không cần header Authorization)
 media: kiểm token, lấy file gốc từ MinIO, nhúng watermark chìm (ảnh / âm thanh / chỉ đầu-cuối video), cache vào media-cache, trả về
 media dùng để truy ngược rò rỉ: POST /media/admin/watermark/decode
-Video mới nạp: media nghe dataset.ingested → chuẩn hoá → phát video.prepared ─► project (không cho publish khi chưa xong)
+Video mới nạp: media nghe samples.ingested → chuẩn hoá → phát video.prepared ─► project (không cho publish khi chưa xong)
 ```
 
 ### 5.10 Cập nhật setting (đồng bộ cấu hình)

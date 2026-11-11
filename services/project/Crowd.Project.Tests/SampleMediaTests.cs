@@ -12,7 +12,7 @@ namespace Crowd.Project.Tests
         private static Sample File(string modality, Guid duAn)
         {
             return Sample.TaoTuFile(
-                duAn, Guid.NewGuid(), modality, duAn + "/a.bin", "a", "application/octet-stream", 10, "abc", SampleMetadata.Rong, Luc, QuyDinhMau.DuLieu);
+                duAn, modality, duAn + "/a.bin", "a", "application/octet-stream", 10, "abc", SampleMetadata.Rong, Luc, QuyDinhMau.DuLieu);
         }
 
         [Fact]

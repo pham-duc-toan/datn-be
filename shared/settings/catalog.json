@@ -93,7 +93,7 @@
     "max": 100,
     "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Cổng nạp tiền đang mở. Cổng phải CÓ cấu hình khoá mới dùng được; tắt một cổng khi cổng đó sự cố.",
+    "description": "Cổng nạp tiền đang mở. Cổng phải được đội kỹ thuật kết nối trước mới dùng được; tắt một cổng khi cổng đó gặp sự cố.",
     "multiChoices": [
       "sandbox",
       "vnpay",
@@ -283,7 +283,7 @@
     "max": 20,
     "unit": "%",
     "effect": "newOperations",
-    "description": "Thuế suất GTGT trên phí nền tảng (FB-05). Phí đã thu là giá ĐÃ GỒM thuế; hoá đơn tách ngược ra phần chưa thuế + thuế. Áp cho hoá đơn xuất sau khi đổi."
+    "description": "Thuế suất GTGT trên phí nền tảng. Phí đã thu là giá ĐÃ GỒM thuế; hoá đơn tách ngược ra phần chưa thuế + thuế. Áp cho hoá đơn xuất sau khi đổi."
   },
   {
     "key": "invoice.seller_name",
@@ -343,7 +343,7 @@
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Bật: đầu mỗi tháng tự xuất hoá đơn tháng trước cho mọi doanh nghiệp có phát sinh phí nền tảng (đã xác minh KYB)."
+    "description": "Bật: đầu mỗi tháng tự xuất hoá đơn tháng trước cho mọi doanh nghiệp có phát sinh phí nền tảng (đã xác minh doanh nghiệp)."
   },
   {
     "key": "invoice.auto_issue_interval",
@@ -475,7 +475,7 @@
     "max": 100000,
     "unit": "lời mời",
     "effect": "newOperations",
-    "description": "Số email tối đa một người được mời vào dự án trong 24 giờ (VD-S-16) — chặn dùng ô mời để dò danh sách email. Vượt → 429."
+    "description": "Số email tối đa một người được mời vào dự án trong 24 giờ — chặn dùng ô mời để dò danh sách email. Vượt thì phải chờ hôm sau."
   },
   {
     "key": "project.housekeeping_interval",
@@ -571,7 +571,7 @@
     "max": 10000000000,
     "unit": "đồng",
     "effect": "newOperations",
-    "description": "Tiền thưởng tối thiểu cho MỘT người làm đạt cả dự án (FM-04). 0 = không giới hạn."
+    "description": "Tiền thưởng tối thiểu cho MỘT người làm đạt cả dự án. 0 = không giới hạn."
   },
   {
     "key": "annotation.history_retention",
@@ -583,7 +583,7 @@
     "max": 315360000,
     "unit": "giây",
     "effect": "newOperations",
-    "description": "Hạn giữ nhật ký vòng đời nhãn (annotation_history): dòng cũ hơn bị xoá, trừ dòng mới nhất của mỗi nhãn. 0 = không bao giờ xoá."
+    "description": "Giữ lịch sử chỉnh sửa nhãn bao lâu: bản ghi cũ hơn bị xoá, trừ bản mới nhất của mỗi nhãn. 0 = không bao giờ xoá."
   },
   {
     "key": "annotation.history_cleanup_interval",
@@ -607,7 +607,7 @@
     "max": 315360000,
     "unit": "giây",
     "effect": "newOperations",
-    "description": "Dự án đã đóng (hoàn thành / huỷ) bao lâu thì xoá dữ liệu VẬN HÀNH của nó: nháp còn sót, báo lỗi (project-svc); nhãn thô và vòng đồng thuận (quality-svc). Trước khi xoá, tiến độ và báo cáo chất lượng được chụp lại nên vẫn xem được. Nhãn đã nộp / đã duyệt, kết quả, sổ cái, mẫu dữ liệu và uy tín labeler KHÔNG bị xoá. 0 = không bao giờ xoá."
+    "description": "Dự án đã đóng (hoàn thành / huỷ) bao lâu thì xoá dữ liệu VẬN HÀNH của nó: bài làm dở còn sót, báo lỗi mẫu, nhãn thô và các vòng tính kết quả chung. Trước khi xoá, tiến độ và báo cáo chất lượng được chụp lại nên vẫn xem được. Nhãn đã nộp / đã duyệt, kết quả, sổ cái, mẫu dữ liệu và uy tín labeler KHÔNG bị xoá. 0 = không bao giờ xoá."
   },
   {
     "key": "project.entrance_question_default",
@@ -667,7 +667,7 @@
     "max": 200,
     "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Độ dài tên dự án (cột DB tối đa 200)."
+    "description": "Độ dài tên dự án (tối đa 200)."
   },
   {
     "key": "project.description_max_length",
@@ -679,7 +679,7 @@
     "max": 5000,
     "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Độ dài mô tả dự án (cột DB tối đa 5000)."
+    "description": "Độ dài mô tả dự án (tối đa 5000)."
   },
   {
     "key": "guideline.markdown_max_length",
@@ -691,7 +691,7 @@
     "max": 200000,
     "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Độ dài hướng dẫn (markdown)."
+    "description": "Độ dài tối đa phần hướng dẫn làm bài."
   },
   {
     "key": "guideline.examples_max",
@@ -787,7 +787,7 @@
     "max": 2147483648,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kích thước tối đa file ZIP ảnh upload qua API (gateway và project-svc cùng áp)."
+    "description": "Dung lượng tối đa một file ZIP ảnh doanh nghiệp tải lên."
   },
   {
     "key": "dataset.zip_max_entries",
@@ -823,11 +823,11 @@
     "max": 107374182400,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Tổng dung lượng sau giải nén tối đa của một ZIP (chống bom ZIP)."
+    "description": "Tổng dung lượng tối đa của một ZIP sau khi giải nén (chặn file nén độc hại)."
   },
   {
     "key": "dataset.manifest_inline_max_rows",
-    "name": "Số dòng manifest gửi kèm",
+    "name": "Số mẫu tối đa mỗi lần thêm",
     "group": "Dữ liệu và file",
     "type": "int",
     "default": 1000,
@@ -835,19 +835,7 @@
     "max": 100000,
     "unit": "dòng",
     "effect": "newOperations",
-    "description": "Số dòng manifest tối đa gửi kèm request."
-  },
-  {
-    "key": "dataset.manifest_file_max_rows",
-    "name": "Số dòng file manifest",
-    "group": "Dữ liệu và file",
-    "type": "int",
-    "default": 50000,
-    "min": 1,
-    "max": 10000000,
-    "unit": "dòng",
-    "effect": "newOperations",
-    "description": "Số dòng tối đa của file manifest .jsonl."
+    "description": "Số mẫu (văn bản, cặp, danh sách...) tối đa mỗi lần thêm. Nhiều hơn thì chia thành nhiều lần."
   },
   {
     "key": "dataset.text_max_chars",
@@ -871,19 +859,7 @@
     "max": 2147483648,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kích thước tối đa một ảnh nạp qua manifest."
-  },
-  {
-    "key": "dataset.event_batch_size",
-    "name": "Số mẫu mỗi event nạp dữ liệu",
-    "group": "Kỹ thuật",
-    "type": "int",
-    "default": 500,
-    "min": 1,
-    "max": 10000,
-    "unit": "mẫu",
-    "effect": "newOperations",
-    "description": "Số mẫu mỗi event dataset.ingested (chia lô khi nạp nhiều)."
+    "description": "Kích thước tối đa một ảnh upload thẳng hoặc nhập từ nguồn ngoài."
   },
   {
     "key": "dataset.import_max_files",
@@ -895,7 +871,7 @@
     "max": 100000,
     "unit": "file",
     "effect": "newOperations",
-    "description": "Nhập từ nguồn ngoài (S3 / Google Drive / danh sách URL, FB-11): số file tối đa mỗi lô."
+    "description": "Nhập từ nguồn ngoài (S3 / Google Drive / danh sách đường link): số file tối đa mỗi lần nhập."
   },
   {
     "key": "dataset.import_file_max_bytes",
@@ -907,7 +883,7 @@
     "max": 10737418240,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Nhập từ nguồn ngoài: kích thước tối đa mỗi file âm thanh / video (ảnh theo dataset.image_max_bytes)."
+    "description": "Nhập từ nguồn ngoài: dung lượng tối đa mỗi file âm thanh / video (ảnh theo mục “Dung lượng mỗi ảnh”)."
   },
   {
     "key": "dataset.import_timeout",
@@ -931,48 +907,36 @@
     "max": 600,
     "unit": "giây",
     "effect": "newOperations",
-    "description": "Worker nạp dữ liệu nghỉ bao lâu khi hết việc."
-  },
-  {
-    "key": "dataset.name_max_length",
-    "name": "Độ dài tên lô dữ liệu",
-    "group": "Dữ liệu và file",
-    "type": "int",
-    "default": 200,
-    "min": 10,
-    "max": 200,
-    "unit": "ký tự",
-    "effect": "newOperations",
-    "description": "Độ dài tên lô dữ liệu (cột DB tối đa 200). Tên lô do hệ thống tự sinh từ tên dự án + ngày giờ nạp."
+    "description": "Worker xử lý mẫu (tải / đọc file) nghỉ bao lâu khi hết việc."
   },
   {
     "key": "dataset.error_summary_max_length",
-    "name": "Độ dài tóm tắt lỗi lô",
-    "group": "Dữ liệu và file",
+    "name": "Độ dài lý do lỗi của mẫu",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 4000,
     "min": 100,
     "max": 4000,
     "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Độ dài tóm tắt lỗi của lô (cột DB tối đa 4000)."
+    "description": "Độ dài lý do lỗi của một mẫu nạp không được (cột DB tối đa 4000)."
   },
   {
     "key": "dataset.error_sample_count",
     "name": "Số dòng lỗi ghi lại",
-    "group": "Dữ liệu và file",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 20,
     "min": 1,
     "max": 1000,
     "unit": "dòng",
     "effect": "newOperations",
-    "description": "Số dòng lỗi đầu tiên ghi lại khi nạp một lô dữ liệu."
+    "description": "Số dòng lỗi đầu tiên trả về khi gửi một lần dữ liệu."
   },
   {
     "key": "sample.name_max_length",
     "name": "Độ dài tên mẫu",
-    "group": "Dữ liệu và file",
+    "group": "Kỹ thuật",
     "type": "int",
     "default": 500,
     "min": 10,
@@ -991,7 +955,7 @@
     "max": 10000,
     "unit": "file",
     "effect": "newOperations",
-    "description": "Số file tối đa mỗi lần xin link upload."
+    "description": "Số file tối đa mỗi lần tải lên."
   },
   {
     "key": "upload.max_file_bytes",
@@ -1003,12 +967,12 @@
     "max": 5368709120,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kích thước tối đa mỗi file upload thẳng (giới hạn của một lệnh PUT S3 là 5 GB)."
+    "description": "Dung lượng tối đa mỗi file tải lên (không quá 5 GB)."
   },
   {
     "key": "upload.link_ttl",
     "name": "Hạn link upload",
-    "group": "Dữ liệu và file",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 3600,
     "min": 60,
@@ -1020,7 +984,7 @@
   {
     "key": "storage.view_link_ttl",
     "name": "Hạn link xem file",
-    "group": "Dữ liệu và file",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 300,
     "min": 10,
@@ -1099,7 +1063,7 @@
     "max": 100,
     "unit": "người",
     "effect": "newOperations",
-    "description": "Bao nhiêu labeler khác nhau báo lỗi cùng một mẫu thì tự loại mẫu đó khỏi dự án (FL-07)."
+    "description": "Bao nhiêu labeler khác nhau báo lỗi cùng một mẫu thì tự loại mẫu đó khỏi dự án."
   },
   {
     "key": "task.reaper_batch_size",
@@ -1123,7 +1087,7 @@
     "max": 99,
     "unit": "%",
     "effect": "newOperations",
-    "description": "Cảnh báo lệch phân bố (FB-24) khi một lớp chiếm trên bấy nhiêu phần trăm số nhãn của công cụ."
+    "description": "Cảnh báo lệch phân bố khi một lớp chiếm trên bấy nhiêu phần trăm số nhãn của công cụ."
   },
   {
     "key": "annotation.imbalance_min_labels",
@@ -1140,7 +1104,7 @@
   {
     "key": "quality.ds_interval",
     "name": "Chu kỳ Dawid-Skene",
-    "group": "Chất lượng",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 900,
     "min": 10,
@@ -1236,7 +1200,7 @@
   {
     "key": "quality.fraud_ignore_private_ips",
     "name": "Bỏ qua IP nội bộ",
-    "group": "Chất lượng",
+    "group": "Kỹ thuật",
     "type": "bool",
     "default": true,
     "min": null,
@@ -1259,7 +1223,7 @@
   },
   {
     "key": "quality.ds_min_labels",
-    "name": "Số nhãn tối thiểu cho Dawid-Skene",
+    "name": "Số nhãn tối thiểu để chấm độ tin cậy",
     "group": "Chất lượng",
     "type": "int",
     "default": 5,
@@ -1267,7 +1231,7 @@
     "max": 10000,
     "unit": "nhãn",
     "effect": "newOperations",
-    "description": "Labeler cần tối thiểu bao nhiêu nhãn trong dự án thì mới chấm độ tin cậy Dawid-Skene."
+    "description": "Người làm cần tối thiểu bấy nhiêu nhãn trong dự án thì mới được chấm độ tin cậy."
   },
   {
     "key": "quality.reputation_gold_weight",
@@ -1279,7 +1243,7 @@
     "max": 1,
     "unit": "",
     "effect": "newOperations",
-    "description": "Trọng số câu vàng trong điểm uy tín (phần còn lại là đồng thuận / Dawid-Skene)."
+    "description": "Câu vàng chiếm bao nhiêu phần trong điểm uy tín (0–1); phần còn lại tính theo mức trả lời giống đa số."
   },
   {
     "key": "quality.reputation_prior",
@@ -1291,11 +1255,11 @@
     "max": 1,
     "unit": "",
     "effect": "newOperations",
-    "description": "Mức tiên nghiệm của điểm uy tín (người mới bắt đầu quanh mức này)."
+    "description": "Điểm uy tín (0–1) của người mới; điểm dần thay đổi theo kết quả làm bài."
   },
   {
     "key": "quality.reputation_prior_strength",
-    "name": "Sức nặng điểm khởi đầu",
+    "name": "Độ ổn định điểm người mới",
     "group": "Chất lượng",
     "type": "double",
     "default": 2,
@@ -1303,7 +1267,7 @@
     "max": 1000,
     "unit": "nhãn",
     "effect": "newOperations",
-    "description": "Sức nặng tiên nghiệm: số bằng chứng cần để điểm rời xa mức tiên nghiệm."
+    "description": "Cần khoảng bấy nhiêu nhãn thì điểm uy tín của người mới mới rời xa điểm khởi đầu. Lớn = điểm thay đổi chậm hơn."
   },
   {
     "key": "labeling.threshold.bbox",
@@ -1313,9 +1277,9 @@
     "default": 0.5,
     "min": 0,
     "max": 1,
-    "unit": "IoU",
+    "unit": "độ chồng (0–1)",
     "effect": "newOperations",
-    "description": "Ngưỡng chấm mặc định cho khung chữ nhật (công cụ không tự đặt matchThreshold)."
+    "description": "Hai khung chữ nhật coi là khớp khi phần chồng lên nhau đạt mức này (1 = trùng hoàn toàn). Áp khi dự án không tự đặt ngưỡng."
   },
   {
     "key": "labeling.threshold.polygon",
@@ -1325,9 +1289,9 @@
     "default": 0.5,
     "min": 0,
     "max": 1,
-    "unit": "IoU",
+    "unit": "độ chồng (0–1)",
     "effect": "newOperations",
-    "description": "Ngưỡng chấm mặc định cho đa giác."
+    "description": "Hai đa giác coi là khớp khi phần chồng lên nhau đạt mức này."
   },
   {
     "key": "labeling.threshold.span",
@@ -1337,9 +1301,9 @@
     "default": 1,
     "min": 0,
     "max": 1,
-    "unit": "F1",
+    "unit": "độ khớp (0–1)",
     "effect": "newOperations",
-    "description": "Ngưỡng chấm mặc định cho đoạn văn bản."
+    "description": "Các đoạn văn bản được đánh dấu coi là khớp khi trùng nhau đạt mức này (1 = phải trùng hoàn toàn)."
   },
   {
     "key": "labeling.threshold.transcription",
@@ -1349,9 +1313,9 @@
     "default": 0.1,
     "min": 0,
     "max": 1,
-    "unit": "CER",
+    "unit": "tỉ lệ lỗi (0–1)",
     "effect": "newOperations",
-    "description": "Tỉ lệ lỗi ký tự tối đa cho bản chép (nhỏ hơn = khắt khe hơn)."
+    "description": "Bản chép lời coi là khớp khi số ký tự sai không quá tỉ lệ này (0,1 = sai tối đa 10%; nhỏ hơn = khắt khe hơn)."
   },
   {
     "key": "labeling.threshold.temporal_segment",
@@ -1361,9 +1325,9 @@
     "default": 0.5,
     "min": 0,
     "max": 1,
-    "unit": "IoU",
+    "unit": "độ chồng (0–1)",
     "effect": "newOperations",
-    "description": "Ngưỡng chấm mặc định cho đoạn thời gian."
+    "description": "Hai đoạn thời gian (âm thanh / video) coi là khớp khi phần trùng nhau đạt mức này."
   },
   {
     "key": "labeling.threshold.keypoint",
@@ -1375,7 +1339,7 @@
     "max": 1,
     "unit": "độ giống",
     "effect": "newOperations",
-    "description": "Ngưỡng mặc định cho điểm mốc: 1 − (độ lệch / đường chéo ảnh). 0,98 = lệch tối đa 2% đường chéo."
+    "description": "Hai điểm mốc coi là khớp khi lệch nhau không quá (1 − mức này) đường chéo ảnh. 0,98 = lệch tối đa 2% đường chéo."
   },
   {
     "key": "labeling.threshold.polyline",
@@ -1387,7 +1351,7 @@
     "max": 1,
     "unit": "độ giống",
     "effect": "newOperations",
-    "description": "Ngưỡng mặc định cho đường gấp khúc: 1 − (độ lệch trung bình / đường chéo ảnh)."
+    "description": "Hai đường gấp khúc coi là khớp khi lệch trung bình không quá (1 − mức này) đường chéo ảnh."
   },
   {
     "key": "labeling.threshold.mask",
@@ -1397,9 +1361,9 @@
     "default": 0.5,
     "min": 0,
     "max": 1,
-    "unit": "IoU",
+    "unit": "độ chồng (0–1)",
     "effect": "newOperations",
-    "description": "Ngưỡng mặc định cho mặt nạ phân vùng."
+    "description": "Hai vùng tô (mặt nạ) coi là khớp khi phần chồng lên nhau đạt mức này."
   },
   {
     "key": "labeling.threshold.track",
@@ -1409,9 +1373,9 @@
     "default": 0.5,
     "min": 0,
     "max": 1,
-    "unit": "IoU",
+    "unit": "độ chồng (0–1)",
     "effect": "newOperations",
-    "description": "Ngưỡng mặc định cho chuỗi khung theo dõi trong video (IoU không-thời gian)."
+    "description": "Hai chuỗi khung theo dõi vật thể trong video coi là khớp khi chồng lên nhau (theo cả vị trí và thời gian) đạt mức này."
   },
   {
     "key": "labeling.threshold.relation",
@@ -1421,9 +1385,9 @@
     "default": 1,
     "min": 0,
     "max": 1,
-    "unit": "F1",
+    "unit": "độ khớp (0–1)",
     "effect": "newOperations",
-    "description": "Ngưỡng chấm mặc định cho quan hệ giữa các đoạn văn bản."
+    "description": "Các quan hệ giữa đoạn văn bản coi là khớp khi trùng nhau đạt mức này."
   },
   {
     "key": "labeling.threshold.ranking",
@@ -1433,21 +1397,21 @@
     "default": 0.8,
     "min": 0,
     "max": 1,
-    "unit": "Kendall",
+    "unit": "tỉ lệ (0–1)",
     "effect": "newOperations",
-    "description": "Ngưỡng mặc định cho xếp hạng: tỉ lệ cặp mục được xếp cùng thứ tự."
+    "description": "Hai bảng xếp hạng coi là khớp khi tỉ lệ cặp mục được xếp cùng thứ tự đạt mức này."
   },
   {
     "key": "quality.consensus_min_f1",
-    "name": "Ngưỡng khớp kết quả gộp",
+    "name": "Ngưỡng khớp kết quả chung",
     "group": "Chất lượng",
     "type": "double",
     "default": 0.8,
     "min": 0,
     "max": 1,
-    "unit": "F1",
+    "unit": "độ khớp (0–1)",
     "effect": "newOperations",
-    "description": "Gộp nhãn công cụ dạng danh sách (khung, đa giác, đoạn...): một người tính là KHỚP kết quả gộp khi F1 giữa các đối tượng của họ và các đối tượng đã gộp đạt mức này. Không quá một nửa số người khớp thì mẫu là tranh chấp."
+    "description": "Công cụ có nhiều đối tượng mỗi mẫu (khung, đa giác, đoạn...): một người tính là KHỚP kết quả chung khi các đối tượng của họ trùng với kết quả chung ở mức này. Không quá một nửa số người khớp thì mẫu là tranh chấp."
   },
   {
     "key": "quality.freetext_similarity",
@@ -1457,9 +1421,9 @@
     "default": 0.6,
     "min": 0.3,
     "max": 0.99,
-    "unit": "cosine",
+    "unit": "độ giống (0–1)",
     "effect": "newOperations",
-    "description": "Câu trả lời mở (freeText) chấm THEO NGHĨA (ml-svc nhúng câu): một người giống đa số khi độ giống cosine giữa câu của họ và câu “ở giữa” cụm (medoid) đạt mức này. Câu cùng nghĩa khác chữ thường 0,63 – 0,9; câu lạc đề gần 0."
+    "description": "Câu trả lời mở được chấm THEO NGHĨA: một người tính là giống đa số khi câu của họ giống nghĩa với câu tiêu biểu nhất của nhóm đạt mức này. Câu cùng nghĩa khác chữ thường 0,63 – 0,9; câu lạc đề gần 0."
   },
   {
     "key": "quality.freetext_lexical_similarity",
@@ -1469,9 +1433,9 @@
     "default": 0.38,
     "min": 0.1,
     "max": 0.99,
-    "unit": "cosine",
+    "unit": "độ giống (0–1)",
     "effect": "newOperations",
-    "description": "Ngưỡng khi PHẢI chấm câu trả lời mở bằng so CHỮ (n-gram ký tự) vì ml-svc không phân tích kịp. So chữ yếu hơn so nghĩa: câu cùng nghĩa khác chữ chỉ 0,4 – 0,5."
+    "description": "Ngưỡng khi PHẢI chấm câu trả lời mở bằng so CHỮ vì hệ thống phân tích nghĩa không kịp. So chữ yếu hơn so nghĩa: câu cùng nghĩa khác chữ chỉ 0,4 – 0,5."
   },
   {
     "key": "quality.freetext_analysis_timeout",
@@ -1483,7 +1447,7 @@
     "max": 604800,
     "unit": "giây",
     "effect": "newOperations",
-    "description": "Sau khi dự án đóng thu bài, chờ ml-svc phân tích hết câu trả lời mở tối đa bao lâu; quá hạn thì chấm bằng so chữ để không giữ tiền của labeler."
+    "description": "Sau khi dự án đóng thu bài, chờ phân tích nghĩa các câu trả lời mở tối đa bao lâu; quá hạn thì chấm bằng so chữ để người làm không phải chờ tiền."
   },
   {
     "key": "quality.freetext_analysis_interval",
@@ -1512,7 +1476,7 @@
   {
     "key": "identity.access_token_lifetime",
     "name": "Hạn access token",
-    "group": "Tài khoản",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 900,
     "min": 60,
@@ -1531,7 +1495,7 @@
     "max": 31536000,
     "unit": "giây",
     "effect": "newOperations",
-    "description": "Refresh token sống bao lâu (đăng nhập được giữ bao lâu)."
+    "description": "Người dùng giữ đăng nhập bao lâu thì phải đăng nhập lại."
   },
   {
     "key": "identity.password_min_length",
@@ -1559,7 +1523,7 @@
   },
   {
     "key": "identity.kyb_file_max_bytes",
-    "name": "Dung lượng giấy phép KYB",
+    "name": "Dung lượng file giấy phép kinh doanh",
     "group": "Tài khoản",
     "type": "long",
     "default": 10485760,
@@ -1567,7 +1531,7 @@
     "max": 52428800,
     "unit": "byte",
     "effect": "newOperations",
-    "description": "Kích thước tối đa file giấy phép kinh doanh (KYB)."
+    "description": "Dung lượng tối đa file giấy phép kinh doanh doanh nghiệp nộp để xác minh."
   },
   {
     "key": "identity.refresh_token_cleanup_interval",
@@ -1584,7 +1548,7 @@
   {
     "key": "identity.frontend_url",
     "name": "Địa chỉ frontend",
-    "group": "Tài khoản",
+    "group": "Kỹ thuật",
     "type": "text",
     "default": "http://localhost:5173",
     "min": null,
@@ -1639,11 +1603,11 @@
     "max": 200,
     "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Điều kiện lên cấp: cấp=số nhãn được duyệt/uy tín tối thiểu, ngăn cách bằng ';'. Sai định dạng thì dùng mặc định."
+    "description": "Điều kiện lên cấp, dạng cấp=số nhãn được duyệt/uy tín tối thiểu, ngăn cách bằng dấu ';' (vd 2=50/50: lên cấp 2 cần 50 nhãn và uy tín 50). Sai định dạng thì dùng mặc định."
   },
   {
     "key": "identity.two_factor_issuer",
-    "name": "Tên trong ứng dụng 2FA",
+    "name": "Tên trong ứng dụng xác thực 2 lớp",
     "group": "Tài khoản",
     "type": "text",
     "default": "DATN Crowd",
@@ -1651,11 +1615,11 @@
     "max": 50,
     "unit": "ký tự",
     "effect": "newOperations",
-    "description": "Tên hiện trong ứng dụng xác thực (Google Authenticator...) khi người dùng bật 2FA (FC-04)."
+    "description": "Tên hiện trong ứng dụng xác thực (Google Authenticator...) khi người dùng bật xác thực 2 lớp."
   },
   {
     "key": "identity.two_factor_challenge_ttl",
-    "name": "Thời gian nhập mã 2FA",
+    "name": "Thời gian nhập mã xác thực 2 lớp",
     "group": "Tài khoản",
     "type": "durationSeconds",
     "default": 300,
@@ -1663,11 +1627,11 @@
     "max": 1800,
     "unit": "giây",
     "effect": "newOperations",
-    "description": "Đăng nhập đúng mật khẩu của tài khoản bật 2FA: có bao lâu để nhập mã 6 số."
+    "description": "Tài khoản bật xác thực 2 lớp: sau khi nhập đúng mật khẩu có bao lâu để nhập mã 6 số."
   },
   {
     "key": "identity.two_factor_max_attempts",
-    "name": "Số lần nhập sai mã 2FA",
+    "name": "Số lần nhập sai mã xác thực 2 lớp",
     "group": "Tài khoản",
     "type": "int",
     "default": 5,
@@ -1675,7 +1639,7 @@
     "max": 20,
     "unit": "lần",
     "effect": "newOperations",
-    "description": "Số lần nhập sai mã 2FA tối đa cho MỘT lần đăng nhập; hết lượt phải đăng nhập lại bằng mật khẩu (chống dò mã 6 số)."
+    "description": "Số lần nhập sai mã xác thực 2 lớp tối đa cho MỘT lần đăng nhập; hết lượt phải đăng nhập lại bằng mật khẩu (chống dò mã)."
   },
   {
     "key": "identity.adult_age",
@@ -1687,7 +1651,7 @@
     "max": 21,
     "unit": "tuổi",
     "effect": "newOperations",
-    "description": "Tuổi tối thiểu để xem dự án nội dung nhạy cảm (mục 2.9, VD-P-04). Tính từ ngày sinh trên giấy tờ đã được admin xác minh."
+    "description": "Tuổi tối thiểu để xem dự án nội dung nhạy cảm. Tính từ ngày sinh trên giấy tờ đã được admin xác minh."
   },
   {
     "key": "identity.level_recalc_interval",
@@ -1718,7 +1682,7 @@
     "name": "Event không ghi nhật ký",
     "group": "Kỹ thuật",
     "type": "text",
-    "default": "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,dataset.ingested,attempt.submitted,reputation.changed,funds.held,hold.expired,gate.budget_changed",
+    "default": "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,samples.ingested,attempt.submitted,reputation.changed,funds.held,hold.expired,gate.budget_changed",
     "min": null,
     "max": 1000,
     "unit": "ký tự",
@@ -1739,56 +1703,8 @@
     "description": "Giữ nhật ký audit bao nhiêu ngày."
   },
   {
-    "key": "ops.dlq_alert_threshold",
-    "name": "Ngưỡng cảnh báo DLQ",
-    "group": "Kỹ thuật",
-    "type": "int",
-    "default": 1,
-    "min": 1,
-    "max": 1000000,
-    "unit": "message",
-    "effect": "newOperations",
-    "description": "Một hàng đợi DLQ có từ bấy nhiêu message trở lên thì cảnh báo (message vào DLQ = tiền / trạng thái có thể đang đứng)."
-  },
-  {
-    "key": "ops.dlq_check_interval",
-    "name": "Chu kỳ kiểm tra DLQ",
-    "group": "Kỹ thuật",
-    "type": "durationSeconds",
-    "default": 60,
-    "min": 10,
-    "max": 3600,
-    "unit": "giây",
-    "effect": "newOperations",
-    "description": "Chu kỳ admin-svc đọc độ sâu các DLQ qua RabbitMQ management API."
-  },
-  {
-    "key": "ops.alert_repeat",
-    "name": "Nhắc lại cảnh báo sau",
-    "group": "Kỹ thuật",
-    "type": "durationSeconds",
-    "default": 3600,
-    "min": 60,
-    "max": 86400,
-    "unit": "giây",
-    "effect": "newOperations",
-    "description": "DLQ vẫn còn message sau khoảng này thì cảnh báo lại (tránh spam mỗi chu kỳ)."
-  },
-  {
-    "key": "ops.alert_email",
-    "name": "Email nhận cảnh báo vận hành",
-    "group": "Kỹ thuật",
-    "type": "text",
-    "default": "",
-    "min": null,
-    "max": 200,
-    "unit": "ký tự",
-    "effect": "newOperations",
-    "description": "Email nhận cảnh báo vận hành (DLQ). Trống = chỉ ghi log và hiện trên màn hình admin."
-  },
-  {
     "key": "media.watermark_enabled",
-    "name": "Bật watermark",
+    "name": "Bật dấu chìm (watermark)",
     "group": "Bảo vệ dữ liệu",
     "type": "bool",
     "default": true,
@@ -1796,19 +1712,19 @@
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Gắn watermark chìm (nhúng thẳng người xem) vào ảnh / âm thanh / video phát cho labeler / reviewer / khách cổng link."
+    "description": "Gắn dấu chìm (không nhìn thấy, mang danh tính người xem) vào ảnh / âm thanh / video phát cho người làm, người duyệt và khách cổng link — để truy ra ai làm lộ dữ liệu."
   },
   {
     "key": "media.watermark_strength",
-    "name": "Độ mạnh watermark",
+    "name": "Độ mạnh dấu chìm",
     "group": "Bảo vệ dữ liệu",
     "type": "int",
     "default": 24,
     "min": 6,
     "max": 80,
-    "unit": "bước QIM",
+    "unit": "mức",
     "effect": "newOperations",
-    "description": "Độ mạnh watermark chìm: lớn thì bền hơn với nén JPEG nhưng dễ lộ hơn. Đổi giá trị thì ảnh đã phát trước đó VẪN giải mã được (bộ giải thử mọi bước 6–80)."
+    "description": "Độ mạnh dấu chìm: lớn thì khó bị mất khi file bị nén lại nhưng dễ nhìn thấy hơn. Đổi giá trị thì file đã phát trước đó VẪN truy được người xem."
   },
   {
     "key": "gateway.rate_limit_per_minute",
@@ -2051,6 +1967,66 @@
     "description": "Số message broker đẩy tới mỗi consumer trước khi ack. Có tác dụng khi service khởi động lại."
   },
   {
+    "key": "consumers.retry_max_delay",
+    "name": "Giãn cách thử lại event lỗi tối đa",
+    "group": "Kỹ thuật",
+    "type": "durationSeconds",
+    "default": 30,
+    "min": 0,
+    "max": 600,
+    "unit": "giây",
+    "effect": "newOperations",
+    "description": "Event xử lý lỗi (lỗi kỹ thuật) được thử lại sau 1, 3, 9, 27... giây — không chờ quá mức này. Trong lúc chờ, hàng đợi đó tạm dừng nhận event khác. 0 = thử lại ngay."
+  },
+  {
+    "key": "ops.dlq_alert_threshold",
+    "name": "Ngưỡng báo lỗi hệ thống",
+    "group": "Kỹ thuật",
+    "type": "int",
+    "default": 1,
+    "min": 1,
+    "max": 1000000,
+    "unit": "message",
+    "effect": "newOperations",
+    "description": "Một hàng lỗi (DLQ) có từ bấy nhiêu message trở lên thì báo đội kỹ thuật. Chỉ lỗi kỹ thuật mới vào DLQ; ca nghiệp vụ cần người xử lý nằm ở hàng đợi duyệt."
+  },
+  {
+    "key": "ops.dlq_check_interval",
+    "name": "Chu kỳ kiểm tra lỗi hệ thống",
+    "group": "Kỹ thuật",
+    "type": "durationSeconds",
+    "default": 60,
+    "min": 10,
+    "max": 3600,
+    "unit": "giây",
+    "effect": "newOperations",
+    "description": "Chu kỳ admin-svc đọc số message trong các DLQ (RabbitMQ management API) — cũng là độ trễ của thẻ “Tình trạng hệ thống”."
+  },
+  {
+    "key": "ops.alert_repeat",
+    "name": "Nhắc lại cảnh báo lỗi sau",
+    "group": "Kỹ thuật",
+    "type": "durationSeconds",
+    "default": 3600,
+    "min": 60,
+    "max": 86400,
+    "unit": "giây",
+    "effect": "newOperations",
+    "description": "DLQ vẫn còn message sau khoảng này thì gửi lại email cảnh báo (tránh gửi mỗi chu kỳ)."
+  },
+  {
+    "key": "ops.alert_email",
+    "name": "Email đội kỹ thuật nhận cảnh báo",
+    "group": "Kỹ thuật",
+    "type": "text",
+    "default": "",
+    "min": null,
+    "max": 200,
+    "unit": "ký tự",
+    "effect": "newOperations",
+    "description": "Email đội kỹ thuật nhận cảnh báo lỗi hệ thống (DLQ có message). Trống = chỉ ghi log và hiện trên thẻ “Tình trạng hệ thống”."
+  },
+  {
     "key": "settings.reload_interval",
     "name": "Chu kỳ đọc lại setting",
     "group": "Kỹ thuật",
@@ -2084,7 +2060,7 @@
     "max": null,
     "unit": "",
     "effect": "newOperations",
-    "description": "Tắt = trang vượt link chỉ chuyển thẳng tới đích, không phát câu hỏi, không trả tiền sharer."
+    "description": "Tắt = trang vượt link chỉ chuyển thẳng tới đích, không phát câu hỏi, không trả tiền người chia sẻ link."
   },
   {
     "key": "gate.allowed_tools",
@@ -2126,7 +2102,7 @@
     "max": 120,
     "unit": "giây",
     "effect": "newOperations",
-    "description": "Đếm ngược tối thiểu trước khi khách nộp bài (server kiểm, không chỉ là giao diện)."
+    "description": "Đếm ngược tối thiểu trước khi khách nộp bài (hệ thống kiểm tra thật, không bỏ qua được)."
   },
   {
     "key": "gate.gold_per_session",
@@ -2167,7 +2143,7 @@
   {
     "key": "gate.token_ttl",
     "name": "Hạn token mở link đích",
-    "group": "Cổng link",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 180,
     "min": 30,
@@ -2186,7 +2162,7 @@
     "max": 2592000,
     "unit": "giây",
     "effect": "newOperations",
-    "description": "Mỗi IP chỉ tính một lượt có tiền cho mỗi link trong khoảng này (đặc tả: 24 giờ)."
+    "description": "Mỗi địa chỉ IP chỉ tính một lượt có tiền cho mỗi link trong khoảng này."
   },
   {
     "key": "gate.max_labels_per_sample",
@@ -2201,9 +2177,45 @@
     "description": "Mỗi mẫu nhận tối đa bấy nhiêu nhãn từ cổng link."
   },
   {
+    "key": "gate.unit_price_vnd",
+    "name": "Đơn giá nhãn khách vãng lai",
+    "group": "Cổng link",
+    "type": "long",
+    "default": 1000,
+    "min": 1,
+    "max": 10000000,
+    "unit": "đ/nhãn",
+    "effect": "newOperations",
+    "description": "Đơn giá MỖI nhãn khách vãng lai gán ở cổng link (chốt vào dự án lúc publish). Chỉ admin đặt; doanh nghiệp chỉ được thông báo mức này và tự đặt ngân sách cổng."
+  },
+  {
+    "key": "gate.max_fails_before_block",
+    "name": "Số lần trượt cổng trước khi chặn IP",
+    "group": "Cổng link",
+    "type": "int",
+    "default": 3,
+    "min": 1,
+    "max": 100,
+    "unit": "lần",
+    "effect": "newOperations",
+    "description": "Khách vãng lai trượt câu kiểm tra đủ bấy nhiêu lần (tính theo địa chỉ IP, trong khoảng “Thời gian chặn IP trượt cổng”) thì bị chặn IP."
+  },
+  {
+    "key": "gate.block_duration",
+    "name": "Thời gian chặn IP trượt cổng",
+    "group": "Cổng link",
+    "type": "durationSeconds",
+    "default": 86400,
+    "min": 60,
+    "max": 2592000,
+    "unit": "giây",
+    "effect": "newOperations",
+    "description": "Chặn IP bao lâu khi trượt quá số lần cho phép. Cũng là khoảng đếm số lần trượt và thời gian khoá một link với IP đã trượt link đó."
+  },
+  {
     "key": "gate.cache_refresh_interval",
     "name": "Chu kỳ nạp lại bộ đệm cổng",
-    "group": "Cổng link",
+    "group": "Kỹ thuật",
     "type": "durationSeconds",
     "default": 60,
     "min": 5,
@@ -2270,7 +2282,7 @@
     "max": 1000,
     "unit": "link",
     "effect": "newOperations",
-    "description": "Rút gọn hàng loạt tối đa bấy nhiêu link mỗi lần (FS-03)."
+    "description": "Rút gọn hàng loạt tối đa bấy nhiêu link mỗi lần."
   },
   {
     "key": "link.report_review_threshold",
@@ -2306,7 +2318,7 @@
     "max": 50,
     "unit": "%",
     "effect": "newOperations",
-    "description": "Người giới thiệu hưởng phần trăm này trên doanh thu cổng link của người được mời (FS-08). Lấy từ phần của nền tảng."
+    "description": "Người giới thiệu hưởng phần trăm này trên doanh thu cổng link của người được mời. Lấy từ phần của nền tảng."
   },
   {
     "key": "link.referral_max_per_ip",
@@ -2342,7 +2354,7 @@
     "max": 1000000000000,
     "unit": "đồng",
     "effect": "newOperations",
-    "description": "Chỉ trả hoa hồng sau khi người được mời đã tự kiếm được tổng bấy nhiêu (chống tài khoản clone tự mời nhau — VD-L-05)."
+    "description": "Chỉ trả hoa hồng sau khi người được mời đã tự kiếm được tổng bấy nhiêu (chống tạo tài khoản ảo để tự mời nhau)."
   },
   {
     "key": "link.referral_claim_window",

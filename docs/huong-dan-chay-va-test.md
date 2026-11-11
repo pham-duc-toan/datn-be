@@ -99,7 +99,8 @@ Chế độ chạy service trên máy (mục 0, `docker-compose.infra.yml` + `ap
 | `InternalApi__IdentityGrpcUrl` (project: `http://identity:9101`), `InternalApi__QualityGrpcUrl` (project: `http://quality:9201`) | project-svc hỏi identity lúc mời / vào dự án / mở bài, nhờ quality gộp nhãn cho kết quả giao doanh nghiệp (3.24). identity mở thêm cổng gRPC `Kestrel__Endpoints__Grpc__Url` (9101); quality `QUALITY_GRPC_PORT` (9201). Dev: `localhost:9101` / `localhost:9201` |
 | `QUALITY_PROJECT_GRPC` (`project:9102`), `QUALITY_INTERNAL_API_KEY` | quality-svc đọc đề bài / bài nộp / nhãn qua gRPC nội bộ của project-svc (kiến trúc 3.22). project-svc mở hai cổng: `Kestrel__Endpoints__Http__Url` (8102, REST) và `Kestrel__Endpoints__Grpc__Url` (9102, HTTP/2). Chạy quality ngoài Docker: mặc định `localhost:9102`. Sửa `contracts/grpc/**/*.proto` thì sinh lại stub Python: `services/quality/.venv/Scripts/python services/quality/sinh_grpc.py` |
 | `MEDIA_AV_CACHE_DIR` / `MEDIA_AV_CACHE_TTL_SECONDS` / `MEDIA_AV_CACHE_MAX_BYTES` | Bộ đệm đĩa bản âm thanh / video đã watermark và bản chuẩn của video (mặc định `/tmp/media-wm`, 6 giờ, 5 GB; stack demo đặt `/var/cache/media-wm` trên volume `media-cache`). Image media cần `ffmpeg` (đã cài trong Dockerfile); chạy trên máy cần `ffmpeg` trong PATH |
-| setting `ops.alert_email` | Email nhận cảnh báo DLQ (trống = chỉ log + `GET /admin/ops/queues`) |
+| `Logging__Console__FormatterName=json` (.NET), `LOG_FORMAT=json` (python) | Log một dòng JSON mỗi bản ghi → Filebeat → Elasticsearch (data stream `crowd-logs`, giữ 7 ngày); xem ở Kibana `http://localhost:15601` (stack demo, kiến trúc 3.27) |
+| setting `ops.alert_email` | Email đội kỹ thuật nhận cảnh báo lỗi hệ thống (DLQ có message — chỉ lỗi kỹ thuật, kiến trúc 3.29). Trống = chỉ log + thẻ "Tình trạng hệ thống" trên admin |
 
 ## 0.2 Bộ test E2E và CI
 
@@ -672,7 +673,7 @@ curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/guideline -H "Autho
 curl -s -X PUT http://localhost:8080/projects/<id-du-an-moi>/pricing -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
   -d '{"unitPriceVnd":10000,"redundancy":1,"budgetVnd":100000,"deadline":"2027-12-31T00:00:00Z"}'
 
-curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/datasets -H "Authorization: Bearer <token-biz2>" -F "name=lo-1" -F "file=@anh.zip"
+curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/samples/zip -H "Authorization: Bearer <token-biz2>" -F "file=@anh.zip"
 
 # (Tùy chọn) Thêm câu vàng. Lấy "id" của ảnh vang.png từ danh sách mẫu, dán vào <sampleId>.
 # expectedPayload chỉ là phần dữ liệu, giống payload khi labeler nộp.
@@ -687,7 +688,7 @@ sleep 3
 curl -s http://localhost:8080/projects/<id-du-an-moi> -H "Authorization: Bearer <token-biz2>"
 ```
 
-Cùng file ZIP này cũng dùng được để test **upload dataset** cho bất kỳ dự án **ảnh** nháp nào. Dữ liệu khác ảnh (và ảnh lớn) đi đường upload thẳng + manifest, xem mục 6.14.
+Cùng file ZIP này cũng dùng được để test **upload ZIP** cho bất kỳ dự án **ảnh** nháp nào. Dữ liệu khác ảnh (và ảnh lớn) đi đường upload thẳng rồi đăng ký mẫu, xem mục 6.14.
 
 ### 6.12 Quản lý dự án đang chạy
 
@@ -798,16 +799,16 @@ curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H
 curl -s http://localhost:8080/annotations/projects/12d52faa-09b4-5cd1-b21d-16984c952fec/results -H "Authorization: Bearer <token-biz1>"
 ```
 
-**Nạp dữ liệu không phải ZIP: upload thẳng lên MinIO + manifest.** File (audio, video, ảnh lớn) không đi qua service:
+**Nạp dữ liệu không phải ZIP: upload thẳng lên MinIO rồi đăng ký mẫu.** File (audio, video, ảnh lớn) không đi qua service. Không có bảng "lô nạp": mỗi file là một mẫu mang tiến trình `ingest_state` (`queued` → `processing` → `ready` | `failed`).
 
 1. `POST /projects/{id}/uploads` xin link: mỗi file nhận một `key` và `uploadUrl` (ký sẵn, sống 1 giờ). Đuôi file được lọc sơ bộ theo loại dữ liệu; tối đa 100 file, mỗi file ≤ 5 GB.
 2. `PUT` file lên `uploadUrl`.
-3. `POST /projects/{id}/datasets/manifest` với `rows` (≤ 1.000 dòng, gửi kèm) hoặc `manifestKey` (key của file `.jsonl` / `.json` đã upload, ≤ 50.000 dòng). Trả **202**, lô ở trạng thái `pending`.
-4. Worker nền xử lý lô: đọc file, kiểm **loại thật theo nội dung** (đổi tên `.exe` thành `.png` vẫn bị loại), đo kích thước ảnh, đo thời lượng / kích thước audio-video bằng **ffprobe**, cắt đoạn theo `segmentSeconds`, bỏ mẫu trùng. Xem kết quả ở `GET /projects/{id}/datasets`: `status` `ready` / `failed`, `sampleCount`, `skippedCount`, `errorSummary` (lý do từng dòng bị bỏ).
+3. `POST /projects/{id}/samples` với `rows` (≤ 1.000 dòng mỗi lần; nhiều hơn thì chia nhiều lần). Trả **202**; mỗi file thành một mẫu `queued`, kèm `accepted[].sampleId`.
+4. Worker nền (`SampleIngestWorker`) xử lý từng mẫu: đọc file, kiểm **loại thật theo nội dung** (đổi tên `.exe` thành `.png` vẫn bị loại), đo kích thước ảnh, đo thời lượng / kích thước audio-video bằng **ffprobe**, cắt đoạn theo `segmentSeconds` (mẫu gốc giữ đoạn đầu, các đoạn sau thêm mới), bỏ mẫu trùng (mẫu trùng thành `failed`). Theo dõi: `GET /projects/{id}/samples/status` (đếm `queued` / `processing` / `ready` / `failed`) hoặc `GET /projects/{id}/samples?ids=...` (từng mẫu, lý do lỗi ở `ingestError`). `DELETE /projects/{id}/samples/failed` xoá mẫu lỗi để nạp lại.
 
-Mỗi dòng manifest theo loại dữ liệu:
+Mỗi dòng theo loại dữ liệu (dự án văn bản / cặp / danh sách gửi thẳng dòng, `ready` ngay):
 
-| modality | Dòng manifest |
+| modality | Dòng |
 |---|---|
 | image, audio, video | `{"file":"<key>","name":"tuy-chon"}`. Không có ffprobe thì audio/video phải khai thêm `"durationSec"` |
 | text | `{"text":"...","name":"tuy-chon"}` |
@@ -826,11 +827,11 @@ curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/uploads -H "Author
   -d '{"files":[{"name":"cuoc-goi.wav","sizeBytes":736078}]}'
 # 2. Upload thẳng lên MinIO (dán nguyên uploadUrl, giữ dấu nháy)
 curl -s -X PUT --upload-file cuoc-goi.wav "<uploadUrl>"
-# 3. Tạo lô manifest → 202, status pending
-curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/datasets/manifest -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
-  -d '{"name":"lo-1","rows":[{"file":"<key>","name":"cuoc-goi.wav"}]}'
-# 4. Vài giây sau: status ready, sampleCount 3 (file 23 giây → đoạn 0–10, 10–20, 20–23)
-curl -s http://localhost:8080/projects/<id-du-an-moi>/datasets -H "Authorization: Bearer <token-biz1>"
+# 3. Đăng ký file → 202, mẫu queued (accepted[].sampleId)
+curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/samples -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"rows":[{"file":"<key>","name":"cuoc-goi.wav"}]}'
+# 4. Vài giây sau: ready 3 (file 23 giây → đoạn 0–10, 10–20, 20–23)
+curl -s http://localhost:8080/projects/<id-du-an-moi>/samples/status -H "Authorization: Bearer <token-biz1>"
 curl -s "http://localhost:8080/projects/<id-du-an-moi>/samples?page=1&pageSize=20" -H "Authorization: Bearer <token-biz1>"
 ```
 
@@ -1213,8 +1214,8 @@ curl -s -X POST http://localhost:8080/projects -H "Authorization: Bearer <token-
   -d '{"name":"Xep hang cau tra loi","description":"thu","modality":"list","visibility":"public"}'          # → copy "id"
 curl -s -X PUT http://localhost:8080/projects/<projectId>/label-schema -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
   -d '{"modality":"list","tools":[{"name":"xep","kind":"ranking"},{"name":"diem","kind":"number","integer":true,"min":1,"max":5,"tolerance":1}]}'
-curl -s -X POST http://localhost:8080/projects/<projectId>/datasets/manifest -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
-  -d '{"name":"lo","rows":[{"prompt":"Cau tra loi nao tot nhat?","items":["Tra loi A","Tra loi B","Tra loi C","Tra loi D"]}]}'
+curl -s -X POST http://localhost:8080/projects/<projectId>/samples -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" \
+  -d '{"rows":[{"prompt":"Cau tra loi nao tot nhat?","items":["Tra loi A","Tra loi B","Tra loi C","Tra loi D"]}]}'
 
 # Labeler nộp (sau khi nhận task như mục 6.6): thứ tự tốt nhất → kém nhất theo chỉ số mục
 curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H "Authorization: Bearer <token-lab1>" -H "Content-Type: application/json" \
@@ -1311,8 +1312,7 @@ Chi tiết API ở [tích hợp frontend mục 17](tich-hop-frontend.md#17-bổ-
 curl -s http://localhost:18080/admin/approvals/summary -H "Authorization: Bearer $TOKEN_ADMIN"
 curl -s "http://localhost:18080/admin/approvals?status=pending" -H "Authorization: Bearer $TOKEN_ADMIN"
 
-# Độ sâu DLQ, mẫu bài toán
-curl -s http://localhost:18080/admin/ops/queues -H "Authorization: Bearer $TOKEN_ADMIN"
+# Mẫu bài toán (log lỗi / DLQ: xem Kibana http://localhost:15601 — data view "Crowd logs")
 curl -s http://localhost:18080/templates -H "Authorization: Bearer $TOKEN_BIZ"
 
 # Nạp qua VNPay giả lập: lấy checkoutUrl, mở trên trình duyệt, bấm "Thanh toán"

@@ -8,6 +8,7 @@ Chay dev:  .venv/Scripts/python -m app.main     (cong 8202)
 
 import asyncio
 import logging
+from app.log_json import cau_hinh_log
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -18,7 +19,7 @@ from app.api import router
 from app.config import settings
 from app.embedder import MoHinhFastEmbed
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+cau_hinh_log()
 log = logging.getLogger("ml-svc")
 
 

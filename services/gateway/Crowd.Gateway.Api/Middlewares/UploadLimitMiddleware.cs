@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Http.Features;
 namespace Crowd.Gateway.Api.Middlewares
 {
     /// <summary>
-    /// Nang tran kich thuoc body cho DUY NHAT endpoint upload dataset.
+    /// Nang tran kich thuoc body cho DUY NHAT endpoint upload ZIP anh.
     ///
     /// Kestrel mac dinh chan body tren 30 MB — tot cho moi endpoint, tru upload
     /// ZIP anh (tran = setting dataset.zip_max_bytes, doc MOI request). Nang tran
@@ -20,7 +20,7 @@ namespace Crowd.Gateway.Api.Middlewares
     public sealed class UploadLimitMiddleware
     {
         private static readonly Regex DuongDanUpload = new Regex(
-            "^/projects/[0-9a-fA-F-]{36}/datasets$",
+            "^/projects/[0-9a-fA-F-]{36}/samples/zip$",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         private readonly RequestDelegate _next;

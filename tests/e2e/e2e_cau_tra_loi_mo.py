@@ -17,7 +17,7 @@ import requests
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import sql_container  # noqa: E402
 from tro_giup import (  # noqa: E402
-    G, GOC, KQ, TAG, admin, bai_cua_toi, bat_dau, cho, cho_cham, dang_ky, dat_va_cho, kiem, luu, nop_bai, sql, tham_gia, vi,
+    G, GOC, KQ, TAG, admin, bai_cua_toi, bat_dau, cho, cho_cham, dang_ky, dat_va_cho, kiem, luu, nap_mau, nop_bai, sql, tham_gia, vi,
 )
 
 DEMO = os.environ.get("E2E_PROFILE") == "demo"
@@ -42,9 +42,7 @@ def tao_du_an(chu, ten, mau, thuong=20000, suat=3, nguong=60):
     requests.put(G + f"/projects/{pid}/guideline", headers=chu["h"], json={"markdown": "Mo ta noi dung bang mot cau.", "examples": []}).raise_for_status()
     requests.put(G + f"/projects/{pid}/pricing", headers=chu["h"], json={
         "rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
-    requests.post(G + f"/projects/{pid}/datasets/manifest", headers=chu["h"],
-                  json={"name": "lo", "rows": [{"text": v, "name": k} for k, v in mau.items()]}).raise_for_status()
-    assert cho(lambda: [d for d in requests.get(G + f"/projects/{pid}/datasets", headers=chu["h"]).json() if d["status"] == "ready"], 60)
+    nap_mau(pid, chu["h"], [{"text": v, "name": k} for k, v in mau.items()])
     return pid
 
 

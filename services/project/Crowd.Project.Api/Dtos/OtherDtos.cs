@@ -198,35 +198,11 @@ namespace Crowd.Project.Api.Dtos
         public required DateTimeOffset JoinedAt { get; init; }
     }
 
-    // ---- Dataset ----
-
-    public sealed class DatasetResponse
-    {
-        public required Guid Id { get; init; }
-
-        public required string Name { get; init; }
-
-        /// <summary>pending / ingesting: worker dang xu ly; ready; failed (xem errorSummary).</summary>
-        public required DatasetStatus Status { get; init; }
-
-        public required int SampleCount { get; init; }
-
-        /// <summary>File / dong bi bo qua: sai dinh dang, qua lon, trung noi dung da co.</summary>
-        public required int SkippedCount { get; init; }
-
-        /// <summary>Ly do cac dong bi bo qua (hoac ly do that bai).</summary>
-        public string? ErrorSummary { get; init; }
-
-        public required DateTimeOffset CreatedAt { get; init; }
-
-        public DateTimeOffset? FinishedAt { get; init; }
-    }
+    // ---- Mau & tien trinh nap ----
 
     public sealed class SampleResponse
     {
         public required Guid Id { get; init; }
-
-        public required Guid DatasetId { get; init; }
 
         public required string Modality { get; init; }
 
@@ -234,7 +210,7 @@ namespace Crowd.Project.Api.Dtos
 
         public long? SizeBytes { get; init; }
 
-        /// <summary>Link xem / nghe BAN GOC qua media-svc, het han sau vai phut (S-07). null voi text / pair.</summary>
+        /// <summary>Link xem / nghe BAN GOC qua media-svc, het han sau vai phut (S-07). null voi text / pair, hoac khi mau chua nap xong.</summary>
         public string? FileUrl { get; init; }
 
         /// <summary>Noi dung voi text / pair: {"text"} hoac {"prompt","a","b"}.</summary>
@@ -243,10 +219,69 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>width/height, durationSec, length, segmentStart/segmentEnd...</summary>
         public required RawJson Metadata { get; init; }
 
+        /// <summary>
+        /// Tien trinh nap: queued (xep hang) | processing (dang tai / doc file) | ready | failed (xem ingestError).
+        /// Chi mau ready moi vao bai lam.
+        /// </summary>
+        public required string IngestState { get; init; }
+
+        /// <summary>Ly do khi ingestState = failed.</summary>
+        public string? IngestError { get; init; }
+
         /// <summary>Video: preparing | ready | failed (media-svc chuan bi ban chuan). null = khong can.</summary>
         public string? MediaState { get; init; }
 
         public string? MediaError { get; init; }
+    }
+
+    /// <summary>Ket qua mot lan gui du lieu (ZIP / dong JSON / nguon ngoai).</summary>
+    public sealed class NapMauResponse
+    {
+        /// <summary>So dong / file nhan duoc.</summary>
+        public required int Received { get; init; }
+
+        /// <summary>Mau da san sang ngay (ZIP, text / pair / list).</summary>
+        public required int Ready { get; init; }
+
+        /// <summary>Mau xep hang cho worker xu ly (file) — theo doi o GET samples/status.</summary>
+        public required int Queued { get; init; }
+
+        /// <summary>Dong / file bi bo qua ngay: sai dinh dang, trung...</summary>
+        public required int Skipped { get; init; }
+
+        /// <summary>Ly do cac dong bi bo qua (rut gon).</summary>
+        public required IReadOnlyList<string> Errors { get; init; }
+
+        /// <summary>
+        /// Mau da tao (khong gom ZIP): vi tri dong / file trong request + ma mau + ten — giao dien dung de theo doi
+        /// TUNG file qua GET samples?ids=... (queued → processing → ready | failed).
+        /// </summary>
+        public required IReadOnlyList<MauNhanResponse> Accepted { get; init; }
+    }
+
+    public sealed class MauNhanResponse
+    {
+        /// <summary>Vi tri trong mang rows (hoac trong danh sach liet ke cua nguon ngoai), bat dau tu 0.</summary>
+        public required int Index { get; init; }
+
+        public required Guid SampleId { get; init; }
+
+        public required string Name { get; init; }
+    }
+
+    /// <summary>GET /projects/{id}/samples/status — dem mau theo tien trinh nap.</summary>
+    public sealed class TrangThaiNapResponse
+    {
+        public required int Queued { get; init; }
+
+        public required int Processing { get; init; }
+
+        public required int Ready { get; init; }
+
+        public required int Failed { get; init; }
+
+        /// <summary>So file video dang cho media-svc chuan bi ban chuan (mau da ready nhung chua publish duoc).</summary>
+        public required int PreparingVideo { get; init; }
     }
 
     // ---- Upload thang len MinIO + manifest ----
@@ -268,7 +303,7 @@ namespace Crowd.Project.Api.Dtos
     {
         public required string Name { get; init; }
 
-        /// <summary>Khoa file trong kho — dung lai trong manifest: {"file": "&lt;key&gt;"}.</summary>
+        /// <summary>Khoa file trong kho — dung lai trong dong du lieu: {"file": "&lt;key&gt;"}.</summary>
         public required string Key { get; init; }
 
         /// <summary>Link PUT co han: curl -X PUT --upload-file &lt;file&gt; "&lt;uploadUrl&gt;".</summary>
@@ -277,20 +312,16 @@ namespace Crowd.Project.Api.Dtos
         public required DateTimeOffset ExpiresAt { get; init; }
     }
 
-    public sealed class CreateManifestDatasetRequest
+    /// <summary>POST /projects/{id}/samples — them mau bang dong JSON.</summary>
+    public sealed class ThemMauRequest
     {
-        public string? Name { get; init; }
-
         /// <summary>
-        /// Cac dong gui kem (toi da 1000). Theo loai du lieu:
+        /// Cac dong (toi da dataset.manifest_inline_max_rows). Theo loai du lieu:
         ///   image / audio / video: {"file":"&lt;key&gt;", "durationSec"?: 12.5, "width"?:..., "height"?:...}
-        ///   text: {"text":"..."}     pair: {"prompt"?:"...", "a":"...", "b":"..."}
+        ///   text: {"text":"..."}     pair: {"prompt"?:"...", "a":"...", "b":"..."}     list: {"prompt"?:"...", "items":["..",".."]}
         /// Moi dong co the them "name" de doi chieu.
         /// </summary>
         public JsonElement? Rows { get; init; }
-
-        /// <summary>Hoac: khoa file manifest .jsonl da upload (moi dong mot object nhu tren) — khi nhieu dong.</summary>
-        public string? ManifestKey { get; init; }
     }
 
     // ---- Cau hoi vang ----
@@ -403,13 +434,11 @@ namespace Crowd.Project.Api.Dtos
     }
 
     /// <summary>
-    /// POST /projects/{id}/datasets/import — nhap tu nguon ngoai (FB-11), chi du an anh / am thanh / video.
+    /// POST /projects/{id}/samples/import — nhap tu nguon ngoai (FB-11), chi du an anh / am thanh / video.
     /// source = urls | s3 | gdrive, kem dung MOT khoi thong so tuong ung.
     /// </summary>
-    public sealed class ImportDatasetRequest
+    public sealed class ImportMauRequest
     {
-        public string? Name { get; init; }
-
         public string? Source { get; init; }
 
         /// <summary>source = urls: danh sach link http / https cong khai.</summary>
@@ -433,7 +462,7 @@ namespace Crowd.Project.Api.Dtos
 
         public string? AccessKey { get; init; }
 
-        /// <summary>Chi luu dang ma hoa toi khi nhap xong roi xoa.</summary>
+        /// <summary>Chi dung trong request de liet ke + ky link tai tung file — KHONG luu.</summary>
         public string? SecretKey { get; init; }
     }
 

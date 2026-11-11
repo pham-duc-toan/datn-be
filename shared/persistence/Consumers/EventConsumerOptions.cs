@@ -23,6 +23,9 @@ namespace Crowd.BuildingBlocks.Persistence.Consumers
         /// </summary>
         public int DeliveryLimit { get; set; } = 5;
 
+        /// <summary>Cho toi da giua hai lan thu lai mot event loi (service khong co setting he thong).</summary>
+        public TimeSpan RetryMaxDelay { get; set; } = TimeSpan.FromSeconds(30);
+
         /// <summary>Cho bao lau roi noi lai RabbitMQ (service khong co setting he thong).</summary>
         public TimeSpan ReconnectDelay { get; set; } = TimeSpan.FromSeconds(5);
 

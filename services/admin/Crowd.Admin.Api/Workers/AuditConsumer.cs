@@ -180,8 +180,27 @@ namespace Crowd.Admin.Api.Workers
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Audit: ghi event {EventId} that bai, tra lai hang doi", dong.EventId);
-                await kenh.BasicNackAsync(ea.DeliveryTag, false, true, ct);
+                // Loi o day luon la loi ky thuat (CSDL): thu lai co gian cach, lan cuoi log Error (kien truc 3.29).
+                long daThatBai = ThuLaiEvent.SoLanDaThatBai(ea.BasicProperties.Headers);
+                if (ThuLaiEvent.LaLanCuoi(daThatBai, _options.DeliveryLimit))
+                {
+                    _logger.LogError(ex, "Audit: ghi event {EventId} that bai {SoLan} lan — chuyen vao DLQ, can dev xu ly", dong.EventId, daThatBai + 1);
+                }
+                else
+                {
+                    TimeSpan cho = ThuLaiEvent.ChoTruocKhiThuLai(daThatBai, _settings.ThoiGian(SettingKeys.ConsumersRetryMaxDelay));
+                    _logger.LogWarning(ex, "Audit: ghi event {EventId} that bai (lan {SoLan}), thu lai sau {Cho}", dong.EventId, daThatBai + 1, cho);
+                    try
+                    {
+                        await Task.Delay(cho, ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // dang tat
+                    }
+                }
+
+                await kenh.BasicNackAsync(ea.DeliveryTag, false, true, CancellationToken.None);
             }
         }
 

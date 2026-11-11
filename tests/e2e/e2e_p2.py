@@ -6,6 +6,7 @@ import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import G, GOC_REPO, RABBIT_MGMT, TIEN_TO_CONTAINER, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
+from tro_giup import nap_mau  # noqa: E402
 GATE = URL_GATE   # goi thang gate de gia lap IP khach khac nhau (X-Forwarded-For)
 LINK = URL_LINK
 
@@ -136,9 +137,8 @@ try:
     # ngan sach rieng 12.200 (cung nam trong ky quy).
     requests.put(G + f"/projects/{pid}/pricing", headers=biz, json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
     requests.put(G + f"/projects/{pid}/channels", headers=biz, json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False,
-                                                                    "gateUnitPriceVnd": 1000, "gateBudgetVnd": 12200}).raise_for_status()
-    requests.post(G + f"/projects/{pid}/datasets/manifest", headers=biz, json={"name": "lo", "rows": [{"text": v[0], "name": k} for k, v in CAU.items()]}).raise_for_status()
-    cho(lambda: [d for d in requests.get(G + f"/projects/{pid}/datasets", headers=biz).json() if d["status"] == "ready"], 30)
+                                                                    "gateBudgetVnd": 12200}).raise_for_status()
+    nap_mau(pid, biz, [{"text": v[0], "name": k} for k, v in CAU.items()])
     mau = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid}/samples?pageSize=50", headers=biz).json()["items"]}
     r = requests.post(G + f"/projects/{pid}/gold-items", headers=biz, json={"items": [
         {"sampleId": mau["v1"], "purpose": "qualityCheck", "expectedPayload": {"loai": {"labelIds": ["cho"]}}},
@@ -215,11 +215,45 @@ try:
     bad_ans = tra_loi(s["questions"]); bad_ans.pop(next(iter(bad_ans)))
     n = requests.post(GATE + f"/g/sessions/{s['sessionId']}/submit", headers=khach("203.0.113.10"), json={"answers": bad_ans})
     kiem("thieu cau tra loi → 400, phien van con", n.status_code == 400, n.text)
-    n = requests.post(GATE + f"/g/sessions/{s['sessionId']}/submit", headers=khach("203.0.113.10"), json={"answers": tra_loi(s["questions"], sai_vang=True)})
-    kiem("sai cau vang → khong dat, cap bo cau MOI", n.status_code == 200 and not n.json()["passed"] and n.json()["newSession"]["sessionId"] != s["sessionId"], n.text)
-    s2 = n.json()["newSession"]
-    time.sleep(3.3)  # bo cau moi cung co dem nguoc rieng (chong bot thu lai lien tuc)
+
+    # ---- Truot cau vang: khoa link cu, chuyen sang LINK KHAC, truot du 3 lan thi chan IP (IP khac, khong dung luong cua luong chinh) ----
+    ip = "203.0.113.70"
+    lien_ket = [code]
+    for ma in (requests.get(G + "/links/quick", params={"api": key, "url": "https://example.com/q2", "alias": "p2f-" + uuid.uuid4().hex[:6]}).text,
+               requests.get(G + "/links/api-shorten", params={"api": key, "url": "https://example.com/q3"}).json()["shortenedUrl"],
+               b[0]["link"]["code"] if isinstance(b[0]["link"], dict) else b[0]["link"]):
+        lien_ket.append(str(ma).rstrip("/").rsplit("/", 1)[-1])
+    for c in lien_ket:
+        cho(lambda c=c: requests.get(GATE + f"/g/{c}").status_code == 200, 20)
+
+    def truot(c):
+        ss = phien(c, ip)
+        assert ss.status_code == 200, ss.text
+        sj = ss.json()
+        time.sleep(3.3)
+        return requests.post(GATE + f"/g/sessions/{sj['sessionId']}/submit", headers=khach(ip), json={"answers": tra_loi(sj["questions"], sai_vang=True)})
+
+    pg = requests.get(G + f"/g/{code}").json()
+    kiem("trang vuot link bao truoc: so lan truot toi da + thoi gian chan (de giao dien canh bao)", pg["maxFailsBeforeBlock"] == 3 and pg["blockSeconds"] == 86400, pg)
+    t1 = truot(code)
+    j1 = t1.json()
+    kiem("sai cau vang → khong dat, KHONG con bo cau moi tren link cu", t1.status_code == 200 and j1["passed"] is False and j1.get("newSession") is None, t1.text)
+    kiem("bao so lan truot 1/3 va tra LINK KHAC", j1["failCount"] == 1 and j1["failLimit"] == 3 and not j1["blocked"]
+         and j1["nextLinkUrl"].startswith("/g/") and j1["nextLinkUrl"] != "/g/" + code and j1["nextLinkCode"] != code, t1.text)
+    r = phien(code, ip)
+    kiem("link cu bi khoa voi IP vua truot → 403 link_da_truot", r.status_code == 403 and "link_da_truot" in r.text, r.text)
+    kiem("IP khac van vao link cu binh thuong", phien(code, "203.0.113.71").status_code == 200)
+    t2 = truot(j1["nextLinkCode"])
+    j2 = t2.json()
+    kiem("truot lan 2 tren link khac → 2/3, van chua chan, lai chuyen link khac", j2["failCount"] == 2 and not j2["blocked"] and j2["nextLinkCode"] not in (code, j1["nextLinkCode"]), t2.text)
+    t3 = truot(j2["nextLinkCode"])
+    j3 = t3.json()
+    kiem("truot lan 3 → IP bi chan (blocked + blockedUntil), het link khac", t3.status_code == 200 and j3["blocked"] is True and j3["blockedUntil"] and j3.get("nextLinkUrl") is None, t3.text)
+    r = phien(lien_ket[-1], ip)
+    kiem("IP bi chan → moi link deu 403 ip_bi_chan kem retryAfterSeconds / blockedUntil",
+         r.status_code == 403 and r.json()["code"] == "ip_bi_chan" and r.json()["retryAfterSeconds"] > 80000 and r.json()["blockedUntil"], r.text)
     dat("gate.countdown", 0)
+    s2 = s
     n = requests.post(GATE + f"/g/sessions/{s2['sessionId']}/submit", headers=khach("203.0.113.10"), json={"answers": tra_loi(s2["questions"])})
     kiem("dung cau vang → dat, co redirectUrl", n.status_code == 200 and n.json()["passed"] and n.json()["redirectUrl"].startswith("/go/" + code), n.text)
     url = n.json()["redirectUrl"]
@@ -347,9 +381,8 @@ try:
     requests.put(G + f"/projects/{pid2}/guideline", headers=chu["h"], json={"markdown": "p2", "examples": []}).raise_for_status()
     requests.put(G + f"/projects/{pid2}/pricing", headers=chu["h"], json={"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}).raise_for_status()
     requests.put(G + f"/projects/{pid2}/channels", headers=chu["h"], json={"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False,
-                                                                    "gateUnitPriceVnd": 1000, "gateBudgetVnd": 12200}).raise_for_status()
-    requests.post(G + f"/projects/{pid2}/datasets/manifest", headers=chu["h"], json={"name": "lo", "rows": [{"text": v[0], "name": k} for k, v in CAU.items()]}).raise_for_status()
-    cho(lambda: [d for d in requests.get(G + f"/projects/{pid2}/datasets", headers=chu["h"]).json() if d["status"] == "ready"], 30)
+                                                                    "gateBudgetVnd": 12200}).raise_for_status()
+    nap_mau(pid2, chu["h"], [{"text": v[0], "name": k} for k, v in CAU.items()])
     mau2 = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid2}/samples?pageSize=50", headers=chu["h"]).json()["items"]}
     requests.post(G + f"/projects/{pid2}/gold-items", headers=chu["h"], json={"items": [
         {"sampleId": mau2["v1"], "purpose": "qualityCheck", "expectedPayload": {"loai": {"labelIds": ["cho"]}}},
@@ -393,4 +426,8 @@ try:
 finally:
     for key, v in GOC.items():
         requests.put(G + f"/admin/settings/{key}", headers=admin, json={"value": v, "reason": "e2e-p2: tra lai"})
+    # IP trat cong bi chan 24h trong Redis: xoa de khong anh huong lan chay sau (hoac nguoi that dung chung may demo).
+    subprocess.run(["docker", "exec", f"{TIEN_TO_CONTAINER}redis-gate", "sh", "-c",
+                    "for p in 'gate:block:*' 'gate:fail:*' 'gate:linklock:*'; do redis-cli --scan --pattern \"$p\" | xargs -r redis-cli del; done"],
+                   capture_output=True)
     print(f"\nKET QUA: {KQ['pass']} pass, {KQ['fail']} fail")

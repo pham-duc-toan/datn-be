@@ -84,12 +84,9 @@ namespace Crowd.BuildingBlocks.Settings
         public const string DatasetZipImageMaxBytes = "dataset.zip_image_max_bytes";
         public const string DatasetZipTotalMaxBytes = "dataset.zip_total_max_bytes";
         public const string DatasetManifestInlineMaxRows = "dataset.manifest_inline_max_rows";
-        public const string DatasetManifestFileMaxRows = "dataset.manifest_file_max_rows";
         public const string DatasetTextMaxChars = "dataset.text_max_chars";
         public const string DatasetImageMaxBytes = "dataset.image_max_bytes";
-        public const string DatasetEventBatchSize = "dataset.event_batch_size";
         public const string DatasetWorkerIdle = "dataset.worker_idle";
-        public const string DatasetNameMaxLength = "dataset.name_max_length";
         public const string DatasetImportMaxFiles = "dataset.import_max_files";
         public const string DatasetImportFileMaxBytes = "dataset.import_file_max_bytes";
         public const string DatasetImportTimeout = "dataset.import_timeout";
@@ -167,11 +164,6 @@ namespace Crowd.BuildingBlocks.Settings
         public const string AdminAuditExcludedTypes = "admin.audit_excluded_types";
         public const string AdminAuditRetentionDays = "admin.audit_retention_days";
 
-        // ---- Van hanh: canh bao do sau DLQ (VD-D-06, VD-D-12) ----
-        public const string OpsDlqAlertThreshold = "ops.dlq_alert_threshold";
-        public const string OpsDlqCheckInterval = "ops.dlq_check_interval";
-        public const string OpsAlertRepeat = "ops.alert_repeat";
-        public const string OpsAlertEmail = "ops.alert_email";
 
         // ---- Bao ve du lieu: media-svc (FP-02, FP-03) ----
         public const string MediaWatermarkEnabled = "media.watermark_enabled";
@@ -202,6 +194,9 @@ namespace Crowd.BuildingBlocks.Settings
         public const string GateTokenTtl = "gate.token_ttl";
         public const string GateIpDedupeWindow = "gate.ip_dedupe_window";
         public const string GateMaxLabelsPerSample = "gate.max_labels_per_sample";
+        public const string GateUnitPriceVnd = "gate.unit_price_vnd";
+        public const string GateMaxFailsBeforeBlock = "gate.max_fails_before_block";
+        public const string GateBlockDuration = "gate.block_duration";
         public const string GateCacheRefreshInterval = "gate.cache_refresh_interval";
         public const string GateEventFlushInterval = "gate.event_flush_interval";
         public const string GateEventBatchSize = "gate.event_batch_size";
@@ -226,6 +221,13 @@ namespace Crowd.BuildingBlocks.Settings
         public const string ConsumersProcessedRetention = "consumers.processed_retention";
         public const string ConsumersReconnectDelay = "consumers.reconnect_delay";
         public const string ConsumersPrefetchCount = "consumers.prefetch_count";
+        public const string ConsumersRetryMaxDelay = "consumers.retry_max_delay";
+
+        // ---- Loi he thong (loai 3, kien truc 3.29): theo doi DLQ, bao doi ky thuat ----
+        public const string OpsDlqAlertThreshold = "ops.dlq_alert_threshold";
+        public const string OpsDlqCheckInterval = "ops.dlq_check_interval";
+        public const string OpsAlertRepeat = "ops.alert_repeat";
+        public const string OpsAlertEmail = "ops.alert_email";
         public const string SettingsReloadInterval = "settings.reload_interval";
         public const string SettingsSnapshotInterval = "settings.snapshot_interval";
     }
@@ -270,7 +272,7 @@ namespace Crowd.BuildingBlocks.Settings
         /// rut, tranh chap, setting...). Lich su tung nhan da co o annotation_history, tien o so cai.
         /// </summary>
         public const string AuditLoaiTruMacDinh =
-            "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,dataset.ingested,"
+            "gate.solved,click.validated,settings.snapshot,settings.snapshot_requested,samples.ingested,"
             + "attempt.submitted,reputation.changed,funds.held,hold.expired,gate.budget_changed";
 
         /// <summary>Mac dinh tu 2026-10-13 toi truoc du an lam trung tam (3.18) — migration admin nang len mac dinh moi neu admin chua sua.</summary>
@@ -344,7 +346,7 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Seconds(SettingKeys.PaymentPayoutLookupAfter, NhomKyThuat, 15 * 60, 60, Ngay,
                 "Lệnh chi treo quá lâu thì hỏi ngược cổng về trạng thái (đối soát)."));
             ds.Add(Many(SettingKeys.PaymentEnabledProviders, NhomTien, "sandbox,vnpay,momo", 100, CongNap,
-                "Cổng nạp tiền đang mở. Cổng phải CÓ cấu hình khoá mới dùng được; tắt một cổng khi cổng đó sự cố."));
+                "Cổng nạp tiền đang mở. Cổng phải được đội kỹ thuật kết nối trước mới dùng được; tắt một cổng khi cổng đó gặp sự cố."));
             ds.Add(Seconds(SettingKeys.PaymentDepositLookupAfter, NhomKyThuat, 15 * 60, 60, Ngay,
                 "Lệnh nạp qua cổng chưa có kết quả sau bấy nhiêu thì hỏi ngược cổng (đối soát, VD-M-09) — phòng khi IPN bị lạc."));
             ds.Add(Seconds(SettingKeys.PaymentDepositExpireAfter, NhomTien, Ngay, 15 * 60, 30 * Ngay,
@@ -374,7 +376,7 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Int(SettingKeys.LedgerWithdrawTaxPercent, NhomTien, 10, 0, 50, "%",
                 "Thuế suất khấu trừ khi rút tiền."));
             ds.Add(Int(SettingKeys.InvoiceVatPercent, NhomTien, 10, 0, 20, "%",
-                "Thuế suất GTGT trên phí nền tảng (FB-05). Phí đã thu là giá ĐÃ GỒM thuế; hoá đơn tách ngược ra phần chưa thuế + thuế. Áp cho hoá đơn xuất sau khi đổi."));
+                "Thuế suất GTGT trên phí nền tảng. Phí đã thu là giá ĐÃ GỒM thuế; hoá đơn tách ngược ra phần chưa thuế + thuế. Áp cho hoá đơn xuất sau khi đổi."));
             ds.Add(Text(SettingKeys.InvoiceSellerName, NhomTien, "CONG TY TNHH NEN TANG GAN NHAN DATN", 200,
                 "Tên đơn vị bán hàng in trên hoá đơn."));
             ds.Add(Text(SettingKeys.InvoiceSellerTaxCode, NhomTien, "0109999999", 20,
@@ -384,7 +386,7 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Text(SettingKeys.InvoiceSerialTemplate, NhomTien, "1C{yy}TDN", 20,
                 "Ký hiệu hoá đơn; {yy} = 2 số cuối năm. 1 = hoá đơn GTGT, C = có mã của cơ quan thuế, T = điện tử, DN = mã riêng."));
             ds.Add(Bool(SettingKeys.InvoiceAutoIssue, NhomTien, true,
-                "Bật: đầu mỗi tháng tự xuất hoá đơn tháng trước cho mọi doanh nghiệp có phát sinh phí nền tảng (đã xác minh KYB)."));
+                "Bật: đầu mỗi tháng tự xuất hoá đơn tháng trước cho mọi doanh nghiệp có phát sinh phí nền tảng (đã xác minh doanh nghiệp)."));
             ds.Add(Seconds(SettingKeys.InvoiceAutoIssueInterval, NhomKyThuat, 3600, 60, Ngay,
                 "Chu kỳ worker kiểm tra và tự xuất hoá đơn tháng trước."));
             ds.Add(Bool(SettingKeys.InvoiceAllowOpenPeriod, NhomKyThuat, false,
@@ -410,7 +412,7 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Seconds(SettingKeys.ProjectInvitationTtl, NhomDuAn, 14 * Ngay, Ngay, 180 * Ngay,
                 "Lời mời chờ (email chưa có tài khoản, hoặc dự án cần labeler tự đồng ý điều khoản) sống bao lâu."));
             ds.Add(Int(SettingKeys.ProjectEmailInviteDailyMax, NhomDuAn, 200, 1, 100000, "lời mời",
-                "Số email tối đa một người được mời vào dự án trong 24 giờ (VD-S-16) — chặn dùng ô mời để dò danh sách email. Vượt → 429."));
+                "Số email tối đa một người được mời vào dự án trong 24 giờ — chặn dùng ô mời để dò danh sách email. Vượt thì phải chờ hôm sau."));
             ds.Add(Seconds(SettingKeys.ProjectHousekeepingInterval, NhomKyThuat, 10 * 60, 10, Ngay,
                 "Chu kỳ worker dọn đơn xin tham gia / lời mời quá hạn."));
             ds.Add(Int(SettingKeys.ProjectPassThresholdMin, NhomDuAn, 60, 1, 100, "%",
@@ -426,13 +428,13 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Int(SettingKeys.ProjectParticipantMultiplier, NhomDuAn, 2, 1, 20, "lần",
                 "Trần số người làm bài = số suất thưởng × hệ số này. Cho nhiều người làm hơn số suất để “đa số” chắc hơn; khi chấm, n suất thưởng trao cho n bài ĐẠT nộp sớm nhất, bài đạt sau đó không có tiền. Đủ trần thì dự án đóng thu bài. Chụp vào dự án lúc publish."));
             ds.Add(Long(SettingKeys.ProjectMinRewardVnd, NhomDuAn, 10000, 0, 1e10, "đồng",
-                "Tiền thưởng tối thiểu cho MỘT người làm đạt cả dự án (FM-04). 0 = không giới hạn."));
+                "Tiền thưởng tối thiểu cho MỘT người làm đạt cả dự án. 0 = không giới hạn."));
             ds.Add(Seconds(SettingKeys.AnnotationHistoryRetention, NhomGanNhan, 365 * Ngay, 0, 3650 * Ngay,
-                "Hạn giữ nhật ký vòng đời nhãn (annotation_history): dòng cũ hơn bị xoá, trừ dòng mới nhất của mỗi nhãn. 0 = không bao giờ xoá."));
+                "Giữ lịch sử chỉnh sửa nhãn bao lâu: bản ghi cũ hơn bị xoá, trừ bản mới nhất của mỗi nhãn. 0 = không bao giờ xoá."));
             ds.Add(Seconds(SettingKeys.AnnotationHistoryCleanupInterval, NhomKyThuat, 3600, 10, Ngay,
                 "Chu kỳ worker dọn annotation_history."));
             ds.Add(Seconds(SettingKeys.ProjectClosedDataRetention, NhomDuAn, 90 * Ngay, 0, 3650 * Ngay,
-                "Dự án đã đóng (hoàn thành / huỷ) bao lâu thì xoá dữ liệu VẬN HÀNH của nó: nháp còn sót, báo lỗi (project-svc); nhãn thô và vòng đồng thuận (quality-svc). Trước khi xoá, tiến độ và báo cáo chất lượng được chụp lại nên vẫn xem được. Nhãn đã nộp / đã duyệt, kết quả, sổ cái, mẫu dữ liệu và uy tín labeler KHÔNG bị xoá. 0 = không bao giờ xoá."));
+                "Dự án đã đóng (hoàn thành / huỷ) bao lâu thì xoá dữ liệu VẬN HÀNH của nó: bài làm dở còn sót, báo lỗi mẫu, nhãn thô và các vòng tính kết quả chung. Trước khi xoá, tiến độ và báo cáo chất lượng được chụp lại nên vẫn xem được. Nhãn đã nộp / đã duyệt, kết quả, sổ cái, mẫu dữ liệu và uy tín labeler KHÔNG bị xoá. 0 = không bao giờ xoá."));
             ds.Add(Int(SettingKeys.ProjectEntranceQuestionDefault, NhomDuAn, 10, 1, 500, "câu",
                 "Số câu bài test đầu vào mặc định của dự án mới tạo."));
             ds.Add(Int(SettingKeys.ProjectEntrancePassPercentDefault, NhomDuAn, 80, 1, 100, "%",
@@ -442,11 +444,11 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Int(SettingKeys.ProjectGoldItemsMax, NhomDuAn, 2000, 1, 100000, "câu",
                 "Số câu hỏi vàng tối đa mỗi dự án."));
             ds.Add(Int(SettingKeys.ProjectNameMaxLength, NhomDuAn, 200, 10, 200, "ký tự",
-                "Độ dài tên dự án (cột DB tối đa 200)."));
+                "Độ dài tên dự án (tối đa 200)."));
             ds.Add(Int(SettingKeys.ProjectDescriptionMaxLength, NhomDuAn, 5000, 100, 5000, "ký tự",
-                "Độ dài mô tả dự án (cột DB tối đa 5000)."));
+                "Độ dài mô tả dự án (tối đa 5000)."));
             ds.Add(Int(SettingKeys.GuidelineMarkdownMaxLength, NhomDuAn, 20000, 100, 200000, "ký tự",
-                "Độ dài hướng dẫn (markdown)."));
+                "Độ dài tối đa phần hướng dẫn làm bài."));
             ds.Add(Int(SettingKeys.GuidelineExamplesMax, NhomDuAn, 50, 0, 500, "ví dụ",
                 "Số ví dụ tối đa trong hướng dẫn."));
             ds.Add(Int(SettingKeys.GuidelineExplanationMaxLength, NhomDuAn, 1000, 10, 10000, "ký tự",
@@ -464,46 +466,40 @@ namespace Crowd.BuildingBlocks.Settings
 
             // ================= DU LIEU VA FILE =================
             ds.Add(Long(SettingKeys.DatasetZipMaxBytes, NhomDuLieu, 200 * MB, MB, 2048 * MB, "byte",
-                "Kích thước tối đa file ZIP ảnh upload qua API (gateway và project-svc cùng áp)."));
+                "Dung lượng tối đa một file ZIP ảnh doanh nghiệp tải lên."));
             ds.Add(Int(SettingKeys.DatasetZipMaxEntries, NhomDuLieu, 10000, 1, 1000000, "file",
                 "Số file tối đa trong một ZIP."));
             ds.Add(Long(SettingKeys.DatasetZipImageMaxBytes, NhomDuLieu, 20 * MB, 1024, 1024 * MB, "byte",
                 "Kích thước tối đa mỗi ảnh trong ZIP (sau giải nén)."));
             ds.Add(Long(SettingKeys.DatasetZipTotalMaxBytes, NhomDuLieu, 2048 * MB, MB, 100L * 1024 * MB, "byte",
-                "Tổng dung lượng sau giải nén tối đa của một ZIP (chống bom ZIP)."));
+                "Tổng dung lượng tối đa của một ZIP sau khi giải nén (chặn file nén độc hại)."));
             ds.Add(Int(SettingKeys.DatasetManifestInlineMaxRows, NhomDuLieu, 1000, 1, 100000, "dòng",
-                "Số dòng manifest tối đa gửi kèm request."));
-            ds.Add(Int(SettingKeys.DatasetManifestFileMaxRows, NhomDuLieu, 50000, 1, 10000000, "dòng",
-                "Số dòng tối đa của file manifest .jsonl."));
+                "Số mẫu (văn bản, cặp, danh sách...) tối đa mỗi lần thêm. Nhiều hơn thì chia thành nhiều lần."));
             ds.Add(Int(SettingKeys.DatasetTextMaxChars, NhomDuLieu, 100000, 100, 10000000, "ký tự",
                 "Độ dài tối đa một mẫu văn bản."));
             ds.Add(Long(SettingKeys.DatasetImageMaxBytes, NhomDuLieu, 50 * MB, 1024, 2048 * MB, "byte",
-                "Kích thước tối đa một ảnh nạp qua manifest."));
-            ds.Add(Int(SettingKeys.DatasetEventBatchSize, NhomKyThuat, 500, 1, 10000, "mẫu",
-                "Số mẫu mỗi event dataset.ingested (chia lô khi nạp nhiều)."));
+                "Kích thước tối đa một ảnh upload thẳng hoặc nhập từ nguồn ngoài."));
             ds.Add(Int(SettingKeys.DatasetImportMaxFiles, NhomDuLieu, 500, 1, 100000, "file",
-                "Nhập từ nguồn ngoài (S3 / Google Drive / danh sách URL, FB-11): số file tối đa mỗi lô."));
+                "Nhập từ nguồn ngoài (S3 / Google Drive / danh sách đường link): số file tối đa mỗi lần nhập."));
             ds.Add(Long(SettingKeys.DatasetImportFileMaxBytes, NhomDuLieu, 500 * MB, MB, 10240 * MB, "byte",
-                "Nhập từ nguồn ngoài: kích thước tối đa mỗi file âm thanh / video (ảnh theo dataset.image_max_bytes)."));
+                "Nhập từ nguồn ngoài: dung lượng tối đa mỗi file âm thanh / video (ảnh theo mục “Dung lượng mỗi ảnh”)."));
             ds.Add(Seconds(SettingKeys.DatasetImportTimeout, NhomKyThuat, 120, 5, 3600,
                 "Nhập từ nguồn ngoài: thời gian tối đa tải MỘT file."));
             ds.Add(Seconds(SettingKeys.DatasetWorkerIdle, NhomKyThuat, 2, 0.1, 600,
-                "Worker nạp dữ liệu nghỉ bao lâu khi hết việc."));
-            ds.Add(Int(SettingKeys.DatasetNameMaxLength, NhomDuLieu, 200, 10, 200, "ký tự",
-                "Độ dài tên lô dữ liệu (cột DB tối đa 200). Tên lô do hệ thống tự sinh từ tên dự án + ngày giờ nạp."));
-            ds.Add(Int(SettingKeys.DatasetErrorSummaryMaxLength, NhomDuLieu, 4000, 100, 4000, "ký tự",
-                "Độ dài tóm tắt lỗi của lô (cột DB tối đa 4000)."));
-            ds.Add(Int(SettingKeys.DatasetErrorSampleCount, NhomDuLieu, 20, 1, 1000, "dòng",
-                "Số dòng lỗi đầu tiên ghi lại khi nạp một lô dữ liệu."));
-            ds.Add(Int(SettingKeys.SampleNameMaxLength, NhomDuLieu, 500, 10, 500, "ký tự",
+                "Worker xử lý mẫu (tải / đọc file) nghỉ bao lâu khi hết việc."));
+            ds.Add(Int(SettingKeys.DatasetErrorSummaryMaxLength, NhomKyThuat, 4000, 100, 4000, "ký tự",
+                "Độ dài lý do lỗi của một mẫu nạp không được (cột DB tối đa 4000)."));
+            ds.Add(Int(SettingKeys.DatasetErrorSampleCount, NhomKyThuat, 20, 1, 1000, "dòng",
+                "Số dòng lỗi đầu tiên trả về khi gửi một lần dữ liệu."));
+            ds.Add(Int(SettingKeys.SampleNameMaxLength, NhomKyThuat, 500, 10, 500, "ký tự",
                 "Độ dài tên mẫu (cột DB tối đa 500)."));
             ds.Add(Int(SettingKeys.UploadMaxFiles, NhomDuLieu, 100, 1, 10000, "file",
-                "Số file tối đa mỗi lần xin link upload."));
+                "Số file tối đa mỗi lần tải lên."));
             ds.Add(Long(SettingKeys.UploadMaxFileBytes, NhomDuLieu, 5L * 1024 * MB, MB, 5L * 1024 * MB, "byte",
-                "Kích thước tối đa mỗi file upload thẳng (giới hạn của một lệnh PUT S3 là 5 GB)."));
-            ds.Add(Seconds(SettingKeys.UploadLinkTtl, NhomDuLieu, 3600, 60, 7 * Ngay,
+                "Dung lượng tối đa mỗi file tải lên (không quá 5 GB)."));
+            ds.Add(Seconds(SettingKeys.UploadLinkTtl, NhomKyThuat, 3600, 60, 7 * Ngay,
                 "Link upload ký sẵn sống bao lâu."));
-            ds.Add(Seconds(SettingKeys.StorageViewLinkTtl, NhomDuLieu, 300, 10, 7 * Ngay,
+            ds.Add(Seconds(SettingKeys.StorageViewLinkTtl, NhomKyThuat, 300, 10, 7 * Ngay,
                 "Link xem file ký sẵn (ảnh, âm thanh, video) sống bao lâu."));
             ds.Add(Seconds(SettingKeys.MediaFfprobeTimeout, NhomKyThuat, 60, 1, 3600,
                 "Thời gian tối đa cho một lần ffprobe đo file."));
@@ -518,16 +514,16 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Seconds(SettingKeys.TaskReaperInterval, NhomKyThuat, 30, 1, 3600,
                 "Chu kỳ quét lượt giữ quá hạn."));
             ds.Add(Int(SettingKeys.TaskReportAutoExclude, NhomDuAn, 3, 1, 100, "người",
-                "Bao nhiêu labeler khác nhau báo lỗi cùng một mẫu thì tự loại mẫu đó khỏi dự án (FL-07)."));
+                "Bao nhiêu labeler khác nhau báo lỗi cùng một mẫu thì tự loại mẫu đó khỏi dự án."));
             ds.Add(Int(SettingKeys.TaskReaperBatchSize, NhomKyThuat, 200, 1, 10000, "lượt giữ",
                 "Số lượt giữ quá hạn reaper khoá và trả về pool mỗi lô."));
             ds.Add(Int(SettingKeys.AnnotationImbalanceThresholdPercent, NhomGanNhan, 80, 50, 99, "%",
-                "Cảnh báo lệch phân bố (FB-24) khi một lớp chiếm trên bấy nhiêu phần trăm số nhãn của công cụ."));
+                "Cảnh báo lệch phân bố khi một lớp chiếm trên bấy nhiêu phần trăm số nhãn của công cụ."));
             ds.Add(Int(SettingKeys.AnnotationImbalanceMinLabels, NhomGanNhan, 20, 1, 100000, "nhãn",
                 "Công cụ cần ít nhất bấy nhiêu nhãn mới bắt đầu cảnh báo lệch phân bố."));
 
             // ================= CHAT LUONG =================
-            ds.Add(Seconds(SettingKeys.QualityDsInterval, NhomChatLuong, 900, 10, 7 * Ngay,
+            ds.Add(Seconds(SettingKeys.QualityDsInterval, NhomKyThuat, 900, 10, 7 * Ngay,
                 "Chu kỳ chạy lô Dawid-Skene."));
 
             // Chong gian lan (FM-07) — quality-svc mo ho so nghi van, admin quyet dinh.
@@ -545,67 +541,67 @@ namespace Crowd.BuildingBlocks.Settings
                 "Bấy nhiêu tài khoản khác nhau nộp từ cùng IP / thiết bị trong khoảng thời gian dưới thì mở hồ sơ."));
             ds.Add(Seconds(SettingKeys.QualityFraudSharedWindow, NhomChatLuong, Ngay, 60, 30 * Ngay,
                 "Khoảng thời gian xét chung IP / thiết bị."));
-            ds.Add(Bool(SettingKeys.QualityFraudIgnorePrivateIps, NhomChatLuong, true,
+            ds.Add(Bool(SettingKeys.QualityFraudIgnorePrivateIps, NhomKyThuat, true,
                 "Bỏ qua IP nội bộ / loopback khi xét chung IP (môi trường dev, mạng công ty dùng chung NAT)."));
             ds.Add(Seconds(SettingKeys.QualityFraudReopenCooldown, NhomChatLuong, 7 * Ngay, 0, 365 * Ngay,
                 "Hồ sơ đã xử lý (bỏ qua / xác nhận) thì không mở lại cùng khoá trong khoảng này."));
             ds.Add(Int(SettingKeys.QualityDsMinLabels, NhomChatLuong, 5, 1, 10000, "nhãn",
-                "Labeler cần tối thiểu bao nhiêu nhãn trong dự án thì mới chấm độ tin cậy Dawid-Skene."));
+                "Người làm cần tối thiểu bấy nhiêu nhãn trong dự án thì mới được chấm độ tin cậy."));
             ds.Add(Double(SettingKeys.QualityReputationGoldWeight, NhomChatLuong, 0.6, 0, 1, "",
-                "Trọng số câu vàng trong điểm uy tín (phần còn lại là đồng thuận / Dawid-Skene)."));
+                "Câu vàng chiếm bao nhiêu phần trong điểm uy tín (0–1); phần còn lại tính theo mức trả lời giống đa số."));
             ds.Add(Double(SettingKeys.QualityReputationPrior, NhomChatLuong, 0.7, 0, 1, "",
-                "Mức tiên nghiệm của điểm uy tín (người mới bắt đầu quanh mức này)."));
+                "Điểm uy tín (0–1) của người mới; điểm dần thay đổi theo kết quả làm bài."));
             ds.Add(Double(SettingKeys.QualityReputationPriorStrength, NhomChatLuong, 2, 0, 1000, "nhãn",
-                "Sức nặng tiên nghiệm: số bằng chứng cần để điểm rời xa mức tiên nghiệm."));
-            ds.Add(Double(SettingKeys.LabelingThresholdBbox, NhomChatLuong, 0.5, 0, 1, "IoU",
-                "Ngưỡng chấm mặc định cho khung chữ nhật (công cụ không tự đặt matchThreshold)."));
-            ds.Add(Double(SettingKeys.LabelingThresholdPolygon, NhomChatLuong, 0.5, 0, 1, "IoU",
-                "Ngưỡng chấm mặc định cho đa giác."));
-            ds.Add(Double(SettingKeys.LabelingThresholdSpan, NhomChatLuong, 1.0, 0, 1, "F1",
-                "Ngưỡng chấm mặc định cho đoạn văn bản."));
-            ds.Add(Double(SettingKeys.LabelingThresholdTranscription, NhomChatLuong, 0.1, 0, 1, "CER",
-                "Tỉ lệ lỗi ký tự tối đa cho bản chép (nhỏ hơn = khắt khe hơn)."));
-            ds.Add(Double(SettingKeys.LabelingThresholdTemporalSegment, NhomChatLuong, 0.5, 0, 1, "IoU",
-                "Ngưỡng chấm mặc định cho đoạn thời gian."));
+                "Cần khoảng bấy nhiêu nhãn thì điểm uy tín của người mới mới rời xa điểm khởi đầu. Lớn = điểm thay đổi chậm hơn."));
+            ds.Add(Double(SettingKeys.LabelingThresholdBbox, NhomChatLuong, 0.5, 0, 1, "độ chồng (0–1)",
+                "Hai khung chữ nhật coi là khớp khi phần chồng lên nhau đạt mức này (1 = trùng hoàn toàn). Áp khi dự án không tự đặt ngưỡng."));
+            ds.Add(Double(SettingKeys.LabelingThresholdPolygon, NhomChatLuong, 0.5, 0, 1, "độ chồng (0–1)",
+                "Hai đa giác coi là khớp khi phần chồng lên nhau đạt mức này."));
+            ds.Add(Double(SettingKeys.LabelingThresholdSpan, NhomChatLuong, 1.0, 0, 1, "độ khớp (0–1)",
+                "Các đoạn văn bản được đánh dấu coi là khớp khi trùng nhau đạt mức này (1 = phải trùng hoàn toàn)."));
+            ds.Add(Double(SettingKeys.LabelingThresholdTranscription, NhomChatLuong, 0.1, 0, 1, "tỉ lệ lỗi (0–1)",
+                "Bản chép lời coi là khớp khi số ký tự sai không quá tỉ lệ này (0,1 = sai tối đa 10%; nhỏ hơn = khắt khe hơn)."));
+            ds.Add(Double(SettingKeys.LabelingThresholdTemporalSegment, NhomChatLuong, 0.5, 0, 1, "độ chồng (0–1)",
+                "Hai đoạn thời gian (âm thanh / video) coi là khớp khi phần trùng nhau đạt mức này."));
             ds.Add(Double(SettingKeys.LabelingThresholdKeypoint, NhomChatLuong, 0.98, 0, 1, "độ giống",
-                "Ngưỡng mặc định cho điểm mốc: 1 − (độ lệch / đường chéo ảnh). 0,98 = lệch tối đa 2% đường chéo."));
+                "Hai điểm mốc coi là khớp khi lệch nhau không quá (1 − mức này) đường chéo ảnh. 0,98 = lệch tối đa 2% đường chéo."));
             ds.Add(Double(SettingKeys.LabelingThresholdPolyline, NhomChatLuong, 0.97, 0, 1, "độ giống",
-                "Ngưỡng mặc định cho đường gấp khúc: 1 − (độ lệch trung bình / đường chéo ảnh)."));
-            ds.Add(Double(SettingKeys.LabelingThresholdMask, NhomChatLuong, 0.5, 0, 1, "IoU",
-                "Ngưỡng mặc định cho mặt nạ phân vùng."));
-            ds.Add(Double(SettingKeys.LabelingThresholdTrack, NhomChatLuong, 0.5, 0, 1, "IoU",
-                "Ngưỡng mặc định cho chuỗi khung theo dõi trong video (IoU không-thời gian)."));
-            ds.Add(Double(SettingKeys.LabelingThresholdRelation, NhomChatLuong, 1.0, 0, 1, "F1",
-                "Ngưỡng chấm mặc định cho quan hệ giữa các đoạn văn bản."));
-            ds.Add(Double(SettingKeys.LabelingThresholdRanking, NhomChatLuong, 0.8, 0, 1, "Kendall",
-                "Ngưỡng mặc định cho xếp hạng: tỉ lệ cặp mục được xếp cùng thứ tự."));
-            ds.Add(Double(SettingKeys.QualityConsensusMinF1, NhomChatLuong, 0.8, 0, 1, "F1",
-                "Gộp nhãn công cụ dạng danh sách (khung, đa giác, đoạn...): một người tính là KHỚP kết quả gộp khi F1 giữa các đối tượng của họ và các đối tượng đã gộp đạt mức này. Không quá một nửa số người khớp thì mẫu là tranh chấp."));
-            ds.Add(Double(SettingKeys.QualityFreeTextSimilarity, NhomChatLuong, 0.6, 0.3, 0.99, "cosine",
-                "Câu trả lời mở (freeText) chấm THEO NGHĨA (ml-svc nhúng câu): một người giống đa số khi độ giống cosine giữa câu của họ và câu “ở giữa” cụm (medoid) đạt mức này. Câu cùng nghĩa khác chữ thường 0,63 – 0,9; câu lạc đề gần 0."));
-            ds.Add(Double(SettingKeys.QualityFreeTextLexicalSimilarity, NhomChatLuong, 0.38, 0.1, 0.99, "cosine",
-                "Ngưỡng khi PHẢI chấm câu trả lời mở bằng so CHỮ (n-gram ký tự) vì ml-svc không phân tích kịp. So chữ yếu hơn so nghĩa: câu cùng nghĩa khác chữ chỉ 0,4 – 0,5."));
+                "Hai đường gấp khúc coi là khớp khi lệch trung bình không quá (1 − mức này) đường chéo ảnh."));
+            ds.Add(Double(SettingKeys.LabelingThresholdMask, NhomChatLuong, 0.5, 0, 1, "độ chồng (0–1)",
+                "Hai vùng tô (mặt nạ) coi là khớp khi phần chồng lên nhau đạt mức này."));
+            ds.Add(Double(SettingKeys.LabelingThresholdTrack, NhomChatLuong, 0.5, 0, 1, "độ chồng (0–1)",
+                "Hai chuỗi khung theo dõi vật thể trong video coi là khớp khi chồng lên nhau (theo cả vị trí và thời gian) đạt mức này."));
+            ds.Add(Double(SettingKeys.LabelingThresholdRelation, NhomChatLuong, 1.0, 0, 1, "độ khớp (0–1)",
+                "Các quan hệ giữa đoạn văn bản coi là khớp khi trùng nhau đạt mức này."));
+            ds.Add(Double(SettingKeys.LabelingThresholdRanking, NhomChatLuong, 0.8, 0, 1, "tỉ lệ (0–1)",
+                "Hai bảng xếp hạng coi là khớp khi tỉ lệ cặp mục được xếp cùng thứ tự đạt mức này."));
+            ds.Add(Double(SettingKeys.QualityConsensusMinF1, NhomChatLuong, 0.8, 0, 1, "độ khớp (0–1)",
+                "Công cụ có nhiều đối tượng mỗi mẫu (khung, đa giác, đoạn...): một người tính là KHỚP kết quả chung khi các đối tượng của họ trùng với kết quả chung ở mức này. Không quá một nửa số người khớp thì mẫu là tranh chấp."));
+            ds.Add(Double(SettingKeys.QualityFreeTextSimilarity, NhomChatLuong, 0.6, 0.3, 0.99, "độ giống (0–1)",
+                "Câu trả lời mở được chấm THEO NGHĨA: một người tính là giống đa số khi câu của họ giống nghĩa với câu tiêu biểu nhất của nhóm đạt mức này. Câu cùng nghĩa khác chữ thường 0,63 – 0,9; câu lạc đề gần 0."));
+            ds.Add(Double(SettingKeys.QualityFreeTextLexicalSimilarity, NhomChatLuong, 0.38, 0.1, 0.99, "độ giống (0–1)",
+                "Ngưỡng khi PHẢI chấm câu trả lời mở bằng so CHỮ vì hệ thống phân tích nghĩa không kịp. So chữ yếu hơn so nghĩa: câu cùng nghĩa khác chữ chỉ 0,4 – 0,5."));
             ds.Add(Seconds(SettingKeys.QualityFreeTextAnalysisTimeout, NhomChatLuong, 3600, 10, 7 * Ngay,
-                "Sau khi dự án đóng thu bài, chờ ml-svc phân tích hết câu trả lời mở tối đa bao lâu; quá hạn thì chấm bằng so chữ để không giữ tiền của labeler."));
+                "Sau khi dự án đóng thu bài, chờ phân tích nghĩa các câu trả lời mở tối đa bao lâu; quá hạn thì chấm bằng so chữ để người làm không phải chờ tiền."));
             ds.Add(Seconds(SettingKeys.QualityFreeTextAnalysisInterval, NhomKyThuat, 5, 1, 3600,
                 "Chu kỳ quality-svc gửi câu trả lời mở mới sang ml-svc để nhúng."));
             ds.Add(Seconds(SettingKeys.QualityPendingWorkInterval, NhomKyThuat, 5, 1, 3600,
                 "Chu kỳ quality-svc xét gian lận bài vừa nộp, chấm lại dự án chưa chấm xong (project-svc tạm không trả lời qua gRPC, hoặc đang chờ phân tích câu trả lời mở) và tính lại uy tín labeler sau khi project-svc ghi xong kết quả chấm."));
 
             // ================= TAI KHOAN =================
-            ds.Add(Seconds(SettingKeys.IdentityAccessTokenLifetime, NhomTaiKhoan, 15 * 60, 60, Ngay,
+            ds.Add(Seconds(SettingKeys.IdentityAccessTokenLifetime, NhomKyThuat, 15 * 60, 60, Ngay,
                 "Access token sống bao lâu."));
             ds.Add(Seconds(SettingKeys.IdentityRefreshTokenLifetime, NhomTaiKhoan, 14 * Ngay, 3600, 365 * Ngay,
-                "Refresh token sống bao lâu (đăng nhập được giữ bao lâu)."));
+                "Người dùng giữ đăng nhập bao lâu thì phải đăng nhập lại."));
             ds.Add(Int(SettingKeys.IdentityPasswordMinLength, NhomTaiKhoan, 8, 6, 128, "ký tự",
                 "Độ dài mật khẩu tối thiểu."));
             ds.Add(Int(SettingKeys.IdentityPasswordMaxLength, NhomTaiKhoan, 128, 16, 1024, "ký tự",
                 "Độ dài mật khẩu tối đa."));
             ds.Add(Long(SettingKeys.IdentityKybFileMaxBytes, NhomTaiKhoan, 10 * MB, 100 * 1024, 50 * MB, "byte",
-                "Kích thước tối đa file giấy phép kinh doanh (KYB)."));
+                "Dung lượng tối đa file giấy phép kinh doanh doanh nghiệp nộp để xác minh."));
             ds.Add(Seconds(SettingKeys.IdentityRefreshTokenCleanupInterval, NhomKyThuat, 120, 60, 7 * Ngay,
                 "Chu kỳ xoá refresh token đã hết hạn."));
-            ds.Add(Text(SettingKeys.IdentityFrontendUrl, NhomTaiKhoan, "http://localhost:5173", 300,
+            ds.Add(Text(SettingKeys.IdentityFrontendUrl, NhomKyThuat, "http://localhost:5173", 300,
                 "Địa chỉ frontend — dùng để dựng link trong email xác thực / đặt lại mật khẩu."));
             ds.Add(Seconds(SettingKeys.IdentityEmailVerifyTtl, NhomTaiKhoan, Ngay, 600, 30 * Ngay,
                 "Link xác thực email sống bao lâu."));
@@ -614,15 +610,15 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Long(SettingKeys.IdentityAvatarMaxBytes, NhomTaiKhoan, 2 * MB, 50 * 1024, 20 * MB, "byte",
                 "Kích thước tối đa ảnh đại diện."));
             ds.Add(Text(SettingKeys.IdentityLevelRules, NhomTaiKhoan, "2=50/50;3=200/65;4=1000/75;5=5000/85", 200,
-                "Điều kiện lên cấp: cấp=số nhãn được duyệt/uy tín tối thiểu, ngăn cách bằng ';'. Sai định dạng thì dùng mặc định."));
+                "Điều kiện lên cấp, dạng cấp=số nhãn được duyệt/uy tín tối thiểu, ngăn cách bằng dấu ';' (vd 2=50/50: lên cấp 2 cần 50 nhãn và uy tín 50). Sai định dạng thì dùng mặc định."));
             ds.Add(Text(SettingKeys.IdentityTwoFactorIssuer, NhomTaiKhoan, "DATN Crowd", 50,
-                "Tên hiện trong ứng dụng xác thực (Google Authenticator...) khi người dùng bật 2FA (FC-04)."));
+                "Tên hiện trong ứng dụng xác thực (Google Authenticator...) khi người dùng bật xác thực 2 lớp."));
             ds.Add(Seconds(SettingKeys.IdentityTwoFactorChallengeTtl, NhomTaiKhoan, 5 * 60, 60, 30 * 60,
-                "Đăng nhập đúng mật khẩu của tài khoản bật 2FA: có bao lâu để nhập mã 6 số."));
+                "Tài khoản bật xác thực 2 lớp: sau khi nhập đúng mật khẩu có bao lâu để nhập mã 6 số."));
             ds.Add(Int(SettingKeys.IdentityTwoFactorMaxAttempts, NhomTaiKhoan, 5, 1, 20, "lần",
-                "Số lần nhập sai mã 2FA tối đa cho MỘT lần đăng nhập; hết lượt phải đăng nhập lại bằng mật khẩu (chống dò mã 6 số)."));
+                "Số lần nhập sai mã xác thực 2 lớp tối đa cho MỘT lần đăng nhập; hết lượt phải đăng nhập lại bằng mật khẩu (chống dò mã)."));
             ds.Add(Int(SettingKeys.IdentityAdultAge, NhomTaiKhoan, 18, 16, 21, "tuổi",
-                "Tuổi tối thiểu để xem dự án nội dung nhạy cảm (mục 2.9, VD-P-04). Tính từ ngày sinh trên giấy tờ đã được admin xác minh."));
+                "Tuổi tối thiểu để xem dự án nội dung nhạy cảm. Tính từ ngày sinh trên giấy tờ đã được admin xác minh."));
             ds.Add(Seconds(SettingKeys.IdentityLevelRecalcInterval, NhomKyThuat, 5, 1, 3600,
                 "Identity tính lại cấp / huy hiệu cho labeler vừa có bài được chấp nhận hoặc vừa đổi uy tín sau mỗi khoảng này (số câu được chấp nhận đọc qua gRPC từ project-svc; project-svc không trả lời thì vòng sau thử lại)."));
             ds.Add(Seconds(SettingKeys.IdentityStatsCacheTtl, NhomKyThuat, 60, 0, 3600,
@@ -634,20 +630,10 @@ namespace Crowd.BuildingBlocks.Settings
                 "Loại event KHÔNG lưu chi tiết vào nhật ký audit (tần suất cao, do hệ thống / luồng gán nhãn sinh ra — vẫn được ĐẾM cho báo cáo tổng quan)."));
             ds.Add(Int(SettingKeys.AdminAuditRetentionDays, NhomKyThuat, 365, 7, 3650, "ngày",
                 "Giữ nhật ký audit bao nhiêu ngày."));
-            ds.Add(Int(SettingKeys.OpsDlqAlertThreshold, NhomKyThuat, 1, 1, 1000000, "message",
-                "Một hàng đợi DLQ có từ bấy nhiêu message trở lên thì cảnh báo (message vào DLQ = tiền / trạng thái có thể đang đứng)."));
-            ds.Add(Seconds(SettingKeys.OpsDlqCheckInterval, NhomKyThuat, 60, 10, 3600,
-                "Chu kỳ admin-svc đọc độ sâu các DLQ qua RabbitMQ management API."));
-            ds.Add(Seconds(SettingKeys.OpsAlertRepeat, NhomKyThuat, 3600, 60, 86400,
-                "DLQ vẫn còn message sau khoảng này thì cảnh báo lại (tránh spam mỗi chu kỳ)."));
-            ds.Add(Text(SettingKeys.OpsAlertEmail, NhomKyThuat, "", 200,
-                "Email nhận cảnh báo vận hành (DLQ). Trống = chỉ ghi log và hiện trên màn hình admin."));
-
-            // ================= MEDIA (bao ve du lieu) =================
             ds.Add(Bool(SettingKeys.MediaWatermarkEnabled, NhomBaoVeDuLieu, true,
-                "Gắn watermark chìm (nhúng thẳng người xem) vào ảnh / âm thanh / video phát cho labeler / reviewer / khách cổng link."));
-            ds.Add(Int(SettingKeys.MediaWatermarkStrength, NhomBaoVeDuLieu, 24, 6, 80, "bước QIM",
-                "Độ mạnh watermark chìm: lớn thì bền hơn với nén JPEG nhưng dễ lộ hơn. Đổi giá trị thì ảnh đã phát trước đó VẪN giải mã được (bộ giải thử mọi bước 6–80)."));
+                "Gắn dấu chìm (không nhìn thấy, mang danh tính người xem) vào ảnh / âm thanh / video phát cho người làm, người duyệt và khách cổng link — để truy ra ai làm lộ dữ liệu."));
+            ds.Add(Int(SettingKeys.MediaWatermarkStrength, NhomBaoVeDuLieu, 24, 6, 80, "mức",
+                "Độ mạnh dấu chìm: lớn thì khó bị mất khi file bị nén lại nhưng dễ nhìn thấy hơn. Đổi giá trị thì file đã phát trước đó VẪN truy được người xem."));
 
             // ================= GATEWAY =================
             ds.Add(Int(SettingKeys.GatewayRateLimitPerMinute, NhomKyThuat, 600, 10, 1000000, "request/phút",
@@ -695,6 +681,16 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(new SettingDefinition(SettingKeys.ConsumersPrefetchCount, NhomKyThuat, SettingType.SoNguyen, JsonValue.Create(10), 1, 1000,
                 "message", SettingEffect.Restart,
                 "Số message broker đẩy tới mỗi consumer trước khi ack. Có tác dụng khi service khởi động lại."));
+            ds.Add(Seconds(SettingKeys.ConsumersRetryMaxDelay, NhomKyThuat, 30, 0, 600,
+                "Event xử lý lỗi (lỗi kỹ thuật) được thử lại sau 1, 3, 9, 27... giây — không chờ quá mức này. Trong lúc chờ, hàng đợi đó tạm dừng nhận event khác. 0 = thử lại ngay."));
+            ds.Add(Int(SettingKeys.OpsDlqAlertThreshold, NhomKyThuat, 1, 1, 1000000, "message",
+                "Một hàng lỗi (DLQ) có từ bấy nhiêu message trở lên thì báo đội kỹ thuật. Chỉ lỗi kỹ thuật mới vào DLQ; ca nghiệp vụ cần người xử lý nằm ở hàng đợi duyệt."));
+            ds.Add(Seconds(SettingKeys.OpsDlqCheckInterval, NhomKyThuat, 60, 10, 3600,
+                "Chu kỳ admin-svc đọc số message trong các DLQ (RabbitMQ management API) — cũng là độ trễ của thẻ “Tình trạng hệ thống”."));
+            ds.Add(Seconds(SettingKeys.OpsAlertRepeat, NhomKyThuat, 3600, 60, 86400,
+                "DLQ vẫn còn message sau khoảng này thì gửi lại email cảnh báo (tránh gửi mỗi chu kỳ)."));
+            ds.Add(Text(SettingKeys.OpsAlertEmail, NhomKyThuat, "", 200,
+                "Email đội kỹ thuật nhận cảnh báo lỗi hệ thống (DLQ có message). Trống = chỉ ghi log và hiện trên thẻ “Tình trạng hệ thống”."));
             ds.Add(Seconds(SettingKeys.SettingsReloadInterval, NhomKyThuat, 5, 1, 3600,
                 "Mỗi service đọc lại bản sao setting từ DB của nó sau mỗi khoảng này."));
             ds.Add(Seconds(SettingKeys.SettingsSnapshotInterval, NhomKyThuat, 300, 10, Ngay,
@@ -702,24 +698,30 @@ namespace Crowd.BuildingBlocks.Settings
 
             // ================= CONG LINK (P2) =================
             ds.Add(Bool(SettingKeys.GateEnabled, NhomCongLink, true,
-                "Tắt = trang vượt link chỉ chuyển thẳng tới đích, không phát câu hỏi, không trả tiền sharer."));
+                "Tắt = trang vượt link chỉ chuyển thẳng tới đích, không phát câu hỏi, không trả tiền người chia sẻ link."));
             ds.Add(Many(SettingKeys.GateAllowedTools, NhomCongLink, "classification,pairwise,number,bbox,keypoint,span", 200, CongCuGanNhan,
                 "Loại công cụ khách vãng lai làm được ở trang vượt link (vài giây, không uy tín). Dự án bật cổng link mà có công cụ ngoài danh sách thì KHÔNG publish được."));
             ds.Add(Seconds(SettingKeys.GateCountdown, NhomCongLink, 8, 0, 120,
-                "Đếm ngược tối thiểu trước khi khách nộp bài (server kiểm, không chỉ là giao diện)."));
+                "Đếm ngược tối thiểu trước khi khách nộp bài (hệ thống kiểm tra thật, không bỏ qua được)."));
             ds.Add(Int(SettingKeys.GateGoldPerSession, NhomCongLink, 1, 1, 5, "câu",
                 "Số câu vàng (đã biết đáp án) mỗi lượt vượt link."));
             ds.Add(Int(SettingKeys.GateRealPerSession, NhomCongLink, 2, 1, 10, "câu",
                 "Số câu thật (cần thu thập nhãn) mỗi lượt vượt link."));
             ds.Add(Seconds(SettingKeys.GateSessionTtl, NhomCongLink, 600, 60, 3600,
                 "Bộ câu hỏi đã phát sống bao lâu."));
-            ds.Add(Seconds(SettingKeys.GateTokenTtl, NhomCongLink, 180, 30, 900,
+            ds.Add(Seconds(SettingKeys.GateTokenTtl, NhomKyThuat, 180, 30, 900,
                 "Token mở link đích dùng một lần, sống bao lâu (VD-L-02)."));
             ds.Add(Seconds(SettingKeys.GateIpDedupeWindow, NhomCongLink, Ngay, 0, 30 * Ngay,
-                "Mỗi IP chỉ tính một lượt có tiền cho mỗi link trong khoảng này (đặc tả: 24 giờ)."));
+                "Mỗi địa chỉ IP chỉ tính một lượt có tiền cho mỗi link trong khoảng này."));
             ds.Add(Int(SettingKeys.GateMaxLabelsPerSample, NhomCongLink, 5, 1, 1000, "nhãn",
                 "Mỗi mẫu nhận tối đa bấy nhiêu nhãn từ cổng link."));
-            ds.Add(Seconds(SettingKeys.GateCacheRefreshInterval, NhomCongLink, 60, 5, 3600,
+            ds.Add(Long(SettingKeys.GateUnitPriceVnd, NhomCongLink, 1000, 1, 10000000, "đ/nhãn",
+                "Đơn giá MỖI nhãn khách vãng lai gán ở cổng link (chốt vào dự án lúc publish). Chỉ admin đặt; doanh nghiệp chỉ được thông báo mức này và tự đặt ngân sách cổng."));
+            ds.Add(Int(SettingKeys.GateMaxFailsBeforeBlock, NhomCongLink, 3, 1, 100, "lần",
+                "Khách vãng lai trượt câu kiểm tra đủ bấy nhiêu lần (tính theo địa chỉ IP, trong khoảng “Thời gian chặn IP trượt cổng”) thì bị chặn IP."));
+            ds.Add(Seconds(SettingKeys.GateBlockDuration, NhomCongLink, Ngay, 60, 30 * Ngay,
+                "Chặn IP bao lâu khi trượt quá số lần cho phép. Cũng là khoảng đếm số lần trượt và thời gian khoá một link với IP đã trượt link đó."));
+            ds.Add(Seconds(SettingKeys.GateCacheRefreshInterval, NhomKyThuat, 60, 5, 3600,
                 "Gate nạp lại bộ nhớ đệm dự án / mẫu / link từ bản sao sau mỗi khoảng này."));
             ds.Add(Seconds(SettingKeys.GateEventFlushInterval, NhomKyThuat, 1, 0.2, 60,
                 "Gate chuyển lượt vượt từ Redis Stream sang outbox + ClickHouse sau mỗi khoảng này."));
@@ -730,19 +732,19 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Int(SettingKeys.LinkCodeLength, NhomCongLink, 7, 5, 12, "ký tự",
                 "Độ dài mã link ngẫu nhiên."));
             ds.Add(Int(SettingKeys.LinkBulkMax, NhomCongLink, 100, 1, 1000, "link",
-                "Rút gọn hàng loạt tối đa bấy nhiêu link mỗi lần (FS-03)."));
+                "Rút gọn hàng loạt tối đa bấy nhiêu link mỗi lần."));
             ds.Add(Int(SettingKeys.LinkReportReviewThreshold, NhomCongLink, 3, 1, 1000, "báo cáo",
                 "Link bị báo cáo từ bấy nhiêu IP khác nhau thì vào hàng đợi kiểm duyệt."));
             ds.Add(Seconds(SettingKeys.LinkScanInterval, NhomKyThuat, 2, 1, 3600,
                 "Worker quét link chờ kiểm duyệt (Safe Browsing) sau mỗi khoảng này."));
             ds.Add(Int(SettingKeys.LinkReferralPercent, NhomCongLink, 10, 0, 50, "%",
-                "Người giới thiệu hưởng phần trăm này trên doanh thu cổng link của người được mời (FS-08). Lấy từ phần của nền tảng."));
+                "Người giới thiệu hưởng phần trăm này trên doanh thu cổng link của người được mời. Lấy từ phần của nền tảng."));
             ds.Add(Int(SettingKeys.LinkReferralMaxPerIp, NhomCongLink, 2, 1, 1000, "tài khoản",
                 "Một người giới thiệu đã có bấy nhiêu người nhập mã từ CÙNG một IP trong 24 giờ thì người tiếp theo bị đánh dấu nghi lạm dụng (chưa tính hoa hồng, chờ admin xét)."));
             ds.Add(Int(SettingKeys.LinkReferralBurstPerHour, NhomCongLink, 10, 1, 100000, "tài khoản",
                 "Một người giới thiệu đã có bấy nhiêu người nhập mã trong 1 giờ thì người tiếp theo bị đánh dấu nghi lạm dụng (đột biến)."));
             ds.Add(Long(SettingKeys.LinkReferralMinEarningsVnd, NhomCongLink, 50000, 0, 1e12, "đồng",
-                "Chỉ trả hoa hồng sau khi người được mời đã tự kiếm được tổng bấy nhiêu (chống tài khoản clone tự mời nhau — VD-L-05)."));
+                "Chỉ trả hoa hồng sau khi người được mời đã tự kiếm được tổng bấy nhiêu (chống tạo tài khoản ảo để tự mời nhau)."));
             ds.Add(Seconds(SettingKeys.LinkReferralClaimWindow, NhomCongLink, 7 * Ngay, 0, 365 * Ngay,
                 "Tài khoản mới tạo trong khoảng này mới nhập được mã giới thiệu."));
 

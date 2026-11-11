@@ -28,7 +28,6 @@ namespace Crowd.Project.Infrastructure.Persistence
 
         public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
 
-        public DbSet<Dataset> Datasets => Set<Dataset>();
 
         public DbSet<Sample> Samples => Set<Sample>();
 
@@ -78,7 +77,6 @@ namespace Crowd.Project.Infrastructure.Persistence
 
             modelBuilder.ApplyConfiguration(new LabelingProjectConfiguration());
             modelBuilder.ApplyConfiguration(new ProjectMemberConfiguration());
-            modelBuilder.ApplyConfiguration(new DatasetConfiguration());
             modelBuilder.ApplyConfiguration(new SampleConfiguration());
             modelBuilder.ApplyConfiguration(new GoldItemConfiguration());
             modelBuilder.ApplyConfiguration(new EntranceAttemptConfiguration());

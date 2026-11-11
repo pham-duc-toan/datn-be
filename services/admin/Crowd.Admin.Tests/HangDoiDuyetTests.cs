@@ -85,14 +85,29 @@ namespace Crowd.Admin.Tests
         }
 
         [Fact]
-        public void Event_khong_lien_quan_bo_qua()
+        public void Viec_can_xu_ly_tay_mo_roi_dong_giu_mo_ta()
         {
-            Assert.Null(Chieu("project.graded", "{}"));
-            Assert.Null(Chieu("user.registered", "{}"));
-            foreach (string loai in HangDoiDuyet.LoaiEvent)
-            {
-                Assert.Contains('.', loai);
-            }
+            ThayDoiDon? mo = Chieu("manual_action.required",
+                "{\"actionId\":\"" + A + "\",\"kind\":\"thuong_khong_chi_duoc\",\"title\":\"Không trả được thưởng\","
+                + "\"description\":\"Ký quỹ đã hoàn\",\"projectId\":\"" + B + "\",\"userId\":null,\"amountVnd\":50000,"
+                + "\"sourceEventType\":\"project.graded\",\"sourceEventId\":\"" + B + "\"}");
+            Assert.NotNull(mo);
+            Assert.Equal("manual", mo!.Kind);
+            Assert.Equal(A, mo.SubjectId);
+            Assert.Equal(KieuThayDoi.Mo, mo.Kieu);
+            Assert.Equal("Không trả được thưởng", mo.Title);
+            Assert.Equal("Ký quỹ đã hoàn", mo.Detail);
+            Assert.Equal(B, mo.ProjectId);
+            Assert.Null(mo.RequesterId);
+            Assert.Equal(50000L, mo.AmountVnd);
+
+            ThayDoiDon? xong = Chieu("manual_action.resolved", "{\"actionId\":\"" + A + "\",\"note\":\"đã chuyển tay\"}", "admin");
+            Assert.Equal(KieuThayDoi.Dong, xong!.Kieu);
+            Assert.Equal("resolved", xong.Status);
+            Assert.Equal("đã chuyển tay", xong.Note);
+            // Ghi chu xu ly vao Note, KHONG dung Detail (mo ta viec giu nguyen).
+            Assert.Null(xong.Detail);
+            Assert.Contains("manual", HangDoiDuyet.LoaiDon);
         }
 
         [Fact]
@@ -107,6 +122,17 @@ namespace Crowd.Admin.Tests
             Assert.Equal("ledger-svc.annotation-approved.dlq", ds[0].Key);
             Assert.Equal(3L, ds[0].Value);
             Assert.Equal(0L, ds[2].Value);
+        }
+
+        [Fact]
+        public void Event_khong_lien_quan_bo_qua()
+        {
+            Assert.Null(Chieu("project.graded", "{}"));
+            Assert.Null(Chieu("user.registered", "{}"));
+            foreach (string loai in HangDoiDuyet.LoaiEvent)
+            {
+                Assert.Contains('.', loai);
+            }
         }
     }
 }

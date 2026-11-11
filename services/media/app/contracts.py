@@ -1,4 +1,4 @@
-"""Payload cac event media-svc nhan va phat: dong bo setting, video vua nap (dataset.ingested → video.prepared).
+"""Payload cac event media-svc nhan va phat: dong bo setting, video vua nap (samples.ingested → video.prepared).
 
 PHAI khop tung truong voi record C# trong shared/contracts (anh chup: contracts/payloads.snapshot.txt).
 Ben C# them truong ma ben nay chua khai thi message bi tu choi → DLQ: lech hop dong phai lo ra ngay.
@@ -56,13 +56,10 @@ class IngestedSample(HopDong):
     metadata: Any
 
 
-class DatasetIngested(Payload):
-    EVENT_TYPE = "dataset.ingested"
+class SamplesIngested(Payload):
+    EVENT_TYPE = "samples.ingested"
 
     project_id: uuid.UUID
-    dataset_id: uuid.UUID
-    batch_index: int
-    batch_count: int
     samples: list[IngestedSample]
 
 

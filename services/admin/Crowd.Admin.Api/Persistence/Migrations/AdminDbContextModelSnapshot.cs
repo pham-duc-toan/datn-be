@@ -167,6 +167,11 @@ namespace Crowd.Admin.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("decided_by");
 
+                    b.Property<string>("Detail")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("detail");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -185,6 +190,10 @@ namespace Crowd.Admin.Api.Persistence.Migrations
                     b.Property<DateTimeOffset>("OpenedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("opened_at");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
 
                     b.Property<Guid?>("RequesterId")
                         .HasColumnType("uuid")
