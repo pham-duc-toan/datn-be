@@ -21,11 +21,11 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `user.unblocked` | notification | Bao + email "da mo khoa". project KHONG nghe nua (3.24): mo bai hoi identity qua gRPC `IdentityData` |
 | `level.changed` | notification | FL-12: identity tinh lai cap tu so cau duoc chap nhan (doc qua gRPC `LabelerStatsData` tu `project.attempts`, sau `project.grading_applied` / khieu nai chap nhan) + uy tin (`identity.level_rules`). project KHONG nghe nua (3.24, bo `labeler_cache`) |
 | `badge.awarded` | notification | FL-12: huy hieu moi (moc 100 / 1000 / 10000 nhan, uy tin cao) |
-| `business.kyb_submitted` | admin | Ho so cho duyet → muc `kyb` trong hang doi duyet chung (`GET /admin/approvals`) |
+| `business.kyb_submitted` | admin | Ho so cho duyet (admin ghi audit; duyet o `GET /kyb/admin` — hang doi duyet chung da bo, 3.33) |
 | `business.verified` | notification | Bao + email "da xac minh". project KHONG con nghe: quyen publish doc claim `kyb_verified` trong access token (KYB chi chan publish, khong chan nap tien) |
 | `business.kyb_rejected` | notification | Bao + email (bat buoc) kem ly do; doanh nghiep sua va nop lai |
 | `user.two_factor_changed` | notification | FC-04: `{userId, enabled, reason: enabled\|disabled\|admin_reset}` — thong bao + email BAT BUOC (loai `bao_mat`) |
-| `user.identity_verification_submitted` | notification, admin | FP-05: nop ho so xac minh danh tinh → muc `identity` trong hang doi duyet chung; bao nguoi nop "da nhan" |
+| `user.identity_verification_submitted` | notification, admin | FP-05: nop ho so xac minh danh tinh (admin ghi audit; duyet o `/users/admin/identity-verifications` — 3.33) |
 | `user.identity_verified` / `user.identity_rejected` | notification, admin | Ket qua xac minh danh tinh (kem ly do khi tu choi); dong muc hang doi |
 | `sensitive_document.viewed` | admin (audit) | S-07: admin lay link xem giay phep KYB / anh giay to — khong ai xu ly, chi de nhat ky audit ghi ai xem giay to cua ai |
 
@@ -57,7 +57,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 |---|---|---|
 | `attempt.submitted` **v2** | quality | 3.18: labeler nop CA BAI; nhan `submitted` da ghi cung transaction trong project-svc. **v2 (3.22): chi la TIN HIEU** — bo `Answers` (cau tra loi + noi dung mau), them `AnsweredCount`; cau vang chi mang `GoldCorrect` / `GoldTotal`. quality: xep bai vao `pending_attempts`, worker doc bai + nhan qua gRPC de chong gian lan (FM-07: giay / cau, chuoi cung lop, chung IP / thiet bi) va nhung cau tra loi mo; danh dau du an can tinh lai DS |
 | `project.collection_finished` | quality | 3.18: dong thu bai (`du_suat` / `het_han` / `ket_thuc_som`), danh sach bai phai cham + cau bi loai (bao loi duoc chap nhan). Running → Grading cung transaction. quality (3.22): ghi yeu cau cham roi doc de bai / bai nop / nhan qua gRPC — moi bai da commit truoc event nay; project-svc khong tra loi thi worker cham lai |
-| `attempt.appeal_opened` | admin | 3.18: labeler truot khieu nai CA BAI → muc `appeal` trong hang doi duyet chung (`subjectId` = attemptId) |
+| `attempt.appeal_opened` | admin | 3.18: labeler truot khieu nai CA BAI (admin ghi audit; phan xu o `GET /tasks/admin/appeals` — 3.33) |
 | `attempt.appeal_resolved` | ledger, identity, notification, admin | Admin phan xu. `Accepted`: nhan cua bai vao ket qua (ngay trong project-svc), tra thuong, cong cap do (`AnsweredCount`); dong muc hang doi |
 | ~~`project.settled`~~ | — | **DA BO (gop service)**: het han khieu nai → project-svc chot va chuyen Completed cung transaction, phat thang `project.completed` |
 | ~~`assignment.submitted`~~, ~~`task.leased`~~, ~~`task.lease_expired`~~, ~~`task.redundancy_reached`~~, ~~`task.redundancy_changed`~~, ~~`gold.answered`~~ | — | **DA BO (3.18)**: khong con lease / redundancy / cau vang tron trong luong task |
@@ -113,7 +113,7 @@ doanh nghiep — thuat toan gop chi con o quality). Stub Python sinh san o `serv
 | `hold.expired` | notification | Da rut duoc. Thong bao GOP (sharer: moi luot click mot khoan treo) |
 | `payout.requested` | payment | Lenh rut DA DUYET (tu duyet theo nguong hoac admin duyet) -> chuyen sang tich hop ngoai. Lenh cho duyet KHONG phat |
 | `withdrawal.rejected` | notification | Admin tu choi lenh rut cho duyet; tien da ve vi kha dung. Bao + email (bat buoc) kem ly do |
-| `withdrawal.review_requested` | admin | Lenh rut vao hang doi duyet (khong tu duyet) → muc `withdrawal`; dong boi `payout.requested` / `withdrawal.rejected` |
+| `withdrawal.review_requested` | admin | Lenh rut cho admin duyet (khong tu duyet) — trang rut tien; dong boi `payout.requested` / `withdrawal.rejected` |
 | `refund.issued` | notification | Hoan ky quy (huy / dong du an) |
 | ~~`dispute.opened`~~, ~~`dispute.resolved`~~ | — | **DA BO (3.18)**: khong con tranh chap nhan da duyet (khong con duyet tung nhan) |
 
@@ -169,13 +169,13 @@ bang API cua chinh service chu (project, identity, link); service chu phat event
 `business.verified`, `link.disabled`...).
 
 admin-svc nghe **moi** event (routing key `#`, queue `admin-svc.audit`): ghi nhat ky audit, dem thong ke ngay, va dung
-**hang doi duyet chung** (`approval_requests`) tu cac event mo / dong don cua 8 luong duyet (xem `HangDoiDuyet`).
+bang **viec can xu ly tay** (`manual_actions`) tu `manual_action.required` / `.resolved`. Hang doi duyet chung (`approval_requests`) da bo (3.33).
 
 | Event | Consumer | Muc dich |
 |---|---|---|
 | `system.announcement` | notification | FM-09: thong bao toan he thong theo doi tuong (`all` / `labeler` / `business`), tuy chon gui email |
 | `manual_action.required` | admin | Kien truc 3.29 (loai 2): EventConsumer dung chung phat thay handler nem `CanXuLyTayException` — `{actionId, kind, title, description, projectId?, userId?, amountVnd?, sourceEventType, sourceEventId}`; admin dua vao hang doi duyet kind `manual`. Producer = service cua consumer |
-| `manual_action.resolved` | admin (audit) | Admin bam "Da xu ly" (`POST /admin/approvals/manual/{id}/resolve`) — `{actionId, note}`, actor = admin |
+| `manual_action.resolved` | admin (audit) | Admin bam "Da xu ly" (`POST /admin/manual-actions/{id}/resolve`) — `{actionId, note}`, actor = admin |
 | `ops.dlq_alert` | notification | VD-D-06 / D-12, kien truc 3.29 (loai 3): DLQ vuot `ops.dlq_alert_threshold` (admin-svc doc RabbitMQ management API) — email toi `ops.alert_email` (doi ky thuat). Nay DLQ chi con loi ky thuat |
 | `setting.changed` | (admin ghi audit) | Admin doi mot setting: `{key, value, settingVersion, changedBy, changedAt}`. Tu 3.32 khong ai dong bo theo event nay: moi service doc view `v_settings` moi `settings.reload_interval` |
 | ~~`settings.snapshot`~~ | — | **DA BO (3.32)**: moi service doc thang view `v_settings` cua admin_db vao bo nho |

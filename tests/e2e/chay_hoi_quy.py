@@ -3,7 +3,7 @@ import os, re, subprocess, sys, time
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import G, GOC_REPO, RABBIT_MGMT, RABBIT_PASSWORD, RABBIT_USER, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
+from moi_truong import G, GOC_REPO, RABBIT_MGMT, RABBIT_PASSWORD, RABBIT_USER, URL_GATE, URL_LINK, cho_moi_noi_doc_lai_setting, rabbit_container, sql_container  # noqa: E402,F401
 from tai_khoan_e2e import mo_rong_gioi_han, tra_gioi_han  # noqa: E402
 
 S = os.path.dirname(os.path.abspath(__file__))
@@ -82,7 +82,7 @@ ok &= chay("cho_du_an", "e2e_cho_du_an.py")
 
 dat("ledger.gate_batch_interval", 2)
 dat("ledger.gate_payout_mode", "batched")
-time.sleep(3)
+cho_moi_noi_doc_lai_setting(G, admin())  # 3.32: ledger doc lai view v_settings moi chu ky
 try:
     ok &= chay("p2_cong_link_batched", "e2e_p2.py")
 finally:

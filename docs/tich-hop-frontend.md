@@ -2752,28 +2752,18 @@ Ngôn ngữ áp cho **thông báo và email tạo sau đó** (thông báo cũ gi
 
 Loại thông báo mới (mục 14): `bao_mat` (bật / tắt 2FA — email bắt buộc), `xac_minh_danh_tinh`, `loi_moi_du_an`. Thông báo cũ hơn `notification.retention_days` (180 ngày) bị xoá.
 
-### 17.10 Admin: hàng đợi duyệt chung, mẫu bài toán, vận hành
+### 17.10 Admin: việc cần xử lý tay, mẫu bài toán, vận hành
 
-**Hàng đợi duyệt chung** — một màn hình cho mọi loại đơn chờ duyệt (đọc từ event, cập nhật trễ vài giây):
+**Hàng đợi duyệt chung đã bỏ (kiến trúc 3.33):** không còn `GET /admin/approvals` / `/summary` và trang `/admin/duyet`. Mỗi loại đơn duyệt ở trang riêng, gọi thẳng API của service chủ: KYB `GET /kyb/admin`, xác minh `/users/admin/identity-verifications`, dự án `GET /projects/pending-approval`, rút tiền `/ledger/admin/withdrawals`, khiếu nại `GET /tasks/admin/appeals`, link `GET /links/admin/review-queue`, giới thiệu `GET /links/admin/referrals/flagged`. Trang tổng quan admin chỉ có lối tắt tới các trang này (không đếm).
+
+**Việc cần xử lý tay** (kiến trúc 3.29) — trang `/admin/viec-tay`:
 
 ```http
-GET  /admin/approvals?kind=&status=pending&page=&pageSize=
-GET  /admin/approvals/summary            → { totalPending, kinds: [ { kind, pending, oldestOpenedAt, oldestWaitingHours } ] }
+GET  /admin/manual-actions?status=pending|resolved|all&page=&pageSize=      (mặc định pending, mới nhất trước)
+POST /admin/manual-actions/{actionId}/resolve   { "note": "Đã chuyển tay 50.000 đ" }   → 204
 ```
 
-Mỗi mục `{ id, kind, subjectId, status, title, requesterId, amountVnd, note, projectId, detail, openedAt, decidedAt, decidedBy }` (`projectId`, `detail` chỉ có ở `manual`); `status`: `pending`, `waiting` (dự án chờ ký quỹ), `approved`, `rejected`, `cancelled`, `resolved`. Bấm vào mục thì gọi API duyệt của service chủ theo `kind`:
-
-| kind | subjectId | Xem / duyệt |
-|---|---|---|
-| `kyb` | businessId | `GET /kyb/admin/{id}`, `POST …/approve`, `POST …/reject` |
-| `identity` | userId | `GET /users/admin/identity-verifications/{id}`, `…/approve`, `…/reject` |
-| `project` | projectId | `GET /projects/{id}`, `POST /projects/{id}/approve`, `POST /projects/{id}/reject` |
-| `withdrawal` | withdrawalId | `POST /ledger/admin/withdrawals/{id}/approve`, `…/reject` |
-| `appeal` | annotationId | `POST /annotations/{id}/appeal/resolve { accept, note }` |
-| `dispute` | disputeId | `POST /ledger/admin/disputes/{id}/resolve` |
-| `link` | linkId | `POST /links/admin/{id}/disable`, `POST /links/admin/{id}/dismiss-reports` |
-| `referral` | referredId | `POST /links/admin/referrals/{id}/approve`, `…/reject { reason }` |
-| `manual` | id việc | **Việc cần xử lý tay** (kiến trúc 3.29): hệ thống không tự làm được (vd thưởng không chi được vì ký quỹ đã hoàn). Hiện `title` + `detail` (đã viết bằng lời), link `/admin/du-an/{projectId}` nếu có. Admin xử lý ngoài hệ thống rồi `POST /admin/approvals/manual/{id}/resolve { note }` (ghi chú bắt buộc, 1–1000 ký tự) → `204`; mục chuyển `resolved` ngay, `note` = ghi chú, `detail` giữ nguyên. Lỗi: `400 ghi_chu_khong_hop_le`, `404 khong_tim_thay_viec`, `409 viec_da_xu_ly` |
+Mỗi mục `{ actionId, kind, title, detail, projectId, userId, amountVnd, status, note, openedAt, resolvedAt, resolvedBy }`: hệ thống không tự làm được (vd thưởng không chi được vì ký quỹ đã hoàn). Hiện `title` + `detail` (đã viết bằng lời), link `/admin/du-an/{projectId}` nếu có. Admin xử lý ngoài hệ thống rồi bấm "Đã xử lý" kèm ghi chú (bắt buộc, 1–1000 ký tự); mục chuyển `resolved` ngay, `detail` giữ nguyên. Lỗi: `400 ghi_chu_khong_hop_le`, `404 khong_tim_thay_viec`, `409 viec_da_xu_ly`.
 
 **Giới thiệu nghi lạm dụng (FS-08):** `GET /links/admin/referrals/flagged` → `[ { referrerId, referredId, reasons, createdAt } ]`; `reasons` gồm `trung_ip_nguoi_gioi_thieu`, `nhieu_tai_khoan_cung_ip`, `dot_bien`. Người dùng nhập mã vẫn nhận `204` (không chặn), nhưng hoa hồng chỉ tính sau khi admin chấp nhận.
 
@@ -2885,7 +2875,7 @@ Tiền: bài đạt được trả `rewardVnd` vào **số dư khả dụng ngay
 ### 18.4 Admin
 
 - Khiếu nại bài làm: `GET /tasks/admin/appeals?state=open|accepted|rejected` → `AttemptSummary[]`; `POST /tasks/admin/attempts/{id}/appeal/resolve { "accept": true, "note": "..." }`. Để so bài với đa số: `GET /annotations/projects/{projectId}?attemptId={id}` (nhãn của bài) cạnh `GET /annotations/projects/{projectId}/results` (kết quả gộp).
-- Hàng đợi duyệt chung: loại `appeal` nay là khiếu nại **bài làm** (`subjectId` = attemptId, `note` = "giống đa số A% / ngưỡng T%"); loại `dispute` đã bỏ.
+- (Hàng đợi duyệt chung đã bỏ ở 3.33.) Loại `appeal` từng là khiếu nại **bài làm** (`subjectId` = attemptId, `note` = "giống đa số A% / ngưỡng T%"); loại `dispute` đã bỏ.
 - Tổng quan `GET /admin/stats/overview`: `attemptsSubmitted`, `projectsGraded`, `projectsCompleted`, `labelerPayoutsVnd` (từ `funds.held`: thưởng + doanh thu link + hoa hồng), `appealsOpened`; `daily[]` có `attemptsSubmitted`, `projectsGraded`.
 - Setting mới: `project.pass_threshold_min` / `max` (x, y), `project.max_questions`, `project.min_slots` / `max_slots`, `project.min_reward_vnd`, `task.attempt_duration`, `task.attempt_max_bytes`, `task.appeal_window`, `ledger.reward_hold`.
 - Thông báo mới: loại `ket_qua_bai` (bài đạt / chưa đạt / kết quả khiếu nại; link `/attempts/{attemptId}`), chủ dự án nhận "dự án đã chấm xong". Loại `nhan_duyet`, `nhan_tu_choi`, `tranh_chap` đã bỏ.

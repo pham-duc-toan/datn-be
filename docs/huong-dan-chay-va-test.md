@@ -137,7 +137,7 @@ python tests/e2e/e2e_tong_the.py                   # hoặc từng bộ riêng
 | `e2e_xuat_mo_rong.py` | Khung xoay, track ẩn / hiện lại, xuất yolo-obb / yolo-seg / voc / coco-keypoints / conll / mot, bộ đệm kết quả gộp |
 | `e2e_chi_so_chat_luong.py` | Krippendorff alpha mọi loại công cụ, Fleiss' kappa, STAPLE mặt nạ; quality không còn bảng bản sao, tắt project-svc lúc đóng thu bài → yêu cầu chấm nằm chờ, chạy lại thì worker chấm qua gRPC |
 | `e2e_watermark_av.py` | Watermark âm thanh (FLAC) / video (H.264): tua (Range 206), bộ đệm, admin giải mã ra đúng labeler, tắt bằng setting; video nhỏ (320×240, nhúng mọi khung) và video 720p (`clip-hd.mp4`, chỉ khung đầu + cuối). Cần ffmpeg |
-| `e2e_hang_doi_duyet.py` | Hàng đợi duyệt chung (KYB, dự án, khiếu nại, link, giới thiệu nghi lạm dụng), audit lượt xem giấy tờ (S-07), cổng link chỉ cho công cụ làm nhanh, mẫu bài toán, audit chỉ-ghi-thêm ở mức CSDL, cảnh báo DLQ |
+| `e2e_hang_doi_duyet.py` | Duyệt từng loại đơn ở API của service chủ (KYB, dự án, khiếu nại, link, giới thiệu nghi lạm dụng — hàng đợi chung đã bỏ, 3.33), audit lượt xem giấy tờ (S-07), cổng link chỉ cho công cụ làm nhanh, mẫu bài toán, audit chỉ-ghi-thêm ở mức CSDL, cảnh báo DLQ |
 | `e2e_thong_bao_realtime.py` | Ngôn ngữ thông báo, WebSocket qua gateway (vé dùng một lần, mã đóng 4401), email 2FA bắt buộc, thư mời người chưa có tài khoản, email cảnh báo DLQ, hạn giữ thông báo |
 | `e2e_grpc_phu_thuoc.py` | Đọc chủ dữ liệu qua gRPC thay bản sao (kiến trúc 3.24): mở bài hỏi identity (tụt uy tín có hiệu lực ngay, không còn `labeler_cache`), kết quả dự án do quality gộp + bảng đệm `sample_results` (lần sau dùng lại), cấp độ / xếp hạng đọc số câu từ `project.attempts`. `E2E_PROFILE=demo`: **tắt identity** lúc mở bài → 503, bài đang làm vẫn mở; **tắt quality** → mẫu đã đệm vẫn xem được, mẫu phải tính lại → 503, chạy lại → 200 |
 | `e2e_thanh_vien.py` | Vào dự án (kiến trúc 3.16): mời theo email / userId, một và nhiều người (kết quả từng dòng, giới hạn lô); **VD-S-16**: mời theo email ra cùng một kết quả cho email có / chưa có tài khoản / đã là thành viên / bị chặn, chủ dự án không thấy userId tới khi chấp nhận, lời mời câm, hạn mức email / 24 giờ (429 + `Retry-After`); mã mời (gõ tay, hết lượt, hết hạn, thu hồi, **6 người tranh 3 lượt**, dùng được khi dự án còn Nháp); kiểm cấp độ / uy tín ở `join`, lúc mời, mã mời và **trước** bài test; chế độ `approval` (gửi đơn, trùng, từ chối + thời gian chờ, rút, duyệt, uy tín tụt lúc duyệt, đơn tự đóng khi vào bằng đường khác) và `approval` kèm bài test (đạt → đơn kèm điểm); thông báo cho cả hai phía; nhận task thật sau khi vào. Cấp độ / uy tín đặt thẳng trong `identity_db.labeler_stats` |
@@ -1308,9 +1308,8 @@ Dự án `approval` có bài test đầu vào: không gửi đơn tay được (
 Chi tiết API ở [tích hợp frontend mục 17](tich-hop-frontend.md#17-bổ-sung-đợt-hoàn-thiện-102026); mỗi luồng đều có một bộ E2E ở mục 0.2. Vài lệnh đáng thử trên stack demo (`TOKEN_ADMIN`, `TOKEN_BIZ` lấy như mục 5):
 
 ```bash
-# Hàng đợi duyệt chung + tóm tắt
-curl -s http://localhost:18080/admin/approvals/summary -H "Authorization: Bearer $TOKEN_ADMIN"
-curl -s "http://localhost:18080/admin/approvals?status=pending" -H "Authorization: Bearer $TOKEN_ADMIN"
+# Viec can xu ly tay (hang doi duyet chung da bo — kien truc 3.33)
+curl -s "http://localhost:18080/admin/manual-actions?status=pending" -H "Authorization: Bearer $TOKEN_ADMIN"
 
 # Mẫu bài toán (log lỗi / DLQ: xem Kibana http://localhost:15601 — data view "Crowd logs")
 curl -s http://localhost:18080/templates -H "Authorization: Bearer $TOKEN_BIZ"

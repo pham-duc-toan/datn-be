@@ -238,8 +238,8 @@ namespace Crowd.Admin.Api.Workers
 
                     if (moi == 1)
                     {
-                        // Hang doi duyet chung: chi event lan dau thay (giao lai khong ap dung hai lan).
-                        await HangDoiDuyet.ApDungAsync(db, d.EventType, d.PayloadJson, d.OccurredAt, d.ActorId, d.ActorRole, ct);
+                        // Viec can xu ly tay (3.29): chi event lan dau thay (giao lai khong ap dung hai lan).
+                        await ViecTayService.ApDungAsync(db, d.EventType, d.PayloadJson, d.OccurredAt, d.ActorId, ct);
 
                         await db.Database.ExecuteSqlInterpolatedAsync($@"
                             INSERT INTO stats_daily (day, event_type, count, amount_vnd, fee_vnd)

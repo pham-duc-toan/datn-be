@@ -229,8 +229,8 @@ try:
     kiem("l3 khieu nai ca bai", r.status_code == 200 and r.json()["appealState"] == "open", r.text)
     kiem("khieu nai lan hai → 409", requests.post(G + f"/tasks/attempts/{b3['attemptId']}/appeal", headers=lab["l3"]["h"],
                                                    json={"message": "x"}).status_code == 409)
-    kiem("hang doi admin co don khieu nai ca bai", cho(lambda: any(
-        d.get("subjectId") == b3["attemptId"] for d in requests.get(G + "/admin/approvals?kind=appeal&status=pending", headers=admin).json().get("items", [])), 30))
+    kiem("danh sach khieu nai cua admin co don khieu nai ca bai", cho(lambda: any(
+        d.get("attemptId") == b3["attemptId"] for d in requests.get(G + "/tasks/admin/appeals?state=open", headers=admin).json()), 30))
     r = requests.post(G + f"/tasks/admin/attempts/{b3['attemptId']}/appeal/resolve", headers=admin, json={"accept": True, "note": "Cau mo ho"})
     kiem("admin chap nhan khieu nai", r.status_code == 200, r.text)
     kiem("l3 duoc tra thuong 50.000", cho(lambda: kha_dung(lab["l3"]) == 50000, 30), vi(lab["l3"]))

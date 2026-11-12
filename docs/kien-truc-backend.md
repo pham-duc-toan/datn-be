@@ -859,7 +859,7 @@ Trước bản này chỉ có hai đường: dự án **công khai** thì labele
   - Giải: đọc khung đầu, rồi khung cuối; không ra thì lấy mẫu đều cả video (bản nhúng mọi khung kiểu cũ vẫn giải được).
   - Bộ đệm hai tầng (bản chuẩn theo file, bản đã nhúng theo người xem) nằm trên volume `media-cache` — tạo lại container không mất. Gateway đặt `Timeout` 600 giây riêng cho route xem file.
 
-**Hàng đợi duyệt chung (mục 5) — admin.** Không dựng khung `IRequestProcessor` dùng chung: mỗi service đã có bảng trạng thái của loại đơn mình (`business_profiles`, `identity_verifications`, `projects`, `withdrawals`, `annotations`, `disputes`, `links`, `referrals`) và API duyệt riêng — gộp chúng vào một khung chung là sửa 8 luồng đang chạy mà không thêm khả năng nào. Thay vào đó admin-svc dựng **read model** `approval_requests` từ event (cùng consumer nhận mọi event của audit, cùng transaction, chỉ khi event lần đầu thấy). Event đến lệch thứ tự được xử lý bằng `last_event_at`: event cũ hơn không ghi đè; event *đóng* đến trước *mở* thì ghi sẵn dòng đã đóng. Thêm 5 event còn thiếu để mọi luồng có đủ mở / đóng: `withdrawal.review_requested`, `link.review_requested`, `link.review_dismissed`, `appeal.resolved`, `referral.flagged` / `referral.rejected`. Thêm loại `manual` — việc cần xử lý tay do consumer bất kỳ báo (3.29).
+**Hàng đợi duyệt chung (mục 5) — admin.** ~~Read model `approval_requests` gom đơn chờ duyệt của 8 luồng từ event~~ — **đã bỏ ở mục 3.33**: mỗi loại đơn duyệt ở trang riêng, đọc thẳng API của service chủ; việc cần xử lý tay sang bảng riêng `manual_actions`.
 
 **Mẫu bài toán (FM-03) — admin.** Mẫu = modality + tập nhãn + hướng dẫn + giá gợi ý; tập nhãn kiểm bằng **chính bộ đọc `LabelSchema`** của project-svc. Dự án không tham chiếu mẫu (frontend chép sang) — sửa mẫu không âm thầm đổi dự án đang chạy.
 
@@ -1217,7 +1217,7 @@ Message sai hợp đồng vẫn vào DLQ ngay (loại 3, không thử lại vô 
 **Đánh đổi.**
 - Giãn cách thử lại chạy **trong** consumer (`Task.Delay` trước khi nack): trong lúc chờ, hàng đợi đó tạm dừng nhận event khác (consumer xử lý tuần tự). Tổng chờ tối đa ≈ 1 + 3 + 9 + 27 + 30 ≈ 70 giây cho một event hỏng — chấp nhận được với khối lượng hiện tại; muốn không chặn thì phải dựng hàng chờ thử lại riêng (TTL + dead-letter quay về), phức tạp hơn nhiều. `consumers.retry_max_delay = 0` trở về thử lại ngay như cũ.
 - Loại 2 **không tự làm lại** việc đó: event đã đánh dấu xử lý; admin xử lý ngoài hệ thống (chuyển tay, đối soát) rồi ghi chú. Mô tả nêu rõ cần làm gì.
-- Cột mới `approval_requests.project_id` (link "Xem dự án") và `detail` (mô tả việc, không bị ghi chú xử lý ghi đè).
+- Cột mới `approval_requests.project_id` (link "Xem dự án") và `detail` (mô tả việc, không bị ghi chú xử lý ghi đè). Từ 3.33 việc cần xử lý tay nằm ở bảng riêng `manual_actions`, giữ đủ các cột này.
 - Persistence nay tham chiếu `Crowd.Contracts` (để phát `manual_action.required`).
 
 ### 3.30. Dawid–Skene chạy một lần sau khi chấm, không tính dần lúc thu bài (11/2026)
@@ -1310,7 +1310,7 @@ Mỗi cụm kéo theo consumer, chống event lộn thứ tự (`sequence`, `ver
 
 **Ledger.** Chi hoa hồng đọc `v_referrals` — chỉ quan hệ `active` (duyệt nghi gian lận là luật của link). DB link lỗi → cả lượt rollback và thử lại, không trả thiếu hoa hồng im lặng.
 
-**Còn giữ** (không phải bản sao thuần, hoặc cần quyết riêng): `ledger.project_escrows` (điều khoản tiền chốt lúc ký quỹ — `v_gate_budgets` dựa vào), `admin.approval_requests` (read model hàng đợi duyệt gom từ nhiều service), `audit_events` / `stats_daily` (nhật ký, thống kê), hoá đơn (ảnh chụp pháp lý), `quality.project_reports` (ảnh chụp trước khi dọn).
+**Còn giữ** (không phải bản sao thuần — người dùng chốt giữ): `ledger.project_escrows` (điều khoản tiền chốt lúc ký quỹ, ghi một lần, không bao giờ lệch vì dự án rời Draft là khoá các trường này; `v_gate_budgets` tính trên chính các cột đó), `admin.approval_requests` (bỏ cả tính năng ở mục 3.33), `audit_events` / `stats_daily` (nhật ký, thống kê), hoá đơn (ảnh chụp pháp lý), `quality.project_reports` (ảnh chụp trước khi dọn).
 
 **Thay đổi CSDL.** Migration project `ViewChoCongLink`; ledger `ViewNganSachCong`, `BoBanSaoGioiThieu`; link `ViewLinkChoCong`, `ViewGioiThieuChoLedger`; gate `BoBanSaoCongLink`; admin `ViewSettingChoServiceKhac`; identity `ViewLienHeVaBoUyTinSaoChep`; notification `BoBanSaoLienHe`; `BoBanSaoSetting` ở 7 service C#; quality `002_bo_settings_replica.sql`, `003_view_cho_service_khac.sql`. Bỏ event `gate.budget_changed`, `settings.snapshot`, `settings.snapshot_requested`; bỏ `contracts/grpc/project/v1/gate_data.proto`.
 
@@ -1320,6 +1320,24 @@ Mỗi cụm kéo theo consumer, chống event lộn thứ tự (`sequence`, `ver
 - Khởi động phụ thuộc DB chủ: admin_db chưa sẵn sàng thì service chưa nhận việc (warm-up chờ); gate mới khởi động cần project / ledger / link DB. Đang chạy thì gate vẫn phục vụ từ bộ nhớ khi DB chủ tắt (e2e: tắt `db-project`, gate vẫn trả lời).
 - Độ trễ: đổi setting, tạm dừng dự án, khoá link, hết ngân sách có hiệu lực sau tối đa một chu kỳ (5 giây) thay vì gần như tức thì qua event. Ledger vẫn là bên chặn cuối khi chi tiền cổng.
 - Tải đọc nhỏ: mỗi instance đọc `v_settings` (190 dòng) mỗi 5 giây; mỗi gate đọc danh sách dự án / link / ngân sách mỗi 5 giây.
+
+### 3.33. Bỏ hàng đợi duyệt chung — mỗi loại đơn duyệt ở trang riêng (11/2026)
+
+**Vấn đề.** `admin.approval_requests` là read model gom đơn chờ duyệt của 8 luồng (KYB, xác minh danh tính, dự án, rút tiền, khiếu nại bài làm, link bị báo cáo, giới thiệu nghi lạm dụng, việc cần xử lý tay) từ ~20 loại event mở / đóng đơn. Để giữ nó đúng phải xử lý event lộn thứ tự (`last_event_at`), đơn "đóng trước khi mở", dự án "chờ ký quỹ → chờ duyệt"... — trong khi admin đã có **trang duyệt riêng** cho từng loại, đọc thẳng API của service chủ. Người dùng chốt: chi phí lớn cho một tính năng không quan trọng.
+
+**Quyết định.**
+
+| | Làm gì |
+|---|---|
+| Bỏ | bảng `approval_requests`, `HangDoiDuyet` (phân loại event), `GET /admin/approvals`, `GET /admin/approvals/summary`; FE: trang `/admin/duyet`, thẻ đếm "Chờ duyệt" ở trang tổng quan |
+| Giữ (bảng riêng) | **Việc cần xử lý tay** (3.29) — KHÔNG phải bản sao mà là dữ liệu riêng của admin dựng từ `manual_action.required` (thường liên quan tiền): bảng `manual_actions` (`action_id` PK, `kind`, `title`, `detail`, `project_id`, `user_id`, `amount_vnd`, `status` pending/resolved, `note`, `opened_at`, `resolved_at`, `resolved_by`). API `GET /admin/manual-actions?status=pending|resolved|all`, `POST /admin/manual-actions/{actionId}/resolve { note }`. FE: trang `/admin/viec-tay` |
+| Thay | Trang tổng quan admin: khối "Việc cần duyệt" gồm lối tắt tới từng trang duyệt (không con số — đếm thì phải gọi API của 6 service) |
+
+Các event mở / đóng đơn (`business.kyb_submitted`, `withdrawal.review_requested`, `link.review_requested`, `referral.flagged`, `attempt.appeal_opened`...) vẫn phát — notification và nhật ký audit vẫn dùng.
+
+**Thay đổi CSDL.** Migration admin `BoHangDoiDuyetChung` (DROP `approval_requests`, CREATE `manual_actions`).
+
+**Đánh đổi.** Admin không còn một màn hình "mọi thứ đang chờ" và không thấy tổng số đơn chờ trên trang tổng quan — phải mở từng trang. Bù lại bỏ được một read model dễ lệch và toàn bộ logic dựng nó.
 
 ## 4. Dữ liệu chéo — ba luật cứng
 
@@ -1366,7 +1384,7 @@ Ranh giới đọc/ghi: quyết định **tiền bạc** luôn hỏi lại chủ
 | AuthZ — chiều dọc | RBAC (FC-07), claim trong token, kiểm ở từng service |
 | AuthZ — chiều ngang | `project_members` + **một predicate dùng chung** cho kiểm-một-bản-ghi và lọc-danh-sách (mục 3.8). Chống BOLA |
 | Chuyển trạng thái | Máy trạng thái khai báo (định nghĩa trong code, validate lúc khởi động). **Bắt buộc optimistic concurrency**: `UPDATE ... WHERE id=:id AND state=:expected`, kiểm `rowcount`. Hook chạy trong cùng transaction hoặc qua outbox — xem `VD-D-11` |
-| Đơn phê duyệt | 8 luồng duyệt (KYB, xác minh danh tính, publish, rút, khiếu nại, tranh chấp, báo link, giới thiệu nghi lạm dụng): mỗi service giữ bảng trạng thái và API duyệt của loại đơn nó sở hữu; `admin-svc` nghe event dựng read model `approval_requests` để có MỘT màn hình duyệt (3.17). Không dựng khung `IRequestProcessor` dùng chung — xem lý do ở 3.17 |
+| Đơn phê duyệt | 8 luồng duyệt (KYB, xác minh danh tính, publish, rút, khiếu nại, tranh chấp, báo link, giới thiệu nghi lạm dụng): mỗi service giữ bảng trạng thái và API duyệt của loại đơn nó sở hữu; ~~`admin-svc` nghe event dựng read model `approval_requests` để có MỘT màn hình duyệt (3.17)~~ — bỏ ở 3.33, mỗi loại duyệt ở trang riêng. Không dựng khung `IRequestProcessor` dùng chung — xem lý do ở 3.17 |
 | Nhật ký nghiệp vụ | `state_histories(entity_type, entity_id, from, to, action, actor, at)` cho mọi vòng đời — phục vụ FL-09, FM-06. `diagnostic_logs` ghi đầu vào của mỗi lần tính CPM để trả lời "sao doanh thu thấp thế" (FS-07). Lỗi hệ thống đi Serilog/OTel, **không ghi vào DB** |
 | Config | **Hai tầng** (mục 3.10): biến môi trường / appsettings chỉ giữ thứ gắn với hạ tầng (chuỗi kết nối, host, khóa bí mật, cổng, topology queue); **mọi tham số nghiệp vụ và vận hành** (phí, tự duyệt, hạn mức, thời hạn, chu kỳ worker, kích thước lô…) là setting do `admin-svc` quản, phát `setting.changed` |
 | Migration | EF Core (C#) · Alembic (Python) · Prisma (Node) — mỗi service tự quản, chạy lúc khởi động |

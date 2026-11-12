@@ -1,5 +1,6 @@
 # E2E VAN HANH ADMIN:
-#   hang doi duyet chung (KYB, du an, khieu nai, link bi bao cao) dung tu event; mau bai toan (FM-03);
+#   duyet tung loai don o API cua service chu (KYB, du an, khieu nai, link bi bao cao, gioi thieu) — hang doi duyet
+#   chung da bo (kien truc 3.33); mau bai toan (FM-03);
 #   nhat ky audit chi ghi them o muc CSDL (P-03); log loi di Elasticsearch (khong con man hinh DLQ).
 # Chay: python e2e_hang_doi_duyet.py   (stack demo: E2E_PROFILE=demo)
 import json, os, sys, time, uuid
@@ -12,37 +13,47 @@ from moi_truong import RABBIT_MGMT, RABBIT_PASSWORD, RABBIT_USER, URL_LINK  # no
 MGMT = (RABBIT_USER, RABBIT_PASSWORD)
 
 
-def don(kind, subject, status="all"):
-    r = requests.get(G + f"/admin/approvals?kind={kind}&status={status}&pageSize=200", headers=admin)
-    return next((x for x in r.json()["items"] if x["subjectId"] == subject), None)
+def kyb(status, business_id):
+    r = requests.get(G + f"/kyb/admin?status={status}&pageSize=200", headers=admin)
+    return next((x for x in r.json()["items"] if x["profile"]["businessId"] == business_id), None)
 
 
-def cho_don(kind, subject, status, giay=30):
-    return cho(lambda: (lambda d: d if d and d["status"] == status else None)(don(kind, subject)), giay)
+def du_an_cho_duyet(pid):
+    return any(x["id"] == pid for x in requests.get(G + "/projects/pending-approval", headers=admin).json())
+
+
+def khieu_nai(state, attempt_id):
+    return next((x for x in requests.get(G + f"/tasks/admin/appeals?state={state}", headers=admin).json()
+                 if x["attemptId"] == attempt_id), None)
+
+
+def link_cho_kiem(link_id):
+    r = requests.get(G + "/links/admin/review-queue?pageSize=200", headers=admin)
+    return next((x for x in r.json()["items"] if x["link"]["id"] == link_id), None)
 
 
 try:
     # =================================================================================
-    print("\n[1] Hang doi duyet: KYB")
-    kiem("khong con endpoint dung lai hang doi (giao dien bo nut Dung lai)", requests.post(G + "/admin/approvals/rebuild", headers=admin).status_code in (404, 405))
+    print("\n[1] Duyet KYB (API cua identity)")
+    kiem("hang doi duyet chung da bo (3.33): /admin/approvals → 404",
+         requests.get(G + "/admin/approvals", headers=admin).status_code == 404
+         and requests.get(G + "/admin/approvals/summary", headers=admin).status_code == 404)
+    kiem("bang approval_requests khong con", sql("admin", "select count(*) from pg_tables where tablename='approval_requests'") == "0")
     biz = dang_ky(["business"], "hdd", xac_minh=False)
     nop_kyb(biz, "Cong ty Hang Doi").raise_for_status()
-    d = cho_don("kyb", biz["id"], "pending")
-    kiem("nop KYB → muc cho duyet kyb (ten cong ty, nguoi xin)", d and d["title"] == "Cong ty Hang Doi" and d["requesterId"] == biz["id"], d)
-    tt = requests.get(G + "/admin/approvals/summary", headers=admin).json()
-    kiem("tom tat dem duoc don kyb cho duyet", next(k for k in tt["kinds"] if k["kind"] == "kyb")["pending"] >= 1, tt)
-    kiem("nguoi khong phai admin → 403", requests.get(G + "/admin/approvals", headers=biz["h"]).status_code == 403)
+    d = kyb("submitted", biz["id"])
+    kiem("nop KYB → co trong danh sach cho duyet cua identity (ten cong ty)", d and d["profile"]["companyName"] == "Cong ty Hang Doi", d)
+    kiem("nguoi khong phai admin → 403", requests.get(G + "/kyb/admin", headers=biz["h"]).status_code == 403)
     ct_kyb = requests.get(G + f"/kyb/admin/{biz['id']}", headers=admin).json()
     kiem("S-07: admin lay link xem giay phep → nhat ky audit ghi lan xem (ai xem, giay to cua ai)",
          cho(lambda: sql("admin", "select count(*) from audit_events where event_type = 'sensitive_document.viewed' "
                                   f"and payload->>'subjectUserId' = '{biz['id']}' and actor_role = 'admin'") == "1", 20), ct_kyb.get("licenseUrl"))
     requests.post(G + f"/kyb/admin/{biz['id']}/approve", headers=admin).raise_for_status()
-    d = cho_don("kyb", biz["id"], "approved")
-    kiem("admin duyet → approved, ghi ai duyet", d and d["decidedBy"] and d["decidedAt"], d)
+    kiem("admin duyet → roi danh sach cho duyet, sang verified", kyb("submitted", biz["id"]) is None and kyb("verified", biz["id"]) is not None)
     lam_moi_token(biz)
 
     # =================================================================================
-    print("\n[2] Hang doi duyet: du an (cho ky quy → cho duyet → tu choi / duyet)")
+    print("\n[2] Duyet du an (API cua project: cho ky quy → cho duyet → tu choi / duyet)")
     vi_nap = requests.post(G + "/payments/deposits", headers=dict(biz["h"], **{"Idempotency-Key": uuid.uuid4().hex}), json={"amountVnd": 500000}).json()
     requests.post(G + f"/payments/sandbox/checkout/{vi_nap['intentId']}/pay?amount=500000")
     cho(lambda: vi(biz)["businessAvailableVnd"] >= 500000, 30)
@@ -50,15 +61,18 @@ try:
     R, _ = tao_du_an(biz, "bi tu choi", {f"r{i}": f"cau r{i} {TAG}" for i in range(2)}, 1, 1, 1000)
     for x in (P, R):
         requests.post(G + f"/projects/{x}/publish", headers=biz["h"]).raise_for_status()
-    d = cho_don("project", P, "pending")
     # Ky quy = 3 suat x (thuong 10.000 + phi 30%) = 39.000.
-    kiem("du an ky quy xong → cho duyet (ten + so tien ky quy)", d and "hang doi" in (d["title"] or "") and d["amountVnd"] == 39000, d)
+    kiem("du an ky quy xong → co trong danh sach cho duyet, ledger giu 39.000",
+         cho(lambda: du_an_cho_duyet(P), 30)
+         and sql("ledger", f"select reserved_vnd from project_escrows where project_id='{P}'") == "39000",
+         sql("ledger", f"select reserved_vnd from project_escrows where project_id='{P}'"))
     requests.post(G + f"/projects/{P}/approve", headers=admin).raise_for_status()
-    kiem("admin duyet → approved", cho_don("project", P, "approved") is not None)
-    cho_don("project", R, "pending")
+    kiem("admin duyet → dang chay, roi danh sach cho duyet",
+         requests.get(G + f"/projects/{P}", headers=biz["h"]).json()["status"] == "running" and not du_an_cho_duyet(P))
+    cho(lambda: du_an_cho_duyet(R), 30)
     requests.post(G + f"/projects/{R}/reject", headers=admin, json={"reason": "Noi dung khong phu hop"}).raise_for_status()
-    d = cho_don("project", R, "rejected")
-    kiem("admin tu choi → rejected kem ly do", d and "khong phu hop" in (d["note"] or ""), d)
+    pr = requests.get(G + f"/projects/{R}", headers=biz["h"]).json()
+    kiem("admin tu choi → du an huy kem ly do", pr["status"] == "cancelled" and "khong phu hop" in (pr.get("statusReason") or ""), (pr.get("status"), pr.get("statusReason")))
 
     # =================================================================================
     print("\n[2b] Cong link chi cho cong cu lam nhanh (gate.allowed_tools)")
@@ -75,7 +89,7 @@ try:
     kiem("tat cong link → het vuong", "cong_cu_khong_hop_cong_link" not in json.dumps(requests.get(G + f"/projects/{C}/readiness", headers=biz["h"]).json()))
 
     # =================================================================================
-    print("\n[3] Hang doi duyet: khieu nai CA BAI")
+    print("\n[3] Khieu nai CA BAI (API cua project)")
     lab = dang_ky(["labeler"], "hdd-l")
     K, _ = tao_du_an(biz, "khieu nai", {"k1": f"cau k1 {TAG}", "v1": f"cau vang {TAG}"}, vang=[("v1", "a", "qualityCheck")])
     publish_va_duyet(biz, K)
@@ -86,22 +100,20 @@ try:
     kq = cho_cham(lab, K)
     kiem("sai cau vang → bai truot, khieu nai duoc", kq and kq["passed"] is False and kq["canAppeal"], kq)
     requests.post(G + f"/tasks/attempts/{b['attemptId']}/appeal", headers=lab["h"], json={"message": "Toi chon dung"}).raise_for_status()
-    d = cho_don("appeal", b["attemptId"], "pending")
-    kiem("labeler khieu nai → cho admin phan xu (kem % giong da so / nguong)",
-         d and d["title"] == "Toi chon dung" and d["requesterId"] == lab["id"] and "nguong 60%" in (d["note"] or ""), d)
+    kiem("labeler khieu nai → co trong danh sach khieu nai dang mo", khieu_nai("open", b["attemptId"]) is not None)
     requests.post(G + f"/tasks/admin/attempts/{b['attemptId']}/appeal/resolve", headers=admin, json={"accept": True, "note": "Chap nhan"}).raise_for_status()
-    kiem("phan xu (attempt.appeal_resolved) → approved", cho_don("appeal", b["attemptId"], "approved") is not None)
+    kiem("phan xu → sang accepted", khieu_nai("open", b["attemptId"]) is None and khieu_nai("accepted", b["attemptId"]) is not None)
 
     # =================================================================================
-    print("\n[4] Hang doi duyet: link bi bao cao")
+    print("\n[4] Link bi bao cao (API cua link)")
     sh = dang_ky(["labeler"], "hdd-sh")
     lk = requests.post(G + "/links", headers=sh["h"], json={"url": f"https://example.com/hdd-{TAG}"}).json()
     dat_va_cho("link.report_review_threshold", 1, ["link"])
     requests.post(URL_LINK + f"/links/r/{lk['code']}/report", headers={"X-Forwarded-For": "198.51.100.77"}, json={"reason": "lua dao"})
-    d = cho_don("link", lk["id"], "pending")
-    kiem("link vuot nguong bao cao → cho kiem duyet", d and d["title"] == lk["code"] and d["note"] == "1 bao cao", d)
+    d = cho(lambda: link_cho_kiem(lk["id"]), 20)
+    kiem("link vuot nguong bao cao → vao hang kiem duyet cua link (1 bao cao)", d and d["reportCount"] == 1, d)
     requests.post(G + f"/links/admin/{lk['id']}/dismiss-reports", headers=admin).raise_for_status()
-    kiem("admin bo qua bao cao → rejected", cho_don("link", lk["id"], "rejected") is not None)
+    kiem("admin bo qua bao cao → roi hang kiem duyet", link_cho_kiem(lk["id"]) is None)
 
     # =================================================================================
     print("\n[4b] Gioi thieu nghi lam dung → cho admin xet, chua tinh hoa hong")
@@ -113,8 +125,6 @@ try:
     nn = requests.get(G + "/links/admin/referrals/flagged", headers=admin).json()
     it = next((x for x in nn if x["referredId"] == moi["id"]), None)
     kiem("bi danh dau trung_ip_nguoi_gioi_thieu", it and "trung_ip_nguoi_gioi_thieu" in it["reasons"], nn[:2])
-    d = cho_don("referral", moi["id"], "pending")
-    kiem("vao hang doi duyet chung (kind=referral)", d and d["requesterId"] == sh["id"], d)
     time.sleep(2)
     # 3.32: ledger doc view v_referrals cua link (chi quan he active) — dang cho duyet thi view khong tra ve.
     kiem("ledger CHUA thay quan he gioi thieu (chua tinh hoa hong)", sql("link", f"select count(*) from v_referrals where referred_id='{moi['id']}'") == "0")
@@ -122,7 +132,7 @@ try:
     requests.post(G + f"/links/admin/referrals/{moi['id']}/approve", headers=admin).raise_for_status()
     kiem("admin chap nhan → ledger ghi quan he (bat dau tinh hoa hong)",
          cho(lambda: sql("link", f"select referrer_id from v_referrals where referred_id='{moi['id']}'") == sh["id"], 20))
-    kiem("hang doi: approved", cho_don("referral", moi["id"], "approved") is not None)
+    kiem("roi danh sach nghi lam dung", all(x["referredId"] != moi["id"] for x in requests.get(G + "/links/admin/referrals/flagged", headers=admin).json()))
     kiem("xet lai → 409", requests.post(G + f"/links/admin/referrals/{moi['id']}/reject", headers=admin, json={"reason": "x"}).status_code == 409)
 
     # =================================================================================

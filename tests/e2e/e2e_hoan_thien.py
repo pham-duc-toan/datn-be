@@ -368,13 +368,13 @@ try:
     # =================================================================================
     print("\n[10] Gioi han tan suat o gateway (VD-S-12)")
     dat("gateway.rate_limit_auth_per_minute", 3)
-    time.sleep(1.5)
+    cho_moi_noi_doc_lai_setting(G, admin)  # 3.32: moi noi doc lai view v_settings moi chu ky
     ma = [login_raw(f"khong-co-{TAG}@crowd.local", "x").status_code for _ in range(5)]
     r = login_raw(f"khong-co-{TAG}@crowd.local", "x")
     kiem("dang nhap qua 3 lan/phut/IP → 429 qua_nhieu_yeu_cau + Retry-After",
          429 in ma and r.status_code == 429 and code(r) == "qua_nhieu_yeu_cau" and r.headers.get("Retry-After"), (ma, r.status_code))
     dat("gateway.rate_limit_auth_per_minute", 1000000)
-    time.sleep(1.5)
+    cho_moi_noi_doc_lai_setting(G, admin)  # 3.32: moi noi doc lai view v_settings moi chu ky
     kiem("nang han muc → dang nhap lai binh thuong", cho(lambda: login_raw("admin@crowd.local").status_code == 200, 10))
 
 finally:

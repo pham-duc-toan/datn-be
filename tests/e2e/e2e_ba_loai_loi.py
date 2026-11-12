@@ -54,7 +54,7 @@ def es_lan(eid, muc):
 
 
 def viec_tay():
-    return requests.get(G + "/admin/approvals", headers=admin, params={"kind": "manual", "status": "all", "pageSize": 200}).json()["items"]
+    return requests.get(G + "/admin/manual-actions", headers=admin, params={"status": "all", "pageSize": 200}).json()["items"]
 
 
 def tim_viec(so_tien):
@@ -82,7 +82,7 @@ try:
     kiem("khong tao viec cho admin", len(viec_tay()) == so_viec)
 
     # =================================================================================
-    print("\n[2] Loai 2 — can nguoi xu ly: muc 'Viec can xu ly tay' trong hang doi duyet")
+    print("\n[2] Loai 2 — can nguoi xu ly: muc trong trang 'Viec can xu ly tay' (bang rieng manual_actions, 3.33)")
     pid_huy = str(uuid.uuid4())
     e3, env3 = gui("project-svc.escrow-reserved", "escrow.reserved", 1, {"projectId": pid_huy, "amountVnd": TIEN_KY_QUY})
     ds = cho(lambda: tim_viec(TIEN_KY_QUY), 60)
@@ -92,8 +92,8 @@ try:
          and f"{TIEN_KY_QUY:,}".replace(",", ".") + " đ" in (v.get("detail") or "") and v.get("status") == "pending", v)
     kiem("mo ta khong co thuat ngu dev", not TU_DEV.search((v.get("title") or "") + " " + (v.get("detail") or "")), v.get("detail"))
     kiem("khong vao DLQ, khong thu lai", dlq("project-svc.escrow-reserved") == 0 and es_dem(e3, "Warning") <= 1 and es_dem(e3, "Error") == 0)
-    tom = requests.get(G + "/admin/approvals/summary", headers=admin).json()
-    kiem("tong quan hang doi dem loai 'manual'", any(k["kind"] == "manual" and k["pending"] >= 1 for k in tom["kinds"]), tom)
+    kiem("danh sach mac dinh (dang cho) co viec nay", any(x["actionId"] == v.get("actionId") for x in
+         requests.get(G + "/admin/manual-actions", headers=admin).json()["items"]))
     au = requests.get(G + "/admin/audit", headers=admin, params={"eventType": "manual_action.required", "pageSize": 50}).json()["items"]
     kiem("nhat ky co su kien 'phat sinh viec can xu ly tay' tro ve event goc", any(a["payload"].get("sourceEventId") == e3 for a in au))
 
@@ -101,16 +101,16 @@ try:
     time.sleep(6)
     kiem("giao lai cung event: khong tao viec thu hai", len(tim_viec(TIEN_KY_QUY)) == 1)
 
-    r = requests.post(G + f"/admin/approvals/manual/{v.get('subjectId')}/resolve", headers=admin, json={"note": ""})
+    r = requests.post(G + f"/admin/manual-actions/{v.get('actionId')}/resolve", headers=admin, json={"note": ""})
     kiem("danh dau xong ma khong ghi chu → 400", r.status_code == 400, r.text)
-    r = requests.post(G + f"/admin/approvals/manual/{v.get('subjectId')}/resolve", headers=admin, json={"note": "Đã kiểm tra ví, đã hoàn tiền"})
+    r = requests.post(G + f"/admin/manual-actions/{v.get('actionId')}/resolve", headers=admin, json={"note": "Đã kiểm tra ví, đã hoàn tiền"})
     kiem("danh dau da xu ly → 204", r.status_code == 204, r.text)
     v2 = tim_viec(TIEN_KY_QUY)[0]
     kiem("muc chuyen 'resolved', giu mo ta + ghi chu xu ly", v2["status"] == "resolved" and v2["note"] == "Đã kiểm tra ví, đã hoàn tiền"
-         and v2["detail"] == v["detail"] and v2["decidedAt"], v2)
-    r = requests.post(G + f"/admin/approvals/manual/{v.get('subjectId')}/resolve", headers=admin, json={"note": "lan hai"})
+         and v2["detail"] == v["detail"] and v2["resolvedAt"], v2)
+    r = requests.post(G + f"/admin/manual-actions/{v.get('actionId')}/resolve", headers=admin, json={"note": "lan hai"})
     kiem("danh dau lan hai → 409", r.status_code == 409, r.text)
-    kiem("nhat ky ghi admin xu ly xong", cho(lambda: any(a["payload"].get("actionId") == v.get("subjectId") and a["actorRole"] == "admin"
+    kiem("nhat ky ghi admin xu ly xong", cho(lambda: any(a["payload"].get("actionId") == v.get("actionId") and a["actorRole"] == "admin"
          for a in requests.get(G + "/admin/audit", headers=admin, params={"eventType": "manual_action.resolved"}).json()["items"]), 20))
 
     # Ledger: tien luot vuot link cho du an khong co ky quy.
@@ -124,7 +124,7 @@ try:
         kiem("tien luot vuot link khong chi duoc → viec can xu ly tay (ledger)", dl and dl[0]["title"] == "Không trả được tiền lượt vượt link", dl)
         kiem("ledger: khong vao DLQ", dlq("ledger-svc.click-validated") == 0)
         if dl:
-            requests.post(G + f"/admin/approvals/manual/{dl[0]['subjectId']}/resolve", headers=admin, json={"note": "e2e"})
+            requests.post(G + f"/admin/manual-actions/{dl[0]['actionId']}/resolve", headers=admin, json={"note": "e2e"})
     else:
         print("  (bo qua ledger) ledger.gate_payout_mode =", che_do)
 

@@ -24,7 +24,7 @@ namespace Crowd.Admin.Api.Persistence
 
         public DbSet<Announcement> Announcements => Set<Announcement>();
 
-        public DbSet<DonDuyet> DonDuyets => Set<DonDuyet>();
+        public DbSet<ViecTay> ViecTays => Set<ViecTay>();
 
         public DbSet<MauBaiToan> MauBaiToans => Set<MauBaiToan>();
 
@@ -125,26 +125,24 @@ namespace Crowd.Admin.Api.Persistence
                 b.HasIndex(x => x.CreatedAt).HasDatabaseName("ix_announcements_thoi_gian");
             });
 
-            modelBuilder.Entity<DonDuyet>(b =>
+            // Viec can xu ly tay (3.29) — bang rieng tu 3.33 (hang doi duyet chung approval_requests da bo).
+            modelBuilder.Entity<ViecTay>(b =>
             {
-                b.ToTable("approval_requests");
-                b.HasKey(x => x.Id);
-                b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
-                b.Property(x => x.Kind).HasColumnName("kind").HasMaxLength(20).IsRequired();
-                b.Property(x => x.SubjectId).HasColumnName("subject_id").IsRequired();
-                b.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
-                b.Property(x => x.Title).HasColumnName("title").HasMaxLength(300);
-                b.Property(x => x.RequesterId).HasColumnName("requester_id");
-                b.Property(x => x.AmountVnd).HasColumnName("amount_vnd");
-                b.Property(x => x.Note).HasColumnName("note").HasMaxLength(1000);
+                b.ToTable("manual_actions");
+                b.HasKey(x => x.ActionId);
+                b.Property(x => x.ActionId).HasColumnName("action_id").ValueGeneratedNever();
+                b.Property(x => x.Kind).HasColumnName("kind").HasMaxLength(60).IsRequired();
+                b.Property(x => x.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
+                b.Property(x => x.Detail).HasColumnName("detail").HasMaxLength(1000).IsRequired();
                 b.Property(x => x.ProjectId).HasColumnName("project_id");
-                b.Property(x => x.Detail).HasColumnName("detail").HasMaxLength(1000);
+                b.Property(x => x.UserId).HasColumnName("user_id");
+                b.Property(x => x.AmountVnd).HasColumnName("amount_vnd");
+                b.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+                b.Property(x => x.Note).HasColumnName("note").HasMaxLength(1000);
                 b.Property(x => x.OpenedAt).HasColumnName("opened_at").IsRequired();
-                b.Property(x => x.DecidedAt).HasColumnName("decided_at");
-                b.Property(x => x.DecidedBy).HasColumnName("decided_by");
-                b.Property(x => x.LastEventAt).HasColumnName("last_event_at").IsRequired();
-                b.HasIndex(x => new { x.Kind, x.SubjectId }).IsUnique().HasDatabaseName("ux_approval_requests_don");
-                b.HasIndex(x => new { x.Status, x.OpenedAt }).HasDatabaseName("ix_approval_requests_hang_doi");
+                b.Property(x => x.ResolvedAt).HasColumnName("resolved_at");
+                b.Property(x => x.ResolvedBy).HasColumnName("resolved_by");
+                b.HasIndex(x => new { x.Status, x.OpenedAt }).HasDatabaseName("ix_manual_actions_trang_thai");
             });
 
             modelBuilder.Entity<TheChuDe>(b =>

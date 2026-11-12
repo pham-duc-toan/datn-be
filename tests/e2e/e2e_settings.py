@@ -168,7 +168,7 @@ try:
 
     print("\n[5] Gateway (khong DB) doi tran upload ZIP theo setting")
     dat("dataset.zip_max_bytes", 1048576)
-    time.sleep(2)
+    cho_moi_noi_doc_lai_setting(G, admin)  # 3.32: moi noi doc lai view v_settings moi chu ky
     r = requests.post(G + f"/projects/{pid2}/samples/zip", headers=biz, files={"file": ("x.zip", os.urandom(2 * 1048576))}, data={"name": "lon"})
     kiem("ZIP 2 MB khi tran 1 MB → 413", r.status_code == 413, (r.status_code, r.text[:200]))
 

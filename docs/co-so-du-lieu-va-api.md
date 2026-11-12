@@ -181,7 +181,7 @@ Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm 
 |---|---|---|
 | `settings` | `key` PK; `value` jsonb; `version`; `updated_by`, `updated_at` | Setting hệ thống. Đổi thì `version` tăng và phát `setting.changed` |
 | `setting_history` | `id`; `key`; `old_value?`, `new_value`; `version`; `changed_by`, `changed_at`; `reason?` | Lịch sử đổi setting |
-| `approval_requests` | `id`; `kind` (KYB, xác minh, publish, rút, khiếu nại, báo link, giới thiệu, `manual` = việc cần xử lý tay); `subject_id`; `requester_id`; `title?`; `amount_vnd?`; `status`; `opened_at`, `last_event_at`; `decided_by?`, `decided_at?`; `note?`; `project_id?`, `detail?` (mục `manual`) | Read model gom **một hàng đợi duyệt** từ event của nhiều service (kiến trúc mục 5, 3.29) |
+| `manual_actions` | `action_id` PK; `kind`; `title`, `detail`; `project_id?`, `user_id?`, `amount_vnd?`; `status` (`pending`, `resolved`); `note?`; `opened_at`, `resolved_at?`, `resolved_by?` | **Việc cần xử lý tay** (kiến trúc 3.29) dựng từ `manual_action.required` — dữ liệu riêng của admin. Hàng đợi duyệt chung `approval_requests` đã bỏ (3.33): mỗi loại đơn duyệt ở trang riêng, đọc API của service chủ |
 | `audit_events` | `event_id` PK; `event_type`; `producer`; `actor_id?`, `actor_role?`; `correlation_id`, `causation_id?`; `occurred_at`, `received_at`; `payload` jsonb | Nhật ký chỉ-ghi-thêm của mọi event |
 | `audit_counted` | `event_id` PK; `seen_at` | Đánh dấu event đã đưa vào thống kê |
 | `stats_daily` | `(day, event_type)` PK; `count`; `amount_vnd`; `fee_vnd` | Thống kê theo ngày cho `GET /admin/stats/overview` |
@@ -252,7 +252,7 @@ Mọi API client đi qua **gateway** (`:8080`, ở demo là `:18080`). Gateway k
 
 **notification** — `GET /notifications/me`, `/unread-count`, `POST /{id}/read`, `/read-all`, `GET|PUT /preferences`, `GET|PUT /language`, `POST /notifications/me/realtime-ticket`, `GET /notifications/realtime` (WebSocket).
 
-**admin** — setting `GET|PUT /admin/settings[/{key}]`, `/{key}/history`; thẻ `GET|POST|PUT /admin/tags`, `/hide|show|merge`, `GET /tags`; mẫu `GET|POST|PUT /admin/templates`, `/activate|deactivate`, `GET /templates[/{id}]`; hàng đợi duyệt `GET /admin/approvals`, `/summary`, `POST /admin/approvals/manual/{id}/resolve` (việc cần xử lý tay); vận hành `GET /admin/audit`, `/admin/stats/overview`, `GET /admin/system-health` (tình trạng hệ thống — số lỗi kỹ thuật trong DLQ), thông báo `POST|GET /admin/announcements`.
+**admin** — setting `GET|PUT /admin/settings[/{key}]`, `/{key}/history`; thẻ `GET|POST|PUT /admin/tags`, `/hide|show|merge`, `GET /tags`; mẫu `GET|POST|PUT /admin/templates`, `/activate|deactivate`, `GET /templates[/{id}]`; việc cần xử lý tay `GET /admin/manual-actions`, `POST /admin/manual-actions/{id}/resolve` (hàng đợi duyệt chung đã bỏ — 3.33); vận hành `GET /admin/audit`, `/admin/stats/overview`, `GET /admin/system-health` (tình trạng hệ thống — số lỗi kỹ thuật trong DLQ), thông báo `POST|GET /admin/announcements`.
 
 **media** — `GET /media/v/{token}` (xem file đã watermark), `POST /media/admin/watermark/decode` (giải watermark), `GET /health`. **ml** (nội bộ) — `GET /internal/model`, `POST /internal/embeddings`.
 
@@ -291,7 +291,7 @@ Exchange `datn.events` (topic). Mỗi consumer có queue riêng, tên dạng `<s
 | `user.unblocked` | identity | notification | Mở khoá |
 | `user.sessions_revoked` | identity | (gateway nghe riêng) | Thu hồi phiên |
 | `user.identity_verification_submitted`, `user.identity_verified`, `user.identity_rejected`, `user.two_factor_changed` | identity | notification | Xác minh danh tính, 2FA |
-| `business.kyb_submitted`, `business.verified`, `business.kyb_rejected` | identity | notification (và admin dựng hàng đợi duyệt) | KYB |
+| `business.kyb_submitted`, `business.verified`, `business.kyb_rejected` | identity | notification (và admin ghi audit) | KYB |
 | `badge.awarded`, `level.changed` | identity | notification | Huy hiệu, cấp độ |
 | `project.publish_requested` | project | ledger, admin | Xin giữ ký quỹ. `projectName` cho tiêu đề hàng chờ duyệt của admin; ledger không chép tên (hỏi qua gRPC lúc xuất hoá đơn) |
 | `project.grading_applied` | project | identity | project-svc **đã ghi** kết quả chấm vào bài làm: identity xếp labeler có bài đạt vào `level_dirty` (3.24) |
@@ -308,26 +308,26 @@ Exchange `datn.events` (topic). Mỗi consumer có queue riêng, tên dạng `<s
 | `project.graded` (v2, có `ownerId`) | quality | project, ledger, notification | Kết quả chấm từng bài, ledger trả thưởng bài đạt (identity nghe `project.grading_applied` thay vì event này) |
 | `reputation.changed` | quality | identity | Tín hiệu uy tín đổi: identity xếp labeler vào hàng tính lại cấp (điểm đọc view `v_reputations`, 3.32) |
 | `fraud.case_confirmed` | quality | identity | Khoá/hạ uy tín do gian lận |
-| `attempt.appeal_opened` | project | (admin dựng hàng đợi) | Khiếu nại cả bài |
+| `attempt.appeal_opened` | project | (admin ghi audit) | Khiếu nại cả bài |
 | `attempt.appeal_resolved` | project | identity, ledger, notification | Admin phân xử, ledger trả thưởng nếu thắng (nhãn được nhận vào kết quả ngay trong project) |
 | `project.completed`, `project.cancelled` | project | quality, ledger, notification | Đóng dự án, ledger hoàn ký quỹ còn dư |
 | `deposit.confirmed` | payment | ledger, notification | Nạp tiền thành công → cộng ví doanh nghiệp |
 | `payout.requested` | ledger | payment | Lệnh chi sau khi duyệt rút |
 | `payout.completed`, `payout.failed` (v2, có `labelerId`, `netAmountVnd`) | payment | ledger, notification | Chi xong / lỗi (lỗi thì ledger đảo bút toán trả tiền) |
-| `withdrawal.review_requested`, `withdrawal.rejected` | ledger | notification (admin hàng đợi) | Rút tiền cần admin duyệt / bị từ chối |
+| `withdrawal.review_requested`, `withdrawal.rejected` | ledger | notification | Rút tiền cần admin duyệt / bị từ chối |
 | `funds.held`, `hold.expired`, `refund.issued`, `escrow.released` | ledger | notification (một số) | Treo tiền, hết hạn treo, hoàn tiền, nhả ký quỹ |
 | ~~`gate.budget_changed`~~ | — | — | **Đã bỏ (3.32)**: gate đọc view `v_gate_budgets` của ledger |
 | `gate.solved` | gate | project | Khách vượt link đã gán nhãn |
 | `click.validated` | gate | ledger | Lượt click hợp lệ → treo/trả tiền sharer |
 | `link.activated`, `link.disabled` | link | ledger (`disabled`), admin ghi audit | Bật/tắt link. gate đọc link đang chạy qua view `v_gate_links` (3.32) |
-| `link.review_requested/dismissed` | link | (admin hàng đợi) | Link nghi ngờ |
+| `link.review_requested/dismissed` | link | (admin ghi audit) | Link nghi ngờ |
 | `referral.registered` | link | (admin ghi audit) | Quan hệ giới thiệu. ledger đọc view `v_referrals` lúc chi hoa hồng (3.32) |
-| `referral.flagged/rejected` | link | (admin hàng đợi) | Giới thiệu nghi gian lận |
+| `referral.flagged/rejected` | link | (admin ghi audit) | Giới thiệu nghi gian lận |
 | `setting.changed` | admin | (admin ghi audit) | Admin đổi setting. Không ai đồng bộ theo event nữa — mọi service đọc view `v_settings` (3.32) |
 | ~~`settings.snapshot`, `settings.snapshot_requested`~~ | — | — | **Đã bỏ (3.32)** |
 | `tag.merged` | admin | project, identity | Gộp thẻ |
 | `system.announcement` | admin | notification | Thông báo toàn hệ thống |
-| `manual_action.required` | mọi service (EventConsumer dùng chung) | admin | Việc cần xử lý tay (3.29) → hàng đợi duyệt `manual` |
+| `manual_action.required` | mọi service (EventConsumer dùng chung) | admin | Việc cần xử lý tay (3.29) → bảng `manual_actions`, trang `/admin/viec-tay` (3.33) |
 | `manual_action.resolved` | admin | admin (audit) | Admin đánh dấu đã xử lý việc tay |
 | `ops.dlq_alert` | admin | notification | Lỗi kỹ thuật trong DLQ vượt ngưỡng → email đội kỹ thuật (3.29) |
 | `sensitive_document.viewed` | identity | (admin ghi audit) | Admin xem giấy tờ nhạy cảm |

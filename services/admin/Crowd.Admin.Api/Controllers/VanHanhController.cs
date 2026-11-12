@@ -21,14 +21,13 @@ namespace Crowd.Admin.Api.Controllers
     [Authorize(Roles = CrowdRoles.Admin)]
     public sealed class VanHanhController : ControllerBase
     {
-        private readonly HangDoiDuyet _hangDoi;
         private readonly MauBaiToanService _mau;
         private readonly ViecTayService _viecTay;
         private readonly TrangThaiDlq _dlq;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
 
-        public VanHanhController(HangDoiDuyet hangDoi, MauBaiToanService mau, ViecTayService viecTay, TrangThaiDlq dlq, ISettings settings, TimeProvider clock)
+        public VanHanhController(MauBaiToanService mau, ViecTayService viecTay, TrangThaiDlq dlq, ISettings settings, TimeProvider clock)
         {
             if (viecTay == null)
             {
@@ -45,11 +44,6 @@ namespace Crowd.Admin.Api.Controllers
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            if (hangDoi == null)
-            {
-                throw new ArgumentNullException(nameof(hangDoi));
-            }
-
             if (mau == null)
             {
                 throw new ArgumentNullException(nameof(mau));
@@ -60,7 +54,6 @@ namespace Crowd.Admin.Api.Controllers
                 throw new ArgumentNullException(nameof(clock));
             }
 
-            _hangDoi = hangDoi;
             _mau = mau;
             _viecTay = viecTay;
             _dlq = dlq;
@@ -68,25 +61,17 @@ namespace Crowd.Admin.Api.Controllers
             _clock = clock;
         }
 
-        // ---- Hang doi duyet chung ----
+        // ---- Viec can xu ly tay (3.29; hang doi duyet chung da bo o 3.33) ----
 
-        /// <summary>GET /admin/approvals?kind=&amp;status=pending|waiting|approved|rejected|cancelled|resolved|all&amp;page=&amp;pageSize=</summary>
-        [HttpGet("approvals")]
-        public async Task<IActionResult> HangDoi([FromQuery] string? kind, [FromQuery] string? status,
-            [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
+        /// <summary>GET /admin/manual-actions?status=pending|resolved|all&amp;page=&amp;pageSize=</summary>
+        [HttpGet("manual-actions")]
+        public async Task<IActionResult> ViecTay([FromQuery] string? status, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
         {
-            return Ok(await _hangDoi.DanhSachAsync(kind, status, page, pageSize, ct));
+            return Ok(await _viecTay.DanhSachAsync(status, page, pageSize, ct));
         }
 
-        /// <summary>GET /admin/approvals/summary — so don cho duyet theo loai + don cu nhat cho bao lau.</summary>
-        [HttpGet("approvals/summary")]
-        public async Task<IActionResult> TomTat(CancellationToken ct)
-        {
-            return Ok(await _hangDoi.TomTatAsync(_clock.GetUtcNow(), ct));
-        }
-
-        /// <summary>POST /admin/approvals/manual/{actionId}/resolve — viec can xu ly tay: admin da xu ly xong (kem ghi chu).</summary>
-        [HttpPost("approvals/manual/{actionId:guid}/resolve")]
+        /// <summary>POST /admin/manual-actions/{actionId}/resolve — admin da xu ly xong (kem ghi chu).</summary>
+        [HttpPost("manual-actions/{actionId:guid}/resolve")]
         public async Task<IActionResult> XuLyXong(Guid actionId, [FromBody] ResolveManualRequest body, CancellationToken ct)
         {
             Caller caller = Caller.TuHttp(HttpContext, ActorRole.Admin);

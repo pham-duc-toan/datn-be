@@ -149,83 +149,6 @@ namespace Crowd.Admin.Api.Persistence.Migrations
                     b.ToTable("audit_events", (string)null);
                 });
 
-            modelBuilder.Entity("Crowd.Admin.Api.Entities.DonDuyet", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<long?>("AmountVnd")
-                        .HasColumnType("bigint")
-                        .HasColumnName("amount_vnd");
-
-                    b.Property<DateTimeOffset?>("DecidedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("decided_at");
-
-                    b.Property<Guid?>("DecidedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("decided_by");
-
-                    b.Property<string>("Detail")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("detail");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("kind");
-
-                    b.Property<DateTimeOffset>("LastEventAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_event_at");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("note");
-
-                    b.Property<DateTimeOffset>("OpenedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("opened_at");
-
-                    b.Property<Guid?>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
-                    b.Property<Guid?>("RequesterId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("requester_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<Guid>("SubjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("subject_id");
-
-                    b.Property<string>("Title")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("title");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Kind", "SubjectId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_approval_requests_don");
-
-                    b.HasIndex("Status", "OpenedAt")
-                        .HasDatabaseName("ix_approval_requests_hang_doi");
-
-                    b.ToTable("approval_requests", (string)null);
-                });
-
             modelBuilder.Entity("Crowd.Admin.Api.Entities.MauBaiToan", b =>
                 {
                     b.Property<Guid>("Id")
@@ -466,6 +389,73 @@ namespace Crowd.Admin.Api.Persistence.Migrations
                     b.HasKey("Day", "EventType");
 
                     b.ToTable("stats_daily", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Admin.Api.Entities.ViecTay", b =>
+                {
+                    b.Property<Guid>("ActionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("action_id");
+
+                    b.Property<long?>("AmountVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_vnd");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("detail");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("note");
+
+                    b.Property<DateTimeOffset>("OpenedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("opened_at");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid?>("ResolvedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolved_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("title");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("ActionId");
+
+                    b.HasIndex("Status", "OpenedAt")
+                        .HasDatabaseName("ix_manual_actions_trang_thai");
+
+                    b.ToTable("manual_actions", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.BuildingBlocks.Persistence.Idempotency.ProcessedEvent", b =>

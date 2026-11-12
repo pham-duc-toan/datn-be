@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 
 namespace Crowd.Admin.Api.Dtos
 {
-    // ---- Hang doi duyet chung ----
+    // ---- Viec can xu ly tay (kien truc 3.29, 3.33) ----
 
     public sealed class PagedResponse<T>
     {
@@ -18,59 +18,38 @@ namespace Crowd.Admin.Api.Dtos
         public required int Total { get; init; }
     }
 
-    public sealed class ApprovalItemResponse
+    /// <summary>Mot viec can xu ly tay (GET /admin/manual-actions).</summary>
+    public sealed class ManualActionResponse
     {
-        public required Guid Id { get; init; }
+        public required Guid ActionId { get; init; }
 
-        /// <summary>kyb | identity | project | withdrawal | appeal | link | referral | manual</summary>
+        /// <summary>Ma loai viec on dinh (vd thuong_khong_chi_duoc).</summary>
         public required string Kind { get; init; }
 
-        /// <summary>Id o service chu — dung goi API duyet cua service do (xem tich-hop-frontend). manual: id viec.</summary>
-        public required Guid SubjectId { get; init; }
+        public required string Title { get; init; }
 
-        public required string Status { get; init; }
+        /// <summary>Mo ta viec can lam, loi thuong.</summary>
+        public required string Detail { get; init; }
 
-        public string? Title { get; init; }
+        public Guid? ProjectId { get; init; }
 
-        public Guid? RequesterId { get; init; }
+        public Guid? UserId { get; init; }
 
         public long? AmountVnd { get; init; }
 
+        /// <summary>pending | resolved</summary>
+        public required string Status { get; init; }
+
         public string? Note { get; init; }
-
-        /// <summary>manual: du an lien quan (co the null).</summary>
-        public Guid? ProjectId { get; init; }
-
-        /// <summary>manual: mo ta viec can xu ly (loi thuong, cho admin).</summary>
-        public string? Detail { get; init; }
 
         public required DateTimeOffset OpenedAt { get; init; }
 
-        public DateTimeOffset? DecidedAt { get; init; }
+        public DateTimeOffset? ResolvedAt { get; init; }
 
-        public Guid? DecidedBy { get; init; }
+        public Guid? ResolvedBy { get; init; }
     }
 
-    public sealed class ApprovalKindSummary
-    {
-        public required string Kind { get; init; }
-
-        public required int Pending { get; init; }
-
-        public DateTimeOffset? OldestOpenedAt { get; init; }
-
-        /// <summary>Don cu nhat da cho bao nhieu gio.</summary>
-        public double? OldestWaitingHours { get; init; }
-    }
-
-    public sealed class ApprovalSummaryResponse
-    {
-        public required int TotalPending { get; init; }
-
-        public required IReadOnlyList<ApprovalKindSummary> Kinds { get; init; }
-    }
-
-    /// <summary>POST /admin/approvals/manual/{actionId}/resolve</summary>
+    /// <summary>POST /admin/manual-actions/{actionId}/resolve</summary>
     public sealed class ResolveManualRequest
     {
         /// <summary>Da lam gi (vd "Da chuyen tay 50.000 d cho nguoi lam"). Bat buoc.</summary>
