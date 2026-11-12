@@ -5,12 +5,14 @@ Consumer khong goi gRPC (processors.py) — chi ghi hang cho. Moi vong (quality.
   2. CHAM LAI du an da dong thu bai ma chua cham xong (project_gradings.graded_at NULL): lan dau project-svc
      khong tra loi, hoac dang cho ml-svc phan tich cau tra loi mo. thu_cham tu quyet: du vector → so nghia;
      qua han → so chu.
-  3. AP DUNG CHAM: du an quality da cham ma project-svc da ghi xong project.graded (gRPC thay moi bai graded)
-     → xep labeler cua du an vao reputation_dirty. Truoc luc do tong bang chung doc tu project-svc con thieu
-     dung du an vua cham, nen khong tinh uy tin trong transaction cham.
-  4. TINH UY TIN cho labeler trong reputation_dirty: bang chung cong don moi du an doc qua gRPC
+  3. CHAY DAWID-SKENE + chi so do tin cay cho du an vua cham (project_gradings.ds_at NULL) — ds_batch.py.
+  4. AP DUNG CHAM: du an da cham, da chay DS (ds_at), ma project-svc da ghi xong project.graded (gRPC thay moi
+     bai graded) → xep labeler cua du an vao reputation_dirty. Truoc luc do tong bang chung doc tu project-svc
+     con thieu dung du an vua cham, nen khong tinh uy tin trong transaction cham. Doi ds_at de moi labeler chi
+     tinh lai MOT lan cho du an (du ca bang chung cham lan ds_skills).
+  5. TINH UY TIN cho labeler trong reputation_dirty: bang chung cong don moi du an doc qua gRPC
      (GetLabelerEvidence — quality khong giu ban sao bai da cham) + ds_skills.
-  5. Xoa dong pending_attempts da xong ca hai viec (gian lan + cau mo).
+  6. Xoa dong pending_attempts da xong ca hai viec (gian lan + cau mo).
 
 project-svc khong tra loi (KhongGoiDuoc) → dung buoc do, vong sau lam tiep; khong mat viec vi dong cho chi
 danh dau xong SAU khi xu ly thanh cong (cung transaction). Nhieu instance: FOR UPDATE SKIP LOCKED / khoa du an.
@@ -23,7 +25,7 @@ from types import SimpleNamespace
 
 from sqlalchemy import text
 
-from app import fraud, processors, project_client, settings_store
+from app import ds_batch, fraud, processors, project_client, settings_store
 from app.db import session_factory
 
 log = logging.getLogger(__name__)
@@ -82,12 +84,13 @@ async def cham_lai() -> int:
 
 
 async def ap_dung_cham() -> int:
-    """Xep labeler cua du an da cham ma project-svc da ghi ket qua vao reputation_dirty. Tra so du an."""
+    """Xep labeler cua du an da cham, da chay DS, ma project-svc da ghi ket qua vao reputation_dirty. Tra so du an."""
     xong = 0
     async with session_factory()() as s, s.begin():
         cho = (await s.execute(text(
             "SELECT project_id, correlation_id, graded_at FROM project_gradings "
-            "WHERE graded_at IS NOT NULL AND reputation_at IS NULL ORDER BY graded_at LIMIT :n FOR UPDATE SKIP LOCKED"),
+            "WHERE graded_at IS NOT NULL AND ds_at IS NOT NULL AND reputation_at IS NULL "
+            "ORDER BY graded_at LIMIT :n FOR UPDATE SKIP LOCKED"),
             {"n": LO})).all()
         for d in cho:
             try:
@@ -135,8 +138,8 @@ async def don_xong() -> int:
 
 
 async def mot_vong() -> None:
-    for ten, viec in (("xet gian lan", xet_gian_lan), ("cham lai", cham_lai), ("ap dung cham", ap_dung_cham),
-                      ("tinh uy tin", tinh_uy_tin)):
+    for ten, viec in (("xet gian lan", xet_gian_lan), ("cham lai", cham_lai), ("dawid-skene", ds_batch.chay_mot_lo),
+                      ("ap dung cham", ap_dung_cham), ("tinh uy tin", tinh_uy_tin)):
         try:
             so = await viec()
             if so:

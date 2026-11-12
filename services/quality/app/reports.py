@@ -3,9 +3,9 @@
 Du lieu song = hai nguon (kien truc 3.22, khong ban sao):
   - project-svc qua gRPC: bai da nop (so cau, cau vang, thoi diem) va KET QUA CUOI cua bai (dat, duoc thuong —
     da tinh ca phan xu khieu nai), ly do / luc dong thu bai;
-  - quality: moc cham, da so tung cau, chi so do tin cay, DS / STAPLE, uy tin.
+  - quality: moc cham, da so tung cau, chi so do tin cay, DS / STAPLE (chi co SAU khi cham — ds_at), uy tin.
 
-Du an da dong qua project.closed_data_retention thi ket qua trung gian (sample_majorities, vector cau mo, ds_state)
+Du an da dong qua project.closed_data_retention thi ket qua trung gian (sample_majorities, vector cau mo)
 bi xoa (archive.py). Truoc khi xoa, hai bao cao duoi day duoc CHUP vao project_reports, nen chu du an van xem duoc
 — chi la so lieu dung yen.
 """

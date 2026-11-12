@@ -17,7 +17,7 @@ def bo_nho_sach():
 
 def test_chua_co_gia_tri_thi_dung_mac_dinh_cua_catalog():
     # Mac dinh trong shared/settings/catalog.json (xuat tu SettingCatalog C#).
-    assert st.giay(st.DS_INTERVAL) == 900
+    assert st.giay(st.PENDING_WORK_INTERVAL) == 5
     assert st.so_nguyen(st.DS_MIN_LABELS) == 5
     ts = tham_so_hien_tai()
     assert (ts.trong_so_gold, ts.tien_nghiem, ts.suc_nang_tien_nghiem) == (0.6, 0.7, 2.0)
@@ -62,7 +62,7 @@ def test_doc_event_setting_cua_csharp():
     assert env.payload.value == 0.8
     assert env.payload.setting_version == 3
 
-    snap = dict(tho, eventType="settings.snapshot", payload={"items": [{"key": "quality.ds_interval", "value": 60, "settingVersion": 1}]})
+    snap = dict(tho, eventType="settings.snapshot", payload={"items": [{"key": "quality.pending_work_interval", "value": 60, "settingVersion": 1}]})
     env2 = env_mod.doc(json.dumps(snap).encode(), SettingsSnapshot)
     assert env2.payload.items[0].value == 60
 
@@ -79,7 +79,7 @@ def test_cho_du_chu_ky_khi_setting_khong_doi(monkeypatch):
     import asyncio, time
     _chu_ky_gia(monkeypatch, 0.3)
     t0 = time.monotonic()
-    bi_dung = asyncio.run(st.cho_theo_setting(st.DS_INTERVAL, asyncio.Event(), nhip=0.05))
+    bi_dung = asyncio.run(st.cho_theo_setting(st.PENDING_WORK_INTERVAL, asyncio.Event(), nhip=0.05))
     assert not bi_dung
     assert time.monotonic() - t0 >= 0.29
 
@@ -89,7 +89,7 @@ def test_rut_ngan_chu_ky_giua_chung_thi_ket_thuc_som(monkeypatch):
     hop = _chu_ky_gia(monkeypatch, 30.0)
 
     async def chay():
-        cho = asyncio.create_task(st.cho_theo_setting(st.DS_INTERVAL, asyncio.Event(), nhip=0.05))
+        cho = asyncio.create_task(st.cho_theo_setting(st.PENDING_WORK_INTERVAL, asyncio.Event(), nhip=0.05))
         await asyncio.sleep(0.2)
         hop["giay"] = 0.1
         return await cho
@@ -105,7 +105,7 @@ def test_dung_service_thi_thoat_ngay(monkeypatch):
 
     async def chay():
         dung = asyncio.Event()
-        cho = asyncio.create_task(st.cho_theo_setting(st.DS_INTERVAL, dung, nhip=1.0))
+        cho = asyncio.create_task(st.cho_theo_setting(st.PENDING_WORK_INTERVAL, dung, nhip=1.0))
         await asyncio.sleep(0.1)
         dung.set()
         return await cho

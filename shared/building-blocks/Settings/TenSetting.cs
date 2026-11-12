@@ -101,7 +101,6 @@ namespace Crowd.BuildingBlocks.Settings
             { "task.reaper_batch_size", "Số lượt hết hạn mỗi lô" },
             { "annotation.imbalance_threshold_percent", "Ngưỡng cảnh báo lệch lớp" },
             { "annotation.imbalance_min_labels", "Số nhãn tối thiểu để cảnh báo lệch" },
-            { "quality.ds_interval", "Chu kỳ Dawid-Skene" },
             { "quality.fraud_enabled", "Bật phát hiện gian lận" },
             { "quality.fraud_min_seconds", "Thời gian tối thiểu mỗi câu" },
             { "quality.fraud_fast_ratio", "Tỉ lệ làm quá nhanh" },

@@ -78,9 +78,17 @@ async def cua_toi(ng: NguoiGoi = Depends(can_vai_tro("labeler"))) -> dict:
 
 @router.post("/admin/dawid-skene/run")
 async def chay_ds_ngay(full: bool = False, ng: NguoiGoi = Depends(can_vai_tro("admin"))) -> dict:
-    """Admin chay lo Dawid-Skene ngay (binh thuong chay dinh ky). Mac dinh chi du an co nhan moi;
-    full=true tinh lai tat ca (cham: ~1 giay / du an) — dung sau khi doi quality.ds_min_labels."""
-    so = await ds_batch.chay_mot_lo(tat_ca=full)
+    """Admin chay Dawid-Skene ngay (binh thuong worker viec_cho chay sau khi cham). Mac dinh chi du an da cham
+    ma chua chay DS; full=true tinh lai moi du an da cham, chua luu tru (cham: ~1 giay / du an) — dung sau khi
+    doi quality.ds_min_labels. Du an da co uy tin thi labeler bi anh huong duoc tinh lai uy tin."""
+    if full:
+        await ds_batch.yeu_cau_tinh_lai()
+    so = 0
+    while True:
+        lo = await ds_batch.chay_mot_lo()
+        so += lo
+        if lo < ds_batch.LO:
+            break
     return {"computed": so, "full": full}
 
 

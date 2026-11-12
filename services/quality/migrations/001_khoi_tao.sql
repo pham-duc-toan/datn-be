@@ -73,12 +73,18 @@ CREATE TABLE project_gradings (
     -- Câu trả lời mở (3.19): pending (chờ ml-svc) → done. method: semantic (so nghĩa) | lexical (so chữ).
     freetext_state   varchar(20) NULL,
     freetext_method  varchar(20) NULL,
+    -- Đã chạy Dawid-Skene + chỉ số độ tin cậy (alpha / kappa / STAPLE) cho dự án (app/ds_batch.py): MỘT lần,
+    -- SAU khi chấm — lúc đó đủ bài của mọi labeler. Trong lúc thu bài không tính (dữ liệu dở dang làm độ tin cậy
+    -- dao động rồi lan sang uy tín). NULL = chưa chạy (hoặc admin yêu cầu tính lại).
+    ds_at            timestamptz NULL,
     -- Đã xếp labeler của dự án vào reputation_dirty: SAU khi project-svc ghi xong project.graded (gRPC thấy bài
-    -- graded) — trước đó tổng bằng chứng đọc từ project-svc còn thiếu đúng dự án vừa chấm.
+    -- graded) VÀ đã có ds_at — uy tín tính một lần, đủ cả bằng chứng chấm lẫn độ tin cậy DS của dự án.
     reputation_at    timestamptz NULL
 );
 CREATE INDEX ix_project_gradings_cho ON project_gradings (requested_at) WHERE graded_at IS NULL;
-CREATE INDEX ix_project_gradings_uy_tin ON project_gradings (graded_at) WHERE graded_at IS NOT NULL AND reputation_at IS NULL;
+CREATE INDEX ix_project_gradings_ds ON project_gradings (graded_at) WHERE graded_at IS NOT NULL AND ds_at IS NULL;
+CREATE INDEX ix_project_gradings_uy_tin ON project_gradings (graded_at)
+    WHERE graded_at IS NOT NULL AND ds_at IS NOT NULL AND reputation_at IS NULL;
 
 -- Labeler cần tính lại uy tín (dự án vừa chấm đã áp dụng, hoặc lô DS đổi độ tin cậy). Worker (app/viec_cho.py)
 -- đọc bằng chứng cộng dồn qua gRPC (GetLabelerEvidence — bài đã chấm nằm trên project.attempts, quality không
@@ -114,19 +120,10 @@ CREATE TABLE freetext_vectors (
 );
 CREATE INDEX ix_freetext_vectors_project ON freetext_vectors (project_id);
 
--- ---- Lô Dawid-Skene + chỉ số độ tin cậy (docs 3.7) ----
+-- ---- Dawid-Skene + chỉ số độ tin cậy: chạy MỘT lần sau khi chấm (project_gradings.ds_at) ----
 
--- Lô chỉ tính lại dự án CÓ BÀI NỘP MỚI: attempt.submitted đặt dirty_at, lô ghi computed_at = lúc BẮT ĐẦU đọc
--- nhãn (bài tới trong lúc tính → dirty_at mới hơn → lô sau tính lại).
-CREATE TABLE ds_state (
-    project_id  uuid PRIMARY KEY,
-    dirty_at    timestamptz NOT NULL,
-    label_count integer NULL,      -- số nhãn đã dùng ở lần tính gần nhất
-    computed_at timestamptz NULL
-);
-CREATE INDEX ix_ds_state_can_tinh ON ds_state (dirty_at) WHERE computed_at IS NULL OR dirty_at > computed_at;
-
--- Độ tin cậy Dawid-Skene theo (labeler, dự án, công cụ).
+-- Độ tin cậy Dawid-Skene theo (labeler, dự án, công cụ). Uy tín cộng dồn SUM(skill × label_count) qua mọi dự án
+-- của labeler (khoá chính mở đầu bằng labeler_id).
 CREATE TABLE ds_skills (
     labeler_id   uuid NOT NULL,
     project_id   uuid NOT NULL,
@@ -137,7 +134,7 @@ CREATE TABLE ds_skills (
     CONSTRAINT pk_ds_skills PRIMARY KEY (labeler_id, project_id, tool)
 );
 
--- Chỉ số đồng thuận cả dự án theo công cụ — lần chạy gần nhất. metric = hàm khoảng cách của alpha
+-- Chỉ số đồng thuận cả dự án theo công cụ (tính sau khi chấm). metric = hàm khoảng cách của alpha
 -- (nominal / interval / cer / kendall / set_f1); kappa = Fleiss' kappa cho công cụ nominal.
 CREATE TABLE project_metrics (
     project_id   uuid NOT NULL,
@@ -204,7 +201,7 @@ CREATE INDEX ix_fraud_cases_key ON fraud_cases (case_key, resolved_at);
 -- Đồng hồ lưu trữ của quality (không phải bản sao trạng thái dự án):
 --   closed_at   — nhận project.completed / project.cancelled;
 --   archived_at — đã chụp báo cáo vào project_reports (từ đây API đọc bản chụp, việc đến trễ bị bỏ);
---   purged_at   — đã xoá xong kết quả trung gian (đa số từng câu, vector câu mở, trạng thái DS).
+--   purged_at   — đã xoá xong kết quả trung gian (đa số từng câu, vector câu mở).
 CREATE TABLE project_archives (
     project_id   uuid PRIMARY KEY,
     closed_at    timestamptz NOT NULL,

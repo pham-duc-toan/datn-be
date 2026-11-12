@@ -4,7 +4,7 @@
 #   quality-svc khong giu ban sao de bai / bai nop / nhan — doc qua gRPC tu project-svc; project-svc tat dung
 #   luc quality nhan "dong thu bai" → yeu cau cham nam cho, project-svc chay lai thi worker cham (khong DLQ).
 # Chay: python e2e_chi_so_chat_luong.py   (stack demo: E2E_PROFILE=demo)
-import os, subprocess, sys
+import os, subprocess, sys, time
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -63,9 +63,13 @@ try:
         tham_gia(u, P)
         kiem(f"labeler {k} lam du 4 mau", lam_tat_ca(u, P, payload(k == 2)) == 4)
 
-    # attempt.submitted (tin hieu) da toi quality → du an duoc danh dau can tinh DS; nhan doc qua gRPC luc chay lo.
-    cho(lambda: sql("quality", f"select count(*) from ds_state where project_id='{P}'") == "1", 30)
-    requests.post(G + "/quality/admin/dawid-skene/run", headers=admin).raise_for_status()
+    # Dawid-Skene + chi so chay MOT lan SAU KHI CHAM (project_gradings.ds_at) — nhan doc qua gRPC luc do.
+    if requests.get(G + f"/projects/{P}", headers=biz["h"]).json()["status"] == "running":
+        ket_thuc_som(biz, P)
+    kiem("DS chay sau khi cham (ds_at >= graded_at), uy tin tinh sau DS (reputation_at >= ds_at)",
+         cho(lambda: sql("quality", f"select ds_at >= graded_at and reputation_at >= ds_at from project_gradings "
+                                    f"where project_id='{P}'") == "t", 90),
+         sql("quality", f"select graded_at, ds_at, reputation_at from project_gradings where project_id='{P}'"))
 
     def chi_so_du():
         tq = requests.get(G + f"/quality/projects/{P}/summary", headers=biz["h"]).json()
@@ -103,6 +107,12 @@ try:
     for u in L[:2]:
         tham_gia(u, Q)
         lam_het(u, Q, lambda _t: "a")
+    # Dang thu bai (2/3 bai): chua chay DS — du lieu do dang khong vao chi so / do tin cay / uy tin.
+    time.sleep(3)
+    tq = requests.get(G + f"/quality/projects/{Q}/summary", headers=biz["h"]).json()
+    kiem("dang thu bai → chua co chi so do tin cay, chua co dong cham / DS",
+         tq.get("tools") == [] and tq.get("gradedAt") is None
+         and sql("quality", f"select count(*) from project_gradings where project_id='{Q}'") == "0", tq)
     tham_gia(L[2], Q)
     if DEMO:
         QUALITY, PROJECT = f"{TIEN_TO_CONTAINER}quality", f"{TIEN_TO_CONTAINER}project"

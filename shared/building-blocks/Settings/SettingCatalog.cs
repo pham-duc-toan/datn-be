@@ -109,7 +109,6 @@ namespace Crowd.BuildingBlocks.Settings
         public const string AnnotationHistoryCleanupInterval = "annotation.history_cleanup_interval";
 
         // ---- Chat luong ----
-        public const string QualityDsInterval = "quality.ds_interval";
         public const string QualityFraudEnabled = "quality.fraud_enabled";
         public const string QualityFraudMinSeconds = "quality.fraud_min_seconds";
         public const string QualityFraudFastRatio = "quality.fraud_fast_ratio";
@@ -523,8 +522,8 @@ namespace Crowd.BuildingBlocks.Settings
                 "Công cụ cần ít nhất bấy nhiêu nhãn mới bắt đầu cảnh báo lệch phân bố."));
 
             // ================= CHAT LUONG =================
-            ds.Add(Seconds(SettingKeys.QualityDsInterval, NhomKyThuat, 900, 10, 7 * Ngay,
-                "Chu kỳ chạy lô Dawid-Skene."));
+            // Dawid-Skene khong co chu ky rieng: chay mot lan sau khi cham, trong worker viec cho
+            // (quality.pending_work_interval).
 
             // Chong gian lan (FM-07) — quality-svc mo ho so nghi van, admin quyet dinh.
             ds.Add(Bool(SettingKeys.QualityFraudEnabled, NhomChatLuong, true,

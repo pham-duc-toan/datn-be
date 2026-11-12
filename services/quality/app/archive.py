@@ -1,8 +1,8 @@
 """Luu tru du an DA DONG: chup bao cao chat luong roi xoa ket qua trung gian chi dung khi du an dang chay.
 
 Nhan / bai nop KHONG nam o quality (doc qua gRPC tu project-svc, kien truc 3.22) nen khong co gi cua chung de xoa.
-XOA: freetext_vectors (vector cau tra loi mo), sample_majorities, ds_state, pending_attempts con sot.
-GIU: ds_skills, project_metrics, project_gradings — uy tin labeler tinh TOAN CUC tu bang chung tren project.attempts
+XOA: freetext_vectors (vector cau tra loi mo), sample_majorities, pending_attempts con sot.
+GIU: ds_skills, project_metrics, staple_skills, project_gradings — uy tin labeler tinh TOAN CUC tu bang chung tren project.attempts
      (gRPC) va ds_skills (processors.cap_nhat_uy_tin), xoa la doi diem cua nguoi ta; va chung nho (khong mang jsonb).
 
 BA BUOC, dung giua chung thi vong sau chay tiep:
@@ -31,7 +31,6 @@ DU_AN_MOI_VONG = 20
 BANG_XOA = [
     ("freetext_vectors", "attempt_id, sample_id, tool"),
     ("sample_majorities", "project_id, sample_id"),
-    ("ds_state", "project_id"),
     ("pending_attempts", "attempt_id"),
 ]
 

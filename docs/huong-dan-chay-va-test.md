@@ -232,7 +232,7 @@ python -m venv .venv
 
 Biến `MEDIA_*` chỉ giữ hạ tầng ([app/config.py](../services/media/app/config.py)): RabbitMQ, MinIO, `MEDIA_GRANT_KEY` (phải **trùng** `MediaLinks:GrantKey` của project / task / annotation / gate), `MEDIA_WATERMARK_KEY` (giữ nguyên mãi — đổi thì ảnh đã phát không giải mã được nữa).
 
-Biến môi trường tiền tố `QUALITY_` chỉ còn giữ phần hạ tầng (chuỗi kết nối, RabbitMQ, JWKS, môi trường — xem [app/config.py](../services/quality/app/config.py)). Production phải đặt `QUALITY_ENVIRONMENT=Production` (tắt seed). Chu kỳ Dawid–Skene, trọng số uy tín… là **setting hệ thống**: muốn DS chạy mỗi phút thì `PUT /admin/settings/quality.ds_interval {"value":60}` (mục 6.16).
+Biến môi trường tiền tố `QUALITY_` chỉ còn giữ phần hạ tầng (chuỗi kết nối, RabbitMQ, JWKS, môi trường — xem [app/config.py](../services/quality/app/config.py)). Production phải đặt `QUALITY_ENVIRONMENT=Production` (tắt seed). Trọng số uy tín, nhịp worker việc chờ… là **setting hệ thống** (mục 6.16). Dawid–Skene không có chu kỳ riêng: chạy một lần sau khi chấm, trong worker việc chờ (`quality.pending_work_interval`).
 
 - **Thứ tự không quan trọng.** Mỗi service tự migrate database của mình khi khởi động (VD-O-03), rồi tự seed (mục 4). Các service không gọi nhau lúc seed.
 - **Setting:** mỗi service nạp bản sao setting trong DB của mình rồi xin admin-svc phát lại toàn bộ. admin-svc chưa chạy thì service dùng giá trị mặc định của catalog, khi admin-svc lên sẽ tự đồng bộ (log `Setting: nap N gia tri tu ban sao, da xin admin-svc phat lai`).
@@ -907,7 +907,7 @@ curl -s http://localhost:8080/annotations/projects/<id-du-an-moi>/results -H "Au
 curl -s http://localhost:8080/quality/projects/<id-du-an-moi>/summary  -H "Authorization: Bearer <token-biz1>"
 curl -s http://localhost:8080/quality/projects/<id-du-an-moi>/labelers -H "Authorization: Bearer <token-biz1>"
 
-# Chạy Dawid–Skene ngay (bình thường chạy định kỳ 15 phút) — admin
+# Chạy Dawid–Skene ngay cho dự án đã chấm còn chờ (bình thường worker tự chạy sau khi chấm) — admin
 curl -s -X POST http://localhost:8080/quality/admin/dawid-skene/run -H "Authorization: Bearer <token-admin>"
 
 # Labeler xem điểm của mình (không có số câu vàng — tránh đoán câu nào là câu vàng)
@@ -942,7 +942,7 @@ curl -s -X PUT http://localhost:8080/admin/settings/quality.redundancy_policy -H
 
 ### 6.16 Setting hệ thống (admin): phí, tự duyệt, hạn mức
 
-Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (155 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
+Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (194 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
 
 ```bash
 # Toàn bộ setting: key, group, type, value, defaultValue, min, max, unit, effect, description, version
@@ -1168,7 +1168,7 @@ docker exec datn-db-project psql -U project_user -d project_db -c \
 curl -s -X POST http://localhost:8080/tasks/admin/projects/<projectId>/purge -H "Authorization: Bearer <token-admin>"
 #   → {"purgedNow":true,"deletedReports":1,...}; dự án chưa đóng → 409 du_an_chua_dong
 curl -s -X POST http://localhost:8080/quality/admin/projects/<projectId>/archive -H "Authorization: Bearer <token-admin>"
-#   → {"purgedNow":true,"deleted":{"labels":6,"consensus_rounds":3,"task_targets":3,"ds_state":1}}
+#   → {"purgedNow":true,"deleted":{"labels":6,"consensus_rounds":3,"task_targets":3}}
 # Sau đó tiến độ và báo cáo chất lượng vẫn xem được (bản chụp), nhãn đã duyệt và uy tín labeler không đổi:
 curl -s http://localhost:8080/tasks/projects/<projectId>/progress -H "Authorization: Bearer <token-biz1>"       # frozenAt có giá trị
 curl -s http://localhost:8080/quality/projects/<projectId>/summary -H "Authorization: Bearer <token-biz1>"     # archivedAt có giá trị

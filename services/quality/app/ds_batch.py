@@ -1,32 +1,43 @@
-"""Dawid-Skene + chi so do tin cay chay THEO LO (docs 3.7), khong trong request.
+"""Dawid-Skene + chi so do tin cay cua MOT du an, chay MOT lan SAU KHI CHAM (project_gradings.ds_at).
 
-Moi lo, moi du an co nhan moi:
+Vi sao sau khi cham: luc dang thu bai, nhan con do dang (VD chi 2 nguoi nop, bat dong o mot cau → DS khong
+biet ai dung) → do tin cay dao dong theo thu tu nop roi lan sang uy tin. Kien truc 3.18 "cham mot lan ca
+du an" — DS cung vay: dong thu bai → cham → DS → uy tin.
+
+Moi du an (bo cau bi loai — samples.excluded_at, giong luc cham):
   - MOI cong cu do duoc (tru freeText): Krippendorff alpha voi ham khoang cach theo loai du lieu
     (chi_so.py), Fleiss' kappa cho cong cu chon mot gia tri, STAPLE (do nhay / dac hieu) cho mat na;
   - cong cu chon MOT gia tri roi rac (classification mot lop, pairwise): them crowd-kit Dawid-Skene —
     ma tran nham lan tung labeler → do tin cay = trung binh P(chon dung | dap an that).
 Labeler co it hon setting quality.ds_min_labels nhan trong du an thi chua tin uoc
-luong DS cua ho (VD-Q-07). Xong thi tinh lai uy tin cho labeler bi anh huong (STAPLE KHONG vao uy tin).
+luong DS cua ho (VD-Q-07). STAPLE KHONG vao uy tin.
 
-Nhan doc qua gRPC tu project-svc (kien truc 3.22) — quality khong giu ban sao. Du an "can tinh" = co bai nop
-moi tu lan tinh truoc (ds_state.dirty_at > computed_at, attempt.submitted dat dirty_at).
+Thu tu trong worker viec_cho: cham lai → CHAY DS (o day) → ap dung cham (can ds_at) → tinh uy tin. Nen moi
+labeler chi tinh lai uy tin MOT lan cho moi du an, voi du ca bang chung cham lan ds_skills moi.
+Tinh lai (admin, sau khi doi quality.ds_min_labels): du an da xep uy tin (reputation_at co) thi buoc nay tu
+xep labeler bi anh huong vao reputation_dirty.
+
+Nhan doc qua gRPC tu project-svc (kien truc 3.22) — quality khong giu ban sao.
 """
 
 import asyncio
 import logging
 import uuid
 import warnings
-from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import chi_so, project_client, settings_store
 from app.db import session_factory
 from app.processors import xep_tinh_uy_tin
 
 log = logging.getLogger(__name__)
+
+# So du an toi da moi vong worker (moi du an mot transaction).
+LO = 20
 
 
 def gia_tri_roi_rac(kind: str, ket_qua: Any) -> str | None:
@@ -85,107 +96,132 @@ def _moi_nguoi_mot_dong(nhan: list) -> list:
     return list(cuoi.values())
 
 
-# Du an can tinh: co bai nop moi tu lan tinh truoc. tat_ca = moi du an tung co bai nop (admin chay lai toan bo,
-# vd sau khi doi quality.ds_min_labels). Du an da luu tru thi khong tinh nua.
-_SQL_DU_AN_CAN_TINH = text(
-    "SELECT st.project_id FROM ds_state st "
-    "WHERE (:tat_ca OR st.computed_at IS NULL OR st.dirty_at > st.computed_at) "
-    "AND NOT EXISTS (SELECT 1 FROM project_archives a WHERE a.project_id = st.project_id AND a.archived_at IS NOT NULL) "
-    "ORDER BY st.dirty_at"
-)
+class KetQuaCongCu:
+    """Chi so cua mot cong cu: dong project_metrics + staple_skills + ds_skills."""
+
+    def __init__(self, ten: str, chi: dict[str, Any], ky_nang: dict[str, tuple[float, int]]):
+        self.ten = ten
+        self.chi = chi
+        self.ky_nang = ky_nang
 
 
-async def chay_mot_lo(tat_ca: bool = False) -> int:
-    """Chay DS cho cac du an CO BAI NOP MOI (tat_ca=True: moi du an). Tra ve so (du an, cong cu) da tinh.
-    project-svc khong tra loi duoc thi bo qua du an do (lo sau tinh lai — dirty_at chua bi xoa)."""
-    so = 0
-    async with session_factory()() as s:
-        du_an_ids = (await s.execute(_SQL_DU_AN_CAN_TINH, {"tat_ca": tat_ca})).scalars().all()
+async def tinh(schema: dict[str, Any], nhan: list, loai: frozenset[str]) -> list[KetQuaCongCu]:
+    """Tinh chi so moi cong cu tu nhan cua du an (bo cau bi loai). CPU chay trong thread."""
+    du_lieu = [(n, n.data, n.sample_metadata) for n in _moi_nguoi_mot_dong(nhan) if str(n.sample_id) not in loai]
+    if not du_lieu:
+        return []
+    ds_ten = {t["name"] for t in cong_cu_dung_duoc(schema)}
+    nguong = settings_store.nguong_gop()
+    min_nhan = settings_store.so_nguyen(settings_store.DS_MIN_LABELS)
 
-    for project_id in du_an_ids:
-        # Moc TRUOC khi doc nhan: bai toi trong luc tinh dat dirty_at moi hon → lo sau tinh lai.
-        bat_dau = datetime.now(timezone.utc)
-        try:
-            schema = (await project_client.du_an(project_id)).label_schema
-            nhan = await project_client.nhan(project_id)
-        except (project_client.KhongGoiDuoc, project_client.KhongTimThay) as ex:
-            log.warning("DS: bo qua du an %s lo nay (%s)", project_id, ex)
+    ra: list[KetQuaCongCu] = []
+    for t in schema.get("tools", []):
+        vao = [(str(n.sample_id), str(n.labeler_id), data.get(t["name"]), md or None) for n, data, md in du_lieu]
+        chi = await asyncio.to_thread(chi_so.tinh_cho_cong_cu, t, vao, nguong)
+        if chi is None:
             continue
-        ds_ten = {t["name"] for t in cong_cu_dung_duoc(schema)}
 
-        du_lieu = [(n, n.data, n.sample_metadata) for n in _moi_nguoi_mot_dong(nhan)]
-        nguong = settings_store.nguong_gop()
+        ky_nang: dict[str, tuple[float, int]] = {}
+        if t["name"] in ds_ten:
+            dong = []
+            for sample_id, labeler_id, ket_qua, _md in vao:
+                v = gia_tri_roi_rac(t["kind"], ket_qua)
+                if v is not None:
+                    dong.append((sample_id, labeler_id, v))
+            if dong:
+                df = pd.DataFrame(dong, columns=["task", "worker", "label"])
+                ky_nang = await asyncio.to_thread(uoc_luong, df, min_nhan)
+        ra.append(KetQuaCongCu(t["name"], chi, ky_nang))
+    return ra
 
-        anh_huong: set[uuid.UUID] = set()
-        for t in schema.get("tools", []) if du_lieu else []:
-            vao = [(str(n.sample_id), str(n.labeler_id), data.get(t["name"]), md or None) for n, data, md in du_lieu]
-            chi = await asyncio.to_thread(chi_so.tinh_cho_cong_cu, t, vao, nguong)
-            if chi is None:
-                continue
 
-            ky_nang: dict[str, tuple[float, int]] = {}
-            if t["name"] in ds_ten:
-                dong = []
-                for sample_id, labeler_id, ket_qua, _md in vao:
-                    v = gia_tri_roi_rac(t["kind"], ket_qua)
-                    if v is not None:
-                        dong.append((sample_id, labeler_id, v))
-                if dong:
-                    df = pd.DataFrame(dong, columns=["task", "worker", "label"])
-                    ky_nang = await asyncio.to_thread(uoc_luong, df, settings_store.so_nguyen(settings_store.DS_MIN_LABELS))
+async def _ghi(s: AsyncSession, project_id: uuid.UUID, ket_qua: list[KetQuaCongCu]) -> set[uuid.UUID]:
+    """Thay toan bo chi so cua du an (xoa roi ghi — tinh lai voi ds_min_labels moi thi labeler khong con du
+    nhan cung mat dong cu). Tra labeler co ds_skills cu hoac moi (uy tin can tinh lai neu chay lai)."""
+    anh_huong = set((await s.execute(
+        text("DELETE FROM ds_skills WHERE project_id = :p RETURNING labeler_id"), {"p": project_id})).scalars().all())
+    await s.execute(text("DELETE FROM staple_skills WHERE project_id = :p"), {"p": project_id})
+    await s.execute(text("DELETE FROM project_metrics WHERE project_id = :p"), {"p": project_id})
 
-            async with session_factory()() as s, s.begin():
-                await s.execute(
-                    text(
-                        "INSERT INTO project_metrics (project_id, tool, alpha, kappa, metric, item_count, label_count, computed_at) "
-                        "VALUES (:p, :t, :a, :k, :m, :i, :n, now()) ON CONFLICT (project_id, tool) DO UPDATE SET "
-                        "alpha = EXCLUDED.alpha, kappa = EXCLUDED.kappa, metric = EXCLUDED.metric, "
-                        "item_count = EXCLUDED.item_count, label_count = EXCLUDED.label_count, computed_at = EXCLUDED.computed_at"
-                    ),
-                    {"p": project_id, "t": t["name"], "a": chi["alpha"], "k": chi["kappa"], "m": chi["metric"],
-                     "i": chi["item_count"], "n": chi["label_count"]},
-                )
-                for w, (nhay, dac_hieu, so_mau) in chi["staple"].items():
-                    await s.execute(
-                        text(
-                            "INSERT INTO staple_skills (labeler_id, project_id, tool, sensitivity, specificity, sample_count, computed_at) "
-                            "VALUES (:l, :p, :t, :se, :sp, :n, now()) ON CONFLICT (labeler_id, project_id, tool) DO UPDATE SET "
-                            "sensitivity = EXCLUDED.sensitivity, specificity = EXCLUDED.specificity, "
-                            "sample_count = EXCLUDED.sample_count, computed_at = EXCLUDED.computed_at"
-                        ),
-                        {"l": uuid.UUID(w), "p": project_id, "t": t["name"], "se": nhay, "sp": dac_hieu, "n": so_mau},
-                    )
-                for w, (skill, n) in ky_nang.items():
-                    await s.execute(
-                        text(
-                            "INSERT INTO ds_skills (labeler_id, project_id, tool, skill, label_count, computed_at) "
-                            "VALUES (:l, :p, :t, :k, :n, now()) ON CONFLICT (labeler_id, project_id, tool) DO UPDATE SET "
-                            "skill = EXCLUDED.skill, label_count = EXCLUDED.label_count, computed_at = EXCLUDED.computed_at"
-                        ),
-                        {"l": uuid.UUID(w), "p": project_id, "t": t["name"], "k": skill, "n": n},
-                    )
-                    anh_huong.add(uuid.UUID(w))
-            so += 1
-
-        # Do tin cay DS doi → tinh lai uy tin (worker viec_cho doc bang chung qua gRPC).
-        if anh_huong:
-            async with session_factory()() as s, s.begin():
-                await xep_tinh_uy_tin(s, anh_huong, None)
-
-        async with session_factory()() as s, s.begin():
+    for k in ket_qua:
+        c = k.chi
+        await s.execute(
+            text("INSERT INTO project_metrics (project_id, tool, alpha, kappa, metric, item_count, label_count, computed_at) "
+                 "VALUES (:p, :t, :a, :k, :m, :i, :n, now())"),
+            {"p": project_id, "t": k.ten, "a": c["alpha"], "k": c["kappa"], "m": c["metric"],
+             "i": c["item_count"], "n": c["label_count"]},
+        )
+        for w, (nhay, dac_hieu, so_mau) in c["staple"].items():
             await s.execute(
-                text("UPDATE ds_state SET label_count = :n, computed_at = :at WHERE project_id = :p"),
-                {"p": project_id, "n": len(nhan), "at": bat_dau},
+                text("INSERT INTO staple_skills (labeler_id, project_id, tool, sensitivity, specificity, sample_count, computed_at) "
+                     "VALUES (:l, :p, :t, :se, :sp, :n, now())"),
+                {"l": uuid.UUID(w), "p": project_id, "t": k.ten, "se": nhay, "sp": dac_hieu, "n": so_mau},
             )
+        for w, (skill, n) in k.ky_nang.items():
+            await s.execute(
+                text("INSERT INTO ds_skills (labeler_id, project_id, tool, skill, label_count, computed_at) "
+                     "VALUES (:l, :p, :t, :k, :n, now())"),
+                {"l": uuid.UUID(w), "p": project_id, "t": k.ten, "k": skill, "n": n},
+            )
+            anh_huong.add(uuid.UUID(w))
+    return anh_huong
 
+
+async def _chay_du_an(s: AsyncSession, project_id: uuid.UUID, reputation_at) -> bool:
+    """DS cho mot du an da cham (noi goi giu khoa dong project_gradings). True = da ghi chi so.
+
+    project-svc khong tra loi → KhongGoiDuoc nem ra (ds_at van NULL, vong sau chay lai). Du lieu lam thuat
+    toan loi → ghi log, VAN dat ds_at: uy tin khong bi chan mai, chi thieu do tin cay DS cua du an nay."""
+    ghi = False
+    da_luu_tru = (await s.execute(text(
+        "SELECT 1 FROM project_archives WHERE project_id = :p AND archived_at IS NOT NULL"), {"p": project_id})).first()
+    if da_luu_tru is not None:
+        log.info("DS: du an %s da luu tru — khong tinh", project_id)
+    else:
+        try:
+            du_an = await project_client.du_an(project_id)
+            nhan = await project_client.nhan(project_id)
+        except project_client.KhongTimThay:
+            du_an = None
+            log.warning("DS: project-svc khong con du an %s — bo qua", project_id)
+        if du_an is not None:
+            try:
+                ket_qua = await tinh(du_an.label_schema, nhan, du_an.excluded_sample_ids)
+            except Exception:  # noqa: BLE001 — du lieu la khong duoc chan uy tin cua ca du an
+                log.exception("DS: tinh chi so du an %s that bai — bo qua, uy tin tinh khong co DS", project_id)
+                ket_qua = None
+            if ket_qua is not None:
+                anh_huong = await _ghi(s, project_id, ket_qua)
+                ghi = True
+                # Chay lai (uy tin da tinh tu truoc) → tinh lai cho labeler bi anh huong. Lan dau thi ap_dung_cham lo.
+                if reputation_at is not None and anh_huong:
+                    await xep_tinh_uy_tin(s, anh_huong, None)
+
+    await s.execute(text("UPDATE project_gradings SET ds_at = now() WHERE project_id = :p"), {"p": project_id})
+    return ghi
+
+
+async def chay_mot_lo() -> int:
+    """Chay DS cho du an DA CHAM ma chua chay (ds_at NULL), toi da LO du an. Tra so du an da xu ly (dat ds_at).
+    Nhieu instance: FOR UPDATE SKIP LOCKED — moi du an mot ben tinh."""
+    so = 0
+    for _ in range(LO):
+        async with session_factory()() as s, s.begin():
+            d = (await s.execute(text(
+                "SELECT project_id, reputation_at FROM project_gradings WHERE graded_at IS NOT NULL AND ds_at IS NULL "
+                "ORDER BY graded_at LIMIT 1 FOR UPDATE SKIP LOCKED"))).first()
+            if d is None:
+                break
+            await _chay_du_an(s, d.project_id, d.reputation_at)
+        so += 1
     return so
 
 
-async def vong_lap(dung: asyncio.Event) -> None:
-    while not dung.is_set():
-        try:
-            so = await chay_mot_lo()
-            log.info("Lo Dawid-Skene xong: %s (du an, cong cu)", so)
-        except Exception:  # noqa: BLE001
-            log.exception("Lo Dawid-Skene that bai, thu lai lo sau")
-        await settings_store.cho_theo_setting(settings_store.DS_INTERVAL, dung)
+async def yeu_cau_tinh_lai() -> int:
+    """Admin: tinh lai DS moi du an da cham, chua luu tru (vd sau khi doi quality.ds_min_labels). Tra so du an
+    duoc xep — worker viec_cho (hoac noi goi) chay tiep."""
+    async with session_factory()() as s, s.begin():
+        return (await s.execute(text(
+            "UPDATE project_gradings g SET ds_at = NULL WHERE g.graded_at IS NOT NULL AND g.ds_at IS NOT NULL "
+            "AND NOT EXISTS (SELECT 1 FROM project_archives a WHERE a.project_id = g.project_id AND a.archived_at IS NOT NULL)"
+        ))).rowcount

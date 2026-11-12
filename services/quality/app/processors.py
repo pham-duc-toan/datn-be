@@ -4,16 +4,17 @@ KHONG BAN SAO (kien truc 3.22): de bai, bai nop va nhan doc thang tu project-svc
 Consumer chi ghi viec vao hang cho / moc cua chinh quality roi tra loi — attempt.submitted khong goi gRPC:
 project-svc tam sap thi message khong bi giao lai den het luot roi vao DLQ; worker (viec_cho.py) thu lai.
 
-  attempt.submitted (v2, chi la tin hieu) → pending_attempts (xet gian lan, nhung cau tra loi mo) + danh dau
-      du an can tinh lai DS (ds_state.dirty_at).
+  attempt.submitted (v2, chi la tin hieu) → pending_attempts (xet gian lan, nhung cau tra loi mo). KHONG dung
+      den DS: Dawid-Skene chay mot lan sau khi cham (project_gradings.ds_at, ds_batch.py) — luc nop bai chua du
+      bai cua moi labeler.
   project.collection_finished → project_gradings (yeu cau cham) roi thu cham ngay; chua cham duoc (gRPC loi,
       cho ml-svc) thi worker cham lai. Moi bai trong dot da commit o project-svc TRUOC event nay (outbox cung
       transaction dong thu bai) nen khong con phai doi attempt.submitted nhu truoc.
   project.completed / project.cancelled → project_archives.closed_at (dong ho luu tru).
 
 UY TIN khong tinh trong transaction cham: bang chung (so cau so duoc / giong / cau vang cua moi bai da cham) nam
-tren project.attempts — quality khong giu ban sao. Worker cho project-svc ghi xong project.graded roi moi xep
-labeler vao reputation_dirty va doc tong qua gRPC (viec_cho.py).
+tren project.attempts — quality khong giu ban sao. Worker cho DS cua du an chay xong (ds_at) va project-svc ghi
+xong project.graded roi moi xep labeler vao reputation_dirty va doc tong qua gRPC (viec_cho.py).
 """
 
 import json
@@ -47,7 +48,8 @@ async def da_luu_tru(s: AsyncSession, project_id: uuid.UUID) -> bool:
 
 
 async def attempt_submitted(s: AsyncSession, env: Envelope[AttemptSubmitted]) -> None:
-    """Xep bai vao hang cho (gian lan, cau tra loi mo) va danh dau du an can tinh lai DS. Khong goi gRPC."""
+    """Xep bai vao hang cho (gian lan, cau tra loi mo). Khong goi gRPC. Moi bai mot dong rieng — cac bai nop
+    cung luc vao mot du an khong tranh khoa chung dong nao."""
     p = env.payload
     if await da_luu_tru(s, p.project_id):
         log.info("Bo qua bai %s: du an %s da luu tru", p.attempt_id, p.project_id)
@@ -57,10 +59,6 @@ async def attempt_submitted(s: AsyncSession, env: Envelope[AttemptSubmitted]) ->
         text("INSERT INTO pending_attempts (attempt_id, project_id, queued_at) VALUES (:a, :p, now()) "
              "ON CONFLICT (attempt_id) DO NOTHING"),
         {"a": p.attempt_id, "p": p.project_id})
-    await s.execute(
-        text("INSERT INTO ds_state (project_id, dirty_at) VALUES (:p, now()) "
-             "ON CONFLICT (project_id) DO UPDATE SET dirty_at = EXCLUDED.dirty_at"),
-        {"p": p.project_id})
 
 
 async def collection_finished(s: AsyncSession, env: Envelope[ProjectCollectionFinished]) -> None:

@@ -418,7 +418,7 @@ Hai chính sách mới áp cho công cụ chọn một (phân loại một lớp
 
 Đồng thuận tính trên **mọi công cụ** của tập nhãn trừ `freeText` (câu trả lời mở): phân loại và so sánh cặp theo đa số tuyệt đối; khung, đa giác, điểm mốc, đường, mặt nạ, đoạn thời gian, chuỗi khung theo ghép cụm; đoạn văn bản và quan hệ theo phần tử trùng hệt; bản chép, số, xếp hạng theo bản ở giữa / trung vị / Borda — xem mục 3.15. Tập nhãn chỉ có `freeText` thì task ở trạng thái `notApplicable`.
 
-Dawid–Skene / Krippendorff alpha chạy **batch** (mặc định 15 phút, admin chạy tay được) trên các công cụ một giá trị (phân loại một lớp, so sánh cặp); labeler cần ≥ 5 nhãn trong dự án mới được chấm DS (VD-Q-07). Không chạy trong request. Mỗi lô **chỉ tính lại dự án có bài nộp mới** (`attempt.submitted` đặt `ds_state.dirty_at`; lô ghi `computed_at` = lúc bắt đầu đọc nhãn qua gRPC, bài tới trong lúc tính thì lô sau tính lại). Tính lại mọi dự án tốn ~1 giây / dự án (EM của crowd-kit): trên DB dev 107 dự án, lô đầy đủ mất 102 giây và nút "chạy ngay" của admin quá timeout gateway; lô tăng dần mất 0,04 giây. `?full=true` vẫn tính lại tất cả (sau khi đổi `quality.ds_min_labels`).
+Dawid–Skene / Krippendorff alpha chạy **ngoài request** trên các công cụ một giá trị (phân loại một lớp, so sánh cặp); labeler cần ≥ 5 nhãn trong dự án mới được chấm DS (VD-Q-07). Thiết kế cũ ở mục này chạy theo lô 15 phút, tính lại dần mỗi khi có bài nộp mới (`ds_state.dirty_at`). Từ mục **3.30** DS chạy **một lần cho mỗi dự án, sau khi chấm** (`project_gradings.ds_at`); bảng `ds_state` và setting `quality.ds_interval` đã bỏ. Tính lại mọi dự án vẫn tốn ~1 giây / dự án (EM của crowd-kit) — `POST /quality/admin/dawid-skene/run?full=true` chỉ dùng sau khi đổi `quality.ds_min_labels`.
 
 Đề bài, bài nộp và nhãn quality-svc **không giữ bản sao**: đọc qua gRPC từ project-svc lúc chấm / chạy lô (mục 3.22), nên không còn trường hợp "dự án publish trước khi quality-svc chạy thì thiếu bản sao".
 
@@ -512,7 +512,7 @@ assignments / annotations / gold_items:  task_type = modality,
 | # | Câu hỏi | Chọn | Lý do |
 |---|---|---|---|
 | S1 | Lưu ở đâu | **Một bảng chung `settings` trong `admin_db`**, mỗi dòng một khóa (`key`, `value jsonb`, `version`, `updated_at`, `updated_by`) + `setting_history` (cũ → mới, ai, lý do) | Một chỗ cho admin xem và sửa; lịch sử để truy "ai hạ phí lúc nào" |
-| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 155 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
+| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 194 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
 | S3 | Service đọc thế nào | **Bản sao `settings_replica` trong DB của chính mỗi service** + bộ nhớ (`SettingsStore`). Nhận `setting.changed`; lúc khởi động nạp bản sao rồi xin `settings.snapshot_requested`, admin-svc phát `settings.snapshot` (cả lúc khởi động và định kỳ) | Đúng luật 1–2 mục 4: không gọi HTTP sang admin-svc trong đường nóng; admin-svc chết thì mọi service vẫn chạy với giá trị đã có. Mỗi khóa có `version` riêng — event đến sai thứ tự không ghi đè giá trị mới |
 | S4 | Đổi có hiệu lực khi nào | **Chỉ cho thao tác mới.** Chu kỳ worker (giải phóng tiền treo, reaper, quét link…) đọc lại mỗi giây qua `ChoTheoSetting`, nên rút ngắn chu kỳ có hiệu lực ngay, không phải chờ hết chu kỳ cũ. Giá trị đọc lại mỗi lần dùng; thứ đã chốt thì giữ: dự án đã publish giữ phí lúc publish, lease đang chạy giữ hạn cũ, lệnh rút đã tạo giữ thuế đã tính | Không ai bị đổi luật giữa chừng. `consumers.prefetch_count` là ngoại lệ (`restart`) vì chỉ đặt được lúc mở kênh |
 | S5 | Domain có đọc setting không | **Không.** Tầng Api đọc setting, dựng **đối tượng quy định** (`QuyDinhDuAn`, `QuyDinhDuLieu`, `QuyDinhBaiTest`, `QuyDinhDuyetNhan`, `QuyDinhRut`, `QuyDinhNap`, `NguongKhop`) truyền vào domain | Domain vẫn thuần, test không cần hạ tầng. Độ rộng cột DB (`CotDb.*`) vẫn là hằng số của schema — setting độ dài bị chặn trần ở đó |
@@ -648,7 +648,7 @@ Ba nguyên tắc:
 | L7 | Refresh token | Mỗi lần làm mới thêm một dòng | `login_sessions`: một dòng mỗi phiên, xoay tại chỗ (mục 3.11, K4b) | Triển khai: bảng cũ bị bỏ → **mọi người đăng nhập lại một lần** |
 | L8 | Bản sao email / KYB | ledger `email_status`; project `email_status` + `verified_businesses` — mỗi user một dòng ở mỗi service, kèm 4 consumer | Claim `email_verified`, `kyb_verified` trong access token | Chỉ hợp với sự thật **một chiều** (đã xác thực thì không thu hồi) về **chính người gọi**. Thứ có thể đảo chiều (bị khoá) vẫn phải là bản sao + mốc thu hồi phiên (B1). Client làm mới token sau khi xác thực |
 | L9 | Nội dung mẫu trong từng nhãn | `annotations` chép `storage_key`, `sample_content`, `sample_metadata` cho mỗi nhãn | `annotation_samples(sample_id PK, project_id, storage_key, content, metadata)` ghi **một lần** (`ON CONFLICT DO NOTHING`); nhãn chỉ giữ `sample_id` | Dev: 68.317 nhãn → 29.181 mẫu. Event `assignment.submitted` **vẫn mang** nội dung mẫu (annotation không gọi ngược project-svc; nằm trong outbox ≤ 7 ngày) |
-| L10 | Dữ liệu vận hành của dự án đã đóng | Giữ mãi | Sau `project.closed_data_retention` (90 ngày; 0 = không xoá): **task-svc** chụp tiến độ cuối vào `project_snapshots.final_progress` rồi xoá `tasks`, `assignments`, `task_reports`, `gold_samples`; **quality-svc** chụp báo cáo vào `project_reports` rồi xoá `labels`, `consensus_rounds`, `task_targets`, `ds_state` | Xem dưới |
+| L10 | Dữ liệu vận hành của dự án đã đóng | Giữ mãi | Sau `project.closed_data_retention` (90 ngày; 0 = không xoá): **task-svc** chụp tiến độ cuối vào `project_snapshots.final_progress` rồi xoá `tasks`, `assignments`, `task_reports`, `gold_samples`; **quality-svc** chụp báo cáo vào `project_reports` rồi xoá `labels`, `consensus_rounds`, `task_targets` (bảng `ds_state` cũ đã bỏ ở 3.30) | Xem dưới |
 
 **L10 — xoá gì, giữ gì.** Dự án đóng là điểm cuối (không mở lại, không cấp task nữa), còn `tasks` + `assignments` là hai bảng lớn nhất hệ thống (mỗi mẫu × redundancy lượt, kèm bản nháp và nhãn) và chỉ phục vụ việc cấp task.
 
@@ -1027,25 +1027,25 @@ Giữ lại có chủ đích: `labeler_cache` (dữ liệu của identity/qualit
 
 ### 3.22. quality-svc đọc dữ liệu làm bài qua gRPC, không giữ bản sao (11/2026)
 
-**Vấn đề.** Sau mục 3.21 vẫn còn một cụm bản sao lớn: quality-svc chép `projects` (từ `project.published`), `attempts` và `labels` (từ `attempt.submitted`, kèm cả nội dung mẫu), `project_collections.attempt_ids` (từ `collection_finished`), `fraud_submissions` (thời gian, IP, thiết bị). `labels` cùng cỡ với `annotations` — bảng lớn nhất hệ thống — nên mỗi câu trả lời nằm ở hai database suốt đời dự án (+ thời gian lưu trữ). Kèm theo là lớp code đồng bộ: chờ đủ `attempt.submitted` mới chấm (hai queue lộn thứ tự), tự bù bản sao khi lỡ `project.published`, dọn bản sao theo `project.closed_data_retention`. Theo luật mục 4 thì bản sao chỉ có lý do khi **đường nóng** phải lọc SQL trên nó — chấm, lô Dawid–Skene, xét gian lận đều là việc nền, không phải đường nóng.
+**Vấn đề.** Sau mục 3.21 vẫn còn một cụm bản sao lớn: quality-svc chép `projects` (từ `project.published`), `attempts` và `labels` (từ `attempt.submitted`, kèm cả nội dung mẫu), `project_collections.attempt_ids` (từ `collection_finished`), `fraud_submissions` (thời gian, IP, thiết bị). `labels` cùng cỡ với `annotations` — bảng lớn nhất hệ thống — nên mỗi câu trả lời nằm ở hai database suốt đời dự án (+ thời gian lưu trữ). Kèm theo là lớp code đồng bộ: chờ đủ `attempt.submitted` mới chấm (hai queue lộn thứ tự), tự bù bản sao khi lỡ `project.published`, dọn bản sao theo `project.closed_data_retention`. Theo luật mục 4 thì bản sao chỉ có lý do khi **đường nóng** phải lọc SQL trên nó — chấm, Dawid–Skene, xét gian lận đều là việc nền, không phải đường nóng.
 
 **Quyết định.** project-svc mở service gRPC nội bộ `QualityData` (`contracts/grpc/project/v1/quality_data.proto`, cổng riêng 9102 HTTP/2, metadata `x-internal-key` cùng khoá `InternalApi:Key`). quality-svc đọc thẳng từ nguồn khi cần, chỉ giữ **kết quả của chính nó**:
 
 | RPC | Thay cho | Ai gọi |
 |---|---|---|
-| `GetProject` (tập nhãn, ngưỡng, số suất, lý do / lúc đóng thu bài, câu bị loại) | `quality.projects`, `project_collections.excluded_sample_ids` | chấm, lô DS, xét gian lận, kiểm chủ dự án ở API báo cáo |
+| `GetProject` (tập nhãn, ngưỡng, số suất, lý do / lúc đóng thu bài, câu bị loại) | `quality.projects`, `project_collections.excluded_sample_ids` | chấm, DS sau khi chấm (bỏ câu bị loại), xét gian lận, kiểm chủ dự án ở API báo cáo |
 | `ListSubmittedAttempts` (câu thật theo thứ tự bài, câu vàng, thời điểm, IP / thiết bị, **kết quả cuối sau khiếu nại**) | `quality.attempts`, `project_collections.attempt_ids` | chấm, xét gian lận, báo cáo |
-| `StreamLabels` (server stream, nối `annotations` × `samples` cùng phân vùng) | `quality.labels` | chấm, lô DS, nhúng câu trả lời mở, xét "một nhãn liên tục" |
+| `StreamLabels` (server stream, nối `annotations` × `samples` cùng phân vùng) | `quality.labels` | chấm, DS sau khi chấm, nhúng câu trả lời mở, xét "một nhãn liên tục" |
 | `FindSharedSubmitters`, `GetLabelerSubmissionStats` | `fraud_submissions` | xét chung IP / thiết bị, hồ sơ gian lận của admin |
 
 | Quyết định | Lý do |
 |---|---|
 | gRPC thay REST nội bộ | Hợp đồng có kiểu sinh cho cả C# (Grpc.Tools lúc build) và Python (stub commit ở `app/grpc_gen`, `sinh_grpc.py`); nhãn đi theo **stream** nên dự án lớn không phải nạp một cục JSON; HTTP/2 multiplex trên một kết nối |
-| Consumer **không** gọi gRPC | `attempt.submitted` chỉ ghi `pending_attempts` + `ds_state.dirty_at`; `collection_finished` ghi `project_gradings` rồi thử chấm, gRPC lỗi thì bỏ qua. project-svc sập vài phút không đẩy message vào DLQ (consumer nack tức thì, quá 5 lần là DLQ); worker `viec_cho.py` làm lại theo `quality.pending_work_interval` |
+| Consumer **không** gọi gRPC | `attempt.submitted` chỉ ghi `pending_attempts` (từ 3.30 không còn `ds_state.dirty_at`); `collection_finished` ghi `project_gradings` rồi thử chấm, gRPC lỗi thì bỏ qua. project-svc sập vài phút không đẩy message vào DLQ (consumer nack tức thì, quá 5 lần là DLQ); worker `viec_cho.py` làm lại theo `quality.pending_work_interval` |
 | `attempt.submitted` **v2** chỉ là tín hiệu | Bỏ `Answers` (câu trả lời + nội dung mẫu): event nhỏ đi một bậc, không còn chở dữ liệu mà không ai lưu |
 | Chấm ngay khi nhận `collection_finished` | Đóng thu bài và outbox cùng transaction ở project-svc ⇒ mọi bài đã commit trước event; bỏ được cơ chế "chờ đủ bài" |
 | Kết quả của bài ở **một chỗ** | Số câu so được / giống đa số / câu vàng, đạt / được thưởng / khiếu nại đều nằm trên `project.attempts` (project-svc ghi khi nhận `project.graded`); báo cáo đọc qua gRPC (đúng cả sau phân xử khiếu nại). Bảng `attempt_grades` (chép lại 4 con số làm bằng chứng uy tín) cũng đã bỏ — xem "Uy tín" dưới đây |
-| **Uy tín** tính SAU khi project-svc ghi xong kết quả | Bằng chứng cộng dồn mọi dự án đọc qua `GetLabelerEvidence` (SUM trên `attempts`, chỉ mục `ix_attempts_labeler`). Chấm xong chưa tính ngay: lúc đó project-svc chưa nhận `project.graded`, tổng còn thiếu đúng dự án vừa chấm. Worker thấy mọi bài của dự án `graded` qua gRPC → xếp labeler vào `reputation_dirty` (`project_gradings.reputation_at`) → tính theo lô. Lô Dawid–Skene đổi độ tin cậy cũng chỉ xếp hàng. Mỗi labeler chỉ một worker tính một lúc (`FOR UPDATE SKIP LOCKED`), nên bỏ được khoá advisory theo labeler |
+| **Uy tín** tính SAU khi project-svc ghi xong kết quả | Bằng chứng cộng dồn mọi dự án đọc qua `GetLabelerEvidence` (SUM trên `attempts`, chỉ mục `ix_attempts_labeler`). Chấm xong chưa tính ngay: lúc đó project-svc chưa nhận `project.graded`, tổng còn thiếu đúng dự án vừa chấm. Worker thấy mọi bài của dự án `graded` qua gRPC → xếp labeler vào `reputation_dirty` (`project_gradings.reputation_at`) → tính theo lô. Từ 3.30 việc áp dụng còn chờ DS của dự án chạy xong (`ds_at`), nên uy tín tính một lần với đủ cả hai. Mỗi labeler chỉ một worker tính một lúc (`FOR UPDATE SKIP LOCKED`), nên bỏ được khoá advisory theo labeler |
 | Câu thật của bài tính lại từ `question_order` trừ câu vàng | Câu vàng khoá từ lúc rời Draft (`KiemTraCoTheSuaCauHoiVang`) nên kết quả luôn bằng lúc nộp — không cần lưu danh sách |
 | Index `attempts (client_ip, submitted_at)`, `(device_id, submitted_at)` ở project_db | Xét chung IP / thiết bị chạy trên nguồn thay cho index của `fraud_submissions` |
 
@@ -1053,7 +1053,7 @@ Giữ lại có chủ đích: `labeler_cache` (dữ liệu của identity/qualit
 
 **Giữ lại có chủ đích** (vẫn là bản sao / dữ liệu dẫn xuất, có lý do): `settings_replica`; `project.labeler_cache` (đường nóng mở bài — bỏ ở mục 3.24); bản sao của gate (traffic gấp ~100 lần, phải sập độc lập — mục 3.6; từ mục 3.23 chỉ còn dự án bật cổng link); `ledger.project_escrows` (điều khoản tiền **chốt** lúc ký quỹ), `ledger.referrals` / `gate_clicks` (đọc–ghi dưới khoá sổ cái), hoá đơn (ảnh chụp pháp lý); `notification.contacts`; `identity.labeler_stats.reputation` (tính cấp độ); read model của admin; `project.attempts` giữ kết quả chấm (aggregate bài làm đổi được khi phân xử khiếu nại); `quality.reputations` (cache tổng của `attempt_grades` + DS).
 
-**Đánh đổi.** Chấm / lô DS / báo cáo chất lượng phụ thuộc project-svc đang sống. Việc nền thì chỉ chậm lại (hàng chờ, thử lại); API báo cáo trả 503 `du_lieu_du_an_tam_thoi_khong_doc_duoc` khi project-svc không trả lời. Mỗi lần chấm đọc lại toàn bộ nhãn của dự án qua mạng (một phân vùng, stream) thay vì đọc bảng cục bộ — chấp nhận được vì mỗi dự án chỉ chấm một lần, lô DS chỉ chạy dự án có bài mới. Uy tín đổi chậm hơn một nhịp worker (`quality.pending_work_interval`, mặc định 5 giây) so với lúc chấm; lô DS chạy xen giữa lúc chấm và lúc project-svc ghi kết quả thì có thể phát một giá trị thiếu dự án đó, rồi được sửa ngay khi dự án được áp dụng (labeler bị xếp hàng lại).
+**Đánh đổi.** Chấm / lô DS / báo cáo chất lượng phụ thuộc project-svc đang sống. Việc nền thì chỉ chậm lại (hàng chờ, thử lại); API báo cáo trả 503 `du_lieu_du_an_tam_thoi_khong_doc_duoc` khi project-svc không trả lời. Mỗi lần chấm đọc lại toàn bộ nhãn của dự án qua mạng (một phân vùng, stream) thay vì đọc bảng cục bộ — chấp nhận được vì mỗi dự án chỉ chấm một lần và chạy DS một lần (3.30). Uy tín đổi chậm hơn một nhịp worker (`quality.pending_work_interval`, mặc định 5 giây) so với lúc chấm.
 
 ### 3.23. gate-svc kéo mẫu của dự án bật cổng link qua gRPC lúc publish (11/2026)
 
@@ -1221,6 +1221,39 @@ Message sai hợp đồng vẫn vào DLQ ngay (loại 3, không thử lại vô 
 - Loại 2 **không tự làm lại** việc đó: event đã đánh dấu xử lý; admin xử lý ngoài hệ thống (chuyển tay, đối soát) rồi ghi chú. Mô tả nêu rõ cần làm gì.
 - Cột mới `approval_requests.project_id` (link "Xem dự án") và `detail` (mô tả việc, không bị ghi chú xử lý ghi đè).
 - Persistence nay tham chiếu `Crowd.Contracts` (để phát `manual_action.required`).
+
+### 3.30. Dawid–Skene chạy một lần sau khi chấm, không tính dần lúc thu bài (11/2026)
+
+**Vấn đề.** Mục 3.18 đã chuyển sang "chấm **một lần** cả dự án", nhưng lô Dawid–Skene vẫn giữ kiểu tính dần của mô hình theo task cũ (mục 3.7): mỗi `attempt.submitted` đặt `ds_state.dirty_at`, cứ 15 phút lô tính lại dự án có bài mới **trong lúc vẫn đang thu bài**, ghi `ds_skills` rồi xếp tính lại uy tín. Lúc đó chưa có đủ bài của mọi labeler nên độ tin cậy dao động theo ai nộp trước. Ví dụ dự án 10 câu, 6 người (A…F) nộp lần lượt — độ tin cậy DS của B qua từng lô:
+
+| Sau khi nộp | 2 bài (A, B) | 3 bài | 4 bài | 5 bài | 6 bài (đủ) |
+|---|---|---|---|---|---|
+| DS của B | **0,933** | 0,889 | 0,889 | 0,889 | 0,889 |
+
+Hai người bất đồng ở một câu thì thuật toán không biết ai đúng, nên B được 0,933. Số sai đó đi tiếp: `reputation_dirty` → `reputations` → `reputation.changed` → identity `labeler_stats` — tức **uy tín đổi giữa chừng theo dữ liệu dở dang, bài chưa chấm**, trong khi uy tín đang dùng để lọc `min_reputation` ở dự án khác và xếp hạng. Lô cuối cùng thì đúng, nhưng các giá trị trung gian đã được công bố. Thêm một lỗi: lô DS không bỏ câu bị loại (`samples.excluded_at`) như lúc chấm.
+
+**Quyết định.** DS là **một bước trong chuỗi xử lý của dự án** sau khi chấm, ghi mốc vào chính dòng `project_gradings`:
+
+```
+collection_finished → requested_at → graded_at → ds_at → reputation_at
+                      (yêu cầu chấm)  (chấm xong)  (DS xong)  (đã xếp tính uy tín)
+```
+
+- `attempt.submitted` chỉ còn ghi `pending_attempts` (không đụng DS).
+- Worker `viec_cho` chạy theo thứ tự: xét gian lận → chấm lại → **DS** (`graded_at` có, `ds_at` null; `FOR UPDATE SKIP LOCKED` mỗi dự án) → áp dụng chấm (cần `ds_at`) → tính uy tín. Mỗi labeler chỉ tính lại uy tín **một lần** cho mỗi dự án, với đủ cả bằng chứng chấm lẫn `ds_skills` mới.
+- DS đọc nhãn qua `StreamLabels`, **bỏ câu bị loại** (`GetProject.excluded_sample_ids`) như lúc chấm. Kết quả của dự án được thay toàn bộ (xoá rồi ghi `project_metrics`, `staple_skills`, `ds_skills`) trong cùng transaction đặt `ds_at`.
+- project-svc không trả lời → để `ds_at` null, vòng sau làm lại. Dữ liệu làm thuật toán lỗi → ghi log, **vẫn đặt `ds_at`**: uy tín không bị chặn mãi, chỉ thiếu độ tin cậy DS của dự án đó.
+- Admin `POST /quality/admin/dawid-skene/run[?full=true]`: chạy ngay phần còn chờ; `full=true` đặt lại `ds_at = null` cho mọi dự án đã chấm, chưa lưu trữ (dùng sau khi đổi `quality.ds_min_labels`). Dự án đã có `reputation_at` thì bước DS tự xếp labeler bị ảnh hưởng vào `reputation_dirty`.
+
+**Thay đổi CSDL.** Bỏ bảng `ds_state` (và chỉ mục `ix_ds_state_can_tinh`); thêm `project_gradings.ds_at` với chỉ mục riêng phần `WHERE graded_at IS NOT NULL AND ds_at IS NULL`; chỉ mục "chờ áp dụng" thêm điều kiện `ds_at IS NOT NULL`. Lưu trữ dự án không còn bảng `ds_state` để xoá. Bỏ setting `quality.ds_interval` (DS chạy theo nhịp worker `quality.pending_work_interval`, mặc định 5 giây).
+
+**Được gì.**
+- Uy tín chỉ đổi khi dự án đã chấm — cùng lúc với bằng chứng câu vàng / đa số.
+- Đường nộp bài bớt một lần ghi: trước đây mọi bài nộp vào cùng dự án upsert **cùng một dòng** `ds_state` → các consumer xếp hàng chờ khoá dòng đó và để lại bản ghi chết; nay mỗi bài chỉ một dòng `pending_attempts` riêng.
+- Bớt việc nền: không còn lô DS lặp lại trong lúc thu bài, không còn đợt `GetLabelerEvidence` / `reputation.changed` trung gian.
+- Uy tín sau khi chấm có sớm hơn (nhịp worker 5 giây thay vì chờ lô tới 15 phút).
+
+**Đánh đổi.** Trong lúc thu bài, tab Chất lượng của chủ dự án chưa có alpha / kappa / STAPLE / DS — hiển thị "Có sau khi dự án đóng thu bài và chấm xong". Alpha giữa chừng vốn cũng dễ gây hiểu nhầm vì phụ thuộc thứ tự nộp.
 
 ## 4. Dữ liệu chéo — ba luật cứng
 

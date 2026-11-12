@@ -26,7 +26,6 @@ log = logging.getLogger(__name__)
 CATALOG_MAC_DINH = Path(__file__).resolve().parents[3] / "shared" / "settings" / "catalog.json"
 
 # Khoa quality-svc dung (ten giong SettingKeys ben C#).
-DS_INTERVAL = "quality.ds_interval"
 DS_MIN_LABELS = "quality.ds_min_labels"
 REPUTATION_GOLD_WEIGHT = "quality.reputation_gold_weight"
 REPUTATION_PRIOR = "quality.reputation_prior"

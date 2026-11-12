@@ -1,9 +1,10 @@
 """Seed KET QUA cua quality cho kich ban dev (shared/seeding/quality-seed.json).
 
 Kich ban seed nam o C# (KichBanSeed); test QualitySeedSnapshotTests xuat phan quality can ra JSON. De bai, bai
-nop va nhan da seed o project-svc — quality doc qua gRPC (kien truc 3.22), nen o day chi con: du an co bai nop
-(danh dau lo DS can tinh) va, voi du an Completed, moc cham (project_gradings) + moc dong. Bang chung uy tin
-(so cau so duoc / giong / cau vang) nam tren project.attempts da seed — khong chep ve day.
+nop va nhan da seed o project-svc — quality doc qua gRPC (kien truc 3.22), nen o day chi con: voi du an
+Completed, moc cham (project_gradings, ds_at NULL → worker viec_cho chay Dawid-Skene lan dau roi tinh lai uy
+tin labeler bi anh huong) + moc dong. Du an dang chay chua cham thi chua co DS. Bang chung uy tin (so cau so
+duoc / giong / cau vang) nam tren project.attempts da seed — khong chep ve day.
 Giong cac service C#: chi chay khi moi truong Development VA bat co seed; da co thi bo qua (chay lai an toan).
 """
 
@@ -38,10 +39,6 @@ async def chay() -> None:
     so = 0
     async with session_factory()() as s, s.begin():
         for p in du_an:
-            if p["submittedAttempts"] > 0:
-                await s.execute(
-                    text("INSERT INTO ds_state (project_id, dirty_at) VALUES (:p, now()) ON CONFLICT (project_id) DO NOTHING"),
-                    {"p": p["projectId"]})
             if "gradedAgoSeconds" in p and await _seed_ket_qua(s, p):
                 so += 1
 

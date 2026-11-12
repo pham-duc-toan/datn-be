@@ -1,6 +1,6 @@
 """Cau hinh doc tu bien moi truong (tien to QUALITY_). Mac dinh = moi truong dev.
 
-Vi du: QUALITY_DATABASE_URL, QUALITY_RABBIT_HOST, QUALITY_DS_INTERVAL_SECONDS.
+Vi du: QUALITY_DATABASE_URL, QUALITY_RABBIT_HOST, QUALITY_ENVIRONMENT.
 """
 
 from functools import lru_cache

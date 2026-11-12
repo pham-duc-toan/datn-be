@@ -1,5 +1,5 @@
-"""Diem vao quality-svc: FastAPI + consumer RabbitMQ + outbox + lo Dawid-Skene + worker viec cho (gRPC project-svc)
-+ gRPC LabelAggregation (project-svc nho gop nhan, 3.24).
+"""Diem vao quality-svc: FastAPI + consumer RabbitMQ + outbox + worker viec cho (gRPC project-svc: gian lan, cham
+lai, Dawid-Skene sau khi cham, uy tin) + gRPC LabelAggregation (project-svc nho gop nhan, 3.24).
 
 Chay dev:  .venv/Scripts/python -m app.main     (cong 8201 REST, 9201 gRPC)
 """
@@ -14,7 +14,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from app import (
-    cleanup, db, ds_batch, grpc_server, phan_tich_mo, processors, project_client, seeding, settings_store, settings_sync,
+    cleanup, db, grpc_server, phan_tich_mo, processors, project_client, seeding, settings_store, settings_sync,
     viec_cho,
 )
 from app.api import router
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
     cfg = settings()
     await db.chay_migration()
 
-    # Setting: nap ban sao trong DB truoc moi viec khac (prefetch, chu ky DS... doc tu day),
+    # Setting: nap ban sao trong DB truoc moi viec khac (prefetch, chu ky viec cho... doc tu day),
     # roi xin admin-svc phat lai toan bo — lo mat event luc tat van dong bo lai.
     so = await settings_sync.nap_tu_db()
     log.info("Nap %s setting tu settings_replica", so)
@@ -81,12 +81,12 @@ async def lifespan(app: FastAPI):
     dung = asyncio.Event()
     viec_nen = [
         asyncio.create_task(Dispatcher().chay(dung), name="outbox"),
-        asyncio.create_task(ds_batch.vong_lap(dung), name="dawid-skene"),
         asyncio.create_task(settings_sync.vong_lap_nap_lai(dung), name="settings-reload"),
         asyncio.create_task(cleanup.vong_lap(dung), name="don-du-lieu-qua-han"),
         # Cau tra loi mo (3.19): nhung cau qua ml-svc.
         asyncio.create_task(phan_tich_mo.vong_lap(dung), name="phan-tich-cau-mo"),
-        # Viec can doc project-svc qua gRPC (3.22): xet gian lan, cham lai du an chua cham xong.
+        # Viec can doc project-svc qua gRPC (3.22): xet gian lan, cham lai du an chua cham xong, Dawid-Skene
+        # (mot lan sau khi cham), uy tin.
         asyncio.create_task(viec_cho.vong_lap(dung), name="viec-cho"),
     ]
     may_grpc = await grpc_server.bat_dau()

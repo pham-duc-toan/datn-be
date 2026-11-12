@@ -871,7 +871,7 @@ GET /quality/projects/{id}/labelers
       "dawidSkeneSkill": { "cam_xuc": 0.97 }, "reputation": 90 } ]
 ```
 
-`dawidSkeneSkill` theo từng công cụ (0–1); rỗng khi labeler có dưới 5 nhãn trong dự án. Admin chạy lô Dawid–Skene ngay bằng `POST /quality/admin/dawid-skene/run` → `{ "computed": 3, "full": false }`: chỉ tính lại dự án **có nhãn mới** từ lần trước (nhanh). `?full=true` tính lại mọi dự án — chậm (~1 giây / dự án), chỉ dùng sau khi đổi `quality.ds_min_labels`.
+`dawidSkeneSkill` theo từng công cụ (0–1); rỗng khi labeler có dưới 5 nhãn trong dự án. **Chỉ có sau khi dự án chấm xong** — cùng với `tools` (alpha / kappa) và `stapleMask` của `/summary`: Dawid–Skene và các chỉ số độ tin cậy chạy **một lần** sau khi chấm, khi đã đủ bài của mọi labeler (kiến trúc 3.30). Đang thu bài thì `tools: []` → hiện "Có sau khi dự án đóng thu bài và chấm xong"; đã có `gradedAt` mà `tools` còn rỗng (vài giây sau khi chấm) → "Đang tính". Admin chạy ngay phần còn chờ bằng `POST /quality/admin/dawid-skene/run` → `{ "computed": 3, "full": false }`. `?full=true` tính lại mọi dự án đã chấm, chưa lưu trữ — chậm (~1 giây / dự án), chỉ dùng sau khi đổi `quality.ds_min_labels`.
 
 ### 4.13 Task bị labeler báo lỗi (FL-07)
 
@@ -2408,7 +2408,7 @@ POST /kyb/admin/{businessId}/reject  { "reason": "Giấy phép bị mờ" }   �
 POST /tasks/admin/projects/{projectId}/purge
 → 200 { "projectId", "purgedAt", "purgedNow": true, "deletedTasks": 120, "deletedAssignments": 240, "deletedReports": 0, "deletedGoldSamples": 5 }
 POST /quality/admin/projects/{projectId}/archive
-→ 200 { "projectId", "purgedAt", "purgedNow": true, "deleted": { "labels": 240, "consensus_rounds": 120, "task_targets": 120, "ds_state": 1 } }
+→ 200 { "projectId", "purgedAt", "purgedNow": true, "deleted": { "labels": 240, "consensus_rounds": 120, "task_targets": 120 } }
 → 409 du_an_chua_dong (dự án chưa hoàn thành / huỷ) | 404 khong_tim_thay
 ```
 

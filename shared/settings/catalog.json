@@ -1102,18 +1102,6 @@
     "description": "Công cụ cần ít nhất bấy nhiêu nhãn mới bắt đầu cảnh báo lệch phân bố."
   },
   {
-    "key": "quality.ds_interval",
-    "name": "Chu kỳ Dawid-Skene",
-    "group": "Kỹ thuật",
-    "type": "durationSeconds",
-    "default": 900,
-    "min": 10,
-    "max": 604800,
-    "unit": "giây",
-    "effect": "newOperations",
-    "description": "Chu kỳ chạy lô Dawid-Skene."
-  },
-  {
     "key": "quality.fraud_enabled",
     "name": "Bật phát hiện gian lận",
     "group": "Chất lượng",

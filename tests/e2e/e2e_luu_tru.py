@@ -202,8 +202,10 @@ try:
              and sql("quality", f"select closed_at is not null from project_archives where project_id='{P}'") == "t", 30))
 
     td_truoc = requests.get(G + f"/tasks/projects/{P}/progress", headers=biz["h"]).json()
-    # Cho lo Dawid-Skene / uy tin on dinh roi moi chup so lieu "truoc".
-    requests.post(G + "/quality/admin/dawid-skene/run", headers=admin)
+    # Cho Dawid-Skene (mot lan sau khi cham) + uy tin xong roi moi chup so lieu "truoc".
+    kiem("quality da chay DS va tinh uy tin cho du an",
+         cho(lambda: sql("quality", f"select ds_at is not null and reputation_at is not null from project_gradings "
+                                    f"where project_id='{P}'") == "t", 60))
     time.sleep(2)
     tq_truoc = requests.get(G + f"/quality/projects/{P}/summary", headers=biz["h"]).json()
     lb_truoc = requests.get(G + f"/quality/projects/{P}/labelers", headers=biz["h"]).json()
@@ -242,12 +244,11 @@ try:
     r = requests.post(G + f"/quality/admin/projects/{P}/archive", headers=admin)
     j = r.json() if r.status_code == 200 else {}
     # Nhan / bai nop khong nam o quality (doc qua gRPC, 3.22) → chi con ket qua trung gian de xoa.
-    kiem("admin luu tru chat luong → 200, xoa 3 ket qua gop tung cau + trang thai DS",
+    kiem("admin luu tru chat luong → 200, xoa 3 ket qua gop tung cau",
          r.status_code == 200 and j["purgedNow"] is True and "labels" not in j["deleted"]
-         and j["deleted"].get("sample_majorities") == 3 and j["deleted"].get("ds_state") == 1, r.text)
+         and j["deleted"].get("sample_majorities") == 3 and "ds_state" not in j["deleted"], r.text)
     kiem("quality-svc khong con ket qua trung gian cua du an",
-         sql("quality", f"select (select count(*) from sample_majorities where project_id='{P}') "
-                        f"+ (select count(*) from ds_state where project_id='{P}')") == "0")
+         sql("quality", f"select count(*) from sample_majorities where project_id='{P}'") == "0")
     tq_sau = requests.get(G + f"/quality/projects/{P}/summary", headers=biz["h"]).json()
     lb_sau = requests.get(G + f"/quality/projects/{P}/labelers", headers=biz["h"]).json()
     kiem("bao cao chat luong van xem duoc, dung so cu (archivedAt co gia tri)",
