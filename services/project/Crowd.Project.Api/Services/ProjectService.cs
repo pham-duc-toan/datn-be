@@ -505,27 +505,7 @@ namespace Crowd.Project.Api.Services
             List<ProjectListItem> items = new List<ProjectListItem>();
             foreach (LabelingProject p in trang)
             {
-                items.Add(new ProjectListItem
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Modality = p.Modality,
-                    Status = p.Status,
-                    Visibility = p.Visibility,
-                    RewardVnd = p.RewardVnd,
-                    Slots = p.Slots,
-                    PassThresholdPercent = p.PassThresholdPercent,
-                    QuestionCount = p.QuestionCount,
-                    ToolKinds = LoaiCongCu(p),
-                    Deadline = p.Deadline,
-                    RequireEntranceTest = p.RequireEntranceTest,
-                    IsOwner = caller.UserId != null && p.OwnerId == caller.UserId.Value,
-                    SensitiveContent = p.SensitiveContent,
-                    ConsentRequired = p.CanDongYCaNhan(),
-                    RequireVerifiedIdentity = p.RequireVerifiedIdentity,
-                    Domains = p.Domains,
-                    Languages = p.Languages,
-                });
+                items.Add(TaoListItem(p, caller));
             }
 
             return new PagedResponse<ProjectListItem>
@@ -1150,7 +1130,43 @@ namespace Crowd.Project.Api.Services
             }
         }
 
-        private static void ChuanHoaTrang(ref int page, ref int pageSize)
+        /// <summary>Mot dong cua danh sach du an (GET /projects va cho du an GET /projects/market).</summary>
+        public static ProjectListItem TaoListItem(LabelingProject p, Caller caller)
+        {
+            if (p == null)
+            {
+                throw new ArgumentNullException(nameof(p));
+            }
+
+            if (caller == null)
+            {
+                throw new ArgumentNullException(nameof(caller));
+            }
+
+            return new ProjectListItem
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Modality = p.Modality,
+                Status = p.Status,
+                Visibility = p.Visibility,
+                RewardVnd = p.RewardVnd,
+                Slots = p.Slots,
+                PassThresholdPercent = p.PassThresholdPercent,
+                QuestionCount = p.QuestionCount,
+                ToolKinds = LoaiCongCu(p),
+                Deadline = p.Deadline,
+                RequireEntranceTest = p.RequireEntranceTest,
+                IsOwner = caller.UserId != null && p.OwnerId == caller.UserId.Value,
+                SensitiveContent = p.SensitiveContent,
+                ConsentRequired = p.CanDongYCaNhan(),
+                RequireVerifiedIdentity = p.RequireVerifiedIdentity,
+                Domains = p.Domains,
+                Languages = p.Languages,
+            };
+        }
+
+        public static void ChuanHoaTrang(ref int page, ref int pageSize)
         {
             if (page < 1)
             {

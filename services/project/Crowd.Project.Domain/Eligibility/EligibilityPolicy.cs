@@ -79,5 +79,39 @@ namespace Crowd.Project.Domain.Eligibility
 
             return duAn.LyDoLabelerKhongDuDieuKien(hoSo);
         }
+
+        /// <summary>
+        /// Cau giai thich cho labeler theo MA ly do cua LyDoTuChoi — noi ro vi sao bi chan thay vi mot cau chung
+        /// "chua du dieu kien" (frontend hien uu tien cau tieng Viet cua backend).
+        /// </summary>
+        public static string GiaiThich(string lyDo, LabelingProject duAn, HoSoNguoiDung hoSo)
+        {
+            if (duAn == null)
+            {
+                throw new ArgumentNullException(nameof(duAn));
+            }
+
+            switch (lyDo)
+            {
+                case "du_an_chua_san_sang":
+                    return "Dự án chưa mở nhận bài.";
+                case "du_an_da_dong_thu_bai":
+                    return "Dự án đã ngừng nhận bài (đủ người làm, hết hạn chót hoặc doanh nghiệp đã kết thúc).";
+                case "du_an_khong_chay":
+                    return duAn.Status == ProjectStatus.Paused ? "Dự án đang tạm dừng." : "Dự án không còn nhận bài.";
+                case "da_qua_deadline":
+                    return "Dự án đã quá hạn chót nhận bài.";
+                case "khong_mo_kenh_chuyen_nghiep":
+                    return "Dự án không nhận labeler làm bài trực tiếp.";
+                case "khong_phai_thanh_vien":
+                    return "Bạn chưa là thành viên dự án này — tham gia dự án trước khi làm bài.";
+                case "bi_chan_khoi_du_an":
+                    return "Bạn đã bị chặn khỏi dự án này.";
+                case "khong_phai_labeler":
+                    return "Tài khoản không có vai trò labeler trong dự án này.";
+                default:
+                    return duAn.GiaiThichKhongDuDieuKien(lyDo, hoSo);
+            }
+        }
     }
 }

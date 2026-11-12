@@ -2687,6 +2687,7 @@ GET    /projects/{id}/ratings
 GET    /projects/labelers/{labelerId}/rating-summary
 PATCH  /projects/{id}   { tags: { domains: [...], languages: [...] } }
 GET    /projects/recommended?limit=10                   → dự án hợp hồ sơ kỹ năng của labeler
+GET    /projects/market?modality=&page=&pageSize=     → chợ dự án: chỉ dự án labeler làm được ngay (Paged<ProjectListItem>)
 PATCH  /projects/{id}   { retention: { deleteFilesAfterClose } }   → đồng ý xoá file gốc khi dự án đóng quá hạn giữ
 ```
 

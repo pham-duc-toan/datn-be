@@ -77,6 +77,8 @@ ok &= chay("hang_doi_duyet", "e2e_hang_doi_duyet.py")
 ok &= chay("thong_bao_realtime", "e2e_thong_bao_realtime.py")
 # Doc chu du lieu qua gRPC thay ban sao (3.24): mo bai hoi identity, quality gop ket qua, cap do qua project.
 ok &= chay("grpc_phu_thuoc", "e2e_grpc_phu_thuoc.py")
+# Cho du an chi hien du an labeler lam duoc ngay (dieu kien, cho, han chot, da nop).
+ok &= chay("cho_du_an", "e2e_cho_du_an.py")
 
 dat("ledger.gate_batch_interval", 2)
 dat("ledger.gate_payout_mode", "batched")

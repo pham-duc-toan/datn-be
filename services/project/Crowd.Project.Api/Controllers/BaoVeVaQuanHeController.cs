@@ -70,6 +70,17 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _baoVe.DanhSachAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
         }
 
+        /// <summary>
+        /// GET /projects/market?modality=&amp;page=&amp;pageSize= — cho du an cua labeler: CHI du an minh lam duoc ngay
+        /// (con nhan bai, chua qua han, con cho, chua nop, du cap do / uy tin / xac minh).
+        /// </summary>
+        [HttpGet("market")]
+        [Authorize(Roles = CrowdRoles.Labeler)]
+        public async Task<IActionResult> Cho([FromQuery] string? modality, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
+        {
+            return Ok(await _goiY.ChoAsync(modality, page, pageSize, Caller.TuHttp(HttpContext, ActorRole.Labeler), ct));
+        }
+
         /// <summary>GET /projects/recommended?limit=10 — goi y du an hop ho so ky nang (FL-02).</summary>
         [HttpGet("recommended")]
         [Authorize(Roles = CrowdRoles.Labeler)]

@@ -463,6 +463,25 @@ namespace Crowd.Project.Tests
             ProjectMember chu = ProjectMember.TaoChuSoHuu(p.Id, p.OwnerId, Luc);
             Assert.Equal("khong_phai_labeler", LyDo(p, CollectionRound.Mo(p.Id, 5, 2, Luc), chu, null, Luc));
         }
+
+        [Fact]
+        public void Moi_ly_do_tu_choi_co_cau_giai_thich_rieng()
+        {
+            LabelingProject p = DuAnMau.DangChay(3, 70);
+            CollectionRound d = CollectionRound.Mo(p.Id, 5, 2, Luc);
+
+            Assert.Contains("thành viên", EligibilityPolicy.GiaiThich(LyDo(p, d, null, null, Luc)!, p, NguoiMoi));
+            Assert.Contains("hạn chót", EligibilityPolicy.GiaiThich(LyDo(p, d, Labeler(p), null, Luc.AddDays(11))!, p, NguoiMoi));
+            Assert.Equal("Dự án yêu cầu cấp độ tối thiểu 3, hiện tại là 1.",
+                EligibilityPolicy.GiaiThich(LyDo(p, d, Labeler(p), null, Luc)!, p, NguoiMoi));
+
+            LabelingProject dung = DuAnMau.DangChay(null, null);
+            dung.TamDung(Luc.AddMinutes(1));
+            Assert.Equal("Dự án đang tạm dừng.", EligibilityPolicy.GiaiThich("du_an_khong_chay", dung, NguoiMoi));
+
+            d.DongThuBai("du_suat");
+            Assert.Contains("ngừng nhận bài", EligibilityPolicy.GiaiThich(LyDo(p, d, Labeler(p), null, Luc)!, p, NguoiMoi));
+        }
     }
 
     /// <summary>Bao loi mau (FL-07), loai mau.</summary>

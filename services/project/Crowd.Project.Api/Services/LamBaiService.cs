@@ -159,10 +159,11 @@ namespace Crowd.Project.Api.Services
                 throw new ForbiddenException("tai_khoan_khong_ton_tai", "Không tìm thấy tài khoản của bạn.");
             }
 
-            string? lyDo = EligibilityPolicy.LyDoTuChoi(duAnDoc, dotDoc, thanhVien, nguoi.HoSo(), bayGio);
+            HoSoNguoiDung hoSo = nguoi.HoSo();
+            string? lyDo = EligibilityPolicy.LyDoTuChoi(duAnDoc, dotDoc, thanhVien, hoSo, bayGio);
             if (lyDo != null)
             {
-                throw new ForbiddenException(lyDo, "Bạn chưa đủ điều kiện làm bài của dự án này.");
+                throw new ForbiddenException(lyDo, EligibilityPolicy.GiaiThich(lyDo, duAnDoc, hoSo));
             }
 
             var tx = await _db.Database.BeginTransactionAsync(ct);
