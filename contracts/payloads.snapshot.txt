@@ -92,11 +92,6 @@ funds.held v1  (FundsHeld)
     LabelerId                Guid                 required
     ReleaseAt                DateTimeOffset       required
 
-gate.budget_changed v1  (GateBudgetChanged)
-    ProjectId                Guid                 required
-    RemainingVnd             Int64                required
-    Sequence                 Int64                required
-
 gate.solved v1  (GateSolved)
     Labels                   IReadOnlyList<GateLabel> required
     LinkId                   Guid                 required
@@ -328,12 +323,6 @@ setting.changed v1  (SettingChanged)
     Key                      String               required
     SettingVersion           Int64                required
     Value                    RawJson              required
-
-settings.snapshot v1  (SettingsSnapshot)
-    Items                    IReadOnlyList<SettingSnapshotItem> required
-
-settings.snapshot_requested v1  (SettingsSnapshotRequested)
-    Service                  String               required
 
 system.announcement v1  (SystemAnnouncement)
     AnnouncementId           Guid                 required

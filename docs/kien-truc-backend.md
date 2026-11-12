@@ -9,8 +9,8 @@
 
 | # | Nguyên tắc | Hệ quả cụ thể |
 |---|---|---|
-| 1 | Mỗi service một **datastore container riêng**, chọn theo access pattern | Service A không chạm được dữ liệu service B: khác tiến trình, khác credential. Mỗi service chỉ được cấp đúng connection string của mình |
-| 2 | Không gọi HTTP đồng bộ giữa các service trong đường nóng | Giao tiếp qua event; dữ liệu chéo giữ dưới dạng bản sao read-only cập nhật bằng event |
+| 1 | Mỗi service một **datastore container riêng**, chọn theo access pattern | Service A không ghi được dữ liệu service B: khác tiến trình, khác credential. Đọc chéo chỉ qua **view do chủ dữ liệu mở**, bằng role chỉ `SELECT` được view đó (mục 3.32) |
+| 2 | Không gọi HTTP đồng bộ giữa các service trong đường nóng | Giao tiếp qua event; dữ liệu chéo đọc qua view của chủ, đọc nhiều thì nạp vào bộ nhớ + warm-up (mục 3.32) — không giữ bảng bản sao |
 | 3 | Tiền không bao giờ đi qua transaction phân tán | `ledger-svc` là service duy nhất ghi số dư; mọi thứ khác là saga |
 | 4 | Đường ghi nóng phải mỏng | `task`/`annotation`/`gate`: validate → ghi → phát event. Tính toán nặng đẩy sang worker |
 | 5 | ML chỉ gợi ý, không bao giờ ghi nhãn cuối | Ranh giới cứng ở mục 2.6 đặc tả |
@@ -77,9 +77,9 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `ledger-svc` | 8105 | ledger_db | C# | accounts, journal_entries, holds, escrows | **Nhất quán tuyệt đối** |
 | `payment-svc` | 8106 | payment_db | C# | payment_intents, payouts, provider_txns, reconciliations | Tích hợp ngoài, webhook + retry, cô lập rủi ro |
 | `link-svc` | 8107 | link_db | C# | links, campaigns, api_keys, referral_codes, referrals, blocked_domains, link_reports | Bounded context của Sharer (**đã có**, mục 3.6) |
-| `gate-svc` | 8108 | **ClickHouse** + redis-gate + Postgres gate_db (bản sao + outbox) | C# | Redis: phiên, jti, chống trùng IP, stream; ClickHouse: click_events; Postgres: gate_projects, gate_samples, gate_gold_items (chỉ dự án bật cổng link — kéo qua gRPC lúc publish, mục 3.23), gate_links, gate_budgets | **Traffic ~100× phần còn lại**, sập độc lập (**đã có**, mục 3.6) |
+| `gate-svc` | 8108 | **ClickHouse** + redis-gate + Postgres gate_db (outbox) | C# | Redis: phiên, jti, chống trùng IP, stream; ClickHouse: click_events; Postgres: chỉ outbox, processed_events. Dự án / mẫu / câu vàng / ngân sách / link đọc thẳng view `v_gate_*` của project / ledger / link vào bộ nhớ (mục 3.32) | **Traffic ~100× phần còn lại**, sập độc lập (**đã có**, mục 3.6) |
 | `media-svc` | 8109 | **không có** | **Python** | — (người xem nhúng thẳng vào ảnh, setting giữ trong bộ nhớ) (**đã có**, mục 3.13) | Phát file mẫu qua token + watermark chìm (CPU); Python vì OpenCV / numpy |
-| `notification-svc` | 8110 | notification_db | C# | notifications, email_preferences; bản sao contacts (**đã có**, mục 3.11; người nhận từng event đi trong payload — mục 3.21) | Fan-out chậm không được chặn ai |
+| `notification-svc` | 8110 | notification_db | C# | notifications, email_preferences (**đã có**, mục 3.11; người nhận từng event đi trong payload — mục 3.21; địa chỉ liên lạc đọc view `v_contacts` của identity — mục 3.32) | Fan-out chậm không được chặn ai |
 | `admin-svc` | 8111 | admin_db | C# | **settings, setting_history** (đã có); review_queues, disputes, audit_log, requests_readmodel (P6) | Chủ của setting hệ thống (mục 3.10). Quyền cao nhất — giới hạn blast radius |
 | `quality-svc` | 8201 | quality_db | Python | sample_majorities, ds_skills, project_metrics, reputations, fraud_cases; hàng chờ pending_attempts, project_gradings, reputation_dirty. Đề bài / bài nộp / nhãn / bằng chứng uy tín đọc qua gRPC từ project-svc (mục 3.22) | Ngôn ngữ khác + tính batch nặng |
 | `ml-svc` | 8202 | ml_db (pgvector) | Python | embedding_cache (**đã có**, mục 3.19: nhúng câu trả lời mở); models, predictions, uncertainty_scores (sau) | Nặng CPU / GPU, scale độc lập, sập vẫn chạy được hệ thống |
@@ -133,7 +133,7 @@ Từ container task nối mạng sang db-ledger
 
 Đây là chuẩn mực công nghiệp và đủ cho môi trường phát triển — kẻ tấn công phải có sẵn mật khẩu thì mới khai thác được, mà mật khẩu thì chỉ nằm trong biến môi trường của đúng service sở hữu. Muốn đóng nốt đường mạng thì dùng NetworkPolicy của Kubernetes ở nhánh `NC-A`, chứ không phải bằng Docker Compose.
 
-**Hệ quả kèm theo:** không thể có foreign key, transaction, hay `JOIN` xuyên service — kể cả trong lúc vá lỗi khẩn cấp. Mọi liên kết dữ liệu phải đi qua event và bản sao read-only (mục 4).
+**Hệ quả kèm theo:** không thể có foreign key, transaction, hay `JOIN` xuyên service — kể cả trong lúc vá lỗi khẩn cấp. Mọi liên kết dữ liệu đi qua event, hoặc đọc **view** chủ dữ liệu mở cho đúng bên cần (role chỉ đọc view, mục 3.32 — trước đó là bản sao read-only).
 
 **Lợi ích trực tiếp — tinh chỉnh riêng từng service.** Ba tier cấu hình:
 
@@ -505,30 +505,28 @@ assignments / annotations / gold_items:  task_type = modality,
 
 Đánh đổi: nhãn có hình dạng do dữ liệu quyết định nên database không ràng buộc được bên trong `payload`. Bù lại, **mọi đường ghi nhãn** (nộp, câu vàng, bài test, seed) đều đi qua một cửa `LabelPayload.Tao(tậpNhãn, dữLiệu, metadataMẫu)`, và đọc lại từ DB dùng `TuLuuTru` không kiểm lại (tập nhãn không đổi sau publish).
 
-### 3.10. Setting động: admin-svc là chủ, mọi service giữ bản sao
+### 3.10. Setting động: admin-svc là chủ, mọi service đọc view `v_settings` (từ 3.32)
 
 **Bài toán.** Phí nền tảng 30 %, có tự duyệt dự án / rút tiền / nạp tiền / nhãn khớp đồng thuận hay không, hạn mức nạp – rút, thời hạn lease, hạn khiếu nại, kích thước file, chu kỳ worker… trước đây nằm rải rác trong hằng số C# và appsettings của 8 service. Đổi một con số là sửa code hoặc sửa file rồi khởi động lại. Yêu cầu: **tất cả lưu trong bảng setting, admin quản lý, đổi lúc đang chạy**.
 
 | # | Câu hỏi | Chọn | Lý do |
 |---|---|---|---|
 | S1 | Lưu ở đâu | **Một bảng chung `settings` trong `admin_db`**, mỗi dòng một khóa (`key`, `value jsonb`, `version`, `updated_at`, `updated_by`) + `setting_history` (cũ → mới, ai, lý do) | Một chỗ cho admin xem và sửa; lịch sử để truy "ai hạ phí lúc nào" |
-| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 192 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
-| S3 | Service đọc thế nào | **Bản sao `settings_replica` trong DB của chính mỗi service** + bộ nhớ (`SettingsStore`). Nhận `setting.changed`; lúc khởi động nạp bản sao rồi xin `settings.snapshot_requested`, admin-svc phát `settings.snapshot` (cả lúc khởi động và định kỳ) | Đúng luật 1–2 mục 4: không gọi HTTP sang admin-svc trong đường nóng; admin-svc chết thì mọi service vẫn chạy với giá trị đã có. Mỗi khóa có `version` riêng — event đến sai thứ tự không ghi đè giá trị mới |
+| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 190 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
+| S3 | Service đọc thế nào | ~~Bản sao `settings_replica` + `setting.changed` / `settings.snapshot`~~ → **từ 3.32: đọc thẳng view `v_settings` của admin_db** (role `settings_reader`) vào bộ nhớ (`SettingsStore`). **Warm-up** (`SettingsWarmup`) chặn khởi động tới khi đọc được; `SettingsReloadWorker` đọc lại mỗi `settings.reload_interval` | Không gọi admin-svc trong đường nóng (đọc bộ nhớ). Không chạy bằng giá trị khởi tạo có thể sai (phí, ngưỡng). Đang chạy mà admin_db tắt thì giữ giá trị đã nạp |
 | S4 | Đổi có hiệu lực khi nào | **Chỉ cho thao tác mới.** Chu kỳ worker (giải phóng tiền treo, reaper, quét link…) đọc lại mỗi giây qua `ChoTheoSetting`, nên rút ngắn chu kỳ có hiệu lực ngay, không phải chờ hết chu kỳ cũ. Giá trị đọc lại mỗi lần dùng; thứ đã chốt thì giữ: dự án đã publish giữ phí lúc publish, lease đang chạy giữ hạn cũ, lệnh rút đã tạo giữ thuế đã tính | Không ai bị đổi luật giữa chừng. `consumers.prefetch_count` là ngoại lệ (`restart`) vì chỉ đặt được lúc mở kênh |
 | S5 | Domain có đọc setting không | **Không.** Tầng Api đọc setting, dựng **đối tượng quy định** (`QuyDinhDuAn`, `QuyDinhDuLieu`, `QuyDinhBaiTest`, `QuyDinhDuyetNhan`, `QuyDinhRut`, `QuyDinhNap`, `NguongKhop`) truyền vào domain | Domain vẫn thuần, test không cần hạ tầng. Độ rộng cột DB (`CotDb.*`) vẫn là hằng số của schema — setting độ dài bị chặn trần ở đó |
-| S6 | Tiến trình không có DB | Gateway giữ setting **trong bộ nhớ**, nghe qua một queue tạm (tự xóa khi tắt) | Gateway chỉ cần trần upload; không đáng một database |
+| S6 | Tiến trình không có DB | Gateway, media-svc cũng đọc `v_settings` vào bộ nhớ như mọi service (3.32; trước là queue tạm) | Không cần database riêng, chỉ cần quyền đọc view |
 
 ```
 admin  PUT /admin/settings/{key} {value, reason}
    │      kiểm theo catalog + ràng buộc cặp (min ≤ max) → settings (version+1) + setting_history
-   │      outbox ──► setting.changed {key, value, settingVersion}
+   │      outbox ──► setting.changed (chỉ còn để ghi nhật ký audit)
    ▼
- project / task / annotation / ledger / payment / identity / quality
-   settings_replica (ghi nếu version mới hơn) → SettingsStore (bộ nhớ) → đọc mỗi thao tác
- gateway: SettingsStore trong bộ nhớ (queue tạm)
-
-khởi động service: nạp settings_replica → phát settings.snapshot_requested
-admin-svc: nhận → phát settings.snapshot (toàn bộ); cũng phát lúc khởi động và mỗi settings.snapshot_interval
+ admin_db.v_settings (key, value, version) ── role settings_reader ──┐
+                                                                     ▼
+ mọi service, gateway, quality, media: warm-up đọc view → SettingsStore (bộ nhớ) → đọc mỗi thao tác
+                                       đọc lại mỗi settings.reload_interval (mặc định 5 giây)
 ```
 
 **Bốn luồng tự duyệt** đều đi qua **đúng cửa** của luồng duyệt tay, chỉ khác người bấm là hệ thống:
@@ -1274,6 +1272,55 @@ Bảng riêng chỉ là bản chép lại: mỗi thao tác ghi đôi, có thể 
 
 **Đánh đổi.** Nếu sau này cho khiếu nại / chấm lại **nhiều lần** trên một bài thì `attempts` chỉ giữ lần cuối — khi đó mới cần lại bảng sự kiện. `sample_results` vẫn giữ bảng riêng: đó là bộ nhớ đệm theo **từng mẫu**, ghi / xoá lẻ từng dòng; gộp vào một cột jsonb của `projects` sẽ phải ghi lại cả khối mỗi lần một mẫu đổi và làm đổi `xmin` của dự án (chủ dự án gặp 409 vô cớ).
 
+### 3.32. Bỏ bản sao dữ liệu chéo: chủ dữ liệu mở view, bên đọc nạp thẳng vào bộ nhớ (11/2026)
+
+**Vấn đề.** Sau 3.21–3.31 vẫn còn năm cụm bảng bản sao cập nhật bằng event:
+
+| Bản sao | Cập nhật bằng | Ai dùng |
+|---|---|---|
+| gate: `gate_projects`, `gate_samples`, `gate_gold_items`, `gate_budgets`, `gate_links` | `project.published / paused / resumed / completed / cancelled`, gRPC `GateData`, `gate.budget_changed`, `link.activated / disabled` | nạp bộ nhớ `GateCatalog` của gate |
+| `settings_replica` ở 7 service C# + quality; gateway, media nghe queue tạm | `setting.changed`, `settings.snapshot`, `settings.snapshot_requested` | mọi service |
+| `notification.contacts` | `user.registered` | gửi email, thông báo toàn hệ thống |
+| `identity.labeler_stats.reputation` | `reputation.changed` | tính cấp, tra cứu cho project |
+| `ledger.referrals` | `referral.registered` | chi hoa hồng giới thiệu |
+
+Mỗi cụm kéo theo consumer, chống event lộn thứ tự (`sequence`, `version`, mốc thời gian), cơ chế xin phát lại, và có thể lệch nguồn (`contacts` chỉ cập nhật lúc đăng ký — đổi email / vai trò không theo). Nhận xét then chốt: ở gate, request **không đọc bảng bản sao** — chỉ đọc bộ nhớ; bảng chỉ là nguồn để nạp lại bộ nhớ. Các chỗ còn lại đều là việc nền.
+
+**Quyết định (người dùng chốt: ưu tiên tối giản, chấp nhận đọc chéo DB).**
+
+- Service **chủ** tạo **view** (luật lọc nằm ở chủ) và role `<bên đọc>_reader` chỉ `SELECT` được view đó. Migration tạo role `NOLOGIN` + `GRANT`; lúc khởi động service chủ bật `LOGIN` và đặt mật khẩu từ cấu hình `ReadAccess:Readers:{role}` (`ReaderRoles`; quality: `QUALITY_READ_ACCESS_READERS`). Mật khẩu không nằm trong repo: `deploy/tao_env.py` sinh `DB_READER_*_PASSWORD`.
+- Bên đọc nối thẳng DB của chủ bằng role đó (`ConnectionStrings:*Read`), không qua gRPC. Đọc bảng thật → `permission denied`.
+- Đọc nhiều (gate, setting): nạp vào **bộ nhớ**, **warm-up** trước khi nhận việc (hosted service chạy trước Kestrel), đọc lại định kỳ. Việc nền (notification, identity, ledger): truy vấn view lúc cần, không cache.
+
+| View | DB chủ | Role | Bên đọc | Thay cho |
+|---|---|---|---|---|
+| `v_gate_projects`, `v_gate_samples`, `v_gate_gold` | project_db | `gate_reader` | gate (bộ nhớ) | 3 bảng bản sao + gRPC `GateData` + consumer `project.*` của gate |
+| `v_gate_budgets` | ledger_db | `gate_reader` | gate (bộ nhớ) | `gate_budgets` + event `gate.budget_changed` + cột `gate_budget_sequence` |
+| `v_gate_links` | link_db | `gate_reader` | gate (bộ nhớ) | `gate_links` + consumer `link.activated / disabled` |
+| `v_settings` | admin_db | `settings_reader` | mọi service, gateway, quality, media (bộ nhớ) | `settings_replica` × 8 + `settings.snapshot(_requested)` + `SnapshotWorker` + queue tạm |
+| `v_contacts` | identity_db | `notification_reader` | notification (lúc gửi) | `contacts` + consumer `user.registered` |
+| `v_reputations` | quality_db | `identity_reader` | identity (lúc tính cấp / tra cứu) | `labeler_stats.reputation`, `reputation_at` |
+| `v_referrals` | link_db | `ledger_reader` | ledger (lúc chi hoa hồng) | `ledger.referrals` + consumer `referral.registered` |
+
+**Gate.** `GateCatalog` đọc danh sách dự án + ngân sách + link mỗi `gate.cache_refresh_interval` (mặc định 60 → **5 giây**); mẫu + câu vàng mỗi dự án đọc **một lần** (không đổi sau publish). Dự án rời view (huỷ / hoàn thành) → bỏ khỏi bộ nhớ. Warm-up hai lớp: `CatalogWarmup` chạy trước Kestrel, và middleware trả 503 (`Retry-After`) nếu request tới khi bộ nhớ chưa nạp. Thêm `/health/live`, `/health/ready` (503 khi đang warm-up — readinessProbe của K8s), `/internal/catalog` (khoá nội bộ, tóm tắt không có đáp án vàng). Bỏ setting `gate.content_load_interval`. Đang dự án `Grading` vẫn lên cổng như trước (view giữ đúng hành vi cũ).
+
+**Setting.** `SettingsWarmup` chặn khởi động tới khi đọc được `v_settings` — không chạy bằng giá trị khởi tạo có thể sai (phí, ngưỡng); `SettingsReloadWorker` đọc lại mỗi `settings.reload_interval`. Bỏ setting `settings.snapshot_interval` (catalog còn **190 khoá**). `setting.changed` vẫn phát (nhật ký audit).
+
+**Identity.** `reputation.changed` vẫn nghe nhưng chỉ xếp labeler vào hàng chờ tính lại cấp. Tra cứu người dùng (project / ledger / link gọi): quality không trả lời → uy tín rỗng — điều kiện "uy tín tối thiểu" của dự án vẫn **từ chối**, tra cứu khác vẫn chạy. Worker tính cấp: quality lỗi → rollback, vòng sau.
+
+**Ledger.** Chi hoa hồng đọc `v_referrals` — chỉ quan hệ `active` (duyệt nghi gian lận là luật của link). DB link lỗi → cả lượt rollback và thử lại, không trả thiếu hoa hồng im lặng.
+
+**Còn giữ** (không phải bản sao thuần, hoặc cần quyết riêng): `ledger.project_escrows` (điều khoản tiền chốt lúc ký quỹ — `v_gate_budgets` dựa vào), `admin.approval_requests` (read model hàng đợi duyệt gom từ nhiều service), `audit_events` / `stats_daily` (nhật ký, thống kê), hoá đơn (ảnh chụp pháp lý), `quality.project_reports` (ảnh chụp trước khi dọn).
+
+**Thay đổi CSDL.** Migration project `ViewChoCongLink`; ledger `ViewNganSachCong`, `BoBanSaoGioiThieu`; link `ViewLinkChoCong`, `ViewGioiThieuChoLedger`; gate `BoBanSaoCongLink`; admin `ViewSettingChoServiceKhac`; identity `ViewLienHeVaBoUyTinSaoChep`; notification `BoBanSaoLienHe`; `BoBanSaoSetting` ở 7 service C#; quality `002_bo_settings_replica.sql`, `003_view_cho_service_khac.sql`. Bỏ event `gate.budget_changed`, `settings.snapshot`, `settings.snapshot_requested`; bỏ `contracts/grpc/project/v1/gate_data.proto`.
+
+**Đánh đổi.**
+
+- Nới cô lập credential của 3.1 có kiểm soát: bên đọc chỉ thấy đúng view, không thấy bảng. Hợp đồng giữa service chuyển một phần từ event sang **view** — chủ đổi bảng thì sửa view của mình; đổi cột của view là đổi hợp đồng.
+- Khởi động phụ thuộc DB chủ: admin_db chưa sẵn sàng thì service chưa nhận việc (warm-up chờ); gate mới khởi động cần project / ledger / link DB. Đang chạy thì gate vẫn phục vụ từ bộ nhớ khi DB chủ tắt (e2e: tắt `db-project`, gate vẫn trả lời).
+- Độ trễ: đổi setting, tạm dừng dự án, khoá link, hết ngân sách có hiệu lực sau tối đa một chu kỳ (5 giây) thay vì gần như tức thì qua event. Ledger vẫn là bên chặn cuối khi chi tiền cổng.
+- Tải đọc nhỏ: mỗi instance đọc `v_settings` (190 dòng) mỗi 5 giây; mỗi gate đọc danh sách dự án / link / ngân sách mỗi 5 giây.
+
 ## 4. Dữ liệu chéo — ba luật cứng
 
 Đây là chỗ dự án microservice hay vỡ nhất.
@@ -1281,15 +1328,17 @@ Bảng riêng chỉ là bản chép lại: mỗi thao tác ghi đôi, có thể 
 ```
 1. KHÔNG gọi HTTP / gRPC đồng bộ để lấy dữ liệu chéo trong ĐƯỜNG NÓNG.
    Việc nền (chấm, lô thống kê, xét gian lận) ĐƯỢC đọc thẳng từ chủ dữ liệu (mục 3.22).
-2. Service cần field của service khác → giữ BẢN SAO READ-ONLY,
-   cập nhật bằng event, KHÔNG coi là nguồn sự thật.
-       gate_db.gate_projects / gate_links / gate_budgets   (đường nóng của gate, mục 3.6)
-         ← project: project.published | link: link.* | ledger: gate.budget_changed
+2. Service cần field của service khác → ĐỌC VIEW của chủ dữ liệu (role chỉ SELECT view, mục 3.32);
+   đọc nhiều thì nạp vào BỘ NHỚ + warm-up trước khi nhận việc. KHÔNG giữ bảng bản sao cập nhật bằng event.
+       gate         ← project v_gate_projects / v_gate_samples / v_gate_gold,
+                      ledger v_gate_budgets, link v_gate_links            (bộ nhớ, đường nóng mục 3.6)
+       mọi service  ← admin v_settings                                    (bộ nhớ)
+       notification ← identity v_contacts;  identity ← quality v_reputations;  ledger ← link v_referrals
        (labeler_cache đã bỏ — mở bài hỏi identity qua gRPC, mục 3.24; thành viên cùng project_db — 3.21)
 3. Màn hình gộp nhiều nguồn → web-bff, không nhồi vào service nghiệp vụ.
 ```
 
-Nhờ luật 2, đường nóng của gate (traffic gấp ~100 lần) không gọi service nào và vẫn chạy khi project-svc sập. Chỗ đọc không nằm ở đường nóng thì hỏi thẳng chủ dữ liệu qua gRPC, đọc nhiều thì thêm cache trong bộ nhớ (mục 3.22–3.24).
+Nhờ luật 2, đường nóng của gate (traffic gấp ~100 lần) chỉ đọc bộ nhớ — không gọi service nào, không chạm DB — và vẫn chạy khi project-svc hay DB của nó tắt (giữ ảnh chụp đã nạp). Chỗ đọc không nằm ở đường nóng thì hỏi thẳng chủ dữ liệu qua gRPC, đọc nhiều thì thêm cache trong bộ nhớ (mục 3.22–3.24).
 
 **Khi nào KHÔNG cần bản sao.** Bản sao tốn một bảng + consumer ở mỗi service cần nó. Nếu điều cần biết là sự thật **một chiều về chính người đang gọi** (email đã xác thực, doanh nghiệp đã được duyệt KYB) thì đưa vào **claim của access token** (`email_verified`, `kyb_verified`): service đọc thẳng từ token, không bảng, không event. Điều kiện: không bao giờ đảo chiều (token cũ mang `true` không được phép sai), và client làm mới token khi trạng thái đổi. Thứ có thể đảo chiều (bị khoá, bị chặn khỏi dự án) hoặc cấp độ / uy tín thì hỏi chủ dữ liệu lúc cần (mục 3.24).
 

@@ -942,7 +942,7 @@ curl -s -X PUT http://localhost:8080/admin/settings/quality.redundancy_policy -H
 
 ### 6.16 Setting hệ thống (admin): phí, tự duyệt, hạn mức
 
-Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (192 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
+Mọi tham số nghiệp vụ và vận hành nằm trong bảng `settings` của admin-svc (190 khóa, xem [catalog.json](../shared/settings/catalog.json)). Đổi lúc đang chạy, **áp dụng cho thao tác mới** (dự án đã publish giữ phí cũ, lease đang chạy giữ hạn cũ…).
 
 ```bash
 # Toàn bộ setting: key, group, type, value, defaultValue, min, max, unit, effect, description, version
@@ -959,7 +959,7 @@ curl -s -X PUT http://localhost:8080/admin/settings/fee.platform_percent -H "Aut
   -H "Content-Type: application/json" -d '{"value":95}'                                              # 400
 ```
 
-Kiểm tra service đã nhận: `docker exec datn-db-project psql -U project_user -d project_db -c "select key, value, version from settings_replica where key='fee.platform_percent'"`.
+Mọi service đọc thẳng view `v_settings` của admin_db vào bộ nhớ (kiến trúc 3.32), đọc lại mỗi `settings.reload_interval` (mặc định 5 giây) — đổi xong chờ một chu kỳ là có hiệu lực ở mọi nơi. Xem giá trị nguồn: `docker exec datn-db-admin psql -U admin_user -d admin_db -c "select key, value, version from v_settings where key='fee.platform_percent'"`.
 
 **Tự duyệt dự án** — `project.auto_approve`:
 
@@ -1026,7 +1026,7 @@ Chia sẻ link là chức năng của **labeler**, không phải vai trò riêng
 curl -s -X PATCH http://localhost:8080/projects/<id> -H "Authorization: Bearer <token-biz1>" \
   -H "Content-Type: application/json" -d '{"channels":{"allowProfessional":true,"allowLinkGateway":true,"allowCollaborative":false}}'
 # Sau publish: ngân sách cổng = ngân sách − số mẫu × trần redundancy × (đơn giá + phí)
-docker exec datn-db-gate psql -U gate_user -d gate_db -c "select * from gate_budgets"
+docker exec datn-db-ledger psql -U ledger_user -d ledger_db -c "select * from v_gate_budgets"   # ngan sach cong link (gate doc view nay, 3.32)
 ```
 
 **Người chia sẻ tạo link** (bằng token, API key, Quick Link hoặc hàng loạt):
@@ -1441,12 +1441,12 @@ cd perf
 | Seed ném lỗi khi khởi động (ví dụ `khong_du_so_du`, `chuyen_trang_thai_khong_hop_le`) | Kịch bản bị sửa sai luật. Chạy `dotnet test shared/test/seeding-tests` để biết sai ở đâu |
 | `fileUrl` trả 403 / hết hạn | Link MinIO chỉ sống 5 phút (S-07). Gọi lại API để lấy link mới |
 | Lô manifest `failed`, `errorSummary` ghi `khong doc duoc thoi luong` | project-svc không tìm thấy ffprobe. Cài FFmpeg, hoặc đặt `Media:FfprobePath` trong appsettings, hoặc khai `durationSec` trong dòng manifest |
-| Đổi setting mà service không thấy giá trị mới | Xem bản sao: `docker exec datn-db-<svc> psql -U <svc>_user -d <svc>_db -c "select * from settings_replica where key='...'"`. Chưa có version mới → service đó chưa nhận `setting.changed` (đang tắt, hoặc message nằm DLQ `<svc>.setting-changed.dlq`). Bật lại service là nó tự xin snapshot |
+| Đổi setting mà service không thấy giá trị mới | Service đọc lại view `v_settings` mỗi `settings.reload_interval`. Quá một chu kỳ vẫn cũ → xem log service: `chua doc duoc setting tu admin-svc` (sai mật khẩu role `settings_reader` trong `.env`, hoặc admin_db tắt — service giữ giá trị đã nạp). Lúc khởi động mà chưa đọc được thì service chưa mở cổng (warm-up) |
 | `/admin/...` trả 502 | admin-svc chưa chạy, hoặc chưa bật `--profile p0` (Postgres admin) |
 | `/links/...`, `/g/...`, `/go/...` trả 502 | link-svc / gate-svc chưa chạy, hoặc chưa bật `--profile p2` |
 | Link đứng mãi ở `pendingScan` | link-svc không chạy (worker quét nằm trong nó), hoặc Safe Browsing lỗi mạng (khi có `UrlSafety:GoogleApiKey`) — xem log `Quet link loi` |
 | `GET /g/<code>` trả 404 dù link `active` | gate chưa nhận `link.activated` (gate tắt lúc link được kích hoạt sẽ nhận khi bật lại), hoặc link hết hạn |
-| Bộ câu hỏi luôn rỗng | Không có dự án nào phục vụ được: chưa bật kênh cổng link, công cụ không phải phân loại chọn một / so sánh cặp, thiếu câu vàng `qualityCheck`, hoặc ngân sách không vượt mức tối thiểu (`select * from gate_budgets` trong gate_db) |
+| Bộ câu hỏi luôn rỗng | Không có dự án nào phục vụ được: chưa bật kênh cổng link, công cụ không phải phân loại chọn một / so sánh cặp, thiếu câu vàng `qualityCheck`, hoặc ngân sách không vượt mức tối thiểu (`select * from v_gate_budgets` trong ledger_db) |
 | `turnstile_that_bai` | Thiếu `turnstileToken`, hoặc gate không gọi được `challenges.cloudflare.com` (cần mạng). Offline thì đặt `Gate:Turnstile:Enabled = false` trong appsettings.Development.json của gate |
 | `/quality/...` trả 502 | quality-svc chưa chạy (mục 3) hoặc chưa bật `--profile p3` |
 | Log quality `Bo qua dong thuan task ...: chua co ban sao du an` | Dự án publish **trước khi** quality-svc chạy lần đầu (không phải dự án seed): quality không có tập nhãn và trần redundancy nên bỏ qua. Dự án publish sau đó được tính bình thường |

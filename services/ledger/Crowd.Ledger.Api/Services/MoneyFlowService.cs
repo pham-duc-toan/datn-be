@@ -39,6 +39,7 @@ namespace Crowd.Ledger.Api.Services
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly ILogger<MoneyFlowService> _logger;
+        private readonly NguonGioiThieu _gioiThieu;
 
         public MoneyFlowService(
             LedgerDbContext db,
@@ -46,8 +47,16 @@ namespace Crowd.Ledger.Api.Services
             LedgerEventPublisher events,
             ISettings settings,
             TimeProvider clock,
+            NguonGioiThieu gioiThieu,
             ILogger<MoneyFlowService> logger)
         {
+            if (gioiThieu == null)
+            {
+                throw new ArgumentNullException(nameof(gioiThieu));
+            }
+
+            _gioiThieu = gioiThieu;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -153,11 +162,6 @@ namespace Crowd.Ledger.Api.Services
             if (e != null)
             {
                 e.GhiDieuKhoan(p.Slots, p.RewardVnd, p.PlatformFeeVnd, p.AllowLinkGateway, p.GateBudgetVnd ?? 0);
-
-                if (p.AllowLinkGateway)
-                {
-                    PhatNganSachCong(e, caller);
-                }
             }
         }
 
@@ -199,7 +203,6 @@ namespace Crowd.Ledger.Api.Services
                 _logger.LogWarning(
                     "Du an {ProjectId} het ngan sach cong link (con {ConLai}d, can {Can}d) — khong chi luot {ClickId}",
                     c.ProjectId, escrow.NganSachCongConLai(), tong, c.ClickId);
-                PhatNganSachCong(escrow, caller);
                 return;
             }
 
@@ -221,7 +224,6 @@ namespace Crowd.Ledger.Api.Services
             });
 
             await ChiHoaHongAsync(c.SharerId, c.SharerAmountVnd, c.PlatformAmountVnd, c.ClickId, c.ProjectId, c.LinkId, treo, bayGio, caller, ct);
-            PhatNganSachCong(escrow, caller);
         }
 
         /// <summary>
@@ -299,11 +301,6 @@ namespace Crowd.Ledger.Api.Services
 
                 if (theoSharer.Count == 0 || escrow == null)
                 {
-                    if (escrow != null)
-                    {
-                        PhatNganSachCong(escrow, caller);
-                    }
-
                     continue;
                 }
 
@@ -325,8 +322,6 @@ namespace Crowd.Ledger.Api.Services
                     });
                     await ChiHoaHongAsync(sl.Key.Item1, sl.Value[0], sl.Value[1], khoaTreo, theoDuAn.Key, sl.Key.Item2, treo, bayGio, caller, ct);
                 }
-
-                PhatNganSachCong(escrow, caller);
             }
 
             return lo.Count;
@@ -341,12 +336,21 @@ namespace Crowd.Ledger.Api.Services
             Guid sharerId, long sharerAmount, long platformAmount, Guid nguon, Guid projectId, Guid linkId,
             TimeSpan treo, DateTimeOffset bayGio, Caller caller, CancellationToken ct)
         {
-            ReferralLink? r = await _db.Referrals.AsNoTracking().FirstOrDefaultAsync(x => x.ReferredId == sharerId, ct);
             int phanTram = _settings.SoNguyen(SettingKeys.LinkReferralPercent);
-            if (r == null || phanTram <= 0)
+            if (phanTram <= 0)
             {
                 return;
             }
+
+            // Kien truc 3.32: quan he gioi thieu doc thang view v_referrals cua link-svc (khong ban sao). DB link loi →
+            // nem ra: ca luot rollback, consumer / lo thu lai (khong bao gio tra thieu hoa hong im lang).
+            Guid? nguoiGioiThieu = await _gioiThieu.NguoiGioiThieuAsync(sharerId, ct);
+            if (!nguoiGioiThieu.HasValue)
+            {
+                return;
+            }
+
+            Guid referrerId = nguoiGioiThieu.Value;
 
             // Tong da kiem qua cong link (khoan dang treo + da giai phong, KHONG tinh khoan bi giu
             // lai vi vi pham), CHUA gom luot nay (chua SaveChanges).
@@ -364,27 +368,17 @@ namespace Crowd.Ledger.Api.Services
                 return;
             }
 
-            await _writer.GhiAsync(Postings.HoaHongGioiThieu(nguon, r.ReferrerId, hoaHong, bayGio), ct);
-            FundsHold h = FundsHold.TaoChoCongLink(HoldKind.Referral, nguon, projectId, linkId, r.ReferrerId, hoaHong, bayGio, treo);
+            await _writer.GhiAsync(Postings.HoaHongGioiThieu(nguon, referrerId, hoaHong, bayGio), ct);
+            FundsHold h = FundsHold.TaoChoCongLink(HoldKind.Referral, nguon, projectId, linkId, referrerId, hoaHong, bayGio, treo);
             _db.Holds.Add(h);
             _events.Phat(caller, new FundsHeld
             {
                 HoldId = h.Id,
                 AnnotationId = nguon,
-                LabelerId = r.ReferrerId,
+                LabelerId = referrerId,
                 AmountVnd = hoaHong,
                 ReleaseAt = h.ReleaseAt,
             });
-        }
-
-        public async Task GhiGioiThieuAsync(ReferralRegistered p, CancellationToken ct)
-        {
-            if (await _db.Referrals.AnyAsync(x => x.ReferredId == p.ReferredId, ct))
-            {
-                return;
-            }
-
-            _db.Referrals.Add(ReferralLink.Tao(p.ReferrerId, p.ReferredId, p.RegisteredAt));
         }
 
         /// <summary>
@@ -418,16 +412,6 @@ namespace Crowd.Ledger.Api.Services
             {
                 _logger.LogWarning("Link {LinkId} vi pham: giu lai {So} khoan treo, {Tong}d", p.LinkId, ds.Count, tong);
             }
-        }
-
-        private void PhatNganSachCong(ProjectEscrow e, Caller caller)
-        {
-            _events.Phat(caller, new GateBudgetChanged
-            {
-                ProjectId = e.ProjectId,
-                RemainingVnd = e.NganSachCongConLai(),
-                Sequence = e.SoThuTuNganSachMoi(),
-            });
         }
 
         // =====================================================================

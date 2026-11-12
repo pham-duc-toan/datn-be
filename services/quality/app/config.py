@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     # Postgres rieng cua quality (docker-compose.infra.yml, profile p3).
     database_url: str = "postgresql+asyncpg://quality_user:dev_quality_pw@localhost:5421/quality_db"
 
+    # Role CHI DOC VIEW cua quality cho service khac (kien truc 3.32): {"identity_reader": "<mat khau>"}.
+    # Bien moi truong QUALITY_READ_ACCESS_READERS dang JSON. Rong = khong bat dang nhap role nao.
+    read_access_readers: dict[str, str] = {}
+
+    # Setting dong: doc thang view v_settings cua admin_db bang role settings_reader (kien truc 3.32).
+    settings_database_url: str = "postgresql://settings_reader:dev_reader_settings_pw@localhost:5411/admin_db"
+
     # RabbitMQ — cung exchange voi cac service C#.
     rabbit_host: str = "localhost"
     rabbit_port: int = 5672

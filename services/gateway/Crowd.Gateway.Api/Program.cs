@@ -1,6 +1,7 @@
 using System;
 using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
+using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Gateway.Api.Middlewares;
 using Crowd.Gateway.Api.RateLimiting;
 using Crowd.Gateway.Api.Sessions;
@@ -40,9 +41,12 @@ builder.Services.AddCors(options =>
 // scheme nay truoc khi chuyen tiep; token sai → 401 ngay tai gateway.
 builder.Services.AddCrowdJwtAuthentication(builder.Configuration);
 
-// Setting dong (admin-svc quan ly). Gateway khong co database: giu setting trong
-// bo nho, nghe setting.changed qua mot queue tam (vd tran upload dataset.zip_max_bytes).
-builder.Services.AddCrowdSettingsInMemory(builder.Configuration, "gateway");
+// Setting dong (admin-svc quan ly — kien truc 3.32): doc view v_settings cua admin_db vao bo nho (vd tran upload
+// dataset.zip_max_bytes). Warm-up: chua doc duoc thi gateway chua mo cong.
+builder.Services.AddCrowdSettings(builder.Configuration, "gateway");
+
+// RabbitMQ cho listener thu hoi phien (truoc day AddCrowdSettingsInMemory cau hinh ho).
+builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection(RabbitMqOptions.SectionName));
 
 // Thu hoi phien tuc thi (VD-S-11): moc thu hoi trong bo nho, nap tu identity + nghe user.sessions_revoked.
 builder.Services.AddSingleton(TimeProvider.System);

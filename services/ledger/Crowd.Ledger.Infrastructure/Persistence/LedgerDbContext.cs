@@ -10,7 +10,6 @@ using Crowd.Ledger.Domain.Holds;
 using Crowd.Ledger.Domain.Invoices;
 using Crowd.Ledger.Domain.Journal;
 using Crowd.Ledger.Domain.Withdrawals;
-using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
@@ -30,8 +29,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
         public DbSet<Account> Accounts => Set<Account>();
 
         public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
-
-        public DbSet<ReferralLink> Referrals => Set<ReferralLink>();
 
         public DbSet<GateClick> GateClicks => Set<GateClick>();
 
@@ -162,7 +159,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.GateBudgetVnd).HasColumnName("gate_budget_vnd").IsRequired();
                 b.Ignore(x => x.DaCoDieuKhoan);
                 b.Property(x => x.GateSpentVnd).HasColumnName("gate_spent_vnd").IsRequired();
-                b.Property(x => x.GateBudgetSequence).HasColumnName("gate_budget_sequence").IsRequired();
                 b.HasIndex(x => x.OwnerId).HasDatabaseName("ix_project_escrows_owner");
             });
 
@@ -183,15 +179,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
                 b.Property(x => x.SettledAt).HasColumnName("settled_at");
                 b.Ignore(x => x.TongVnd);
                 b.HasIndex(x => x.ReceivedAt).HasFilter("state = 'Queued'").HasDatabaseName("ix_gate_clicks_cho_gop");
-            });
-
-            modelBuilder.Entity<ReferralLink>(b =>
-            {
-                b.ToTable("referrals");
-                b.HasKey(x => x.ReferredId);
-                b.Property(x => x.ReferredId).HasColumnName("referred_id").ValueGeneratedNever();
-                b.Property(x => x.ReferrerId).HasColumnName("referrer_id").IsRequired();
-                b.Property(x => x.RegisteredAt).HasColumnName("registered_at").IsRequired();
             });
 
             // Hoa don GTGT (FB-05): dong hang + bang ke chi ho luu jsonb (chup luc xuat, khong sua).
@@ -241,7 +228,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
-            modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
         }
 
         private static readonly JsonSerializerOptions JsonCot = new JsonSerializerOptions(JsonSerializerDefaults.Web);

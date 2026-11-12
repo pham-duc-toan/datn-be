@@ -76,27 +76,15 @@ namespace Crowd.Gate.Tests
         }
 
         [Fact]
-        public void Ban_sao_ngan_sach_bo_qua_event_cu()
-        {
-            NganSachCong n = NganSachCong.Tao(Guid.NewGuid());
-            Assert.True(n.Dat(1000, 2, DateTimeOffset.UtcNow));
-            Assert.False(n.Dat(5000, 1, DateTimeOffset.UtcNow));
-            Assert.Equal(1000, n.RemainingVnd);
-        }
-
-        [Fact]
-        public void Link_het_han_hoac_vo_hieu_khong_phuc_vu()
+        public void Link_het_han_khong_phuc_vu()
         {
             DateTimeOffset luc = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
-            LinkCong l = LinkCong.Tao(Guid.NewGuid(), "abc", Guid.NewGuid(), luc);
-            Assert.False(l.PhucVuDuoc(luc));
-
-            l.KichHoat("https://example.com", null, luc.AddHours(1), null, null, luc);
+            LinkCong l = new LinkCong(Guid.NewGuid(), "abc", Guid.NewGuid(), "https://example.com", null, luc.AddHours(1), null, null);
             Assert.True(l.PhucVuDuoc(luc));
             Assert.False(l.PhucVuDuoc(luc.AddHours(1)));
 
-            l.VoHieuHoa(luc);
-            Assert.False(l.PhucVuDuoc(luc));
+            LinkCong khongHan = new LinkCong(Guid.NewGuid(), "xyz", Guid.NewGuid(), "https://example.com", null, null, null, null);
+            Assert.True(khongHan.PhucVuDuoc(luc.AddYears(5)));
         }
 
         private static LabelPayload Nhan(string lop)

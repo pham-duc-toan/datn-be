@@ -10,7 +10,7 @@ using Crowd.Gate.Api.Services;
 using Crowd.Gate.Infrastructure.ClickHouse;
 using Crowd.Gate.Infrastructure.Persistence;
 using Crowd.Gate.Infrastructure.Redis;
-using Grpc.Core;
+using Crowd.Gate.Infrastructure.Source;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -173,29 +173,30 @@ namespace Crowd.Gate.Api.Workers
         }
     }
 
-    /// <summary>Nap lai GateCatalog tu gate_db: dinh ky, va ngay khi consumer bao co thay doi.</summary>
-    public sealed class CatalogRefreshWorker : BackgroundService
+    /// <summary>
+    /// WARM-UP (kien truc 3.32): nap GateCatalog tu view cua chu du lieu TRUOC khi gate nhan request. Hosted service
+    /// khoi dong truoc Kestrel, nen StartAsync chua xong thi cong HTTP chua mo — 1000 request ap vao luc vua khoi dong
+    /// khong gap bo nho rong. DB chu chua tra loi thi thu lai mai (log moi lan); tren K8s readinessProbe
+    /// (/health/ready) giu pod ngoai load balancer suot luc do, pod cu van phuc vu.
+    /// </summary>
+    public sealed class CatalogWarmup : IHostedService
     {
-        private readonly IServiceScopeFactory _scopeFactory;
+        private static readonly TimeSpan ChoThuLai = TimeSpan.FromSeconds(2);
+
         private readonly GateCatalog _catalog;
-        private readonly ISettings _settings;
-        private readonly ILogger<CatalogRefreshWorker> _logger;
+        private readonly NguonCongLink _nguon;
+        private readonly ILogger<CatalogWarmup> _logger;
 
-        public CatalogRefreshWorker(IServiceScopeFactory scopeFactory, GateCatalog catalog, ISettings settings, ILogger<CatalogRefreshWorker> logger)
+        public CatalogWarmup(GateCatalog catalog, NguonCongLink nguon, ILogger<CatalogWarmup> logger)
         {
-            if (scopeFactory == null)
-            {
-                throw new ArgumentNullException(nameof(scopeFactory));
-            }
-
             if (catalog == null)
             {
                 throw new ArgumentNullException(nameof(catalog));
             }
 
-            if (settings == null)
+            if (nguon == null)
             {
-                throw new ArgumentNullException(nameof(settings));
+                throw new ArgumentNullException(nameof(nguon));
             }
 
             if (logger == null)
@@ -203,69 +204,61 @@ namespace Crowd.Gate.Api.Workers
                 throw new ArgumentNullException(nameof(logger));
             }
 
-            _scopeFactory = scopeFactory;
             _catalog = catalog;
-            _settings = settings;
+            _nguon = nguon;
             _logger = logger;
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        public async Task StartAsync(CancellationToken cancellationToken)
         {
-            while (!stoppingToken.IsCancellationRequested)
+            int lan = 0;
+            while (true)
             {
+                lan++;
                 try
                 {
-                    using (IServiceScope scope = _scopeFactory.CreateScope())
-                    {
-                        await _catalog.NapLaiAsync(scope.ServiceProvider.GetRequiredService<GateDbContext>(), stoppingToken);
-                    }
+                    await _catalog.NapLaiAsync(_nguon, cancellationToken);
+                    TomTatCatalog t = _catalog.TomTat();
+                    _logger.LogInformation("Cong link san sang: {SoDuAn} du an, {SoLink} link (lan thu {Lan})", t.Projects.Count, t.Links, lan);
+                    return;
                 }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
-                    break;
+                    throw;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Nap bo nho dem gate loi — giu ban cu, thu lai vong sau");
+                    _logger.LogWarning(ex, "Chua nap duoc du lieu cong link (lan {Lan}) — chua nhan request, thu lai sau {Giay} giay", lan, ChoThuLai.TotalSeconds);
                 }
 
-                try
-                {
-                    await _catalog.ChoAsync(_settings.ThoiGian(SettingKeys.GateCacheRefreshInterval), stoppingToken);
-
-                    // Gom cac thay doi lien tiep (vd nhieu event link / ngan sach) va doi consumer commit xong.
-                    await Task.Delay(TimeSpan.FromMilliseconds(300), stoppingToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
+                await Task.Delay(ChoThuLai, cancellationToken);
             }
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 
-    /// <summary>
-    /// Keo mau + cau vang cua du an vua publish bat cong link tu project-svc (gRPC, GateContentLoader) theo
-    /// gate.content_load_interval. project-svc khong tra loi thi giu nguyen, vong sau thu lai — khach chua thay du an
-    /// do cho toi khi nap xong, cac du an khac van chay tu ban sao.
-    /// </summary>
-    public sealed class ContentLoadWorker : BackgroundService
+    /// <summary>Nap lai GateCatalog tu view cua chu du lieu moi gate.cache_refresh_interval (sau warm-up).</summary>
+    public sealed class CatalogRefreshWorker : BackgroundService
     {
-        private readonly IServiceScopeFactory _scopeFactory;
         private readonly GateCatalog _catalog;
+        private readonly NguonCongLink _nguon;
         private readonly ISettings _settings;
-        private readonly ILogger<ContentLoadWorker> _logger;
+        private readonly ILogger<CatalogRefreshWorker> _logger;
 
-        public ContentLoadWorker(IServiceScopeFactory scopeFactory, GateCatalog catalog, ISettings settings, ILogger<ContentLoadWorker> logger)
+        public CatalogRefreshWorker(GateCatalog catalog, NguonCongLink nguon, ISettings settings, ILogger<CatalogRefreshWorker> logger)
         {
-            if (scopeFactory == null)
-            {
-                throw new ArgumentNullException(nameof(scopeFactory));
-            }
-
             if (catalog == null)
             {
                 throw new ArgumentNullException(nameof(catalog));
+            }
+
+            if (nguon == null)
+            {
+                throw new ArgumentNullException(nameof(nguon));
             }
 
             if (settings == null)
@@ -278,8 +271,8 @@ namespace Crowd.Gate.Api.Workers
                 throw new ArgumentNullException(nameof(logger));
             }
 
-            _scopeFactory = scopeFactory;
             _catalog = catalog;
+            _nguon = nguon;
             _settings = settings;
             _logger = logger;
         }
@@ -290,35 +283,16 @@ namespace Crowd.Gate.Api.Workers
             {
                 try
                 {
-                    using (IServiceScope scope = _scopeFactory.CreateScope())
-                    {
-                        int so = await scope.ServiceProvider.GetRequiredService<GateContentLoader>().NapCacDuAnChoAsync(stoppingToken);
-                        if (so > 0)
-                        {
-                            _catalog.YeuCauNapLai();
-                        }
-                    }
+                    await ChoTheoSetting.ChoAsync(_settings, SettingKeys.GateCacheRefreshInterval, stoppingToken);
+                    await _catalog.NapLaiAsync(_nguon, stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
                     break;
                 }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.Unavailable || ex.StatusCode == StatusCode.DeadlineExceeded)
-                {
-                    _logger.LogWarning("Keo mau cong link: project-svc chua tra loi ({Status}) — vong sau thu lai", ex.StatusCode);
-                }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Keo mau cong link loi — vong sau thu lai");
-                }
-
-                try
-                {
-                    await ChoTheoSetting.ChoAsync(_settings, SettingKeys.GateContentLoadInterval, stoppingToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
+                    _logger.LogError(ex, "Nap lai du lieu cong link loi — giu ban cu trong bo nho, thu lai vong sau");
                 }
             }
         }

@@ -56,30 +56,6 @@ namespace Crowd.Notification.Api.Consumers
         protected abstract Task XuLyPayloadAsync(TPayload p, CancellationToken ct);
     }
 
-    // ===================================================================== ban sao
-
-    /// <summary>user.registered → dia chi lien lac (cap nhat neu giao lai).</summary>
-    public sealed class UserRegisteredProcessor : ThongBaoProcessor<UserRegistered>
-    {
-        public UserRegisteredProcessor(ThongBaoWriter writer, NotificationDbContext db)
-            : base(writer, db)
-        {
-        }
-
-        protected override async Task XuLyPayloadAsync(UserRegistered p, CancellationToken ct)
-        {
-            LienHe? lh = await Db.LienHes.FirstOrDefaultAsync(x => x.UserId == p.UserId, ct);
-            if (lh == null)
-            {
-                Db.LienHes.Add(LienHe.Tao(p.UserId, p.Email, p.DisplayName, p.Roles));
-            }
-            else
-            {
-                lh.DatVaiTro(p.Roles);
-            }
-        }
-    }
-
     // ===================================================================== tai khoan, KYB
 
     public sealed class BusinessVerifiedProcessor : ThongBaoProcessor<BusinessVerified>

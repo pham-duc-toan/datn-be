@@ -199,7 +199,6 @@ namespace Crowd.BuildingBlocks.Settings
         public const string GateCacheRefreshInterval = "gate.cache_refresh_interval";
         public const string GateEventFlushInterval = "gate.event_flush_interval";
         public const string GateEventBatchSize = "gate.event_batch_size";
-        public const string GateContentLoadInterval = "gate.content_load_interval";
         public const string LinkCodeLength = "link.code_length";
         public const string LinkBulkMax = "link.bulk_max";
         public const string LinkReportReviewThreshold = "link.report_review_threshold";
@@ -228,7 +227,6 @@ namespace Crowd.BuildingBlocks.Settings
         public const string OpsAlertRepeat = "ops.alert_repeat";
         public const string OpsAlertEmail = "ops.alert_email";
         public const string SettingsReloadInterval = "settings.reload_interval";
-        public const string SettingsSnapshotInterval = "settings.snapshot_interval";
     }
 
     /// <summary>
@@ -687,9 +685,7 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Text(SettingKeys.OpsAlertEmail, NhomKyThuat, "", 200,
                 "Email đội kỹ thuật nhận cảnh báo lỗi hệ thống (DLQ có message). Trống = chỉ ghi log và hiện trên thẻ “Tình trạng hệ thống”."));
             ds.Add(Seconds(SettingKeys.SettingsReloadInterval, NhomKyThuat, 5, 1, 3600,
-                "Mỗi service đọc lại bản sao setting từ DB của nó sau mỗi khoảng này."));
-            ds.Add(Seconds(SettingKeys.SettingsSnapshotInterval, NhomKyThuat, 300, 10, Ngay,
-                "admin-svc phát lại toàn bộ setting định kỳ (để service lỡ mất event vẫn đồng bộ)."));
+                "Mỗi phần của hệ thống đọc lại setting sau mỗi khoảng này — đổi setting có hiệu lực ở mọi nơi chậm nhất sau khoảng này."));
 
             // ================= CONG LINK (P2) =================
             ds.Add(Bool(SettingKeys.GateEnabled, NhomCongLink, true,
@@ -716,14 +712,12 @@ namespace Crowd.BuildingBlocks.Settings
                 "Khách vãng lai trượt câu kiểm tra đủ bấy nhiêu lần (tính theo địa chỉ IP, trong khoảng “Thời gian chặn IP trượt cổng”) thì bị chặn IP."));
             ds.Add(Seconds(SettingKeys.GateBlockDuration, NhomCongLink, Ngay, 60, 30 * Ngay,
                 "Chặn IP bao lâu khi trượt quá số lần cho phép. Cũng là khoảng đếm số lần trượt và thời gian khoá một link với IP đã trượt link đó."));
-            ds.Add(Seconds(SettingKeys.GateCacheRefreshInterval, NhomKyThuat, 60, 5, 3600,
-                "Gate nạp lại bộ nhớ đệm dự án / mẫu / link từ bản sao sau mỗi khoảng này."));
+            ds.Add(Seconds(SettingKeys.GateCacheRefreshInterval, NhomKyThuat, 5, 1, 3600,
+                "Cổng link đọc lại danh sách dự án, ngân sách và link đang chạy sau mỗi khoảng này. Tạm dừng dự án, hết ngân sách hay khoá link có hiệu lực trên cổng chậm nhất sau khoảng này."));
             ds.Add(Seconds(SettingKeys.GateEventFlushInterval, NhomKyThuat, 1, 0.2, 60,
                 "Gate chuyển lượt vượt từ Redis Stream sang outbox + ClickHouse sau mỗi khoảng này."));
             ds.Add(Int(SettingKeys.GateEventBatchSize, NhomKyThuat, 200, 1, 5000, "lượt",
                 "Số lượt vượt gate chuyển mỗi lô."));
-            ds.Add(Seconds(SettingKeys.GateContentLoadInterval, NhomKyThuat, 5, 1, 3600,
-                "Gate kéo mẫu + câu vàng của dự án vừa publish bật cổng link từ project-svc (gRPC) sau mỗi khoảng này; project-svc không trả lời thì vòng sau thử lại."));
             ds.Add(Int(SettingKeys.LinkCodeLength, NhomCongLink, 7, 5, 12, "ký tự",
                 "Độ dài mã link ngẫu nhiên."));
             ds.Add(Int(SettingKeys.LinkBulkMax, NhomCongLink, 100, 1, 1000, "link",

@@ -83,7 +83,10 @@ namespace Crowd.Identity.Api.Consumers
         }
     }
 
-    /// <summary>reputation.changed (quality-svc) → uy tin moi nhat (ban cu den tre bi bo qua), tinh lai cap.</summary>
+    /// <summary>
+    /// reputation.changed (quality-svc) → xep labeler vao hang cho tinh lai cap. KHONG chep diem (kien truc 3.32):
+    /// luc tinh, CapDoWorker doc uy tin moi nhat tu view v_reputations cua quality.
+    /// </summary>
     public sealed class ReputationChangedProcessor : IEventProcessor<ReputationChanged>
     {
         private readonly CapDoService _capDo;
@@ -106,7 +109,7 @@ namespace Crowd.Identity.Api.Consumers
             }
 
             ReputationChanged p = envelope.Payload;
-            return _capDo.GhiUyTinAsync(p.UserId, p.Reputation, envelope.OccurredAt, envelope.CorrelationId, ct);
+            return _capDo.XepTinhLaiAsync(new[] { p.UserId }, envelope.CorrelationId, ct);
         }
     }
 

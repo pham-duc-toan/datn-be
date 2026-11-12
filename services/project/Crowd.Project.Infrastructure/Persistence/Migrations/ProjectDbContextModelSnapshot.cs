@@ -1267,31 +1267,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.ToTable("sample_reports", (string)null);
                 });
 
-            modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("key");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("ValueJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("value");
-
-                    b.Property<long>("Version")
-                        .HasColumnType("bigint")
-                        .HasColumnName("version");
-
-                    b.HasKey("Key");
-
-                    b.ToTable("settings_replica", (string)null);
-                });
-
             modelBuilder.Entity("Crowd.Project.Domain.Attempts.Attempt", b =>
                 {
                     b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)

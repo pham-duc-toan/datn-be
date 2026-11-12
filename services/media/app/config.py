@@ -1,7 +1,7 @@
 """Cau hinh doc tu bien moi truong (tien to MEDIA_). Mac dinh = moi truong dev.
 
 Vi du: MEDIA_MINIO_ENDPOINT, MEDIA_GRANT_KEY, MEDIA_WATERMARK_KEY. media-svc KHONG co database:
-watermark nhung thang nguoi xem vao anh, setting giu trong bo nho (settings_listener.py).
+watermark nhung thang nguoi xem vao anh, setting giu trong bo nho (settings_sync.py doc view v_settings cua admin_db).
 Chi thu gan voi HA TANG o day (ket noi, khoa bi mat); bat / tat va do manh watermark la SETTING
 DONG cua admin-svc (settings_store.py).
 """
@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     service_name: str = "media-svc"
     port: int = 8109
     environment: str = "Development"
+
+    # Setting dong: doc thang view v_settings cua admin_db bang role settings_reader (kien truc 3.32).
+    settings_database_url: str = "postgresql://settings_reader:dev_reader_settings_pw@localhost:5411/admin_db"
 
     rabbit_host: str = "localhost"
     rabbit_port: int = 5672

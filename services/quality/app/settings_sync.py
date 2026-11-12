@@ -1,72 +1,64 @@
-"""Dong bo setting tu admin-svc — ban Python cua SettingsReplicaSync + SettingsProcessors (C#).
+"""Setting dong cua admin-svc — ban Python cua SettingsSource / SettingsWarmup / SettingsReloadWorker (C#).
 
-  setting.changed / settings.snapshot → ghi bang settings_replica (chi khi version
-  MOI hon) roi cap nhat bo nho (settings_store).
-  Luc khoi dong: nap settings_replica vao bo nho, roi xin admin-svc phat lai toan
-  bo (settings.snapshot_requested) — lo mat event luc tat van dong bo lai duoc.
-  Dinh ky nap lai tu DB (nhieu ban sao quality cung doc mot DB).
+Kien truc 3.32: doc THANG view v_settings cua admin_db (role settings_reader — chi SELECT duoc view nay) vao bo nho
+(settings_store). Khong con bang settings_replica, khong nghe setting.changed / settings.snapshot.
+  - warm_up(): goi luc khoi dong, TRUOC consumer / worker — admin_db chua tra loi thi thu lai mai, quality chua nhan
+    viec nao (khong chay bang gia tri khoi tao co the sai).
+  - vong_lap_nap_lai(): doc lai moi settings.reload_interval (moi instance tu doc).
 """
 
 import asyncio
 import json
 import logging
-import uuid
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+import asyncpg
 
 from app import settings_store
 from app.config import settings
-from app.contracts import SettingChanged, SettingsSnapshot, SettingsSnapshotRequested
-from app.db import session_factory
-from app.messaging import outbox
-from app.messaging.envelope import Envelope
 
 log = logging.getLogger(__name__)
 
+CHO_THU_LAI_GIAY = 2
 
-async def _ghi(s: AsyncSession, key: str, gia_tri: object, version: int) -> None:
-    gia_tri_json = json.dumps(gia_tri)
-    if settings_store.kiem_gia_tri(key, gia_tri) is not None:
-        log.warning("Bo qua setting %s = %s: khong hop le voi catalog cua quality-svc", key, gia_tri_json)
-        return
-
-    await s.execute(
-        text(
-            "INSERT INTO settings_replica (key, value, version, updated_at) "
-            "VALUES (:k, CAST(:v AS jsonb), :ver, now()) "
-            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, version = EXCLUDED.version, updated_at = now() "
-            "WHERE settings_replica.version < EXCLUDED.version"
-        ),
-        {"k": key, "v": gia_tri_json, "ver": version},
-    )
-    if settings_store.ap_dung(key, gia_tri_json, version):
-        log.info("Setting %s = %s (v%s)", key, gia_tri_json, version)
+_pool: asyncpg.Pool | None = None
 
 
-async def setting_changed(s: AsyncSession, env: Envelope[SettingChanged]) -> None:
-    p = env.payload
-    await _ghi(s, p.key, p.value, p.setting_version)
+async def _lay_pool() -> asyncpg.Pool:
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(settings().settings_database_url, min_size=1, max_size=2)
+    return _pool
 
 
-async def settings_snapshot(s: AsyncSession, env: Envelope[SettingsSnapshot]) -> None:
-    for item in env.payload.items:
-        await _ghi(s, item.key, item.value, item.setting_version)
-
-
-async def nap_tu_db() -> int:
-    async with session_factory()() as s:
-        dong = (await s.execute(text("SELECT key, value::text AS value, version FROM settings_replica"))).all()
-    so = 0
+async def nap_tu_admin() -> int:
+    """Nap moi setting (version moi hon moi ghi). Tra so dong doc duoc."""
+    pool = await _lay_pool()
+    async with pool.acquire() as conn:
+        dong = await conn.fetch("SELECT key, value::text AS value, version FROM v_settings")
     for d in dong:
-        if settings_store.ap_dung(d.key, d.value, d.version):
-            so += 1
-    return so
+        if settings_store.kiem_gia_tri(d["key"], json.loads(d["value"])) is not None:
+            log.warning("Bo qua setting %s = %s: khong hop le voi catalog cua quality-svc", d["key"], d["value"])
+            continue
+        if settings_store.ap_dung(d["key"], d["value"], d["version"]):
+            log.info("Setting %s = %s (v%s)", d["key"], d["value"], d["version"])
+    return len(dong)
 
 
-async def xin_snapshot() -> None:
-    async with session_factory()() as s, s.begin():
-        await outbox.ghi(s, SettingsSnapshotRequested(service=settings().service_name), uuid.uuid4(), None)
+async def warm_up() -> None:
+    lan = 0
+    while True:
+        lan += 1
+        try:
+            so = await nap_tu_admin()
+            log.info("Nap %s setting tu admin-svc (lan thu %s)", so, lan)
+            return
+        except Exception as ex:  # noqa: BLE001 — admin_db chua san sang: chua nhan viec, thu lai
+            global _pool
+            if _pool is not None:
+                await _pool.close()
+                _pool = None
+            log.warning("Chua doc duoc setting tu admin-svc (lan %s): %s — thu lai sau %ss", lan, ex, CHO_THU_LAI_GIAY)
+            await asyncio.sleep(CHO_THU_LAI_GIAY)
 
 
 async def vong_lap_nap_lai(dung: asyncio.Event) -> None:
@@ -75,6 +67,13 @@ async def vong_lap_nap_lai(dung: asyncio.Event) -> None:
         if dung.is_set():
             break
         try:
-            await nap_tu_db()
+            await nap_tu_admin()
         except Exception:  # noqa: BLE001
-            log.exception("Nap lai setting tu DB that bai, thu lai vong sau")
+            log.exception("Doc lai setting tu admin-svc that bai — giu gia tri dang co, thu lai vong sau")
+
+
+async def dong() -> None:
+    global _pool
+    if _pool is not None:
+        await _pool.close()
+        _pool = None

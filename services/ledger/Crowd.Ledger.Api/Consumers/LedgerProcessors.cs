@@ -404,32 +404,6 @@ namespace Crowd.Ledger.Api.Consumers
         }
     }
 
-    /// <summary>referral.registered (link-svc): ghi quan he gioi thieu de tinh hoa hong.</summary>
-    public sealed class ReferralRegisteredProcessor : IEventProcessor<ReferralRegistered>
-    {
-        private readonly MoneyFlowService _flow;
-
-        public ReferralRegisteredProcessor(MoneyFlowService flow)
-        {
-            if (flow == null)
-            {
-                throw new ArgumentNullException(nameof(flow));
-            }
-
-            _flow = flow;
-        }
-
-        public Task XuLyAsync(EventEnvelope<ReferralRegistered> envelope, CancellationToken ct)
-        {
-            if (envelope == null)
-            {
-                throw new ArgumentNullException(nameof(envelope));
-            }
-
-            return _flow.GhiGioiThieuAsync(envelope.Payload, ct);
-        }
-    }
-
     /// <summary>link.disabled (link-svc): vi pham da xac nhan → giu doanh thu dang treo cua link.</summary>
     public sealed class LinkDisabledProcessor : IEventProcessor<LinkDisabled>
     {

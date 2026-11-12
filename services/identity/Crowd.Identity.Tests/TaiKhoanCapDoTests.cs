@@ -129,16 +129,6 @@ namespace Crowd.Identity.Tests
         }
 
         [Fact]
-        public void Uy_tin_cu_den_tre_bi_bo_qua()
-        {
-            ThongKeLabeler tk = ThongKeLabeler.Tao(Guid.NewGuid(), T);
-
-            Assert.True(tk.DatUyTin(80, T.AddMinutes(5)));
-            Assert.False(tk.DatUyTin(40, T.AddMinutes(1)));
-            Assert.Equal(80, tk.Reputation);
-        }
-
-        [Fact]
         public void Doi_cap_chi_bao_khi_cap_thay_doi()
         {
             ThongKeLabeler tk = ThongKeLabeler.Tao(Guid.NewGuid(), T);

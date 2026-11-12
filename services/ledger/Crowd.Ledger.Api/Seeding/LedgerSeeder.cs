@@ -41,6 +41,7 @@ namespace Crowd.Ledger.Api.Seeding
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly ILoggerFactory _loggers;
+        private readonly NguonGioiThieu _gioiThieu;
         private readonly ILogger<LedgerSeeder> _logger;
 
         public LedgerSeeder(
@@ -49,6 +50,7 @@ namespace Crowd.Ledger.Api.Seeding
             LedgerEventPublisher events,
             ISettings settings,
             TimeProvider clock,
+            NguonGioiThieu gioiThieu,
             ILoggerFactory loggers)
         {
             if (db == null)
@@ -87,6 +89,12 @@ namespace Crowd.Ledger.Api.Seeding
             _settings = settings;
             _clock = clock;
             _loggers = loggers;
+            if (gioiThieu == null)
+            {
+                throw new ArgumentNullException(nameof(gioiThieu));
+            }
+
+            _gioiThieu = gioiThieu;
             _logger = loggers.CreateLogger<LedgerSeeder>();
         }
 
@@ -192,6 +200,7 @@ namespace Crowd.Ledger.Api.Seeding
                 _events,
                 _settings,
                 new DongHoCoDinh(luc),
+                _gioiThieu,
                 _loggers.CreateLogger<MoneyFlowService>());
         }
 

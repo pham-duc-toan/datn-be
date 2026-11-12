@@ -5,6 +5,7 @@ thong ke, viet SQL ro rang hon. SQLAlchemy chi lo pool ket noi va transaction.
 """
 
 import logging
+import re
 from pathlib import Path
 
 from sqlalchemy import text
@@ -32,6 +33,30 @@ def session_factory() -> async_sessionmaker[AsyncSession]:
     if _session_factory is None:
         _session_factory = async_sessionmaker(engine(), expire_on_commit=False)
     return _session_factory
+
+
+_TEN_ROLE = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
+
+
+async def dam_bao_role_doc() -> int:
+    """Ban Python cua ReaderRoles.DamBaoDangNhapAsync (C#): bat LOGIN + dat mat khau cho role chi doc view
+    (migration da tao role NOLOGIN + GRANT tren view). Mat khau tu cau hinh, khong nam trong migration."""
+    so = 0
+    async with engine().begin() as conn:
+        raw = await conn.get_raw_connection()
+        for role, mat_khau in settings().read_access_readers.items():
+            if not mat_khau:
+                continue
+            if not _TEN_ROLE.match(role):
+                raise ValueError(f"Ten role doc cheo khong hop le: {role!r}")
+            mk = mat_khau.replace("'", "''")
+            await raw.driver_connection.execute(
+                f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN "
+                f"CREATE ROLE {role} LOGIN PASSWORD '{mk}'; ELSE ALTER ROLE {role} LOGIN PASSWORD '{mk}'; END IF; END $$;")
+            so += 1
+    if so:
+        log.info("Doc cheo: bat dang nhap cho %s role chi doc view", so)
+    return so
 
 
 async def chay_migration() -> None:

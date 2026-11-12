@@ -13,7 +13,6 @@ using Crowd.Contracts.Project;
 using Crowd.Notification.Api.Consumers;
 using Crowd.Notification.Api.Exceptions;
 using Crowd.Notification.Api.Persistence;
-using Crowd.Notification.Api.Seeding;
 using Crowd.Notification.Api.Services;
 using Crowd.Notification.Api.Workers;
 using Crowd.Seeding;
@@ -36,11 +35,10 @@ builder.Services.AddDbContext<NotificationDbContext>(options =>
 });
 
 // Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
-builder.Services.AddCrowdSettings<NotificationDbContext>(cfg, "notification-svc");
+builder.Services.AddCrowdSettings(cfg, "notification-svc");
 builder.Services.AddOutbox<NotificationDbContext>(cfg);
 
 // ---- Ban sao (khong tao thong bao) ----
-builder.Services.AddEventConsumer<NotificationDbContext, UserRegistered, UserRegisteredProcessor>(cfg, "notification-svc.user-registered");
 
 // ---- Tai khoan, KYB ----
 builder.Services.AddEventConsumer<NotificationDbContext, BusinessVerified, BusinessVerifiedProcessor>(cfg, "notification-svc.business-verified");
@@ -93,7 +91,10 @@ builder.Services.AddHostedService<RetentionWorker>();
 
 builder.Services.AddScoped<ThongBaoWriter>();
 builder.Services.AddScoped<ThongBaoService>();
-builder.Services.AddScoped<NotificationSeeder>();
+// Dia chi lien lac: doc thang view v_contacts cua identity bang role notification_reader (kien truc 3.32).
+string docIdentity = cfg.GetConnectionString("IdentityRead")
+    ?? throw new InvalidOperationException("Thieu ConnectionStrings:IdentityRead (role notification_reader doc view cua identity-svc).");
+builder.Services.AddSingleton(new NguonLienHe(docIdentity));
 
 builder.Services.AddCrowdJwtAuthentication(cfg);
 builder.Services.AddControllers();
@@ -106,11 +107,6 @@ using (IServiceScope scope = app.Services.CreateScope())
 {
     NotificationDbContext db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
     await db.Database.MigrateAsync();
-
-    if (SeedSwitch.DuocChay(app.Environment, app.Configuration))
-    {
-        await scope.ServiceProvider.GetRequiredService<NotificationSeeder>().ChayAsync(CancellationToken.None);
-    }
 }
 
 app.UseExceptionHandler();

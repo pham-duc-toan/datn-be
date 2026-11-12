@@ -1,6 +1,6 @@
 # E2E THANH VIEN DU AN: moi truc tiep (email / userId, nhieu nguoi), ma moi, che do approval (don xin
 # tham gia, ca qua bai test dau vao), kiem cap do / uy tin ngay luc vao du an, thong bao.
-# Tu tao tai khoan + du an moi. Cap do / uy tin dat thang trong identity_db (bang labeler_stats) — chinh
+# Tu tao tai khoan + du an moi. Cap do dat thang trong identity_db (labeler_stats), uy tin trong quality_db (reputations) — chinh
 # nguon project-svc hoi qua POST /internal/users/lookup.
 # Chay: python e2e_thanh_vien.py   (stack demo: E2E_PROFILE=demo)
 import os, sys, threading, time, uuid
@@ -34,12 +34,22 @@ def nap(u, so):
     assert cho(lambda: vi(u)["businessAvailableVnd"] >= so, 30), vi(u)
 
 
+def ghi_uy_tin_quality(user_id, uy_tin):
+    """Kien truc 3.32: uy tin chi nam o quality (identity doc view v_reputations). None = chua co uy tin."""
+    if uy_tin is None:
+        sql("quality", f"delete from reputations where labeler_id = '{user_id}'")
+        return
+    sql("quality", "insert into reputations(labeler_id, reputation, gold_total, gold_correct, agree_total, agree_count, updated_at) "
+                   f"values ('{user_id}', {uy_tin}, 0, 0, 0, 0, now()) "
+                   f"on conflict (labeler_id) do update set reputation = {uy_tin}, updated_at = now()")
+
+
 def dat_cap(u, cap, uy_tin=None):
-    """Ghi cap do / uy tin vao identity_db (nhu sau khi duoc duyet nhan va duoc cham)."""
-    ut = "null" if uy_tin is None else str(uy_tin)
-    sql("identity", "insert into labeler_stats(user_id, reputation, reputation_at, level, updated_at) "
-                    f"values ('{u['id']}', {ut}, now(), {cap}, now()) "
-                    f"on conflict (user_id) do update set level = {cap}, reputation = {ut}, reputation_at = now()")
+    """Cap do ghi vao identity_db; uy tin ghi vao quality_db (chu du lieu — identity doc view v_reputations, 3.32)."""
+    sql("identity", "insert into labeler_stats(user_id, level, updated_at) "
+                    f"values ('{u['id']}', {cap}, now()) "
+                    f"on conflict (user_id) do update set level = {cap}")
+    ghi_uy_tin_quality(u["id"], uy_tin)
 
 
 def che_do(chu, pid, ten, vis):

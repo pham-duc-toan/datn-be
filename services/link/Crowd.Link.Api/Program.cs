@@ -7,6 +7,7 @@ using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.BuildingBlocks.Persistence.ReadAccess;
 using Crowd.BuildingBlocks.Security;
 using Crowd.Link.Api.Exceptions;
 using Crowd.Link.Api.Helpers;
@@ -33,7 +34,7 @@ builder.Services.AddDbContext<LinkDbContext>(options =>
 });
 
 // Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
-builder.Services.AddCrowdSettings<LinkDbContext>(cfg, "link-svc");
+builder.Services.AddCrowdSettings(cfg, "link-svc");
 builder.Services.AddOutbox<LinkDbContext>(cfg);
 
 // Hoi identity luc nhap ma gioi thieu (thay ban sao known_users).
@@ -91,6 +92,10 @@ using (IServiceScope scope = app.Services.CreateScope())
 {
     LinkDbContext db = scope.ServiceProvider.GetRequiredService<LinkDbContext>();
     await db.Database.MigrateAsync();
+
+    // Role chi doc view cho service khac (gate_reader — kien truc 3.32): bat dang nhap + mat khau tu cau hinh.
+    await ReaderRoles.DamBaoDangNhapAsync(
+        db, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ReadAccess"), CancellationToken.None);
 }
 
 app.UseForwardedHeaders();

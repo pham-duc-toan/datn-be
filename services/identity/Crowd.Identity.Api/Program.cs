@@ -6,6 +6,7 @@ using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.BuildingBlocks.Persistence.ReadAccess;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Admin;
 using Crowd.Contracts.Grpc.Project;
@@ -52,7 +53,7 @@ namespace Crowd.Identity.Api
             });
 
             // Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
-            builder.Services.AddCrowdSettings<IdentityDbContext>(builder.Configuration, "identity-svc");
+            builder.Services.AddCrowdSettings(builder.Configuration, "identity-svc");
 
             // Ha tang dung chung: outbox + chong xu ly trung.
             builder.Services.AddOutbox<IdentityDbContext>(builder.Configuration);
@@ -136,6 +137,11 @@ namespace Crowd.Identity.Api
             });
             builder.Services.AddMemoryCache();
             builder.Services.AddScoped<SoCauDuyetClient>();
+
+            // Uy tin: doc thang view v_reputations cua quality bang role identity_reader (kien truc 3.32).
+            string docQuality = builder.Configuration.GetConnectionString("QualityRead")
+                ?? throw new InvalidOperationException("Thieu ConnectionStrings:QualityRead (role identity_reader doc view cua quality-svc).");
+            builder.Services.AddSingleton(new NguonUyTin(docQuality));
             builder.Services.AddHostedService<CapDoWorker>();
 
             // Event identity nghe: tinh lai cap (project.grading_applied, attempt.appeal_resolved, reputation.changed),
@@ -164,6 +170,10 @@ namespace Crowd.Identity.Api
             {
                 IdentityDbContext db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
                 await db.Database.MigrateAsync();
+
+                // Role chi doc view cho service khac (notification_reader — kien truc 3.32).
+                await ReaderRoles.DamBaoDangNhapAsync(
+                    db, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ReadAccess"), CancellationToken.None);
 
                 if (SeedSwitch.DuocChay(app.Environment, app.Configuration))
                 {

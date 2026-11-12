@@ -147,10 +147,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("expected_paid_attempts");
 
-                    b.Property<long>("GateBudgetSequence")
-                        .HasColumnType("bigint")
-                        .HasColumnName("gate_budget_sequence");
-
                     b.Property<long>("GateBudgetVnd")
                         .HasColumnType("bigint")
                         .HasColumnName("gate_budget_vnd");
@@ -322,25 +318,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasFilter("state = 'Queued'");
 
                     b.ToTable("gate_clicks", (string)null);
-                });
-
-            modelBuilder.Entity("Crowd.Ledger.Domain.Holds.ReferralLink", b =>
-                {
-                    b.Property<Guid>("ReferredId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("referred_id");
-
-                    b.Property<Guid>("ReferrerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("referrer_id");
-
-                    b.Property<DateTimeOffset>("RegisteredAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("registered_at");
-
-                    b.HasKey("ReferredId");
-
-                    b.ToTable("referrals", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Ledger.Domain.Invoices.Invoice", b =>
@@ -620,31 +597,6 @@ namespace Crowd.Ledger.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ux_withdrawals_idempotency");
 
                     b.ToTable("withdrawals", (string)null);
-                });
-
-            modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("key");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("ValueJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("value");
-
-                    b.Property<long>("Version")
-                        .HasColumnType("bigint")
-                        .HasColumnName("version");
-
-                    b.HasKey("Key");
-
-                    b.ToTable("settings_replica", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Ledger.Domain.Journal.JournalEntry", b =>

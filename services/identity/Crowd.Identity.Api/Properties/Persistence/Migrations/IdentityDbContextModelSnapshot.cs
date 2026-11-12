@@ -378,14 +378,6 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("level");
 
-                    b.Property<int?>("Reputation")
-                        .HasColumnType("integer")
-                        .HasColumnName("reputation");
-
-                    b.Property<DateTimeOffset?>("ReputationAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("reputation_at");
-
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -567,31 +559,6 @@ namespace Crowd.Identity.Api.Persistence.Migrations
                         .HasDatabaseName("ix_identity_verifications_hang_doi");
 
                     b.ToTable("identity_verifications", (string)null);
-                });
-
-            modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("key");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("ValueJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("value");
-
-                    b.Property<long>("Version")
-                        .HasColumnType("bigint")
-                        .HasColumnName("version");
-
-                    b.HasKey("Key");
-
-                    b.ToTable("settings_replica", (string)null);
                 });
 
             modelBuilder.Entity("Crowd.Identity.Api.Entities.BusinessProfile", b =>

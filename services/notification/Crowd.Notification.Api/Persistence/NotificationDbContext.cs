@@ -10,7 +10,7 @@ namespace Crowd.Notification.Api.Persistence
 {
     /// <summary>
     /// notification_db (cong 5410). Service 2 project — DbContext nam thang trong Api.
-    /// Outbox: chua phat event nao, nhung AddCrowdSettings (xin snapshot setting) can.
+    /// Dia chi lien lac KHONG chep ve day: doc view v_contacts cua identity luc gui (NguonLienHe, kien truc 3.32).
     /// </summary>
     public sealed class NotificationDbContext : DbContext
     {
@@ -20,8 +20,6 @@ namespace Crowd.Notification.Api.Persistence
         }
 
         public DbSet<ThongBao> ThongBaos => Set<ThongBao>();
-
-        public DbSet<LienHe> LienHes => Set<LienHe>();
 
         public DbSet<TuyChonEmail> TuyChonEmails => Set<TuyChonEmail>();
 
@@ -94,17 +92,6 @@ namespace Crowd.Notification.Api.Persistence
             // Han giu thong bao (RetentionWorker) quet theo thoi gian tao.
             modelBuilder.Entity<ThongBao>().HasIndex(x => x.CreatedAt).HasDatabaseName("ix_notifications_thoi_gian");
 
-            modelBuilder.Entity<LienHe>(b =>
-            {
-                b.ToTable("contacts");
-                b.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
-                b.HasKey(x => x.UserId);
-                b.Property(x => x.Email).HasColumnName("email").HasMaxLength(320).IsRequired();
-                b.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(100).IsRequired();
-                b.Ignore(x => x.Roles);
-                b.Property<List<string>>("_roles").HasColumnName("roles").IsRequired();
-            });
-
             modelBuilder.Entity<EmailGiaoDich>(b =>
             {
                 b.ToTable("transactional_emails");
@@ -135,7 +122,6 @@ namespace Crowd.Notification.Api.Persistence
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
-            modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
         }
     }
 }

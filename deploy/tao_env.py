@@ -15,6 +15,8 @@ import sys
 
 GOC = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB = ["identity", "project", "ledger", "payment", "link", "gate", "quality", "admin", "notification", "ml"]
+# Role CHI DOC VIEW cua service khac (kien truc 3.32): <ten>_reader. Service chu dat mat khau luc khoi dong.
+READER = ["gate", "settings", "identity", "notification", "ledger"]
 
 # Khoa dev — trung appsettings.Development.json (MediaLinks:GrantKey) va services/media/app/config.py.
 KHOA_DEV = {
@@ -50,7 +52,7 @@ def gia_tri(ten: str, dev: bool) -> str:
 def danh_sach_bien() -> list[str]:
     return ["RABBIT_PASSWORD", "MINIO_PASSWORD", "INTERNAL_API_KEY", "MEDIA_GRANT_KEY", "MEDIA_WATERMARK_KEY",
             "IDENTITY_DATA_KEY"] + \
-        [f"DB_{d.upper()}_PASSWORD" for d in DB]
+        [f"DB_{d.upper()}_PASSWORD" for d in DB] +         [f"DB_READER_{r.upper()}_PASSWORD" for r in READER]
 
 
 def doc_env(duong: str) -> dict[str, str]:

@@ -4,7 +4,7 @@ import json, os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
+from moi_truong import G, GOC_REPO, RABBIT_MGMT, TIEN_TO_CONTAINER, URL_GATE, URL_LINK, cho_moi_noi_doc_lai_setting, rabbit_container, sql_container  # noqa: E402,F401
 from tro_giup import nap_mau  # noqa: E402
 SO_KHOA = len(json.load(open(os.path.join(GOC_REPO, "shared", "settings", "catalog.json"), encoding="utf-8")))
 
@@ -54,11 +54,9 @@ def dat_va_cho(key, value, db_kiem=("project",)):
     r = dat(key, value)
     assert r.status_code == 200, r.text
     ver = r.json()["version"]
-    # Cho moi service lien quan nhan setting.changed (ban sao trong DB).
-    for db in db_kiem:
-        ok = cho(lambda: sql(db, f"select version from settings_replica where key='{key}'") == str(ver), 15)
-        assert ok, f"{db} chua nhan {key} v{ver}"
-    time.sleep(0.3)
+    # 3.32: moi service doc view v_settings cua admin_db (khong con settings_replica) — cho mot chu ky doc lai.
+    assert sql("admin", f"select version from v_settings where key='{key}'") == str(ver), f"v_settings chua co {key} v{ver}"
+    cho_moi_noi_doc_lai_setting(G, admin)
     return r.json()
 
 
@@ -255,8 +253,14 @@ try:
 
     print("\n[8] quality-svc (Python) nhan setting")
     dat("quality.reputation_gold_weight", 0.8)
-    ok = cho(lambda: sql("quality", "select value from settings_replica where key='quality.reputation_gold_weight'") == "0.8", 15)
-    kiem("quality-svc ghi ban sao 0.8", ok, sql("quality", "select value, version from settings_replica where key='quality.reputation_gold_weight'"))
+    # 3.32: quality doc view v_settings cua admin_db vao bo nho, log "Setting <key> = <gia tri>" khi gia tri doi.
+    QC = f"{TIEN_TO_CONTAINER}quality"
+    ok = cho(lambda: "Setting quality.reputation_gold_weight = 0.8" in subprocess.run(
+        ["docker", "logs", "--since", "2m", QC], capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
+        + subprocess.run(["docker", "logs", "--since", "2m", QC], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout, 20)
+    kiem("quality-svc doc duoc gia tri moi 0.8 tu admin-svc", ok)
+    kiem("quality_db khong con bang settings_replica",
+         sql("quality", "select count(*) from pg_tables where tablename='settings_replica'") == "0")
 
 finally:
     print("\n[9] Tra setting ve gia tri ban dau")

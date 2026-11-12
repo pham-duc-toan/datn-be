@@ -4,23 +4,19 @@ using System.Text.Json.Serialization;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
-using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.BuildingBlocks.Security;
 using Crowd.BuildingBlocks.Storage;
-using Crowd.Contracts.Grpc.Project;
-using Crowd.Contracts.Ledger;
-using Crowd.Contracts.Link;
-using Crowd.Contracts.Project;
-using Crowd.Gate.Api.Consumers;
 using Crowd.Gate.Api.Helpers;
 using Crowd.Gate.Api.Services;
 using Crowd.Gate.Api.Workers;
 using Crowd.Gate.Infrastructure.ClickHouse;
 using Crowd.Gate.Infrastructure.Persistence;
 using Crowd.Gate.Infrastructure.Redis;
+using Crowd.Gate.Infrastructure.Source;
 using Crowd.Settings;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -47,35 +43,23 @@ builder.Services.AddDbContext<GateDbContext>(options =>
 });
 
 // Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
-builder.Services.AddCrowdSettings<GateDbContext>(cfg, "gate-svc");
+builder.Services.AddCrowdSettings(cfg, "gate-svc");
 builder.Services.AddOutbox<GateDbContext>(cfg);
-
-builder.Services.AddEventConsumer<GateDbContext, ProjectPublished, ProjectPublishedProcessor>(cfg, "gate-svc.project-published");
-builder.Services.AddEventConsumer<GateDbContext, ProjectPaused, ProjectStatusProcessors>(cfg, "gate-svc.project-paused");
-builder.Services.AddEventConsumer<GateDbContext, ProjectResumed, ProjectStatusProcessors>(cfg, "gate-svc.project-resumed");
-builder.Services.AddEventConsumer<GateDbContext, ProjectCancelled, ProjectStatusProcessors>(cfg, "gate-svc.project-cancelled");
-builder.Services.AddEventConsumer<GateDbContext, ProjectCompleted, ProjectStatusProcessors>(cfg, "gate-svc.project-completed");
-builder.Services.AddEventConsumer<GateDbContext, LinkActivated, LinkProcessors>(cfg, "gate-svc.link-activated");
-builder.Services.AddEventConsumer<GateDbContext, LinkDisabled, LinkProcessors>(cfg, "gate-svc.link-disabled");
-builder.Services.AddEventConsumer<GateDbContext, GateBudgetChanged, GateBudgetChangedProcessor>(cfg, "gate-svc.gate-budget-changed");
 
 builder.Services.Configure<GateOptions>(cfg.GetSection(GateOptions.SectionName));
 
-// ---- Mau + cau vang cua du an bat cong link: keo qua gRPC tu project-svc mot lan sau publish (kien truc 3.23) ----
-builder.Services.AddCrowdInternalApi(cfg);
-InternalApiOptions noiBo = new InternalApiOptions();
-cfg.GetSection(InternalApiOptions.Section).Bind(noiBo);
-if (string.IsNullOrWhiteSpace(noiBo.Key) || string.IsNullOrWhiteSpace(noiBo.ProjectGrpcUrl))
-{
-    throw new InvalidOperationException("Thieu InternalApi:Key / InternalApi:ProjectGrpcUrl trong appsettings.");
-}
+// ---- Du lieu cong link: doc THANG view v_gate_* cua chu du lieu (kien truc 3.32) — khong ban sao, khong gRPC ----
+// Role gate_reader chi SELECT duoc cac view do. Nap vao bo nho luc khoi dong (CatalogWarmup) va dinh ky.
+string docProject = cfg.GetConnectionString("ProjectRead")
+    ?? throw new InvalidOperationException("Thieu ConnectionStrings:ProjectRead (role gate_reader doc view cua project-svc).");
+string docLedger = cfg.GetConnectionString("LedgerRead")
+    ?? throw new InvalidOperationException("Thieu ConnectionStrings:LedgerRead (role gate_reader doc view cua ledger-svc).");
+string docLink = cfg.GetConnectionString("LinkRead")
+    ?? throw new InvalidOperationException("Thieu ConnectionStrings:LinkRead (role gate_reader doc view cua link-svc).");
+builder.Services.AddSingleton(new NguonCongLink(docProject, docLedger, docLink));
 
-builder.Services.AddGrpcClient<GateData.GateDataClient>(o =>
-{
-    o.Address = new Uri(noiBo.ProjectGrpcUrl);
-});
-builder.Services.AddScoped<GateContentLoader>();
-builder.Services.AddHostedService<ContentLoadWorker>();
+// /internal/catalog (doi ky thuat, e2e) dung khoa noi bo.
+builder.Services.AddCrowdInternalApi(cfg);
 builder.Services.Configure<PrivacyOptions>(cfg.GetSection(PrivacyOptions.SectionName));
 
 // ---- Duong nong: Redis rieng cua gate + ClickHouse cho thong ke ----
@@ -99,6 +83,8 @@ builder.Services.AddHttpClient<TurnstileVerifier>(c =>
 });
 builder.Services.AddScoped<GateService>();
 builder.Services.AddScoped<GateEventPublisher>();
+// Warm-up: hosted service chay truoc khi Kestrel mo cong — nap xong bo nho moi nhan request (xem them chot 503 duoi).
+builder.Services.AddHostedService<CatalogWarmup>();
 builder.Services.AddHostedService<CatalogRefreshWorker>();
 builder.Services.AddHostedService<EventRelayWorker>();
 
@@ -132,6 +118,21 @@ using (IServiceScope scope = app.Services.CreateScope())
     GateDbContext db = scope.ServiceProvider.GetRequiredService<GateDbContext>();
     await db.Database.MigrateAsync();
 }
+
+// Chot thu hai cua warm-up: neu vi ly do nao do request toi khi bo nho chua nap xong thi tra 503 (Retry-After),
+// khong bao gio phuc vu tu bo nho rong. /health van tra loi de probe biet trang thai.
+GateCatalog catalogKhoiDong = app.Services.GetRequiredService<GateCatalog>();
+app.Use(async (context, next) =>
+{
+    if (!catalogKhoiDong.DaNap && !context.Request.Path.StartsWithSegments("/health"))
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        context.Response.Headers.RetryAfter = "2";
+        return;
+    }
+
+    await next(context);
+});
 
 app.UseForwardedHeaders();
 app.UseExceptionHandler();

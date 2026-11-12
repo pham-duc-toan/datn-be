@@ -19,7 +19,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Crowd.Project.Api.Services
 {
     /// <summary>
-    /// Cau hoi vang (FB-16). Khong phat event: gate-svc keo cau vang qua gRPC (GateData) luc du an publish
+    /// Cau hoi vang (FB-16). Khong phat event: gate-svc doc cau vang qua view v_gate_gold (kien truc 3.32) sau khi du an publish
     /// bat cong link, ma cau vang thi khoa tu luc roi Draft (KiemTraCoTheSuaCauHoiVang) — khong ai can theo doi
     /// tung lan sua.
     ///

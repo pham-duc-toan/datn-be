@@ -157,18 +157,21 @@ try:
          len(cua_toi) == 3 and all((x.get("sampleContent") or {}).get("text") for x in cua_toi), cua_toi[:1])
 
     # =================================================================================
-    print("\n[5] gate-svc chi giu mau cua du an bat cong link")
-    # Gate khong nghe dataset.ingested nua (3.23): chi keo mau qua gRPC khi du an publish CO bat cong link.
-    kiem("du an KHONG bat cong link → gate khong giu mau nao",
-         cho(lambda: sql("gate", f"select count(*) from gate_samples where project_id='{P}'") == "0", 20),
-         sql("gate", f"select count(*) from gate_samples where project_id='{P}'"))
+    print("\n[5] gate-svc chi thay mau cua du an bat cong link")
+    # Kien truc 3.32: gate khong con bang ban sao — doc view v_gate_samples cua project; view chi tra du an bat cong link.
+    kiem("du an KHONG bat cong link → view cho gate khong tra mau nao",
+         sql("project", f"select count(*) from v_gate_samples where project_id='{P}'") == "0",
+         sql("project", f"select count(*) from v_gate_samples where project_id='{P}'"))
+    kiem("gate_db khong con bang ban sao gate_*",
+         sql("gate", "select count(*) from pg_tables where schemaname='public' and tablename like 'gate%'") == "0",
+         sql("gate", "select string_agg(tablename, ',') from pg_tables where schemaname='public'"))
 
     # =================================================================================
     print("\n[6] Don outbox da gui qua han o moi service")
     dieu_kien = "published_at is not null and published_at < now() - interval '65 minutes'"
     truoc = {db: int(sql(db, f"select count(*) from outbox where {dieu_kien}") or 0) for db in DB_CO_OUTBOX}
     print("     event da gui > 65 phut truoc khi don:", {k: v for k, v in truoc.items() if v})
-    # admin-svc la chu bang settings (khong co settings_replica) — cho 8 service con lai nhan gia tri moi.
+    # 3.32: moi service doc view v_settings cua admin_db — dat_va_cho cho mot chu ky doc lai.
     co_ban_sao = tuple(db for db in DB_CO_OUTBOX if db != "admin")
     dat_va_cho("outbox.retention", 3600, co_ban_sao)
     dat_va_cho("outbox.cleanup_interval", 10, co_ban_sao)

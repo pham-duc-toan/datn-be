@@ -3,7 +3,6 @@ using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Payment.Domain.Deposits;
 using Crowd.Payment.Domain.Payouts;
-using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -90,7 +89,6 @@ namespace Crowd.Payment.Infrastructure.Persistence
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
-            modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
         }
     }
 

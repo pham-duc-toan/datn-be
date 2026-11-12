@@ -6,6 +6,7 @@ using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.BuildingBlocks.Persistence.ReadAccess;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Contracts.Admin;
 using Crowd.Contracts.Gate;
@@ -44,7 +45,7 @@ builder.Services.AddDbContext<ProjectDbContext>(options =>
 });
 
 // ---- Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker ----
-builder.Services.AddCrowdSettings<ProjectDbContext>(builder.Configuration, "project-svc");
+builder.Services.AddCrowdSettings(builder.Configuration, "project-svc");
 
 // ---- Ha tang dung chung: outbox (GUI event) + consumer (NHAN event) ----
 builder.Services.AddOutbox<ProjectDbContext>(builder.Configuration);
@@ -187,6 +188,10 @@ using (IServiceScope scope = app.Services.CreateScope())
     ProjectDbContext db = scope.ServiceProvider.GetRequiredService<ProjectDbContext>();
     await db.Database.MigrateAsync();
 
+    // Role chi doc view cho service khac (gate_reader — kien truc 3.32): bat dang nhap + mat khau tu cau hinh.
+    await ReaderRoles.DamBaoDangNhapAsync(
+        db, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ReadAccess"), CancellationToken.None);
+
     // Du lieu mau (chi Development + Seed:Enabled). Chay TRUOC app.RunAsync nen
     // worker va consumer chua chay — khong ai chen vao giua luc seed.
     if (SeedSwitch.DuocChay(app.Environment, app.Configuration))
@@ -203,7 +208,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapGrpcService<QualityDataService>();
-app.MapGrpcService<GateDataService>();
 app.MapGrpcService<LabelerStatsService>();
 app.MapGrpcService<LedgerDataService>();
 

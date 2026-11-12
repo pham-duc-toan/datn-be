@@ -12,7 +12,7 @@ import aio_pika
 import uvicorn
 from fastapi import FastAPI
 
-from app import settings_listener, settings_store
+from app import settings_store, settings_sync
 from app.ban_chuan import ChuanHoaSan
 from app.api import router
 from app.config import settings
@@ -42,16 +42,22 @@ async def lifespan(app: FastAPI):
     doc_khoa(cfg.grant_key)
     doc_khoa(cfg.watermark_key)
 
-    # Setting (bat / tat, do manh watermark): queue tam, giu trong bo nho. Chua co thi dung mac dinh catalog.
+    # Setting (bat / tat, do manh watermark) — kien truc 3.32: WARM-UP doc view v_settings cua admin_db truoc khi
+    # nhan viec; chua doc duoc thi cho. Sau do doc lai dinh ky.
+    await settings_sync.warm_up()
+    dung = asyncio.Event()
+    nap_lai = asyncio.create_task(settings_sync.vong_lap_nap_lai(dung), name="settings-reload")
     ket_noi = await noi_rabbitmq(cfg)
-    await settings_listener.bat_dau(ket_noi)
     # Video vua nap: chuan hoa san (ma hoa lai ca video), xong phat video.prepared cho project-svc.
     await ChuanHoaSan().bat_dau(ket_noi)
     log.info("media-svc san sang tren cong %s", cfg.port)
     try:
         yield
     finally:
+        dung.set()
+        await asyncio.gather(nap_lai, return_exceptions=True)
         await ket_noi.close()
+        await settings_sync.dong()
 
 
 app = FastAPI(title="media-svc", lifespan=lifespan)

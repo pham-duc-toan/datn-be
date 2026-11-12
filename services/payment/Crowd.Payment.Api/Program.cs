@@ -34,7 +34,7 @@ builder.Services.AddDbContext<PaymentDbContext>(options =>
 });
 
 // Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
-builder.Services.AddCrowdSettings<PaymentDbContext>(cfg, "payment-svc");
+builder.Services.AddCrowdSettings(cfg, "payment-svc");
 builder.Services.AddOutbox<PaymentDbContext>(cfg);
 builder.Services.AddEventConsumer<PaymentDbContext, PayoutRequested, PayoutRequestedProcessor>(cfg, "payment-svc.payout-requested");
 

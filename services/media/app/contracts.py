@@ -1,11 +1,10 @@
-"""Payload cac event media-svc nhan va phat: dong bo setting, video vua nap (samples.ingested → video.prepared).
+"""Payload cac event media-svc nhan va phat: video vua nap (samples.ingested → video.prepared).
 
 PHAI khop tung truong voi record C# trong shared/contracts (anh chup: contracts/payloads.snapshot.txt).
 Ben C# them truong ma ben nay chua khai thi message bi tu choi → DLQ: lech hop dong phai lo ra ngay.
 """
 
 import uuid
-from datetime import datetime
 from typing import Any
 
 from app.messaging.envelope import HopDong, Payload
@@ -15,32 +14,7 @@ from app.messaging.envelope import HopDong, Payload
 # =====================================================================
 
 
-class SettingChanged(Payload):
-    EVENT_TYPE = "setting.changed"
-
-    key: str
-    value: Any
-    setting_version: int
-    changed_by: uuid.UUID | None
-    changed_at: datetime
-
-
-class SettingSnapshotItem(HopDong):
-    key: str
-    value: Any
-    setting_version: int
-
-
-class SettingsSnapshot(Payload):
-    EVENT_TYPE = "settings.snapshot"
-
-    items: list[SettingSnapshotItem]
-
-
-class SettingsSnapshotRequested(Payload):
-    EVENT_TYPE = "settings.snapshot_requested"
-
-    service: str
+# Kien truc 3.32: media-svc khong nghe setting.changed / settings.snapshot nua — doc view v_settings (settings_sync.py).
 
 
 # =====================================================================

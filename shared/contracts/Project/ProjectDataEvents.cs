@@ -8,7 +8,7 @@ namespace Crowd.Contracts.Project
     /// <summary>
     /// Cac mau VIDEO vua xu ly xong (ready): mot file video + cac doan cat cua no. media-svc chuan hoa san ban
     /// chuan (watermark chi nhung khung dau + cuoi). Chi video moi can nghe nen project-svc chi phat cho video;
-    /// anh / am thanh / van ban khong ai nghe. gate-svc KHONG nghe: no keo mau qua gRPC (GateData) luc du an
+    /// anh / am thanh / van ban khong ai nghe. gate-svc KHONG nghe: no doc mau qua view v_gate_samples (kien truc 3.32) sau khi du an
     /// publish bat cong link.
     ///
     /// Moi event la MOT file (kem cac doan cat) — worker xu ly tung file mot nen message luon nho.

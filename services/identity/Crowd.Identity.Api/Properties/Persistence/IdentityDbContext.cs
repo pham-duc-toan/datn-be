@@ -3,7 +3,6 @@ using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Identity.Api.Entities;
 using Crowd.Identity.Api.Persistence.Configurations;
-using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace Crowd.Identity.Api.Persistence
@@ -69,7 +68,6 @@ namespace Crowd.Identity.Api.Persistence
             // Ha tang dung chung — giong het annotation-svc
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
-            modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
         }
     }
 }

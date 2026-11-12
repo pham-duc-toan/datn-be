@@ -45,8 +45,6 @@ namespace Crowd.Identity.Api.Persistence.Configurations
             builder.ToTable("labeler_stats");
             builder.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
             builder.HasKey(x => x.UserId);
-            builder.Property(x => x.Reputation).HasColumnName("reputation");
-            builder.Property(x => x.ReputationAt).HasColumnName("reputation_at");
             builder.Property(x => x.Level).HasColumnName("level").IsRequired();
             builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
         }

@@ -2,7 +2,6 @@ using System;
 using Crowd.BuildingBlocks.Persistence.Idempotency;
 using Crowd.BuildingBlocks.Persistence.Outbox;
 using Crowd.Link.Api.Entities;
-using Crowd.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace Crowd.Link.Api.Persistence
@@ -143,7 +142,6 @@ namespace Crowd.Link.Api.Persistence
 
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
             modelBuilder.ApplyConfiguration(new ProcessedEventConfiguration());
-            modelBuilder.ApplyConfiguration(new SettingReplicaConfiguration());
         }
     }
 }

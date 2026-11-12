@@ -3,6 +3,8 @@ fastapi>=0.115
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9
 aio-pika>=9.4
+# Doc view v_settings cua admin_db (kien truc 3.32)
+asyncpg>=0.29
 pydantic>=2.7
 pydantic-settings>=2.3
 pyjwt[crypto]>=2.8

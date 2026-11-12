@@ -30,9 +30,16 @@ namespace Crowd.Notification.Api.Workers
         private readonly IGuiEmail _email;
         private readonly TimeProvider _clock;
         private readonly ILogger<EmailWorker> _logger;
+        private readonly NguonLienHe _lienHe;
 
-        public EmailWorker(IServiceScopeFactory scopeFactory, ISettings settings, IGuiEmail email, TimeProvider clock, ILogger<EmailWorker> logger)
+        public EmailWorker(
+            IServiceScopeFactory scopeFactory, ISettings settings, IGuiEmail email, TimeProvider clock, NguonLienHe lienHe, ILogger<EmailWorker> logger)
         {
+            if (lienHe == null)
+            {
+                throw new ArgumentNullException(nameof(lienHe));
+            }
+
             if (scopeFactory == null)
             {
                 throw new ArgumentNullException(nameof(scopeFactory));
@@ -63,6 +70,7 @@ namespace Crowd.Notification.Api.Workers
             _email = email;
             _clock = clock;
             _logger = logger;
+            _lienHe = lienHe;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -127,8 +135,8 @@ namespace Crowd.Notification.Api.Workers
                     if (lo.Count > 0)
                     {
                         List<Guid> ids = lo.Select(t => t.UserId).Distinct().ToList();
-                        Dictionary<Guid, LienHe> lienHe = await db.LienHes.AsNoTracking()
-                            .Where(l => ids.Contains(l.UserId)).ToDictionaryAsync(l => l.UserId, ct);
+                        // Dia chi lien lac doc thang view v_contacts cua identity (3.32), khong ban sao.
+                        Dictionary<Guid, LienHe> lienHe = await _lienHe.LayAsync(ids, ct);
                         string tu = _settings.Chuoi(SettingKeys.NotificationEmailFrom);
                         int toiDa = _settings.SoNguyen(SettingKeys.NotificationEmailMaxAttempts);
 

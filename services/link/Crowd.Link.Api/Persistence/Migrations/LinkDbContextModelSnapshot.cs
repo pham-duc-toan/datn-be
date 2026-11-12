@@ -407,31 +407,6 @@ namespace Crowd.Link.Api.Persistence.Migrations
 
                     b.ToTable("links", (string)null);
                 });
-
-            modelBuilder.Entity("Crowd.Settings.SettingReplica", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("key");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("ValueJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("value");
-
-                    b.Property<long>("Version")
-                        .HasColumnType("bigint")
-                        .HasColumnName("version");
-
-                    b.HasKey("Key");
-
-                    b.ToTable("settings_replica", (string)null);
-                });
 #pragma warning restore 612, 618
         }
     }

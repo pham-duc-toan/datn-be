@@ -30,9 +30,21 @@ Tài liệu này **trích từ code** (model snapshot EF Core, migration SQL c�
 |---|---|---|
 | `outbox` | `id`, `event_type`, `version`, `correlation_id`, `occurred_at`, `envelope_json` (jsonb), `published_at`, `attempt_count`, `last_error`, `next_attempt_at` | Hộp thư đi. Event được ghi **cùng transaction** với nghiệp vụ. Worker nền đọc dòng `published_at IS NULL` và `next_attempt_at <= now`, gửi RabbitMQ, đánh dấu `published_at`. Lỗi thì tăng `attempt_count`, ghi `last_error`, dời `next_attempt_at` |
 | `processed_events` | `(event_id, handler)` PK, `processed_at` | Chống xử lý trùng. Consumer chèn dòng này trong cùng transaction với xử lý. Chèn trùng khoá nghĩa là đã xử lý, bỏ qua |
-| `settings_replica` | `key`, `value` (jsonb), `version`, `updated_at` | Bản sao read-only của setting do admin-svc sở hữu, cập nhật bằng event `setting.changed` / `settings.snapshot`. `version` lớn hơn mới ghi đè |
+| (không có bản sao setting) | | Từ kiến trúc 3.32 mọi service đọc thẳng view `v_settings` (`key`, `value`, `version`) của admin_db bằng role `settings_reader` vào bộ nhớ — warm-up lúc khởi động, đọc lại mỗi `settings.reload_interval`. Đã bỏ `settings_replica` |
 
-Có ở: admin (không có `settings_replica`, vì là chủ), gate, identity, ledger, link, notification, payment, project, quality. `ml` và `media` không có.
+`outbox`, `processed_events` có ở: admin, gate, identity, ledger, link, notification, payment, project, quality. `ml` và `media` không có.
+
+**View cho service khác đọc (kiến trúc 3.32).** Chủ dữ liệu mở view và role chỉ `SELECT` được view đó (bảng thật → `permission denied`); bên đọc nối thẳng bằng role này, không có bảng bản sao:
+
+| View | DB chủ | Role | Ai đọc |
+|---|---|---|---|
+| `v_settings` (`key`, `value`, `version`) | admin_db | `settings_reader` | mọi service, gateway, quality, media (bộ nhớ) |
+| `v_gate_projects`, `v_gate_samples`, `v_gate_gold` | project_db | `gate_reader` | gate (bộ nhớ) |
+| `v_gate_budgets` (`project_id`, `remaining_vnd`) | ledger_db | `gate_reader` | gate (bộ nhớ) |
+| `v_gate_links` | link_db | `gate_reader` | gate (bộ nhớ) |
+| `v_contacts` (`user_id`, `email`, `display_name`, `roles`) | identity_db | `notification_reader` | notification (lúc gửi email / thông báo toàn hệ thống) |
+| `v_reputations` (`labeler_id`, `reputation`) | quality_db | `identity_reader` | identity (tính cấp, tra cứu cho project) |
+| `v_referrals` (`referred_id`, `referrer_id`, chỉ `active`) | link_db | `ledger_reader` | ledger (lúc chi hoa hồng) |
 
 ---
 
@@ -51,7 +63,7 @@ Quy ước: `PK` là khoá chính. `?` là cột cho phép null. Cột `xmin` xu
 | `two_factor` | `user_id` PK; `secret_cipher` (khoá TOTP đã mã hoá); `enabled_at?`; `last_used_step` (chống dùng lại cùng một mã TOTP); `created_at` | 2FA |
 | `business_profiles` | `user_id` PK; `company_name`, `tax_code`, `address`; `license_key?`, `license_file_name?` (giấy phép trong bucket `kyb-docs`); `status`; `submitted_at?`, `reviewed_at?`, `reviewed_by?`, `reject_reason?` | Hồ sơ KYB của doanh nghiệp. Duyệt xong thì sinh claim `kyb_verified` |
 | `identity_verifications` | `user_id` PK; `full_name`, `date_of_birth`; `id_number_hash`, `id_number_last4` (không lưu số giấy tờ thô); `front_key?`, `back_key?`; `status`; `submitted_at?`, `reviewed_at?`, `reviewed_by?`, `reject_reason?` | Xác minh danh tính của labeler (CCCD) |
-| `labeler_stats` | `user_id` PK; `level`; `reputation?`, `reputation_at?`; `updated_at` | Cấp độ (identity quyết theo `identity.level_rules`) và uy tín. `reputation` là bản sao từ `reputation.changed` của quality. **Số câu được chấp nhận không lưu ở đây** — đọc qua gRPC `LabelerStatsData` từ `project.attempts` (kiến trúc 3.24) |
+| `labeler_stats` | `user_id` PK; `level`; `updated_at` | Cấp độ (identity quyết theo `identity.level_rules`). **Uy tín không lưu ở đây** — đọc view `v_reputations` của quality (3.32). **Số câu được chấp nhận cũng không lưu** — đọc qua gRPC `LabelerStatsData` từ `project.attempts` (kiến trúc 3.24) |
 | `level_dirty` | `user_id` PK; `dirty_at`; `correlation_id?` | **Hàng chờ** tính lại cấp / huy hiệu (`project.grading_applied`, khiếu nại chấp nhận, `reputation.changed`). `CapDoWorker` đọc theo lô (`FOR UPDATE SKIP LOCKED`), hỏi số câu qua gRPC, xoá dòng |
 | `user_badges` | `(user_id, badge)` PK; `awarded_at` | Huy hiệu |
 
@@ -121,7 +133,7 @@ Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm 
 | `holds` | `id` PK; `kind` (`GateClick, Referral, ProjectReward`); `state` (`Held, Released, Withheld`); `source_id` (id nguồn: bài làm với `ProjectReward`, ClickId với `GateClick` / `Referral` — UNIQUE cùng `kind`); `project_id`, `link_id?`, `labeler_id`; `amount_vnd`; `held_at`, `release_at?`, `released_at?` | Khoản tiền đang treo trước khi vào số dư khả dụng |
 | `withdrawals` | `id`; `labeler_id`; `amount_vnd`, `tax_vnd` (10% TNCN nếu ≥ 2 triệu/lần), `net_vnd`; `bank_account`; `state` (`Requested, PendingApproval, Completed, Failed, Rejected`); `idempotency_key`; `reviewed_by?`, `reviewed_at?`; `failure_reason?`; `completed_at?` | Lệnh rút tiền |
 | `gate_clicks` | `click_id` PK; `link_id`, `project_id`, `sharer_id`; `sharer_amount_vnd`, `platform_amount_vnd`; `state`; `batch_id?`; `received_at`, `validated_at?`, `settled_at?` | Lượt vượt link đã được gate xác nhận, chờ trả cho sharer |
-| `referrals` | `referred_id` PK; `referrer_id`; `registered_at` | Quan hệ giới thiệu, để trả hoa hồng |
+| (không có bảng giới thiệu) | | Quan hệ giới thiệu đọc view `v_referrals` của link lúc chi hoa hồng (3.32). Đã bỏ `ledger.referrals` |
 | `invoices` | `id`; `business_id`; `number`, `serial`, `period` (yyyy-MM); `seller_*`, `buyer_*` (tên, mã số thuế, địa chỉ, email); `total_net_vnd`, `vat_percent`, `total_vat_vnd`, `total_vnd`, `pass_through_vnd`; `items` jsonb, `pass_through` jsonb; `amount_in_words`; `issued_at` | Hoá đơn VAT cho doanh nghiệp |
 | `invoice_counters` | `year` PK; `last_number` | Bộ đếm số hoá đơn liên tục theo năm |
 
@@ -142,7 +154,7 @@ Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm 
 | `blocked_domains` | `domain` PK; `reason`; `created_by` | Tên miền cấm làm link đích |
 | `link_reports` | `id`; `link_id`; `reason`; `ip_hash` | Báo cáo link xấu |
 | `referral_codes` | `user_id` PK; `code` | Mã giới thiệu |
-| `referrals` | `referred_id` PK; `referrer_id`; `status`; `flag_reasons?`; `claim_ip_hash?`; `decided_by?`, `decided_at?` | Quan hệ giới thiệu. Nghi gian lận thì chờ admin duyệt |
+| `referrals` | `referred_id` PK; `referrer_id`; `status`; `flag_reasons?`; `claim_ip_hash?`; `decided_by?`, `decided_at?` | Quan hệ giới thiệu. Nghi gian lận thì chờ admin duyệt. Ledger đọc qua view `v_referrals` (chỉ `active`) |
 
 ### 2.9 gate (Postgres `gate_db` + Redis + ClickHouse)
 
@@ -150,11 +162,7 @@ Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm 
 |---|---|---|
 | ClickHouse | `click_events` (ReplacingMergeTree theo `click_id`, partition theo tháng, TTL 13 tháng): `click_id`, `event_time`, `kind`, `outcome`, `link_id`, `owner_id`, `campaign_id?`, `project_id?`, `label_count`, `revenue_vnd`, `ip_hash_day`, `referrer_host` | Mọi lượt truy cập. Truy vấn toàn là aggregate (thống kê sharer). `ReplacingMergeTree` làm bản giao trùng không đếm đôi |
 | Redis (`redis-gate`) | phiên vượt link, `jti` (chống dùng lại token), chống trùng IP, stream | Đường nóng, không chạm Postgres |
-| Postgres | `gate_links` (`link_id`, `code`, `destination_url`, `password_hash?`, `expires_at?`, `active`, `campaign_id?`, `owner_id`) | Bản sao link từ `link.activated/disabled` |
-| | `gate_projects` (`project_id`, `owner_id`, `modality`, `label_schema`, `platform_fee_vnd`, `unit_price_vnd`, `status`, `content_loaded_at?`) | Bản sao dự án mở kênh cổng link (`project.published`). `content_loaded_at` null = chưa kéo xong mẫu → chưa phục vụ |
-| | `gate_samples` (`sample_id`, `project_id`, `modality`, `storage_key?`, `content?`, `metadata`) | Mẫu để hiển thị cho khách vượt link — **chỉ dự án bật cổng link**, kéo một lần qua gRPC `GateData` sau publish (kiến trúc 3.23) |
-| | `gate_gold_items` (`sample_id`, `project_id`, `task_type`, `schema_version`, `expected_payload`) | Câu vàng QualityCheck để kiểm khách gán nhãn — kéo cùng mẫu |
-| | `gate_budgets` (`project_id`, `remaining_vnd`, `sequence`, `updated_at`) | Ngân sách còn lại của cổng. `sequence` chống áp event cũ |
+| Postgres | chỉ `outbox`, `processed_events` | Không còn bản sao (kiến trúc 3.32): dự án, mẫu, câu vàng, ngân sách, link đọc thẳng view `v_gate_*` của project / ledger / link vào bộ nhớ `GateCatalog` — warm-up trước khi mở cổng HTTP, đọc lại mỗi `gate.cache_refresh_interval`; mẫu + câu vàng mỗi dự án đọc một lần |
 
 ### 2.10 notification (`notification_db`)
 
@@ -165,7 +173,7 @@ Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm 
 | `language_preferences` | `user_id` PK; `language` | Ngôn ngữ thông báo |
 | `transactional_emails` | `id`; `user_id?`; `to_email`, `display_name`; `subject`, `body`; `state`; `attempts`; `next_at?`, `sent_at?`, `error?` | Email giao dịch (xác thực, đặt lại mật khẩu) có thử lại |
 | `realtime_tickets` | `token_hash` PK; `user_id`; `expires_at` | Vé dùng một lần để mở WebSocket (trình duyệt không gửi được header Authorization) |
-| `contacts` | `user_id` PK; `email`, `display_name`; `roles` text[] | Bản sao liên hệ từ identity — cần để gửi email và lọc người nhận thông báo toàn hệ thống theo vai trò. Người nhận của từng event (chủ dự án, người rút) nay đi **trong payload** (`ownerId`, `labelerId`) nên không còn bảng bản sao riêng |
+| (không có bảng liên lạc) | | Địa chỉ liên lạc (email, tên, vai trò) đọc view `v_contacts` của identity lúc gửi (3.32) — luôn là giá trị mới nhất. Người nhận của từng event (chủ dự án, người rút) đi **trong payload** (`ownerId`, `labelerId`) |
 
 ### 2.11 admin (`admin_db`)
 
@@ -265,7 +273,7 @@ Mọi API client đi qua **gateway** (`:8080`, ở demo là `:18080`). Gateway k
 | link | identity | `POST /internal/users/lookup` | Lấy `registeredAt` khi nhận mã giới thiệu (thay bảng `known_users`) |
 | ledger | identity | `GET /internal/businesses/{id}` | Lấy thông tin doanh nghiệp để lập hoá đơn |
 | quality | project | **gRPC** `QualityData` (`project:9102`, HTTP/2, metadata `x-internal-key`): `GetProject`, `ListSubmittedAttempts`, `StreamLabels` (stream), `FindSharedSubmitters`, `GetLabelerSubmissionStats`, `GetLabelerEvidence` | Đọc đề bài, bài nộp, nhãn lúc chấm / chạy DS sau khi chấm / xét gian lận, bằng chứng uy tín cộng dồn — thay các bảng bản sao (3.22). Chỉ worker và lần chấm gọi, không phải đường nóng; project-svc lỗi thì việc nằm trong hàng chờ, vòng sau làm tiếp. Báo cáo chất lượng gọi lúc chủ dự án mở (lỗi → 503) |
-| gate | project | **gRPC** `GateData.StreamGateContent` (`project:9102`, cùng khoá) | Kéo mẫu + câu vàng QualityCheck của dự án vừa publish bật cổng link, **một lần** (3.23). Worker gate gọi, không phải đường nóng; project-svc lỗi thì dự án chưa lên cổng, vòng sau thử lại |
+| gate | project, ledger, link | **đọc view** `v_gate_*` (role `gate_reader`) | Nạp bộ nhớ cổng link lúc khởi động (warm-up) và mỗi `gate.cache_refresh_interval` (3.32, thay gRPC `GateData`) |
 | quality | ml | `POST /internal/embeddings` | Nhúng câu trả lời mở để chấm theo nghĩa. Lỗi thì worker thử lại vòng sau, không làm hỏng việc chấm |
 | gate, link | (ngoài) | Turnstile, kiểm URL | Chống bot và kiểm link đích |
 | payment | (ngoài) | MoMo, VNPay | Cổng thanh toán thật hoặc giả lập |
@@ -276,7 +284,7 @@ Exchange `datn.events` (topic). Mỗi consumer có queue riêng, tên dạng `<s
 
 | Event | Phát | Nhận | Ý nghĩa |
 |---|---|---|---|
-| `user.registered` | identity | notification | Đăng ký mới |
+| `user.registered` | identity | (admin ghi audit) | Đăng ký mới. notification không nghe nữa — đọc view `v_contacts` (3.32) |
 | `user.email_verification_requested`, `user.password_reset_requested` | identity | notification | Gửi email xác thực / đặt lại mật khẩu |
 | `user.email_verified` | identity | project | Cho phép tạo/ publish dự án |
 | `user.blocked` | identity | notification, project | Khoá: project huỷ bài đang làm (mở bài mới thì project hỏi identity qua gRPC — 3.24; ledger hỏi identity lúc rút) |
@@ -289,34 +297,34 @@ Exchange `datn.events` (topic). Mỗi consumer có queue riêng, tên dạng `<s
 | `project.grading_applied` | project | identity | project-svc **đã ghi** kết quả chấm vào bài làm: identity xếp labeler có bài đạt vào `level_dirty` (3.24) |
 | `escrow.reserved` | ledger | project | Đủ tiền → `PendingApproval` |
 | `escrow.rejected` (v2, có `ownerId`) | ledger | project, notification | Thiếu tiền → về `Draft` |
-| `project.published` | project | ledger, gate, notification | Dự án chạy: các service tạo bản sao (phần làm bài mở đợt thu bài ngay trong transaction duyệt). quality không nghe nữa (3.22) |
-| `samples.ingested` | project | media | Video vừa nạp xong: chuẩn hoá sẵn bản chuẩn (chỉ phát cho video; gate không nghe — kéo mẫu qua gRPC lúc publish, 3.23) |
+| `project.published` | project | ledger, notification | Dự án chạy: ledger chốt điều khoản tiền, notification báo (phần làm bài mở đợt thu bài ngay trong transaction duyệt). quality (3.22) và gate (3.32) không nghe nữa |
+| `samples.ingested` | project | media | Video vừa nạp xong: chuẩn hoá sẵn bản chuẩn (chỉ phát cho video; gate không nghe — đọc view `v_gate_samples`, 3.32) |
 | `video.prepared` | media | project | Video đã chuẩn hoá, cho phép publish/duyệt |
 | `member.added/blocked/unblocked/removed` | project | notification (`added`), admin (audit) | Thông báo / nhật ký (phần làm bài đọc thẳng `project_members`) |
 | `join_request.submitted/decided`, `project.invitation_created` | project | notification | Xin vào / lời mời |
-| `project.paused`, `project.resumed` | project | gate | Tạm dừng / tiếp tục cổng link |
+| `project.paused`, `project.resumed` | project | (admin ghi audit) | Tạm dừng / tiếp tục. gate đọc trạng thái qua view (3.32) |
 | `attempt.submitted` (v2) | project | quality | Nộp cả bài (nhãn đã ghi cùng transaction). v2 chỉ là **tín hiệu** — không mang câu trả lời; quality xếp bài vào hàng chờ, đọc nhãn qua gRPC |
 | `project.collection_finished` | project | quality | Đóng thu bài → quality ghi yêu cầu chấm, đọc bài + nhãn qua gRPC (mọi bài đã commit trước event này) |
 | `project.graded` (v2, có `ownerId`) | quality | project, ledger, notification | Kết quả chấm từng bài, ledger trả thưởng bài đạt (identity nghe `project.grading_applied` thay vì event này) |
-| `reputation.changed` | quality | identity | Điểm uy tín mới (identity tính lại cấp) |
+| `reputation.changed` | quality | identity | Tín hiệu uy tín đổi: identity xếp labeler vào hàng tính lại cấp (điểm đọc view `v_reputations`, 3.32) |
 | `fraud.case_confirmed` | quality | identity | Khoá/hạ uy tín do gian lận |
 | `attempt.appeal_opened` | project | (admin dựng hàng đợi) | Khiếu nại cả bài |
 | `attempt.appeal_resolved` | project | identity, ledger, notification | Admin phân xử, ledger trả thưởng nếu thắng (nhãn được nhận vào kết quả ngay trong project) |
-| `project.completed`, `project.cancelled` | project | quality, gate, ledger, notification | Đóng dự án, ledger hoàn ký quỹ còn dư |
+| `project.completed`, `project.cancelled` | project | quality, ledger, notification | Đóng dự án, ledger hoàn ký quỹ còn dư |
 | `deposit.confirmed` | payment | ledger, notification | Nạp tiền thành công → cộng ví doanh nghiệp |
 | `payout.requested` | ledger | payment | Lệnh chi sau khi duyệt rút |
 | `payout.completed`, `payout.failed` (v2, có `labelerId`, `netAmountVnd`) | payment | ledger, notification | Chi xong / lỗi (lỗi thì ledger đảo bút toán trả tiền) |
 | `withdrawal.review_requested`, `withdrawal.rejected` | ledger | notification (admin hàng đợi) | Rút tiền cần admin duyệt / bị từ chối |
 | `funds.held`, `hold.expired`, `refund.issued`, `escrow.released` | ledger | notification (một số) | Treo tiền, hết hạn treo, hoàn tiền, nhả ký quỹ |
-| `gate.budget_changed` | ledger | gate | Cập nhật ngân sách cổng link |
+| ~~`gate.budget_changed`~~ | — | — | **Đã bỏ (3.32)**: gate đọc view `v_gate_budgets` của ledger |
 | `gate.solved` | gate | project | Khách vượt link đã gán nhãn |
 | `click.validated` | gate | ledger | Lượt click hợp lệ → treo/trả tiền sharer |
-| `link.activated`, `link.disabled` | link | gate (`disabled` cả ledger) | Bật/tắt link |
+| `link.activated`, `link.disabled` | link | ledger (`disabled`), admin ghi audit | Bật/tắt link. gate đọc link đang chạy qua view `v_gate_links` (3.32) |
 | `link.review_requested/dismissed` | link | (admin hàng đợi) | Link nghi ngờ |
-| `referral.registered` | link | ledger | Ghi quan hệ giới thiệu |
+| `referral.registered` | link | (admin ghi audit) | Quan hệ giới thiệu. ledger đọc view `v_referrals` lúc chi hoa hồng (3.32) |
 | `referral.flagged/rejected` | link | (admin hàng đợi) | Giới thiệu nghi gian lận |
-| `setting.changed`, `settings.snapshot` | admin | mọi service | Đồng bộ `settings_replica` |
-| `settings.snapshot_requested` | các service | admin | Service khởi động xin phát lại toàn bộ setting |
+| `setting.changed` | admin | (admin ghi audit) | Admin đổi setting. Không ai đồng bộ theo event nữa — mọi service đọc view `v_settings` (3.32) |
+| ~~`settings.snapshot`, `settings.snapshot_requested`~~ | — | — | **Đã bỏ (3.32)** |
 | `tag.merged` | admin | project, identity | Gộp thẻ |
 | `system.announcement` | admin | notification | Thông báo toàn hệ thống |
 | `manual_action.required` | mọi service (EventConsumer dùng chung) | admin | Việc cần xử lý tay (3.29) → hàng đợi duyệt `manual` |
@@ -340,7 +348,7 @@ Exchange `datn.events` (topic). Mỗi consumer có queue riêng, tên dạng `<s
 ### 5.1 Đăng ký và đăng nhập
 ```
 Client → POST /auth/register ──► identity: tạo users, account_tokens, ghi outbox
-         identity ──user.registered──► notification (contacts)
+         identity ──user.registered──► (admin audit); notification đọc view v_contacts lúc gửi (3.32)
          identity ──user.email_verification_requested──► notification: gửi email
 Client → POST /auth/verify-email ──► identity: users.email_verified_at; ──user.email_verified──► project
 Client → POST /auth/login ──► (2FA? POST /auth/2fa/verify) ──► trả access JWT 15 phút + refresh token
@@ -366,7 +374,7 @@ ledger: giữ ký quỹ S×(R+phí) + ngân sách cổng, idempotent theo projec
    thiếu   → escrow.rejected ──► project: về Draft, ghi status_reason; notification báo
 admin → GET /projects/pending-approval → POST /projects/{id}/approve
 project: Running + mở project_collections (cùng transaction)
-         ──project.published──► gate (gate_projects), ledger, notification
+         ──project.published──► ledger, notification   (gate đọc view v_gate_projects, 3.32)
 Quá 72 giờ không duyệt → project.cancelled → ledger hoàn ký quỹ
 ```
 
@@ -437,13 +445,13 @@ payment: ba pha (ghi payouts → commit → gọi cổng → ghi kết quả)
 
 ### 5.8 Cổng vượt link (sharer)
 ```
-Sharer → POST /links (hoặc /links/bulk) ──► link: kiểm domain bị cấm, quét URL; phát link.activated ──► gate (gate_links)
+Sharer → POST /links (hoặc /links/bulk) ──► link: kiểm domain bị cấm, quét URL; link Active ──► gate thấy qua view v_gate_links (≤ gate.cache_refresh_interval, 3.32)
 Khách → GET /g/{code}: gate lấy link từ Redis, kiểm mật khẩu / hết hạn
 Khách → POST /g/{code}/sessions: tạo phiên trong Redis (chống trùng IP trong ngày)
 Khách gán một vài nhãn (câu thật + câu vàng) → POST /g/sessions/{id}/submit
 gate: kiểm câu vàng, ghi click_events vào ClickHouse
    ├ gate.solved ─► project (lưu annotations nguồn cổng link)
-   └ click.validated ─► ledger: treo tiền sharer (GateClick), trừ ngân sách cổng, phát gate.budget_changed ─► gate
+   └ click.validated ─► ledger: treo tiền sharer (GateClick), trừ ngân sách cổng (gate đọc view v_gate_budgets, 3.32)
 Khách → GET /go/{code}: chuyển tới link đích
 Sharer → GET /gate/stats/me/*: thống kê từ ClickHouse
 Link vi phạm: link.disabled ─► gate dừng, ledger dừng trả
@@ -462,6 +470,6 @@ Video mới nạp: media nghe samples.ingested → chuẩn hoá → phát video.
 ### 5.10 Cập nhật setting (đồng bộ cấu hình)
 ```
 admin → PUT /admin/settings/{key}: ghi settings + setting_history, version+1, phát setting.changed
-mọi service: consumer cập nhật settings_replica (chỉ nhận nếu version lớn hơn)
-service khởi động: phát settings.snapshot_requested → admin trả settings.snapshot (đầy đủ) — lỡ event lúc tắt vẫn đồng bộ lại
+mọi service (kiến trúc 3.32): warm-up đọc view v_settings của admin_db (role settings_reader) vào bộ nhớ trước khi nhận việc,
+  đọc lại mỗi settings.reload_interval — không bản sao, không event đồng bộ (setting.changed chỉ còn để audit)
 ```

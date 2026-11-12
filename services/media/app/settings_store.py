@@ -1,7 +1,7 @@
 """Setting dong (admin-svc quan ly) — ban chep tu quality-svc (cung khuon voi Crowd.Settings ben C#).
 
 Kieu, mac dinh, gioi han: doc tu shared/settings/catalog.json (test C# xuat tu SettingCatalog).
-Gia tri admin dat: settings_listener.py nhan qua RabbitMQ va ghi vao bo nho o day (media-svc khong
+Gia tri admin dat: settings_sync.py doc view v_settings cua admin_db (3.32) va ghi vao bo nho o day (media-svc khong
 co DB). Moi thao tac doc gia tri MOI lan dung.
 """
 

@@ -46,6 +46,7 @@ namespace Crowd.Identity.Api.Services
         private readonly ISettings _settings;
         private readonly HoSoService _hoSo;
         private readonly SoCauDuyetClient _soCau;
+        private readonly NguonUyTin _uyTin;
         private readonly IMemoryCache _cache;
         private readonly TimeProvider _clock;
         private readonly ILogger<CapDoService> _logger;
@@ -56,6 +57,7 @@ namespace Crowd.Identity.Api.Services
             ISettings settings,
             HoSoService hoSo,
             SoCauDuyetClient soCau,
+            NguonUyTin uyTin,
             IMemoryCache cache,
             TimeProvider clock,
             ILogger<CapDoService> logger)
@@ -85,6 +87,11 @@ namespace Crowd.Identity.Api.Services
                 throw new ArgumentNullException(nameof(soCau));
             }
 
+            if (uyTin == null)
+            {
+                throw new ArgumentNullException(nameof(uyTin));
+            }
+
             if (cache == null)
             {
                 throw new ArgumentNullException(nameof(cache));
@@ -105,6 +112,7 @@ namespace Crowd.Identity.Api.Services
             _settings = settings;
             _hoSo = hoSo;
             _soCau = soCau;
+            _uyTin = uyTin;
             _cache = cache;
             _clock = clock;
             _logger = logger;
@@ -134,15 +142,6 @@ namespace Crowd.Identity.Api.Services
             }
         }
 
-        public async Task GhiUyTinAsync(Guid userId, int uyTin, DateTimeOffset occurredAt, Guid correlationId, CancellationToken ct)
-        {
-            ThongKeLabeler tk = await LayHoacTaoAsync(userId, occurredAt, ct);
-            if (tk.DatUyTin(uyTin, occurredAt))
-            {
-                await XepTinhLaiAsync(new[] { userId }, correlationId, ct);
-            }
-        }
-
         // =====================================================================
         // TINH LAI (CapDoWorker)
         // =====================================================================
@@ -168,6 +167,9 @@ namespace Crowd.Identity.Api.Services
                 List<Guid> ids = lo.Select(x => x.UserId).ToList();
                 Dictionary<Guid, long> soCau = await _soCau.DemAsync(ids, ct);
 
+                // Uy tin moi nhat doc thang view cua quality (3.32). DB quality loi → nem ra, rollback, dong nam lai.
+                Dictionary<Guid, int> uyTin = await _uyTin.LayAsync(ids, ct);
+
                 DateTimeOffset luc = _clock.GetUtcNow();
                 Dictionary<Guid, ThongKeLabeler> thongKe = await _db.ThongKeLabelers
                     .Where(t => ids.Contains(t.UserId))
@@ -184,7 +186,9 @@ namespace Crowd.Identity.Api.Services
                     long n;
                     soCau.TryGetValue(dong.UserId, out n);
                     Caller caller = Caller.HeThong(dong.CorrelationId ?? Guid.NewGuid(), null);
-                    await TinhLaiAsync(tk, (int)Math.Min(n, int.MaxValue), caller, luc, ct);
+                    int diem;
+                    int? uyTinCuaNguoi = uyTin.TryGetValue(dong.UserId, out diem) ? diem : null;
+                    await TinhLaiAsync(tk, (int)Math.Min(n, int.MaxValue), uyTinCuaNguoi, caller, luc, ct);
                 }
 
                 _db.HangChoTinhCaps.RemoveRange(lo);
@@ -210,7 +214,7 @@ namespace Crowd.Identity.Api.Services
             {
                 Level = cap,
                 ApprovedCount = (int)Math.Min(soCau, int.MaxValue),
-                Reputation = tk == null ? null : tk.Reputation,
+                Reputation = await _uyTin.CuaMotNguoiAsync(userId, ct),
                 NextLevel = ke == null ? null : new NextLevelDto { Level = ke.Cap, MinApproved = ke.SoNhanToiThieu, MinReputation = ke.UyTinToiThieu },
                 Badges = HoSoService.TaoHuyHieu(huyHieu),
             };
@@ -320,9 +324,9 @@ namespace Crowd.Identity.Api.Services
             return top.Take(soLuong).ToList();
         }
 
-        private async Task TinhLaiAsync(ThongKeLabeler tk, int soCau, Caller caller, DateTimeOffset luc, CancellationToken ct)
+        private async Task TinhLaiAsync(ThongKeLabeler tk, int soCau, int? uyTin, Caller caller, DateTimeOffset luc, CancellationToken ct)
         {
-            if (tk.DatCap(CapDo.TinhCap(Luat(), soCau, tk.Reputation), luc))
+            if (tk.DatCap(CapDo.TinhCap(Luat(), soCau, uyTin), luc))
             {
                 Phat(caller, new LevelChanged { UserId = tk.UserId, Level = tk.Level });
             }
@@ -330,7 +334,7 @@ namespace Crowd.Identity.Api.Services
             HashSet<string> daCo = new HashSet<string>(
                 await _db.HuyHieuDaDats.Where(h => h.UserId == tk.UserId).Select(h => h.Badge).ToListAsync(ct),
                 StringComparer.Ordinal);
-            foreach (HuyHieu moi in CapDo.HuyHieuMoi(soCau, tk.Reputation, daCo))
+            foreach (HuyHieu moi in CapDo.HuyHieuMoi(soCau, uyTin, daCo))
             {
                 _db.HuyHieuDaDats.Add(HuyHieuDaDat.Tao(tk.UserId, moi.Ma, luc));
                 Phat(caller, new BadgeAwarded { UserId = tk.UserId, Badge = moi.Ma, Name = moi.Ten });

@@ -33,11 +33,19 @@ def code(r):
         return None
 
 
+def ghi_uy_tin_quality(user_id, uy_tin):
+    """Kien truc 3.32: uy tin chi nam o quality (identity doc view v_reputations). None = chua co uy tin."""
+    if uy_tin is None:
+        sql("quality", f"delete from reputations where labeler_id = '{user_id}'")
+        return
+    sql("quality", "insert into reputations(labeler_id, reputation, gold_total, gold_correct, agree_total, agree_count, updated_at) "
+                   f"values ('{user_id}', {uy_tin}, 0, 0, 0, 0, now()) "
+                   f"on conflict (labeler_id) do update set reputation = {uy_tin}, updated_at = now()")
+
+
 def dat_uy_tin(u, uy_tin):
-    """Ghi uy tin vao identity_db (nhu sau reputation.changed). project-svc doc qua gRPC luc mo bai."""
-    sql("identity", "insert into labeler_stats(user_id, reputation, reputation_at, level, updated_at) "
-                    f"values ('{u['id']}', {uy_tin}, now(), 1, now()) "
-                    f"on conflict (user_id) do update set reputation = {uy_tin}, reputation_at = now()")
+    """Ghi uy tin vao quality_db (chu du lieu). project-svc hoi identity qua gRPC luc mo bai, identity doc view cua quality."""
+    ghi_uy_tin_quality(u["id"], uy_tin)
 
 
 def ket_qua(chu, pid):

@@ -7,7 +7,7 @@ import hashlib, json, os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
+from moi_truong import G, GOC_REPO, RABBIT_MGMT, TIEN_TO_CONTAINER, URL_GATE, URL_LINK, cho_moi_noi_doc_lai_setting, rabbit_container, sql_container  # noqa: E402,F401
 sys.path.insert(0, os.path.join(GOC_REPO, "services", "quality"))
 from tai_khoan_e2e import mo_rong_gioi_han, xac_thuc_email  # noqa: E402
 
@@ -136,10 +136,9 @@ def dat_va_cho(key, value, dbs):
     r = dat(key, value)
     assert r.status_code == 200, (key, r.text)
     ver = r.json()["version"]
-    for db in dbs:
-        ok = cho(lambda: sql(db, f"select version from settings_replica where key='{key}'") == str(ver), 20)
-        assert ok, f"{db} chua nhan {key} v{ver}"
-    time.sleep(0.5)
+    # 3.32: moi service doc view v_settings cua admin_db (khong con settings_replica) — cho mot chu ky doc lai.
+    assert sql("admin", f"select version from v_settings where key='{key}'") == str(ver), f"v_settings chua co {key} v{ver}"
+    cho_moi_noi_doc_lai_setting(G, admin)
 
 
 # He so tran nguoi lam (10/2026) = 1 cho cac bo E2E: chung viet theo "so suat = so nguoi lam, du suat thi dong thu

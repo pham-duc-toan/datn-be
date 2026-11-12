@@ -116,11 +116,12 @@ try:
     d = cho_don("referral", moi["id"], "pending")
     kiem("vao hang doi duyet chung (kind=referral)", d and d["requesterId"] == sh["id"], d)
     time.sleep(2)
-    kiem("ledger CHUA ghi quan he gioi thieu (chua tinh hoa hong)", sql("ledger", f"select count(*) from referrals where referred_id='{moi['id']}'") == "0")
+    # 3.32: ledger doc view v_referrals cua link (chi quan he active) — dang cho duyet thi view khong tra ve.
+    kiem("ledger CHUA thay quan he gioi thieu (chua tinh hoa hong)", sql("link", f"select count(*) from v_referrals where referred_id='{moi['id']}'") == "0")
     kiem("sharer khong goi duoc API admin", requests.get(G + "/links/admin/referrals/flagged", headers=sh["h"]).status_code == 403)
     requests.post(G + f"/links/admin/referrals/{moi['id']}/approve", headers=admin).raise_for_status()
     kiem("admin chap nhan → ledger ghi quan he (bat dau tinh hoa hong)",
-         cho(lambda: sql("ledger", f"select referrer_id from referrals where referred_id='{moi['id']}'") == sh["id"], 20))
+         cho(lambda: sql("link", f"select referrer_id from v_referrals where referred_id='{moi['id']}'") == sh["id"], 20))
     kiem("hang doi: approved", cho_don("referral", moi["id"], "approved") is not None)
     kiem("xet lai → 409", requests.post(G + f"/links/admin/referrals/{moi['id']}/reject", headers=admin, json={"reason": "x"}).status_code == 409)
 

@@ -2,7 +2,7 @@
 
 Kieu, mac dinh, gioi han: doc tu shared/settings/catalog.json — file do test C#
 (SettingCatalogTests) xuat tu SettingCatalog, nen hai ben khong lech nhau.
-Gia tri admin dat: nam trong bang settings_replica (settings_sync.py ghi), nap
+Gia tri admin dat: settings_sync.py doc view v_settings cua admin_db (kien truc 3.32), nap
 vao bo nho o day; doc setting KHONG cham DB.
 
 Moi thao tac doc gia tri MOI lan dung (khong giu lau) — admin doi la thao tac

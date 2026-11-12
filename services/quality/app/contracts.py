@@ -127,35 +127,3 @@ class ReputationChanged(Payload):
     reputation: int
 
 
-# =====================================================================
-# SETTING (admin-svc)
-# =====================================================================
-
-
-class SettingChanged(Payload):
-    EVENT_TYPE = "setting.changed"
-
-    key: str
-    # JSON vo huong (so, true/false, chuoi) — kieu nam o shared/settings/catalog.json.
-    value: Any
-    setting_version: int
-    changed_by: uuid.UUID | None
-    changed_at: datetime
-
-
-class SettingSnapshotItem(HopDong):
-    key: str
-    value: Any
-    setting_version: int
-
-
-class SettingsSnapshot(Payload):
-    EVENT_TYPE = "settings.snapshot"
-
-    items: list[SettingSnapshotItem]
-
-
-class SettingsSnapshotRequested(Payload):
-    EVENT_TYPE = "settings.snapshot_requested"
-
-    service: str

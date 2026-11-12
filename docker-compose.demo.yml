@@ -33,6 +33,8 @@ x-dotnet-env: &dotnet-env
   MediaLinks__PublicUrl: http://localhost:18080
   MediaLinks__GrantKey: ${MEDIA_GRANT_KEY:?chay python deploy/tao_env.py}
   # Log: MOT dong JSON moi ban ghi ra stdout → Filebeat gom vao Elasticsearch (dev tra o Kibana).
+  # Setting dong (kien truc 3.32): doc thang view v_settings cua admin_db bang role settings_reader (chi SELECT view).
+  ConnectionStrings__SettingsRead: Host=db-admin;Port=5432;Database=admin_db;Username=settings_reader;Password=${DB_READER_SETTINGS_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
   Logging__Console__FormatterName: json
   Logging__Console__FormatterOptions__TimestampFormat: "yyyy-MM-ddTHH:mm:ss.fffZ"
   Logging__Console__FormatterOptions__UseUtcTimestamp: "true"
@@ -210,6 +212,8 @@ services:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8111
       ConnectionStrings__AdminDb: Host=db-admin;Port=5432;Database=admin_db;Username=admin_user;Password=${DB_ADMIN_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
+      # Role chi doc view v_settings cho moi service khac (3.32): admin bat LOGIN + dat mat khau luc khoi dong.
+      ReadAccess__Readers__settings_reader: ${DB_READER_SETTINGS_PASSWORD:?chay python deploy/tao_env.py}
 
   identity:
     <<: *dotnet-service
@@ -217,6 +221,8 @@ services:
     container_name: datn-demo-identity
     build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Identity.Api } }
     depends_on:
+      db-quality: { condition: service_healthy }
+      db-admin: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       # Giay phep kinh doanh (KYB) luu o bucket kyb-docs do minio-init tao.
       minio-init: { condition: service_completed_successfully }
@@ -234,6 +240,10 @@ services:
       # chay duoc khi project-svc sap — worker tinh cap thu lai, bang xep hang tra 503 khi het bo nho dem.
       InternalApi__ProjectGrpcUrl: http://project:9102
       ConnectionStrings__IdentityDb: Host=db-identity;Port=5432;Database=identity_db;Username=identity_user;Password=${DB_IDENTITY_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
+      # Uy tin: doc thang view v_reputations cua quality bang role identity_reader (kien truc 3.32).
+      ConnectionStrings__QualityRead: Host=db-quality;Port=5432;Database=quality_db;Username=identity_reader;Password=${DB_READER_IDENTITY_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
+      # Role chi doc view v_contacts cho notification (3.32): identity bat LOGIN + dat mat khau luc khoi dong.
+      ReadAccess__Readers__notification_reader: ${DB_READER_NOTIFICATION_PASSWORD:?chay python deploy/tao_env.py}
       # Ma hoa bi mat 2FA (FC-04), bam co khoa so giay to tuy than (xac minh danh tinh).
       IdentityData__Key: ${IDENTITY_DATA_KEY:?chay python deploy/tao_env.py}
 
@@ -243,6 +253,8 @@ services:
     container_name: datn-demo-notification
     build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Notification.Api } }
     depends_on:
+      db-identity: { condition: service_healthy }
+      db-admin: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       db-notification: { condition: service_healthy }
       mailpit: { condition: service_started }
@@ -250,6 +262,8 @@ services:
       <<: *dotnet-env
       ASPNETCORE_URLS: http://+:8110
       ConnectionStrings__NotificationDb: Host=db-notification;Port=5432;Database=notification_db;Username=notification_user;Password=${DB_NOTIFICATION_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
+      # Dia chi lien lac: doc thang view v_contacts cua identity bang role notification_reader (kien truc 3.32).
+      ConnectionStrings__IdentityRead: Host=db-identity;Port=5432;Database=identity_db;Username=notification_reader;Password=${DB_READER_NOTIFICATION_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
       # Email thong bao gui qua Mailpit (xem tai http://localhost:18025).
       Smtp__Host: mailpit
       Smtp__Port: "1025"
@@ -260,17 +274,20 @@ services:
     container_name: datn-demo-project
     build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Project.Api, FFMPEG: "true" } }
     depends_on:
+      db-admin: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
       db-project: { condition: service_healthy }
     environment:
       <<: *dotnet-env
       # Hai cong (Kestrel:Endpoints trong appsettings.json): 8102 REST (HTTP/1.1, gateway goi), 9102 gRPC noi bo
-      # (quality, gate, identity, ledger goi — 3.22 / 3.23 / 3.24). HTTP/2 khong TLS, chi trong mang compose —
+      # (quality, identity, ledger goi — 3.22 / 3.24). HTTP/2 khong TLS, chi trong mang compose —
       # khong publish ra may host.
       Kestrel__Endpoints__Http__Url: http://+:8102
       Kestrel__Endpoints__Grpc__Url: http://+:9102
       ConnectionStrings__ProjectDb: Host=db-project;Port=5432;Database=project_db;Username=project_user;Password=${DB_PROJECT_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
+      # Role chi doc view cho gate (kien truc 3.32): service chu bat LOGIN + dat mat khau luc khoi dong.
+      ReadAccess__Readers__gate_reader: ${DB_READER_GATE_PASSWORD:?chay python deploy/tao_env.py}
       # FB-11: cho thu nhap tu S3 bang chinh MinIO cua stack (moi dia chi noi bo khac van bi chan — SSRF).
       DatasetImport__AllowedPrivateHosts__0: minio
       # gRPC noi bo ben goi (3.24): identity (tra cuu nguoi dung, dieu kien mo bai), quality (gop nhan cho
@@ -286,6 +303,8 @@ services:
     container_name: datn-demo-ledger
     build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Ledger.Api } }
     depends_on:
+      db-link: { condition: service_healthy }
+      db-admin: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       db-ledger: { condition: service_healthy }
     environment:
@@ -295,6 +314,10 @@ services:
       # Ten du an in len hoa don VAT: hoi project-svc qua gRPC luc xuat (3.24).
       InternalApi__ProjectGrpcUrl: http://project:9102
       ConnectionStrings__LedgerDb: Host=db-ledger;Port=5432;Database=ledger_db;Username=ledger_user;Password=${DB_LEDGER_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=20
+      # Quan he gioi thieu: doc thang view v_referrals cua link bang role ledger_reader (kien truc 3.32).
+      ConnectionStrings__LinkRead: Host=db-link;Port=5432;Database=link_db;Username=ledger_reader;Password=${DB_READER_LEDGER_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
+      # Role chi doc view cho gate (kien truc 3.32): service chu bat LOGIN + dat mat khau luc khoi dong.
+      ReadAccess__Readers__gate_reader: ${DB_READER_GATE_PASSWORD:?chay python deploy/tao_env.py}
 
   payment:
     <<: *dotnet-service
@@ -302,6 +325,7 @@ services:
     container_name: datn-demo-payment
     build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Payment.Api } }
     depends_on:
+      db-admin: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       db-payment: { condition: service_healthy }
     environment:
@@ -324,6 +348,7 @@ services:
     container_name: datn-demo-link
     build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Link.Api } }
     depends_on:
+      db-admin: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       db-link: { condition: service_healthy }
     ports: ["127.0.0.1:18107:8107"]
@@ -332,6 +357,9 @@ services:
       ASPNETCORE_URLS: http://+:8107
       InternalApi__IdentityUrl: http://identity:8101
       ConnectionStrings__LinkDb: Host=db-link;Port=5432;Database=link_db;Username=link_user;Password=${DB_LINK_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
+      # Role chi doc view cho gate (kien truc 3.32): service chu bat LOGIN + dat mat khau luc khoi dong.
+      ReadAccess__Readers__gate_reader: ${DB_READER_GATE_PASSWORD:?chay python deploy/tao_env.py}
+      ReadAccess__Readers__ledger_reader: ${DB_READER_LEDGER_PASSWORD:?chay python deploy/tao_env.py}
       Links__ShortBaseUrl: http://localhost:5173/g/
       ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
 
@@ -341,9 +369,14 @@ services:
     container_name: datn-demo-gate
     build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Gate.Api } }
     depends_on:
+      db-admin: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
       db-gate: { condition: service_healthy }
+      # Doc view v_gate_* cua chu du lieu luc khoi dong (warm-up, 3.32) — chua doc duoc thi chua mo cong HTTP.
+      db-project: { condition: service_healthy }
+      db-ledger: { condition: service_healthy }
+      db-link: { condition: service_healthy }
       redis-gate: { condition: service_healthy }
       ch-gate: { condition: service_healthy }
     ports: ["127.0.0.1:18108:8108"]
@@ -354,9 +387,10 @@ services:
       Gate__Redis: redis-gate:6379
       Gate__ClickHouse: Host=ch-gate;Port=8123;Username=gate_user;Password=${DB_GATE_PASSWORD:?chay python deploy/tao_env.py};Database=gate_db
       ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
-      # Mau + cau vang cua du an bat cong link keo qua gRPC tu project-svc luc publish (3.23). Khong depends_on:
-      # gate phai chay duoc khi project-svc sap — worker thu lai.
-      InternalApi__ProjectGrpcUrl: http://project:9102
+      # Du lieu cong link: doc THANG view cua project / ledger / link bang role gate_reader (chi SELECT view) — 3.32.
+      ConnectionStrings__ProjectRead: Host=db-project;Port=5432;Database=project_db;Username=gate_reader;Password=${DB_READER_GATE_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
+      ConnectionStrings__LedgerRead: Host=db-ledger;Port=5432;Database=ledger_db;Username=gate_reader;Password=${DB_READER_GATE_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
+      ConnectionStrings__LinkRead: Host=db-link;Port=5432;Database=link_db;Username=gate_reader;Password=${DB_READER_GATE_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
 
   quality:
     image: datn/quality:demo
@@ -365,10 +399,14 @@ services:
     labels: *log-labels
     build: { context: ., dockerfile: deploy/docker/quality.Dockerfile }
     depends_on:
+      db-admin: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       db-quality: { condition: service_healthy }
     environment:
       QUALITY_DATABASE_URL: postgresql+asyncpg://quality_user:${DB_QUALITY_PASSWORD:?chay python deploy/tao_env.py}@db-quality:5432/quality_db
+      # Role chi doc view v_reputations cho identity (3.32): quality bat LOGIN + dat mat khau luc khoi dong.
+      QUALITY_READ_ACCESS_READERS: '{"identity_reader": "${DB_READER_IDENTITY_PASSWORD:?chay python deploy/tao_env.py}"}'
+      QUALITY_SETTINGS_DATABASE_URL: postgresql://settings_reader:${DB_READER_SETTINGS_PASSWORD:?chay python deploy/tao_env.py}@db-admin:5432/admin_db
       QUALITY_RABBIT_PASSWORD: ${RABBIT_PASSWORD:?chay python deploy/tao_env.py}
       QUALITY_RABBIT_HOST: rabbitmq
       QUALITY_JWKS_URL: http://identity:8101/.well-known/jwks.json
@@ -403,10 +441,12 @@ services:
     labels: *log-labels
     build: { context: ., dockerfile: deploy/docker/media.Dockerfile }
     depends_on:
+      db-admin: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
     environment:
       MEDIA_RABBIT_HOST: rabbitmq
+      MEDIA_SETTINGS_DATABASE_URL: postgresql://settings_reader:${DB_READER_SETTINGS_PASSWORD:?chay python deploy/tao_env.py}@db-admin:5432/admin_db
       MEDIA_RABBIT_PASSWORD: ${RABBIT_PASSWORD:?chay python deploy/tao_env.py}
       MEDIA_JWKS_URL: http://identity:8101/.well-known/jwks.json
       MEDIA_MINIO_ENDPOINT: minio:9000
@@ -424,6 +464,7 @@ services:
     container_name: datn-demo-gateway
     build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Gateway.Api } }
     depends_on:
+      db-admin: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis-gateway: { condition: service_healthy }
     ports: ["18080:8080"]

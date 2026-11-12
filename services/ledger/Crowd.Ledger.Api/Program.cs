@@ -6,6 +6,7 @@ using Crowd.BuildingBlocks.Auth.Internal;
 using Crowd.Contracts.Grpc.Project;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.BuildingBlocks.Persistence.ReadAccess;
 using Crowd.Contracts.Gate;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Link;
@@ -40,7 +41,7 @@ builder.Services.AddDbContext<LedgerDbContext>(options =>
 
 // ---- Outbox + consumer. Ten queue giu nguyen mai mai. ----
 // Setting dong (admin-svc quan ly): GOI TRUOC AddOutbox de nap xong truoc moi worker.
-builder.Services.AddCrowdSettings<LedgerDbContext>(cfg, "ledger-svc");
+builder.Services.AddCrowdSettings(cfg, "ledger-svc");
 builder.Services.AddOutbox<LedgerDbContext>(cfg);
 builder.Services.AddEventConsumer<LedgerDbContext, ProjectPublishRequested, ProjectPublishRequestedProcessor>(cfg, "ledger-svc.project-publish-requested");
 builder.Services.AddEventConsumer<LedgerDbContext, ProjectPublished, ProjectPublishedProcessor>(cfg, "ledger-svc.project-published");
@@ -56,7 +57,11 @@ builder.Services.AddEventConsumer<LedgerDbContext, PayoutFailed, PayoutFailedPro
 
 // Cong link (P2): tra nguoi chia se, hoa hong gioi thieu, giu doanh thu link vi pham.
 builder.Services.AddEventConsumer<LedgerDbContext, ClickValidated, ClickValidatedProcessor>(cfg, "ledger-svc.click-validated");
-builder.Services.AddEventConsumer<LedgerDbContext, ReferralRegistered, ReferralRegisteredProcessor>(cfg, "ledger-svc.referral-registered");
+
+// Quan he gioi thieu: doc thang view v_referrals cua link bang role ledger_reader (kien truc 3.32).
+string docLink = cfg.GetConnectionString("LinkRead")
+    ?? throw new InvalidOperationException("Thieu ConnectionStrings:LinkRead (role ledger_reader doc view cua link-svc).");
+builder.Services.AddSingleton(new NguonGioiThieu(docLink));
 builder.Services.AddEventConsumer<LedgerDbContext, LinkDisabled, LinkDisabledProcessor>(cfg, "ledger-svc.link-disabled");
 
 // ---- Nghiep vu ----
@@ -108,6 +113,10 @@ using (IServiceScope scope = app.Services.CreateScope())
 {
     LedgerDbContext db = scope.ServiceProvider.GetRequiredService<LedgerDbContext>();
     await db.Database.MigrateAsync();
+
+    // Role chi doc view cho service khac (gate_reader — kien truc 3.32): bat dang nhap + mat khau tu cau hinh.
+    await ReaderRoles.DamBaoDangNhapAsync(
+        db, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ReadAccess"), CancellationToken.None);
 
     // Du lieu mau (chi Development + Seed:Enabled), truoc khi worker/consumer chay.
     if (SeedSwitch.DuocChay(app.Environment, app.Configuration))

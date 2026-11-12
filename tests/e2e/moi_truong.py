@@ -52,6 +52,22 @@ RABBIT_PASSWORD = os.environ.get("E2E_RABBIT_PASSWORD") or (
     (_doc_env("RABBIT_PASSWORD") if _PROFILE == "demo" else None) or "dev_rabbit_pw")
 
 
+# Khoa noi bo (X-Internal-Key) — vd GET /internal/catalog cua gate. Dev: gia tri dev; stack demo: lay tu .env.
+INTERNAL_KEY = os.environ.get("E2E_INTERNAL_KEY") or (
+    (_doc_env("INTERNAL_API_KEY") if _PROFILE == "demo" else None) or "dev_internal_key")
+
+
+def cho_moi_noi_doc_lai_setting(gateway: str, headers: dict) -> None:
+    """Kien truc 3.32: khong con ban sao setting o tung service — moi service doc lai view v_settings cua admin_db
+    moi settings.reload_interval. Doi setting xong thi cho qua mot chu ky (+ du) la moi noi da dung gia tri moi."""
+    import time
+
+    import requests
+
+    giay = requests.get(gateway + "/admin/settings/settings.reload_interval", headers=headers).json()["value"]
+    time.sleep(float(giay) + 1.5)
+
+
 def sql_container(db: str) -> str:
     """Ten container Postgres cua service `db` (identity, project, ...)."""
     return f"{TIEN_TO_CONTAINER}db-{db}"

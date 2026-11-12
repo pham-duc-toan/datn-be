@@ -11,18 +11,4 @@
     <ProjectReference Include="..\..\..\shared\storage\Crowd.BuildingBlocks.Storage.csproj" />
   </ItemGroup>
 
-  <!-- gRPC noi bo: keo mau + cau vang tu project-svc luc du an publish bat cong link (kien truc 3.23). -->
-  <ItemGroup>
-    <Protobuf Include="..\..\..\contracts\grpc\project\v1\gate_data.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Client" Link="Grpc\gate_data.proto" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Google.Protobuf" />
-    <PackageReference Include="Grpc.Net.ClientFactory" />
-    <PackageReference Include="Grpc.Tools">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-  </ItemGroup>
-
 </Project>

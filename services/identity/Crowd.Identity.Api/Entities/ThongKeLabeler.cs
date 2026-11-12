@@ -3,9 +3,9 @@ using System;
 namespace Crowd.Identity.Api.Entities
 {
     /// <summary>
-    /// Cap do + uy tin cua mot labeler (FL-12). Cap la quyet dinh cua identity (luat identity.level_rules);
-    /// uy tin moi nhat tu reputation.changed cua quality-svc. So cau duoc chap nhan KHONG luu o day — doc qua
-    /// gRPC LabelerStatsData tu project.attempts khi tinh cap (kien truc 3.24; truoc la bo dem approved_count).
+    /// Cap do cua mot labeler (FL-12) — quyet dinh cua identity (luat identity.level_rules). Uy tin KHONG luu o day:
+    /// doc view v_reputations cua quality (NguonUyTin, kien truc 3.32). So cau duoc chap nhan cung khong luu — doc qua
+    /// gRPC LabelerStatsData tu project.attempts khi tinh cap (kien truc 3.24).
     /// </summary>
     public sealed class ThongKeLabeler
     {
@@ -14,12 +14,6 @@ namespace Crowd.Identity.Api.Entities
         }
 
         public Guid UserId { get; private set; }
-
-        /// <summary>null = quality-svc chua cham (chua co bang chung).</summary>
-        public int? Reputation { get; private set; }
-
-        /// <summary>Moc thoi gian cua reputation.changed da ap dung — bo qua ban cu den tre.</summary>
-        public DateTimeOffset? ReputationAt { get; private set; }
 
         public int Level { get; private set; }
 
@@ -32,20 +26,6 @@ namespace Crowd.Identity.Api.Entities
             t.Level = 1;
             t.UpdatedAt = luc;
             return t;
-        }
-
-        /// <summary>Ghi uy tin moi; ban cu hon ban dang co thi bo qua (tra ve false).</summary>
-        public bool DatUyTin(int uyTin, DateTimeOffset occurredAt)
-        {
-            if (ReputationAt.HasValue && occurredAt <= ReputationAt.Value)
-            {
-                return false;
-            }
-
-            Reputation = uyTin;
-            ReputationAt = occurredAt;
-            UpdatedAt = occurredAt;
-            return true;
         }
 
         /// <summary>Doi cap; tra ve true neu cap thay doi.</summary>

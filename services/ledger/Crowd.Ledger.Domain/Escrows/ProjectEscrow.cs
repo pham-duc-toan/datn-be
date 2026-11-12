@@ -57,9 +57,6 @@ namespace Crowd.Ledger.Domain.Escrows
         /// <summary>Tong ky quy da tieu cho kenh cong link (sharer + phan nen tang).</summary>
         public long GateSpentVnd { get; private set; }
 
-        /// <summary>So thu tu tang dan cua gate.budget_changed — gate bo qua event cu den tre.</summary>
-        public long GateBudgetSequence { get; private set; }
-
         public DateTimeOffset ReservedAt { get; private set; }
 
         public DateTimeOffset? ClosedAt { get; private set; }
@@ -131,12 +128,6 @@ namespace Crowd.Ledger.Domain.Escrows
             }
 
             GateSpentVnd = checked(GateSpentVnd + soTien);
-        }
-
-        public long SoThuTuNganSachMoi()
-        {
-            GateBudgetSequence = GateBudgetSequence + 1;
-            return GateBudgetSequence;
         }
 
         /// <summary>Da tra thuong du so suat chua (chan tra vuot ky quy, VD-M-03).</summary>

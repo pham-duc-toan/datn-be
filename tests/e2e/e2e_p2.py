@@ -5,7 +5,7 @@ import json, os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import G, GOC_REPO, RABBIT_MGMT, TIEN_TO_CONTAINER, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
+from moi_truong import G, GOC_REPO, INTERNAL_KEY, RABBIT_MGMT, TIEN_TO_CONTAINER, URL_GATE, URL_LINK, cho_moi_noi_doc_lai_setting, rabbit_container, sql_container  # noqa: E402,F401
 from tro_giup import nap_mau  # noqa: E402
 GATE = URL_GATE   # goi thang gate de gia lap IP khach khac nhau (X-Forwarded-For)
 LINK = URL_LINK
@@ -56,9 +56,29 @@ def dat(key, value):
     r = requests.put(G + f"/admin/settings/{key}", headers=admin, json={"value": value, "reason": "e2e-p2"})
     assert r.status_code == 200, r.text
     ver = r.json()["version"]
-    for db in ("gate", "ledger", "link"):
-        assert cho(lambda: sql(db, f"select version from settings_replica where key='{key}'") == str(ver), 20), f"{db} chua nhan {key}"
-    time.sleep(0.5)
+    # 3.32: gate / ledger / link doc view v_settings cua admin_db — cho mot chu ky doc lai.
+    assert sql("admin", f"select version from v_settings where key='{key}'") == str(ver), f"v_settings chua co {key}"
+    cho_moi_noi_doc_lai_setting(G, admin)
+
+
+def cong(pid=None):
+    """Bo nho cong link cua gate (kien truc 3.32: gate khong con bang ban sao — doc view cua chu du lieu vao RAM).
+    pid=None → ca tom tat; co pid → du an do trong bo nho (None neu gate khong phuc vu)."""
+    r = requests.get(GATE + "/internal/catalog", headers={"X-Internal-Key": INTERNAL_KEY})
+    r.raise_for_status()
+    t = r.json()
+    if pid is None:
+        return t
+    return next((p for p in t["projects"] if p["projectId"] == pid), None)
+
+
+def dang_chay():
+    return [p["projectId"] for p in cong()["projects"] if p["status"] == "Running"]
+
+
+def ngan_sach(pid):
+    p = cong(pid)
+    return None if p is None else p["budgetVnd"]
 
 
 def khach(ip):
@@ -118,13 +138,14 @@ admin = login("admin@crowd.local"); biz = login("doanhnghiep1@crowd.local")
 try:
     # Don cac du an cong link e2e con chay tu lan truoc: gate chia traffic NGAU NHIEN giua cac du
     # an con ngan sach, nen phai chi con mot du an thi so lieu moi kiem dung.
-    for cu in sql("gate", "select project_id from gate_projects where status='Running'").split():
+    for cu in dang_chay():
         # Dong du an da chay phai tam dung truoc (phuong an A). Tam dung la du de gate ngung
         # phuc vu; huy co the bi chan neu du an cu con nhan cho duyet — khong anh huong bai test.
         requests.post(G + f"/projects/{cu}/pause", headers=biz)
         requests.post(G + f"/projects/{cu}/cancel", headers=biz, json={"reason": "e2e don dep"})
-    cho(lambda: sql("gate", "select count(*) from gate_projects where status='Running'") == "0", 20)
+    cho(lambda: dang_chay() == [], 20)
     dat("gate.countdown", 0)
+    dat("gate.cache_refresh_interval", 2)
     dat("link.referral_min_earnings_vnd", 0)
 
     print("\n[1] Doanh nghiep tao du an van ban BAT cong link, ngan sach vuot muc toi thieu")
@@ -144,23 +165,21 @@ try:
         {"sampleId": mau["v1"], "purpose": "qualityCheck", "expectedPayload": {"loai": {"labelIds": ["cho"]}}},
         {"sampleId": mau["v2"], "purpose": "qualityCheck", "expectedPayload": {"loai": {"labelIds": ["meo"]}}}]})
     kiem("them 2 cau vang kiem tra", r.status_code == 200, r.text)
-    # Kien truc 3.23: gate khong chep mau tu dataset.ingested / cau vang tu gold_set.updated nua.
+    # Kien truc 3.32: view v_gate_* chi tra du an da publish bat cong link.
     time.sleep(2)
-    kiem("du an CHUA publish: gate khong giu mau / cau vang nao",
-         sql("gate", f"select (select count(*) from gate_samples where project_id='{pid}') "
-                     f"+ (select count(*) from gate_gold_items where project_id='{pid}')") == "0")
+    kiem("du an CHUA publish: gate khong co trong bo nho, view cua project khong tra ve",
+         cong(pid) is None and sql("project", f"select count(*) from v_gate_samples where project_id='{pid}'") == "0")
     requests.post(G + f"/projects/{pid}/publish", headers=biz).raise_for_status()
     cho(lambda: requests.get(G + f"/projects/{pid}", headers=biz).json()["status"] in ("pendingApproval", "running"), 25)
     if requests.get(G + f"/projects/{pid}", headers=biz).json()["status"] == "pendingApproval":
         requests.post(G + f"/projects/{pid}/approve", headers=admin).raise_for_status()
     kiem("du an running", cho(lambda: requests.get(G + f"/projects/{pid}", headers=biz).json()["status"] == "running", 20))
-    ns = cho(lambda: sql("gate", f"select remaining_vnd from gate_budgets where project_id='{pid}'") == "12200", 20)
-    kiem("ledger bao gate ngan sach cong link 12.200 (ngan sach rieng)", ns, sql("gate", f"select * from gate_budgets where project_id='{pid}'"))
-    kiem("gate keo mau + cau vang kiem tra qua gRPC sau publish",
-         cho(lambda: sql("gate", f"select count(*) from gate_projects where project_id='{pid}' and content_loaded_at is not null") == "1", 30)
-         and sql("gate", f"select count(*) from gate_samples where project_id='{pid}'") == str(len(mau))
-         and sql("gate", f"select count(*) from gate_gold_items where project_id='{pid}'") == "2",
-         sql("gate", f"select content_loaded_at from gate_projects where project_id='{pid}'"))
+    kiem("view ledger: ngan sach cong link 12.200 (ngan sach rieng)",
+         cho(lambda: sql("ledger", f"select remaining_vnd from v_gate_budgets where project_id='{pid}'") == "12200", 20),
+         sql("ledger", f"select * from v_gate_budgets where project_id='{pid}'"))
+    kiem("gate nap du an vao bo nho tu view: 4 cau that + 2 cau vang, ngan sach 12.200",
+         cho(lambda: (lambda p: p is not None and p["realSamples"] == len(mau) - 2 and p["goldItems"] == 2
+                      and p["budgetVnd"] == 12200)(cong(pid)), 30), cong(pid))
 
     print("\n[2] Nguoi chia se: API key, rut gon don le / Quick Link / hang loat, kiem duyet link dich")
     # Chia se link la CHUC NANG cua moi tai khoan, khong con la vai tro tu chon luc dang ky.
@@ -195,6 +214,8 @@ try:
     st = cho(lambda: requests.get(G + f"/links/{bad}", headers=sh).json()["status"] == "blocked", 15)
     kiem("quet Safe Browsing (dev) chan link doc hai", st, requests.get(G + f"/links/{bad}", headers=sh).text)
     kiem("link sach duoc kich hoat", cho(lambda: requests.get(G + f"/links/{lk['id']}", headers=sh).json()["status"] == "active", 15))
+    # 3.32: gate doc view v_gate_links moi gate.cache_refresh_interval — link moi len cong sau toi da mot chu ky.
+    kiem("link moi len cong (gate doc lai view)", cho(lambda: requests.get(GATE + f"/g/{code}").status_code == 200, 20))
     cho(lambda: requests.get(GATE + f"/g/{code}").status_code == 200, 15)
     r = requests.get(G + f"/g/{code}")
     kiem("GET /g/{code} qua gateway: thong tin trang, khong lo link dich",
@@ -269,8 +290,10 @@ try:
     print("\n[4] Tien: ledger tra sharer 2 x (1000 − 300) = 1.400 (treo), ky quy du an giam 2.600")
     bal = lambda h: requests.get(G + "/ledger/me/balance", headers=h).json()
     kiem("sharer pendingVnd = 1.400", cho(lambda: bal(sh)["pendingVnd"] == 1400, 20), bal(sh))
-    kiem("ngan sach cong link con 9.600", cho(lambda: sql("gate", f"select remaining_vnd from gate_budgets where project_id='{pid}'") == "9600", 15),
-         sql("gate", f"select * from gate_budgets where project_id='{pid}'"))
+    kiem("ngan sach cong link con 9.600 (view ledger va bo nho gate)",
+         cho(lambda: sql("ledger", f"select remaining_vnd from v_gate_budgets where project_id='{pid}'") == "9600"
+             and ngan_sach(pid) == 9600, 20),
+         (sql("ledger", f"select * from v_gate_budgets where project_id='{pid}'"), cong(pid)))
     kiem("annotation luu 2 nhan nguon linkGateway (khong co task / labeler)",
          cho(lambda: sql("project", f"select count(*) from annotations where project_id='{pid}' and source='LinkGateway' and labeler_id is null") == "2", 15),
          sql("project", f"select source, labeler_id, attempt_id from annotations where project_id='{pid}'"))
@@ -300,7 +323,7 @@ try:
     kiem("tai khoan moi nhap ma gioi thieu", r.status_code == 204, r.text)
     r = requests.post(LINK + "/links/referrals/claim", headers=dict(sh2, **khach("203.0.113.99")), json={"code": ref["code"]})
     kiem("nhap lan 2 → 409", r.status_code == 409, r.text)
-    kiem("ledger ghi quan he gioi thieu", cho(lambda: sql("ledger", f"select referrer_id from referrals where referred_id='{sh2_id}'") == sh_id, 15))
+    kiem("ledger thay quan he gioi thieu (view v_referrals cua link)", cho(lambda: sql("link", f"select referrer_id from v_referrals where referred_id='{sh2_id}'") == sh_id, 15))
     l2 = requests.post(G + "/links", headers=sh2, json={"url": "https://example.com/cua-sharer-2"}).json()
     cho(lambda: requests.get(GATE + f"/g/{l2['code']}").status_code == 200, 15)
     n, _ = vuot(l2["code"], "203.0.113.20")
@@ -319,8 +342,9 @@ try:
     # Da tieu 2 luot (5.200) → con 7.000 → them 2 luot (5.200) → con 1.800 < 2.600.
     for ip in ("203.0.113.40", "203.0.113.41"):
         n, _ = vuot(code, ip)
-    kiem("ngan sach con 1.800", cho(lambda: sql("gate", f"select remaining_vnd from gate_budgets where project_id='{pid}'") == "1800", 20),
-         sql("gate", f"select * from gate_budgets where project_id='{pid}'"))
+    kiem("ngan sach con 1.800", cho(lambda: sql("ledger", f"select remaining_vnd from v_gate_budgets where project_id='{pid}'") == "1800"
+                                    and ngan_sach(pid) == 1800, 20),
+         (sql("ledger", f"select * from v_gate_budgets where project_id='{pid}'"), cong(pid)))
     time.sleep(1.5)
     r = phien(code, "203.0.113.42")
     kiem("het ngan sach: bo cau RONG (chi dem nguoc, khong tien)", r.status_code == 200 and r.json()["questions"] == [], r.text)
@@ -371,7 +395,7 @@ try:
     import tro_giup  # noqa: E402  (dang ky + xac thuc email + KYB cho doanh nghiep moi)
     import e2e_cong_cu_helpers as cc  # noqa: E402
     requests.post(G + f"/projects/{pid}/pause", headers=biz)
-    cho(lambda: sql("gate", "select count(*) from gate_projects where status='Running'") == "0", 20)
+    cho(lambda: dang_chay() == [], 20)
     chu = tro_giup.dang_ky(["business", "labeler"], "p2-chu-" + uuid.uuid4().hex[:6])
     cc.nap(chu, 100000)
     r = requests.post(G + "/projects", headers=chu["h"], json={"name": "[e2e-p2] Cong link tu du an", "description": "p2", "modality": "text", "visibility": "public"})
@@ -388,28 +412,23 @@ try:
         {"sampleId": mau2["v1"], "purpose": "qualityCheck", "expectedPayload": {"loai": {"labelIds": ["cho"]}}},
         {"sampleId": mau2["v2"], "purpose": "qualityCheck", "expectedPayload": {"loai": {"labelIds": ["meo"]}}}]}).raise_for_status()
     DEMO = os.environ.get("E2E_PROFILE", "dev").lower() == "demo"
-    if DEMO:
-        # project-svc tat dung luc gate can keo mau: worker gate chua chay (chu ky 1 gio) khi du an publish.
-        dat("gate.content_load_interval", 3600)
     tro_giup.publish_va_duyet(chu, pid2)
-    kiem("du an cong link cua tai khoan kep dang chay tren gate",
-         cho(lambda: sql("gate", f"select status from gate_projects where project_id='{pid2}'") == "Running", 30))
+    kiem("du an cong link cua tai khoan kep: gate nap vao bo nho tu view (4 cau that + 2 cau vang)",
+         cho(lambda: (lambda p: p is not None and p["status"] == "Running" and p["realSamples"] == len(mau2) - 2
+                      and p["goldItems"] == 2)(cong(pid2)), 30), cong(pid2))
     if DEMO:
-        PROJECT = f"{TIEN_TO_CONTAINER}project"
-        subprocess.run(["docker", "stop", PROJECT], check=True, capture_output=True)
+        # Kien truc 3.32: DB cua project tat → gate KHONG doc lai duoc view, nhung van phuc vu tu bo nho (giu anh chup cu).
+        DBP = f"{TIEN_TO_CONTAINER}db-project"
+        subprocess.run(["docker", "stop", DBP], check=True, capture_output=True)
         try:
-            dat("gate.content_load_interval", 1)
-            time.sleep(6)
-            kiem("project-svc tat: gate van chay, du an chua nap mau (chua phuc vu), khong mat viec",
+            time.sleep(7)
+            kiem("DB project tat: gate van phuc vu tu bo nho, du an van con",
                  requests.get(GATE + "/g/khong-co-ma-nay").status_code == 404
-                 and sql("gate", f"select count(*) from gate_projects where project_id='{pid2}' and content_loaded_at is null") == "1"
-                 and sql("gate", f"select count(*) from gate_samples where project_id='{pid2}'") == "0")
+                 and requests.get(GATE + "/health/ready").status_code == 200
+                 and cong(pid2) is not None)
         finally:
-            subprocess.run(["docker", "start", PROJECT], check=True, capture_output=True)
+            subprocess.run(["docker", "start", DBP], check=True, capture_output=True)
         cho(lambda: requests.get(G + f"/projects/{pid2}", headers=chu["h"]).status_code == 200, 90)
-    kiem("gate nap mau du an (khi project-svc tra loi)",
-         cho(lambda: sql("gate", f"select count(*) from gate_samples where project_id='{pid2}'") == str(len(mau2)), 90),
-         sql("gate", f"select content_loaded_at from gate_projects where project_id='{pid2}'"))
     cua_chu = set(mau2.values())
     lk_chu = requests.post(G + "/links", headers=chu["h"], json={"url": "https://example.com/cua-chu-du-an"}).json()
     lk_khac = requests.post(G + "/links", headers=sh2, json={"url": "https://example.com/cua-nguoi-khac"}).json()

@@ -9,6 +9,8 @@ using Crowd.Identity.Api.Entities;
 using Crowd.Identity.Api.Exceptions;
 using Crowd.Identity.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace Crowd.Identity.Api.Services
 {
@@ -25,8 +27,10 @@ namespace Crowd.Identity.Api.Services
         private readonly IdentityDbContext _db;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
+        private readonly NguonUyTin _uyTin;
+        private readonly ILogger<TraCuuNguoiDungService> _logger;
 
-        public TraCuuNguoiDungService(IdentityDbContext db, ISettings settings, TimeProvider clock)
+        public TraCuuNguoiDungService(IdentityDbContext db, ISettings settings, TimeProvider clock, NguonUyTin uyTin, ILogger<TraCuuNguoiDungService> logger)
         {
             if (db == null)
             {
@@ -45,7 +49,19 @@ namespace Crowd.Identity.Api.Services
 
             _db = db;
             _settings = settings;
+            if (uyTin == null)
+            {
+                throw new ArgumentNullException(nameof(uyTin));
+            }
+
+            if (logger == null)
+            {
+                throw new ArgumentNullException(nameof(logger));
+            }
+
             _clock = clock;
+            _uyTin = uyTin;
+            _logger = logger;
         }
 
         public async Task<List<UserLookupDto>> TraCuuAsync(
@@ -90,6 +106,20 @@ namespace Crowd.Identity.Api.Services
                 .Where(t => tim.Contains(t.UserId))
                 .ToDictionaryAsync(t => t.UserId, ct);
 
+            // Uy tin doc thang view v_reputations cua quality (3.32). Quality tam khong tra loi → coi nhu chua co uy tin
+            // (null): dieu kien uy tin toi thieu cua du an van TU CHOI, khong bao gio cho qua nham; tra cuu cho ledger /
+            // link (khong can uy tin) van chay.
+            Dictionary<Guid, int> uyTin;
+            try
+            {
+                uyTin = await _uyTin.LayAsync(tim, ct);
+            }
+            catch (NpgsqlException ex)
+            {
+                _logger.LogWarning(ex, "Chua doc duoc uy tin tu quality-svc — tra cuu tra uy tin rong");
+                uyTin = new Dictionary<Guid, int>();
+            }
+
             // Xac minh danh tinh / du tuoi (FP-05, muc 2.9): project kiem khi moi vao du an rieng tu / nhay cam.
             Dictionary<Guid, XacMinhDanhTinh> xacMinh = await _db.XacMinhDanhTinhs.AsNoTracking()
                 .Where(x => tim.Contains(x.UserId) && x.Status == KybStatus.Verified)
@@ -114,7 +144,7 @@ namespace Crowd.Identity.Api.Services
                     Locked = u.Status == UserStatus.Blocked,
                     RegisteredAt = u.CreatedAt,
                     Level = tk == null ? 1 : tk.Level,
-                    Reputation = tk == null ? null : tk.Reputation,
+                    Reputation = uyTin.TryGetValue(u.Id, out int diem) ? diem : null,
                     IdentityVerified = xm != null,
                     Adult = xm != null && xm.DuTuoi(tuoi, homNay),
                     Domains = u.Domains,

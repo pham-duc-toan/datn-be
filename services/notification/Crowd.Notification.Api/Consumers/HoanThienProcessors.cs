@@ -129,26 +129,23 @@ namespace Crowd.Notification.Api.Consumers
     /// </summary>
     public sealed class SystemAnnouncementProcessor : ThongBaoProcessor<SystemAnnouncement>
     {
-        public SystemAnnouncementProcessor(ThongBaoWriter writer, NotificationDbContext db)
+        private readonly NguonLienHe _lienHe;
+
+        public SystemAnnouncementProcessor(ThongBaoWriter writer, NotificationDbContext db, NguonLienHe lienHe)
             : base(writer, db)
         {
+            if (lienHe == null)
+            {
+                throw new ArgumentNullException(nameof(lienHe));
+            }
+
+            _lienHe = lienHe;
         }
 
         protected override async Task XuLyPayloadAsync(SystemAnnouncement p, CancellationToken ct)
         {
-            List<Guid> nguoiNhan;
-            if (p.Audience == "all")
-            {
-                nguoiNhan = await Db.LienHes.AsNoTracking().Select(l => l.UserId).ToListAsync(ct);
-            }
-            else
-            {
-                string vaiTro = p.Audience;
-                nguoiNhan = await Db.LienHes.AsNoTracking()
-                    .Where(l => EF.Property<List<string>>(l, "_roles").Contains(vaiTro))
-                    .Select(l => l.UserId)
-                    .ToListAsync(ct);
-            }
+            // Nguoi nhan doc thang view v_contacts cua identity (3.32) — vai tro luon moi nhat.
+            List<Guid> nguoiNhan = await _lienHe.NguoiNhanAsync(p.Audience == "all" ? null : p.Audience, ct);
 
             await Writer.GhiHangLoatAsync(nguoiNhan, LoaiThongBao.HeThong, NoiDungThongBao.ThongBaoHeThong(p.Title, p.Body), p.SendEmail, ct);
         }

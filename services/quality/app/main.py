@@ -20,7 +20,7 @@ from app import (
 from app.api import router
 from app.config import settings
 from app.contracts import (
-    AttemptSubmitted, ProjectCancelled, ProjectCollectionFinished, ProjectCompleted, SettingChanged, SettingsSnapshot,
+    AttemptSubmitted, ProjectCancelled, ProjectCollectionFinished, ProjectCompleted,
 )
 from app.errors import LoiApi, xu_ly_khong_goi_duoc, xu_ly_loi_api
 from app.messaging.consumer import Consumer
@@ -38,12 +38,6 @@ CONSUMERS = [
     # Du an lam trung tam (docs 3.18): bai nop → hang cho (xet gian lan FM-07, cau mo), dong thu bai → cham.
     Consumer("quality-svc.attempt-submitted", AttemptSubmitted, processors.attempt_submitted),
     Consumer("quality-svc.collection-finished", ProjectCollectionFinished, processors.collection_finished),
-]
-
-# Setting dong (admin-svc) — bat dau TRUOC cac consumer nghiep vu.
-CONSUMERS_SETTING = [
-    Consumer("quality-svc.setting-changed", SettingChanged, settings_sync.setting_changed),
-    Consumer("quality-svc.settings-snapshot", SettingsSnapshot, settings_sync.settings_snapshot),
 ]
 
 
@@ -65,17 +59,17 @@ async def noi_rabbitmq(cfg) -> aio_pika.abc.AbstractRobustConnection:
 async def lifespan(app: FastAPI):
     cfg = settings()
     await db.chay_migration()
+    # Role chi doc view cho service khac (identity_reader doc v_reputations — kien truc 3.32).
+    await db.dam_bao_role_doc()
 
-    # Setting: nap ban sao trong DB truoc moi viec khac (prefetch, chu ky viec cho... doc tu day),
-    # roi xin admin-svc phat lai toan bo — lo mat event luc tat van dong bo lai.
-    so = await settings_sync.nap_tu_db()
-    log.info("Nap %s setting tu settings_replica", so)
-    await settings_sync.xin_snapshot()
+    # Setting (kien truc 3.32): WARM-UP — doc view v_settings cua admin_db TRUOC moi viec khac (prefetch, chu ky
+    # viec cho... doc tu day). admin_db chua tra loi thi cho, chua nhan viec nao.
+    await settings_sync.warm_up()
 
     await seeding.chay()
 
     ket_noi = await noi_rabbitmq(cfg)
-    for c in CONSUMERS_SETTING + CONSUMERS:
+    for c in CONSUMERS:
         await c.bat_dau(ket_noi)
 
     dung = asyncio.Event()
@@ -100,6 +94,7 @@ async def lifespan(app: FastAPI):
         await asyncio.gather(*viec_nen, return_exceptions=True)
         await ket_noi.close()
         await project_client.dong()
+        await settings_sync.dong()
         await db.dong()
 
 

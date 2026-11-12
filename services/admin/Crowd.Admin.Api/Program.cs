@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Threading;
-using Crowd.Admin.Api.Consumers;
 using Crowd.Admin.Api.Exceptions;
 using Crowd.Admin.Api.Persistence;
 using Crowd.Admin.Api.Services;
@@ -10,6 +9,7 @@ using Crowd.Admin.Api.Workers;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Persistence.Consumers;
 using Crowd.BuildingBlocks.Persistence.Outbox;
+using Crowd.BuildingBlocks.Persistence.ReadAccess;
 using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Admin;
 using Crowd.Seeding;
@@ -30,14 +30,12 @@ builder.Services.AddDbContext<AdminDbContext>(options =>
     options.UseNpgsql(chuoiKetNoi);
 });
 
-// admin-svc la CHU cua setting: doc thang bang settings (khong co ban sao) — bo nho
-// duoc nap luc khoi dong va cap nhat ngay khi admin doi.
+// admin-svc la CHU cua setting: doc thang bang settings — bo nho duoc nap luc khoi dong va cap nhat ngay
+// khi admin doi. Service khac doc view v_settings bang role settings_reader (kien truc 3.32).
 builder.Services.AddSingleton<SettingsStore>();
 builder.Services.AddSingleton<ISettings>(sp => sp.GetRequiredService<SettingsStore>());
 
 builder.Services.AddOutbox<AdminDbContext>(builder.Configuration);
-builder.Services.AddEventConsumer<AdminDbContext, SettingsSnapshotRequested, SnapshotRequestedProcessor>(
-    builder.Configuration, "admin-svc.settings-snapshot-requested");
 
 builder.Services.AddScoped<SettingService>();
 
@@ -47,7 +45,6 @@ builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<AnnouncementService>();
 builder.Services.AddHostedService<AuditConsumer>();
 builder.Services.AddHostedService<AuditRetentionWorker>();
-builder.Services.AddHostedService<SnapshotWorker>();
 
 // Hang doi duyet chung (read model tu event, ca viec can xu ly tay — kien truc 3.29), mau bai toan (FM-03).
 // Loi ky thuat (message vao DLQ): DlqMonitorWorker dem → the "Tinh trang he thong" + email doi ky thuat; chi tiet o Kibana.
@@ -82,8 +79,9 @@ using (IServiceScope scope = app.Services.CreateScope())
     SettingService service = scope.ServiceProvider.GetRequiredService<SettingService>();
     int moi = await service.KhoiTaoAsync(giaTriDev, CancellationToken.None);
 
-    // Phat toan bo luc khoi dong: service nao dang cho thi dong bo ngay.
-    await service.PhatSnapshotAsync(Guid.CreateVersion7(), null, true, CancellationToken.None);
+    // Role chi doc view cho service khac (settings_reader — kien truc 3.32): bat dang nhap + mat khau tu cau hinh.
+    await ReaderRoles.DamBaoDangNhapAsync(
+        db, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ReadAccess"), CancellationToken.None);
 
     app.Logger.LogInformation("Setting: khoi tao {Moi} khoa moi, {Tong} khoa trong danh muc", moi, SettingCatalog.TatCa.Count);
 

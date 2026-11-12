@@ -300,33 +300,6 @@ namespace Crowd.Admin.Api.Services
             }
         }
 
-        /// <summary>
-        /// Xep settings.snapshot (toan bo setting) vao outbox. luu = false khi goi tu
-        /// consumer (IdempotencyGuard tu SaveChanges + commit).
-        /// </summary>
-        public async Task PhatSnapshotAsync(Guid correlationId, Guid? causationId, bool luu, CancellationToken ct)
-        {
-            List<Setting> ds = await _db.Settings.AsNoTracking().OrderBy(s => s.Key).ToListAsync(ct);
-            _outbox.Enqueue(EventEnvelope.Create(
-                Producer,
-                correlationId,
-                new SettingsSnapshot
-                {
-                    Items = ds.Select(s => new SettingSnapshotItem
-                    {
-                        Key = s.Key,
-                        Value = RawJson.Tu(s.ValueJson),
-                        SettingVersion = s.Version,
-                    }).ToList(),
-                },
-                causationId));
-
-            if (luu)
-            {
-                await _db.SaveChangesAsync(ct);
-            }
-        }
-
         // =====================================================================
 
         private static SettingDefinition DinhNghia(string key)
