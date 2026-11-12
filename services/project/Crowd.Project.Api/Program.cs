@@ -128,7 +128,6 @@ builder.Services.AddScoped<DonDuAnDaDongService>();
 builder.Services.AddScoped<AnnotationService>();
 builder.Services.AddHostedService<BaiLamWorker>();
 builder.Services.AddHostedService<ClosedProjectPurgeWorker>();
-builder.Services.AddHostedService<HistoryRetentionWorker>();
 // IP that cua labeler qua X-Forwarded-For cua gateway (chi tin mang noi bo cau hinh) — chong gian lan (FM-07).
 builder.Services.Configure<ForwardedHeadersOptions>(o => ProxyTinCay.CauHinh(o, builder.Configuration));
 

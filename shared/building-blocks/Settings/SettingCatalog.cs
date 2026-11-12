@@ -105,8 +105,8 @@ namespace Crowd.BuildingBlocks.Settings
         public const string TaskReaperBatchSize = "task.reaper_batch_size";
         public const string AnnotationImbalanceThresholdPercent = "annotation.imbalance_threshold_percent";
         public const string AnnotationImbalanceMinLabels = "annotation.imbalance_min_labels";
-        public const string AnnotationHistoryRetention = "annotation.history_retention";
-        public const string AnnotationHistoryCleanupInterval = "annotation.history_cleanup_interval";
+        // annotation.history_retention / annotation.history_cleanup_interval: da bo (11/2026, kien truc 3.31) — lich su bai
+        // dung lai tu attempts, khong con bang attempt_history de don.
 
         // ---- Chat luong ----
         public const string QualityFraudEnabled = "quality.fraud_enabled";
@@ -428,10 +428,6 @@ namespace Crowd.BuildingBlocks.Settings
                 "Trần số người làm bài = số suất thưởng × hệ số này. Cho nhiều người làm hơn số suất để “đa số” chắc hơn; khi chấm, n suất thưởng trao cho n bài ĐẠT nộp sớm nhất, bài đạt sau đó không có tiền. Đủ trần thì dự án đóng thu bài. Chụp vào dự án lúc publish."));
             ds.Add(Long(SettingKeys.ProjectMinRewardVnd, NhomDuAn, 10000, 0, 1e10, "đồng",
                 "Tiền thưởng tối thiểu cho MỘT người làm đạt cả dự án. 0 = không giới hạn."));
-            ds.Add(Seconds(SettingKeys.AnnotationHistoryRetention, NhomGanNhan, 365 * Ngay, 0, 3650 * Ngay,
-                "Giữ lịch sử chỉnh sửa nhãn bao lâu: bản ghi cũ hơn bị xoá, trừ bản mới nhất của mỗi nhãn. 0 = không bao giờ xoá."));
-            ds.Add(Seconds(SettingKeys.AnnotationHistoryCleanupInterval, NhomKyThuat, 3600, 10, Ngay,
-                "Chu kỳ worker dọn annotation_history."));
             ds.Add(Seconds(SettingKeys.ProjectClosedDataRetention, NhomDuAn, 90 * Ngay, 0, 3650 * Ngay,
                 "Dự án đã đóng (hoàn thành / huỷ) bao lâu thì xoá dữ liệu VẬN HÀNH của nó: bài làm dở còn sót, báo lỗi mẫu, nhãn thô và các vòng tính kết quả chung. Trước khi xoá, tiến độ và báo cáo chất lượng được chụp lại nên vẫn xem được. Nhãn đã nộp / đã duyệt, kết quả, sổ cái, mẫu dữ liệu và uy tín labeler KHÔNG bị xoá. 0 = không bao giờ xoá."));
             ds.Add(Int(SettingKeys.ProjectEntranceQuestionDefault, NhomDuAn, 10, 1, 500, "câu",

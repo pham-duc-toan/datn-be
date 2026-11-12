@@ -44,7 +44,7 @@ namespace Crowd.Project.Api.Dtos
         public DateTimeOffset? DecidedAt { get; init; }
     }
 
-    /// <summary>Mot dong nhat ky vong doi cua BAI chua nhan (attempt_history).</summary>
+    /// <summary>Mot su kien vong doi cua BAI chua nhan (dung lai tu attempts — LichSuBai).</summary>
     public sealed class HistoryEntryResponse
     {
         public required string Action { get; init; }

@@ -53,7 +53,6 @@ namespace Crowd.Project.Infrastructure.Persistence
 
         public DbSet<Attempt> Attempts => Set<Attempt>();
 
-        public DbSet<AttemptHistoryEntry> AttemptHistory => Set<AttemptHistoryEntry>();
 
         public DbSet<SampleReport> SampleReports => Set<SampleReport>();
 
@@ -88,7 +87,6 @@ namespace Crowd.Project.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new LabelerRatingConfiguration());
             modelBuilder.ApplyConfiguration(new CollectionRoundConfiguration());
             modelBuilder.ApplyConfiguration(new AttemptConfiguration());
-            modelBuilder.ApplyConfiguration(new AttemptHistoryConfiguration());
             modelBuilder.ApplyConfiguration(new SampleReportConfiguration());
             modelBuilder.ApplyConfiguration(new LabelAnnotationConfiguration());
             modelBuilder.ApplyConfiguration(new SampleResultCacheConfiguration());

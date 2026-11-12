@@ -137,29 +137,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
         }
     }
 
-    public sealed class AttemptHistoryConfiguration : IEntityTypeConfiguration<AttemptHistoryEntry>
-    {
-        public void Configure(EntityTypeBuilder<AttemptHistoryEntry> builder)
-        {
-            if (builder == null)
-            {
-                throw new ArgumentNullException(nameof(builder));
-            }
-
-            builder.ToTable("attempt_history");
-            builder.Property(x => x.Id).HasColumnName("id").UseIdentityAlwaysColumn();
-            builder.HasKey(x => x.Id);
-            builder.Property(x => x.AttemptId).HasColumnName("attempt_id").IsRequired();
-            builder.Property(x => x.ProjectId).HasColumnName("project_id").IsRequired();
-            builder.Property(x => x.Action).HasColumnName("action").HasMaxLength(30).IsRequired();
-            builder.Property(x => x.ActorId).HasColumnName("actor_id");
-            builder.Property(x => x.Note).HasColumnName("note").HasMaxLength(AttemptHistoryEntry.DoDaiGhiChuToiDa);
-            builder.Property(x => x.At).HasColumnName("at").IsRequired();
-            builder.HasOne<Attempt>().WithMany().HasForeignKey(x => x.AttemptId).OnDelete(DeleteBehavior.Cascade);
-            builder.HasIndex(x => x.AttemptId).HasDatabaseName("ix_attempt_history_attempt");
-        }
-    }
-
     public sealed class SampleReportConfiguration : IEntityTypeConfiguration<SampleReport>
     {
         public void Configure(EntityTypeBuilder<SampleReport> builder)

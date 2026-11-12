@@ -331,50 +331,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.ToTable("attempts", (string)null);
                 });
 
-            modelBuilder.Entity("Crowd.Project.Domain.Attempts.AttemptHistoryEntry", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("action");
-
-                    b.Property<Guid?>("ActorId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("actor_id");
-
-                    b.Property<DateTimeOffset>("At")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("at");
-
-                    b.Property<Guid>("AttemptId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("attempt_id");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("note");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AttemptId")
-                        .HasDatabaseName("ix_attempt_history_attempt");
-
-                    b.ToTable("attempt_history", (string)null);
-                });
-
             modelBuilder.Entity("Crowd.Project.Domain.Collections.CollectionRound", b =>
                 {
                     b.Property<Guid>("ProjectId")
@@ -1341,15 +1297,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Crowd.Project.Domain.Attempts.AttemptHistoryEntry", b =>
-                {
-                    b.HasOne("Crowd.Project.Domain.Attempts.Attempt", null)
-                        .WithMany()
-                        .HasForeignKey("AttemptId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

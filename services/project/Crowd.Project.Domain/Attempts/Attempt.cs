@@ -41,9 +41,9 @@ namespace Crowd.Project.Domain.Attempts
     /// Moi thay doi xay ra khi DANG GIU KHOA DONG (SELECT ... FOR UPDATE) — service lo khoa, entity
     /// lo luat.
     ///
-    /// Luc nop, cau tra loi nhap (attempt_drafts) duoc CHUYEN sang annotations (cau that) va GoldAnswersJson
-    /// (cau vang) roi xoa — mot cau tra loi luc nao cung chi nam o MOT noi. AnsweredCount chup so cau da tra
-    /// loi luc nop (identity cong vao so nhan duoc duyet khi bai dat).
+    /// Nhap (cau dang lam do) chi nam o localStorage cua frontend; luc nop ca bai gui len mot lan: cau that vao
+    /// annotations, cau vang vao GoldAnswersJson. AnsweredCount chup so cau da tra loi luc nop (identity cong vao
+    /// so nhan duoc duyet khi bai dat). Lich su bai dung lai tu chinh cac cot o day (LichSuBai).
     /// </summary>
     public sealed class Attempt
     {

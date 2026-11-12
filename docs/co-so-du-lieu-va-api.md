@@ -87,7 +87,7 @@ Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm 
 | `attempts` | `id` PK; `project_id`; `labeler_id`; `state` (`InProgress, Submitted, Expired, Cancelled`); `started_at`, `expires_at` (hạn làm = min(+48h, hạn chót dự án)), `submitted_at?`, `ended_at?`; `question_order` uuid[] (thứ tự câu đã trộn); `answered_count?`; `gold_total`, `gold_correct`, `gold_answers?` jsonb (câu trả lời câu vàng, chấm lúc nộp); `client_ip?`, `device_id?`; `comparable_count?`, `matched_count?`, `agreement_percent?`, `passed?`, `rewarded?`, `graded_at?` (kết quả chấm do quality trả về); `appeal_state` (`None, Open, Accepted, Rejected`), `appealed_at?`, `appeal_message?`, `appeal_note?`, `appeal_resolved_at?`, `appeal_resolved_by?` | Một bài = mọi câu của dự án. UNIQUE có điều kiện `ux_attempts_project_labeler_active` (`state IN ('InProgress','Submitted')`): mỗi người một bài đang làm hoặc đã nộp mỗi dự án. `xmin` khoá lạc quan |
 | `annotations` | `(project_id, attempt_id, sample_id)` PK; `labeler_id?` (null = khách cổng link); `source` (`Professional`, `LinkGateway`, `Collaborative`); `payload` jsonb (nén **lz4**, không GIN) — **chỉ 6 cột** | Câu trả lời đã nộp: người nào (`labeler_id`, bài `attempt_id`) chọn gì (`payload`) cho câu nào (`sample_id`) — **bảng lớn nhất** về lâu dài. **Phân vùng HASH(`project_id`) 64 phần**. Không lưu những gì suy ra được: `status` (Submitted / Accepted / Excluded) tính từ `attempts.graded_at`, `passed`, `appeal_state` (cổng link luôn Accepted); thời điểm nộp / chốt lấy từ `attempts`; `task_type` = `projects.modality`, `schema_version` = 1. Chấm bài và phân xử khiếu nại chỉ sửa **một dòng `attempts`**, không UPDATE nhãn. Nhãn chỉ INSERT lúc nộp / `gate.solved` |
 | `sample_results` | `(project_id, sample_id)` PK; `tools` jsonb (kết quả gộp từng công cụ: `method, final, agrees, disputed…`); `fingerprint` (băm đầu vào); `computed_at` | **Bộ nhớ đệm** kết quả gộp. `fingerprint` đổi thì mới tính lại — mẫu cần tính được gửi sang quality-svc gộp qua gRPC `LabelAggregation` (kiến trúc 3.24, thuật toán gộp chỉ còn ở Python) |
-| `attempt_history` | `id` bigint identity PK; `attempt_id`; `project_id`; `action` (`submitted, accepted, excluded, appeal_opened, appeal_accepted, appeal_rejected`); `actor_id?`; `note?`; `at` | Lịch sử **theo bài** (một dòng mỗi sự kiện của cả bài, không phải mỗi nhãn). Worker dọn theo setting giữ lịch sử |
+| (không có bảng lịch sử bài) | | Lịch sử một bài (nộp, chấm đạt / trượt, khiếu nại, phân xử) dựng lại từ chính các cột của `attempts` (`GET /annotations/attempts/{id}/history`, kiến trúc 3.31). Đã bỏ `attempt_history` |
 | `sample_reports` | `id`; `attempt_id`; `project_id`; `sample_id` (FK `samples (project_id, id)`); `labeler_id`; `reason`; `note?`; `state` (`open, dismissed, excluded`); `created_at`, `resolved_by?`, `resolved_at?` | Labeler báo mẫu lỗi. Chủ dự án chấp nhận (hoặc đủ nhiều người báo) thì **mẫu** bị đánh dấu `samples.excluded_at` và loại khỏi chấm |
 
 ### 2.5 quality (`quality_db`, Python, migration `001`)
@@ -385,7 +385,7 @@ POST /tasks/attempts/{a}/submit {answers:[{sampleId, data}]}: một transaction 
      ├ kiểm body: trùng câu / câu không thuộc bài / data không phải object → 400; vượt task.attempt_max_bytes → 400
      ├ chấm câu vàng ngay (gold_correct / gold_total, gold_answers)
      ├ INSERT annotations (project, bài, câu, labeler, source, payload) cho các câu thật
-     ├ đánh dấu Submitted (xmin chống nộp đôi), ghi attempt_history "submitted"
+     ├ đánh dấu Submitted (xmin chống nộp đôi)
      ├ đủ max_participants bài nộp → đóng thu bài ngay (du_suat)
      └ outbox: attempt.submitted (tín hiệu) ──► quality (pending_attempts → worker xét gian lận qua gRPC)
 POST /tasks/attempts/{a}/abandon: trả suất lại
@@ -406,7 +406,7 @@ quality: ghi project_gradings rồi chấm ngay — đề bài, bài nộp, câu
            GetLabelerEvidence (cộng dồn trên project.attempts) → reputations, phát reputation.changed
        ├─► ledger: trả thưởng R cho bài đạt (kind ProjectReward, vào số dư khả dụng); chặn vượt S suất
        ├─► project: ghi attempts.passed, agreement_percent (nhãn tự thành Accepted / Excluded — suy ra từ bài);
-       │            attempt_history; mở hạn khiếu nại (3 ngày)
+       │            mở hạn khiếu nại (3 ngày)
        │            phát project.grading_applied ──► identity: level_dirty → CapDoWorker hỏi số câu qua gRPC
        │                                                  (LabelerStatsData) → cấp / huy hiệu
        └─► notification

@@ -574,30 +574,6 @@
     "description": "Tiền thưởng tối thiểu cho MỘT người làm đạt cả dự án. 0 = không giới hạn."
   },
   {
-    "key": "annotation.history_retention",
-    "name": "Giữ lịch sử nhãn",
-    "group": "Gán nhãn và duyệt nhãn",
-    "type": "durationSeconds",
-    "default": 31536000,
-    "min": 0,
-    "max": 315360000,
-    "unit": "giây",
-    "effect": "newOperations",
-    "description": "Giữ lịch sử chỉnh sửa nhãn bao lâu: bản ghi cũ hơn bị xoá, trừ bản mới nhất của mỗi nhãn. 0 = không bao giờ xoá."
-  },
-  {
-    "key": "annotation.history_cleanup_interval",
-    "name": "Chu kỳ dọn lịch sử nhãn",
-    "group": "Kỹ thuật",
-    "type": "durationSeconds",
-    "default": 3600,
-    "min": 10,
-    "max": 86400,
-    "unit": "giây",
-    "effect": "newOperations",
-    "description": "Chu kỳ worker dọn annotation_history."
-  },
-  {
     "key": "project.closed_data_retention",
     "name": "Giữ dữ liệu vận hành dự án đã đóng",
     "group": "Dự án",

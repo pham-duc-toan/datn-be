@@ -406,7 +406,6 @@ namespace Crowd.Project.Api.Services
 
                 // Cau that vao kho nhan (cung transaction).
                 _db.Annotations.AddRange(nhanMoi);
-                _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(a.Id, a.ProjectId, AttemptHistoryEntry.DaNop, a.LabelerId, null, bayGio));
 
                 _events.Phat(caller, new AttemptSubmitted
                 {
@@ -509,7 +508,6 @@ namespace Crowd.Project.Api.Services
                 }
 
                 a.KhieuNai(body.Message, dot.AppealDeadline.Value, bayGio);
-                _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(a.Id, a.ProjectId, AttemptHistoryEntry.KhieuNai, a.LabelerId, a.AppealMessage, bayGio));
 
                 _events.Phat(caller, new AttemptAppealOpened
                 {
@@ -563,9 +561,6 @@ namespace Crowd.Project.Api.Services
                 // Chap nhan → appeal_state = Accepted: moi nhan cua bai tu dong tinh la Accepted (trang thai nhan suy
                 // ra tu bai — LabelAnnotation.TrangThai), khong UPDATE nhan nao.
                 a.PhanXu(body.Accept, body.Note, admin, daThuong < duAn.Slots, bayGio);
-
-                _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(
-                    a.Id, a.ProjectId, body.Accept ? AttemptHistoryEntry.KhieuNaiChapNhan : AttemptHistoryEntry.KhieuNaiBacBo, admin, a.AppealNote, bayGio));
 
                 int daLam = a.AnsweredCount ?? 0;
                 _events.Phat(caller, new AttemptAppealResolved

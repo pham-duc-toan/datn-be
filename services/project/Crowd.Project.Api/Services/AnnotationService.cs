@@ -138,8 +138,9 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// GET /annotations/attempts/{attemptId}/history — vong doi cua BAI chua nhan (attempt_history: nop, cham dat /
-        /// truot, khieu nai). Moi nhan cua bai co chung lich su nay. Chu bai, chu du an hoac admin.
+        /// GET /annotations/attempts/{attemptId}/history — vong doi cua BAI chua nhan (nop, cham dat / truot, khieu nai,
+        /// phan xu), dung lai tu chinh cac cot cua attempts (LichSuBai — khong co bang lich su rieng, kien truc 3.31).
+        /// Moi nhan cua bai co chung lich su nay. Chu bai, chu du an hoac admin.
         /// </summary>
         public async Task<IReadOnlyList<HistoryEntryResponse>> LichSuAsync(Guid attemptId, Caller caller, CancellationToken ct)
         {
@@ -155,13 +156,8 @@ namespace Crowd.Project.Api.Services
                 await KiemQuyenXemAsync(a.ProjectId, caller, ct);
             }
 
-            List<AttemptHistoryEntry> lichSu = await _db.AttemptHistory.AsNoTracking()
-                .Where(h => h.AttemptId == a.Id)
-                .OrderBy(h => h.At).ThenBy(h => h.Id)
-                .ToListAsync(ct);
-
             List<HistoryEntryResponse> ds = new List<HistoryEntryResponse>();
-            foreach (AttemptHistoryEntry h in lichSu)
+            foreach (SuKienBai h in LichSuBai.Tu(a))
             {
                 ds.Add(new HistoryEntryResponse { Action = h.Action, ActorId = h.ActorId, Note = h.Note, At = h.At });
             }

@@ -300,15 +300,11 @@ namespace Crowd.Project.Api.Seeding
                 }
 
                 a.Nop(b.GoldTotal, b.GoldCorrect, b.Answers.Count, vang.Count == 0 ? null : vang.ToJsonString(), null, null, lucNop);
-                _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(a.Id, sp.Id, AttemptHistoryEntry.DaNop, b.LabelerId, null, lucNop));
 
                 if (b.Result != null)
                 {
-                    // Trang thai nhan (Accepted / Excluded) suy ra tu ket qua bai — khong ghi tren nhan.
+                    // Trang thai nhan (Accepted / Excluded) va lich su bai deu suy ra tu ket qua bai — khong ghi rieng.
                     a.GhiKetQua(b.Result.ComparableCount, b.Result.MatchedCount, b.Result.AgreementPercent, b.Result.Passed, b.Result.Passed, lucCham!.Value);
-
-                    _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(
-                        a.Id, sp.Id, b.Result.Passed ? AttemptHistoryEntry.Dat : AttemptHistoryEntry.Truot, null, null, lucCham.Value));
                 }
 
                 _db.Annotations.AddRange(nhan);

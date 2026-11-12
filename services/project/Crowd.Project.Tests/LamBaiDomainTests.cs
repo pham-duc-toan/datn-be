@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
@@ -216,12 +217,30 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
-        public void Lich_su_bai_cat_ghi_chu_qua_dai()
+        public void Lich_su_bai_dung_lai_tu_cac_cot_cua_bai()
         {
-            AttemptHistoryEntry h = AttemptHistoryEntry.Tao(Guid.NewGuid(), Guid.NewGuid(), AttemptHistoryEntry.KhieuNai, null,
-                new string('x', AttemptHistoryEntry.DoDaiGhiChuToiDa + 10), Luc);
-            Assert.Equal(AttemptHistoryEntry.DoDaiGhiChuToiDa, h.Note!.Length);
-            Assert.Throws<ArgumentException>(() => AttemptHistoryEntry.Tao(Guid.NewGuid(), Guid.NewGuid(), " ", null, null, Luc));
+            Attempt b = BaiMoi();
+            b.Nop(1, 1, 3, null, null, null, Luc.AddHours(1));
+            Assert.Equal(new[] { SuKienBai.DaNop }, LichSuBai.Tu(b).Select(x => x.Action));
+            Assert.Equal(b.LabelerId, LichSuBai.Tu(b)[0].ActorId);
+
+            b.GhiKetQua(10, 5, 50, false, false, Luc.AddDays(1));
+            SuKienBai cham = LichSuBai.Tu(b)[1];
+            Assert.Equal(SuKienBai.Truot, cham.Action);
+            Assert.Null(cham.ActorId);
+            Assert.StartsWith("50% giống đa số", cham.Note);
+
+            b.KhieuNai("cham sai", Luc.AddDays(3), Luc.AddDays(2));
+            Guid admin = Guid.NewGuid();
+            b.PhanXu(true, "dung la cham sai", admin, true, Luc.AddDays(2).AddHours(1));
+
+            IReadOnlyList<SuKienBai> ds = LichSuBai.Tu(b);
+            Assert.Equal(new[] { SuKienBai.DaNop, SuKienBai.Truot, SuKienBai.KhieuNai, SuKienBai.KhieuNaiChapNhan }, ds.Select(x => x.Action));
+            // Chap nhan khieu nai khong doi ket qua cham goc: van la "truot" luc cham.
+            Assert.Equal("cham sai", ds[2].Note);
+            Assert.Equal(admin, ds[3].ActorId);
+            Assert.Equal("dung la cham sai", ds[3].Note);
+            Assert.Equal(Luc.AddDays(2).AddHours(1), ds[3].At);
         }
     }
 

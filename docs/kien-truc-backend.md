@@ -73,7 +73,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `api-gateway` | 8080 | redis-gateway | C# | — | Edge: authN, rate limit, Turnstile, correlationId |
 | `web-bff` | 8081 | — | C# | — | Gộp đa nguồn cho dashboard; nơi DUY NHẤT được biết nhiều service |
 | `identity-svc` | 8101 | identity_db | C# | users, credentials, sessions, roles, 2fa, profiles, reputation, badges | Bảo mật: DB chứa hash mật khẩu tách khỏi mọi thứ |
-| `project-svc` | 8102 | project_db | C# | projects, label_schemas, guidelines, samples (kèm tiến trình nạp `ingest_state`, không còn bảng `datasets`), gold_items, entrance_tests, **project_members**; làm bài: project_collections, attempts, attempt_history, sample_reports; nhãn: annotations (6 cột — mục 3.25), sample_results — bảng đệm kết quả gộp, quality-svc gộp qua gRPC (mục 3.21, 3.24) | State machine vòng đời dự án — bài làm và nhãn cùng vòng đời nên cùng database (trước là task-svc :8103 và annotation-svc :8104) |
+| `project-svc` | 8102 | project_db | C# | projects, label_schemas, guidelines, samples (kèm tiến trình nạp `ingest_state`, không còn bảng `datasets`), gold_items, entrance_tests, **project_members**; làm bài: project_collections, attempts, sample_reports; nhãn: annotations (6 cột — mục 3.25), sample_results — bảng đệm kết quả gộp, quality-svc gộp qua gRPC (mục 3.21, 3.24) | State machine vòng đời dự án — bài làm và nhãn cùng vòng đời nên cùng database (trước là task-svc :8103 và annotation-svc :8104) |
 | `ledger-svc` | 8105 | ledger_db | C# | accounts, journal_entries, holds, escrows | **Nhất quán tuyệt đối** |
 | `payment-svc` | 8106 | payment_db | C# | payment_intents, payouts, provider_txns, reconciliations | Tích hợp ngoài, webhook + retry, cô lập rủi ro |
 | `link-svc` | 8107 | link_db | C# | links, campaigns, api_keys, referral_codes, referrals, blocked_domains, link_reports | Bounded context của Sharer (**đã có**, mục 3.6) |
@@ -512,7 +512,7 @@ assignments / annotations / gold_items:  task_type = modality,
 | # | Câu hỏi | Chọn | Lý do |
 |---|---|---|---|
 | S1 | Lưu ở đâu | **Một bảng chung `settings` trong `admin_db`**, mỗi dòng một khóa (`key`, `value jsonb`, `version`, `updated_at`, `updated_by`) + `setting_history` (cũ → mới, ai, lý do) | Một chỗ cho admin xem và sửa; lịch sử để truy "ai hạ phí lúc nào" |
-| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 194 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
+| S2 | Kiểu, mặc định, giới hạn khai ở đâu | **Catalog trong code** (`Crowd.BuildingBlocks.Settings.SettingCatalog`, 192 khóa): kiểu (`bool/int/long/double/durationSeconds/text`), mặc định, min/max, danh sách lựa chọn (`choices`, cho khoá text dạng enum), đơn vị, nhóm, mô tả, hiệu lực (`newOperations` / `restart`) | Kiểm giá trị trước khi lưu (phí 95 % → 400). Thêm khóa = thêm một dòng code + test, không cần migration. Python đọc bản xuất `shared/settings/catalog.json` (test C# canh file luôn khớp) |
 | S3 | Service đọc thế nào | **Bản sao `settings_replica` trong DB của chính mỗi service** + bộ nhớ (`SettingsStore`). Nhận `setting.changed`; lúc khởi động nạp bản sao rồi xin `settings.snapshot_requested`, admin-svc phát `settings.snapshot` (cả lúc khởi động và định kỳ) | Đúng luật 1–2 mục 4: không gọi HTTP sang admin-svc trong đường nóng; admin-svc chết thì mọi service vẫn chạy với giá trị đã có. Mỗi khóa có `version` riêng — event đến sai thứ tự không ghi đè giá trị mới |
 | S4 | Đổi có hiệu lực khi nào | **Chỉ cho thao tác mới.** Chu kỳ worker (giải phóng tiền treo, reaper, quét link…) đọc lại mỗi giây qua `ChoTheoSetting`, nên rút ngắn chu kỳ có hiệu lực ngay, không phải chờ hết chu kỳ cũ. Giá trị đọc lại mỗi lần dùng; thứ đã chốt thì giữ: dự án đã publish giữ phí lúc publish, lease đang chạy giữ hạn cũ, lệnh rút đã tạo giữ thuế đã tính | Không ai bị đổi luật giữa chừng. `consumers.prefetch_count` là ngoại lệ (`restart`) vì chỉ đặt được lúc mở kênh |
 | S5 | Domain có đọc setting không | **Không.** Tầng Api đọc setting, dựng **đối tượng quy định** (`QuyDinhDuAn`, `QuyDinhDuLieu`, `QuyDinhBaiTest`, `QuyDinhDuyetNhan`, `QuyDinhRut`, `QuyDinhNap`, `NguongKhop`) truyền vào domain | Domain vẫn thuần, test không cần hạ tầng. Độ rộng cột DB (`CotDb.*`) vẫn là hằng số của schema — setting độ dài bị chặn trần ở đó |
@@ -1018,7 +1018,7 @@ Giữ lại có chủ đích: `labeler_cache` (dữ liệu của identity/qualit
 | ~~Nháp và nhãn hai bảng (`attempt_drafts` + `annotations`)~~ → **đã bỏ `attempt_drafts` (mục 3.25)** | Nháp nằm ở localStorage của frontend, nộp gửi cả bài; backend chỉ còn `annotations` và bảng này chỉ INSERT |
 | `annotations`, `samples` phân vùng **HASH(`project_id`) × 64** | Mọi truy vấn (nộp, chấm, kết quả, xuất) đều theo dự án → chỉ chạm một phân vùng (đã kiểm `EXPLAIN`); chỉ mục mỗi phân vùng nhỏ, VACUUM song song. Khoá chính `(project_id, id)` vì PK của bảng phân vùng phải chứa cột phân vùng |
 | jsonb nén **lz4**, **không GIN** trên `payload` | lz4 nén/giải nén nhanh hơn pglz nhiều lần; không truy vấn nào lọc bên trong JSON nên GIN chỉ tốn ghi và dung lượng |
-| `attempt_history` theo **bài**, không theo nhãn | Một bài 50 câu sinh 1 dòng lịch sử thay vì 50 |
+| ~~`attempt_history` theo bài~~ → **đã bỏ (mục 3.31)** | Lịch sử bài dựng lại từ các cột của `attempts`; không còn bảng chép lại |
 | "Nhãn của tôi" đi qua `attempts` | Lọc theo `labeler_id` trên `attempts` (nhỏ) rồi lấy nhãn theo `(project_id, attempt_id)` — không cần chỉ mục `labeler_id` trên bảng lớn nhất |
 | Khoá theo thứ tự cố định `project_collections → attempts → samples` | Nộp bài, tạm dừng, kết thúc sớm, huỷ, chấm, phân xử khiếu nại đều khoá dòng đợt thu bài trước → không deadlock, không cần event để đồng bộ |
 | `annotations` **không** dùng `xmin` làm khoá lạc quan | Postgres không cho `INSERT … RETURNING xmin` trên bảng phân vùng ("cannot retrieve a system column in this context"); mọi thay đổi trạng thái nhãn đã nằm dưới khoá `project_collections`. Có test chặn tái phát (`PhanVungModelTests`) |
@@ -1254,6 +1254,25 @@ collection_finished → requested_at → graded_at → ds_at → reputation_at
 - Uy tín sau khi chấm có sớm hơn (nhịp worker 5 giây thay vì chờ lô tới 15 phút).
 
 **Đánh đổi.** Trong lúc thu bài, tab Chất lượng của chủ dự án chưa có alpha / kappa / STAPLE / DS — hiển thị "Có sau khi dự án đóng thu bài và chấm xong". Alpha giữa chừng vốn cũng dễ gây hiểu nhầm vì phụ thuộc thứ tự nộp.
+
+### 3.31. Bỏ bảng `attempt_history` — lịch sử bài dựng lại từ `attempts` (11/2026)
+
+**Vấn đề.** `attempt_history` ghi một dòng cho mỗi sự kiện của bài (nộp, chấm đạt / trượt, khiếu nại, phân xử). Nhưng trên một bài mỗi sự kiện xảy ra **tối đa một lần** (nộp một lần; `GhiKetQua` giao lại không đổi; "mỗi bài chỉ khiếu nại một lần"; phân xử một lần) và mốc thời gian, người làm, ghi chú của nó **đã nằm trên `attempts`**:
+
+| Sự kiện | Cột của `attempts` |
+|---|---|
+| submitted | `submitted_at`, `labeler_id` |
+| accepted / excluded | `graded_at`, `passed` (phân xử không sửa `passed` → luôn là kết quả chấm gốc), ghi chú từ `agreement_percent`, `gold_correct / gold_total` |
+| appeal_opened | `appealed_at`, `appeal_message` |
+| appeal_accepted / rejected | `appeal_state`, `appeal_resolved_at`, `appeal_resolved_by`, `appeal_note` |
+
+Bảng riêng chỉ là bản chép lại: mỗi thao tác ghi đôi, có thể lệch với `attempts`, và còn một worker (`HistoryRetentionWorker`) xoá dòng cũ — lịch sử có thể mất trong khi `attempts` vẫn còn đủ.
+
+**Quyết định.** Bỏ bảng; `LichSuBai.Tu(attempt)` (domain) dựng danh sách sự kiện từ các cột trên. API `GET /annotations/attempts/{id}/history` giữ nguyên dạng trả về. Nhật ký đầy đủ, chỉ ghi thêm, vẫn có ở `admin_db.audit_events`.
+
+**Thay đổi CSDL.** Migration `BoAttemptHistory` (DROP TABLE `attempt_history`). Bỏ `HistoryRetentionWorker` và hai setting `annotation.history_retention`, `annotation.history_cleanup_interval` (catalog còn 192 khoá).
+
+**Đánh đổi.** Nếu sau này cho khiếu nại / chấm lại **nhiều lần** trên một bài thì `attempts` chỉ giữ lần cuối — khi đó mới cần lại bảng sự kiện. `sample_results` vẫn giữ bảng riêng: đó là bộ nhớ đệm theo **từng mẫu**, ghi / xoá lẻ từng dòng; gộp vào một cột jsonb của `projects` sẽ phải ghi lại cả khối mỗi lần một mẫu đổi và làm đổi `xmin` của dự án (chủ dự án gặp 409 vô cớ).
 
 ## 4. Dữ liệu chéo — ba luật cứng
 

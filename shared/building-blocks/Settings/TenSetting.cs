@@ -57,8 +57,6 @@ namespace Crowd.BuildingBlocks.Settings
             { "project.max_slots", "Số suất thưởng tối đa" },
             { "project.participant_multiplier", "Hệ số trần người làm bài" },
             { "project.min_reward_vnd", "Tiền thưởng tối thiểu mỗi suất" },
-            { "annotation.history_retention", "Giữ lịch sử nhãn" },
-            { "annotation.history_cleanup_interval", "Chu kỳ dọn lịch sử nhãn" },
             { "project.closed_data_retention", "Giữ dữ liệu vận hành dự án đã đóng" },
             { "project.entrance_question_default", "Số câu bài test mặc định" },
             { "project.entrance_pass_percent_default", "Điểm đạt bài test mặc định" },

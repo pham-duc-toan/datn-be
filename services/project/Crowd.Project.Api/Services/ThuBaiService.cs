@@ -167,9 +167,6 @@ namespace Crowd.Project.Api.Services
                 if (bai.TryGetValue(g.AttemptId, out a))
                 {
                     a.GhiKetQua(g.ComparableCount, g.MatchedCount, g.AgreementPercent, g.Passed, g.Rewarded, p.GradedAt);
-                    _db.AttemptHistory.Add(AttemptHistoryEntry.Tao(
-                        a.Id, a.ProjectId, g.Passed ? AttemptHistoryEntry.Dat : AttemptHistoryEntry.Truot, null,
-                        g.AgreementPercent + "% giống đa số, " + g.GoldCorrect + "/" + g.GoldTotal + " câu vàng", p.GradedAt));
                 }
                 else
                 {
