@@ -140,7 +140,6 @@ namespace Crowd.Project.Api.Seeding
 
             LabelSchema tapNhan = sp.TapNhan();
             duAn.DatLabelSchema(tapNhan, lucTao);
-            duAn.DatHuongDan(Guideline.Tao(sp.GuidelineMarkdown, null, QuyDinhTuSetting.DuAn(_settings)), lucTao);
             duAn.DatCauHinhGia(sp.RewardVnd, sp.Slots, sp.PassThresholdPercent, sp.Deadline(bayGio), lucTao, QuyDinhTuSetting.DuAn(_settings));
             duAn.DatKenhPhanPhoi(true, false, false, null, null, lucTao);
             duAn.DatDieuKienThamGia(
@@ -158,6 +157,7 @@ namespace Crowd.Project.Api.Seeding
             {
                 Sample mau = await TaoMauAsync(sp, s, lucTao, fileDaDay, ct);
                 SeedIds.GanId(mau, s.Id);
+                mau.DatCauHoi(s.Question);
 
                 // Khoa file do kich ban dat — dung chung giua cac service seed.
                 if (s.StorageKey != null)
@@ -167,7 +167,6 @@ namespace Crowd.Project.Api.Seeding
 
                 _db.Samples.Add(mau);
             }
-
 
             // ---- 3. Cau hoi vang — kiem bang tap nhan + metadata nhu API that ----
             foreach (SeedGold g in sp.Gold)

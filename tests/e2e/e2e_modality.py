@@ -3,7 +3,7 @@ import hashlib, json, os, subprocess, sys, time
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_GATE, URL_LINK, rabbit_container, sql_container  # noqa: E402,F401
+from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_GATE, URL_LINK, dat_cau_hoi_chung, rabbit_container, sql_container  # noqa: E402,F401
 import tao_media  # noqa: E402
 
 M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "media")
@@ -171,8 +171,8 @@ def du_an_moi(ten, modality, tap_nhan, so_mau_du_kien_toi_thieu=1):
     pid = r.json()["id"]
     r = requests.patch(G + "/projects/%s" % pid, headers=biz1, json={"labelSchema": tap_nhan})
     kiem("dat tap nhan", r.status_code == 200, r.text)
-    r = requests.patch(G + "/projects/%s" % pid, headers=biz1, json={"guideline": {"markdown": "e2e", "examples": []}})
-    kiem("dat huong dan", r.status_code == 200, r.text)
+    dat_cau_hoi_chung(biz1, pid)
+    kiem("dat cau hoi chung", requests.get(G + "/projects/%s" % pid, headers=biz1).json()["labelSchema"].get("question"))
     return pid
 
 

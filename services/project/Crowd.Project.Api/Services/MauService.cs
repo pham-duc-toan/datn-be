@@ -32,6 +32,9 @@ namespace Crowd.Project.Api.Services
     ///                      MinIO bang link ky san) → mau "queued", SampleIngestor xu ly nen.
     ///   - Nguon ngoai    : liet ke nguon → moi file mot mau "queued" kem link tai, worker tai ve roi xu ly.
     ///
+    /// Cau hoi rieng cua mau (samples.question): dong JSON gui "question"; ZIP / nguon ngoai thi sua tung mau sau
+    /// (PUT .../samples/{id}/question). Khong gui = dung cau hoi chung cua du an.
+    ///
     /// Duong ZIP: thu tu doc ZIP → day tung anh len MinIO → ghi cac dong samples trong MOT SaveChanges. Anh len
     /// MinIO TRUOC khi commit: neu commit hong thi don anh da day (khong de file mo coi).
     /// </summary>
@@ -120,16 +123,8 @@ namespace Crowd.Project.Api.Services
             QuyDinhDuLieu quyDinh = QuyDinhTuSetting.DuLieu(_settings);
 
             // Dau van tay cac anh DA CO trong du an — bo qua anh trung ngay khi doc,
-            // khong day len MinIO lan nua.
-            List<string?> daCoList = await _db.Samples
-                .Where(s => s.ProjectId == projectId && s.Sha256 != null)
-                .Select(s => s.Sha256)
-                .ToListAsync(ct);
-            HashSet<string> daCo = new HashSet<string>(StringComparer.Ordinal);
-            foreach (string? h in daCoList)
-            {
-                daCo.Add(h!);
-            }
+            // khong day len MinIO lan nua. Anh trong ZIP chua co cau hoi rieng → trung khi cung anh, cung cau chung.
+            HashSet<string> daCo = await KhoaTrungDaCoAsync(projectId, ct);
 
             List<Sample> mauMoi = new List<Sample>();
             List<string> khoaDaDay = new List<string>();
@@ -143,7 +138,7 @@ namespace Crowd.Project.Api.Services
                     QuyDinhTuSetting.Zip(_settings),
                     async anh =>
                     {
-                        if (!daCo.Add(anh.Sha256))
+                        if (!daCo.Add(DongNap.KhoaTrung(anh.Sha256, null)))
                         {
                             soTrung = soTrung + 1;
                             return;
@@ -251,14 +246,7 @@ namespace Crowd.Project.Api.Services
             }
             else
             {
-                List<string?> shaDaCo = await _db.Samples
-                    .Where(s => s.ProjectId == projectId && s.Sha256 != null)
-                    .Select(s => s.Sha256)
-                    .ToListAsync(ct);
-                foreach (string? h in shaDaCo)
-                {
-                    daCo.Add(h!);
-                }
+                daCo = await KhoaTrungDaCoAsync(projectId, ct);
             }
 
             List<Sample> moi = new List<Sample>();
@@ -287,15 +275,17 @@ namespace Crowd.Project.Api.Services
                         }
 
                         Sample cho = Sample.TaoChoNap(projectId, duAn.Modality, khoa, ten, DongNap.GoiYFile(o), bayGio, quyDinh);
+                        cho.DatCauHoi(DongNap.CauHoi(o));
                         moi.Add(cho);
                         nhan.Add(new MauNhanResponse { Index = i, SampleId = cho.Id, Name = cho.OriginalName });
                     }
                     else
                     {
                         Sample mau = DongNap.TaoMauNoiDung(o, duAn.Modality, ten, projectId, bayGio, _settings);
-                        if (!daCo.Add(mau.Sha256!))
+                        mau.DatCauHoi(DongNap.CauHoi(o));
+                        if (!daCo.Add(DongNap.KhoaTrung(mau.Sha256!, mau.Question)))
                         {
-                            throw new InvalidValueException("noi_dung_trung", "trùng nội dung với mẫu đã có.");
+                            throw new InvalidValueException("noi_dung_trung", "trùng nội dung (và câu hỏi) với mẫu đã có.");
                         }
 
                         moi.Add(mau);
@@ -481,6 +471,7 @@ namespace Crowd.Project.Api.Services
                     SizeBytes = s.SizeBytes,
                     FileUrl = sanSang && s.StorageKey != null ? _media.TaoLink(MauXem(s), nguoi, CheDoXem.Goc) : null,
                     Content = s.Content,
+                    Question = s.Question,
                     Metadata = s.Metadata,
                     IngestState = s.IngestState,
                     IngestError = s.IngestError,
@@ -496,6 +487,65 @@ namespace Crowd.Project.Api.Services
                 PageSize = pageSize,
                 Total = tong,
             };
+        }
+
+        /// <summary>
+        /// Sua cau hoi RIENG cua mot mau (null / rong = bo, dung lai cau hoi chung). Chi khi du an con Nhap — doi cau
+        /// hoi giua chung thi bai nop truoc va sau tra loi hai cau khac nhau. Mau dang nap cung sua duoc (vd vua
+        /// upload ZIP xong). Trung (cung noi dung + cung cau hoi) voi mau khac → 409.
+        /// </summary>
+        public async Task<SampleQuestionResponse> DatCauHoiAsync(
+            Guid projectId, Guid sampleId, DatCauHoiMauRequest body, Caller caller, CancellationToken ct)
+        {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
+            duAn.KiemTraCoTheNapDuLieu();
+
+            Sample? mau = await _db.Samples.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(s => s.ProjectId == projectId && s.Id == sampleId, ct);
+            if (mau == null)
+            {
+                throw new Crowd.Project.Api.Exceptions.NotFoundException("Không tìm thấy mẫu.");
+            }
+
+            mau.DatCauHoi(body.Question);
+
+            if (mau.Sha256 != null)
+            {
+                string sha = mau.Sha256;
+                string? cauHoi = mau.Question;
+                bool trung = await _db.Samples.IgnoreQueryFilters().AnyAsync(
+                    s => s.ProjectId == projectId && s.Id != sampleId && s.Sha256 == sha && s.Question == cauHoi, ct);
+                if (trung)
+                {
+                    throw new RuleViolationException(
+                        "noi_dung_trung",
+                        "Đã có mẫu khác cùng nội dung và cùng câu hỏi. Đặt câu hỏi khác để phân biệt.");
+                }
+            }
+
+            await _db.SaveChangesAsync(ct);
+            return new SampleQuestionResponse { SampleId = mau.Id, Question = mau.Question };
+        }
+
+        /// <summary>Khoa chong trung (noi dung + cau hoi rieng) cua cac mau da doc xong trong du an.</summary>
+        private async Task<HashSet<string>> KhoaTrungDaCoAsync(Guid projectId, CancellationToken ct)
+        {
+            var daCo = await _db.Samples
+                .Where(s => s.ProjectId == projectId && s.Sha256 != null)
+                .Select(s => new { s.Sha256, s.Question })
+                .ToListAsync(ct);
+            HashSet<string> khoa = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var m in daCo)
+            {
+                khoa.Add(DongNap.KhoaTrung(m.Sha256!, m.Question));
+            }
+
+            return khoa;
         }
 
         /// <summary>Dem mau theo tien trinh nap — giao dien hien "da xu ly x / y" va biet khi nao xong.</summary>

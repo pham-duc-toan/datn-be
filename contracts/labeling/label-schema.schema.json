@@ -7,6 +7,10 @@
   "required": ["modality", "tools"],
   "properties": {
     "modality": { "enum": ["image", "text", "audio", "video", "pair", "list"] },
+    "question": {
+      "description": "Cau hoi chung cua du an — labeler thay o dau moi cau (vd \"Con vat trong anh la gi?\"). Mau co cau hoi rieng (samples.question) thi hien cau rieng thay cho cau nay. Bat buoc truoc khi publish (kiem trong project-svc).",
+      "type": "string", "minLength": 1, "maxLength": 1000
+    },
     "segmentSeconds": {
       "description": "Chi audio/video: cat file dai thanh doan N giay, moi doan la mot task.",
       "type": "integer", "minimum": 5, "maximum": 3600
@@ -69,7 +73,11 @@
         "max": { "type": "number" },
         "integer": { "type": "boolean" },
         "tolerance": { "type": "number", "minimum": 0 },
-        "rotatable": { "type": "boolean" }
+        "rotatable": { "type": "boolean" },
+        "hint": {
+          "description": "Dong nhac rieng cua cong cu, hien canh cong cu (vd \"Khoanh sat mep, ke ca phan bi che\").",
+          "type": "string", "minLength": 1, "maxLength": 300
+        }
       },
       "allOf": [
         {

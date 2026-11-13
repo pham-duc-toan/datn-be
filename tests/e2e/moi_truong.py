@@ -68,6 +68,16 @@ def cho_moi_noi_doc_lai_setting(gateway: str, headers: dict) -> None:
     time.sleep(float(giay) + 1.5)
 
 
+def dat_cau_hoi_chung(headers: dict, pid: str, cau: str = "Chon dap an dung cho mau nay.") -> None:
+    """Dat cau hoi chung (labelSchema.question) — bat buoc truoc khi publish, thay huong dan Markdown da bo.
+    Doc tap nhan hien tai roi gui lai kem cau hoi (chi sua chu: du an co cau vang van sua duoc)."""
+    import requests
+
+    tn = requests.get(G + f"/projects/{pid}", headers=headers).json()["labelSchema"]
+    tn["question"] = cau
+    requests.patch(G + f"/projects/{pid}", headers=headers, json={"labelSchema": tn}).raise_for_status()
+
+
 def sql_container(db: str) -> str:
     """Ten container Postgres cua service `db` (identity, project, ...)."""
     return f"{TIEN_TO_CONTAINER}db-{db}"

@@ -73,7 +73,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `api-gateway` | 8080 | redis-gateway | C# | — | Edge: authN, rate limit, Turnstile, correlationId |
 | `web-bff` | 8081 | — | C# | — | Gộp đa nguồn cho dashboard; nơi DUY NHẤT được biết nhiều service |
 | `identity-svc` | 8101 | identity_db | C# | users, credentials, sessions, roles, 2fa, profiles, reputation, badges | Bảo mật: DB chứa hash mật khẩu tách khỏi mọi thứ |
-| `project-svc` | 8102 | project_db | C# | projects, label_schemas, guidelines, samples (kèm tiến trình nạp `ingest_state`, không còn bảng `datasets`), gold_items, entrance_tests, **project_members**; làm bài: project_collections, attempts, sample_reports; nhãn: annotations (6 cột — mục 3.25), sample_results — bảng đệm kết quả gộp, quality-svc gộp qua gRPC (mục 3.21, 3.24) | State machine vòng đời dự án — bài làm và nhãn cùng vòng đời nên cùng database (trước là task-svc :8103 và annotation-svc :8104) |
+| `project-svc` | 8102 | project_db | C# | projects (tập nhãn kèm câu hỏi chung — mục 3.34), samples (kèm tiến trình nạp `ingest_state`, câu hỏi riêng `question`; không còn bảng `datasets`), gold_items, entrance_tests, **project_members**; làm bài: project_collections, attempts, sample_reports; nhãn: annotations (6 cột — mục 3.25), sample_results — bảng đệm kết quả gộp, quality-svc gộp qua gRPC (mục 3.21, 3.24) | State machine vòng đời dự án — bài làm và nhãn cùng vòng đời nên cùng database (trước là task-svc :8103 và annotation-svc :8104) |
 | `ledger-svc` | 8105 | ledger_db | C# | accounts, journal_entries, holds, escrows | **Nhất quán tuyệt đối** |
 | `payment-svc` | 8106 | payment_db | C# | payment_intents, payouts, provider_txns, reconciliations | Tích hợp ngoài, webhook + retry, cô lập rủi ro |
 | `link-svc` | 8107 | link_db | C# | links, campaigns, api_keys, referral_codes, referrals, blocked_domains, link_reports | Bounded context của Sharer (**đã có**, mục 3.6) |
@@ -713,7 +713,7 @@ Sau thay đổi: 6 loại dữ liệu, 15 công cụ, mọi công cụ trừ câ
 | C1 | Ô nhập chữ cho ảnh / văn bản / cặp | Tách **`freeText`** (câu trả lời mở: không chấm, không gộp) khỏi **`transcription`** (chép nội dung có sẵn: chấm bằng CER, gộp được; mở thêm cho ảnh) | Cùng hình dạng `{text}` nhưng khác bản chất. Dùng chung một công cụ thì mô tả ảnh sẽ bị đem ra "đồng thuận" — không bao giờ khớp, đốt hết trần redundancy |
 | C2 | OCR, "xe + bị che khuất" | **Thuộc tính khai trên công cụ**, mang theo từng đối tượng; không tạo công cụ `ocr` riêng | Một cơ chế phủ OCR (khung + `text`), phân loại phụ (`choice`), cờ (`boolean`) cho cả 8 công cụ dạng danh sách. Đánh đổi: kiểu của giá trị phụ thuộc tập nhãn nên JSON Schema chỉ kiểm được "là chuỗi / số / true-false", phần còn lại kiểm trong code |
 | C3 | Quan hệ trỏ tới đoạn nào | Bằng **vị trí** `[start, end)` của đoạn trong công cụ `span` mà `spanTool` chỉ tới; kiểm chéo giữa hai công cụ sau khi chuẩn hoá từng công cụ | Tham chiếu bằng số thứ tự sẽ lệch: danh sách đoạn được **sắp xếp lại** khi chuẩn hoá (để hai nhãn giống nhau ra cùng chuỗi JSON). Cái giá: `LabelPayload.Tao` có thêm một bước luật **giữa** các công cụ |
-| C4 | Xếp hạng nhiều mục | Loại dữ liệu mới **`list`** (`content = {prompt, items[]}`, `metadata.itemCount`); kết quả là hoán vị các **chỉ số** mục | `pair` cố định hai mục `a` / `b`. Chỉ số gọn và kiểm được ngay bằng `itemCount`; đánh đổi: thứ tự `items` trở thành định danh, không sửa được sau khi nạp (mẫu vốn bất biến) |
+| C4 | Xếp hạng nhiều mục | Loại dữ liệu mới **`list`** (`content = {items[]}` — câu hỏi ở `samples.question` từ 3.34, trước là `content.prompt`; `metadata.itemCount`); kết quả là hoán vị các **chỉ số** mục | `pair` cố định hai mục `a` / `b`. Chỉ số gọn và kiểm được ngay bằng `itemCount`; đánh đổi: thứ tự `items` trở thành định danh, không sửa được sau khi nạp (mẫu vốn bất biến) |
 | C5 | Lưu mặt nạ | **RLE không nén kiểu COCO** ngay trong `payload jsonb` (đoạn 0 / 1 xen kẽ, duyệt theo cột), bắt buộc ở dạng chuẩn; mọi phép tính (IoU, bỏ phiếu từng pixel, hình bao) đi trên **đoạn**, không bung ra pixel | Không cần kho file riêng, không đổi bảng, xuất COCO không phải chuyển đổi. Mặt nạ ảnh 4K vẫn chỉ vài nghìn đoạn. Chặn kích thước: ≤ 100.000 đoạn mỗi mặt nạ, tổng ≤ 200.000 đoạn mỗi công cụ (nhãn đi qua 3 event). Không dùng PNG / RLE nén: phải giải mã mới tính được |
 | C6 | Theo dõi đối tượng | Mỗi đối tượng = chuỗi **keyframe** `{t, x, y, w, h}`, giữa hai keyframe **nội suy tuyến tính**; độ giống = IoU không-thời gian lấy mẫu 50 thời điểm trên khoảng hợp của hai chuỗi | Người gán chỉ vẽ ở vài thời điểm thay vì từng khung hình; phép đo phạt cả lệch vị trí lẫn lệch thời điểm bắt đầu / kết thúc. Chưa có ẩn / hiện lại trong một chuỗi |
 | C7 | Thước đo cho điểm mốc và đường | Chuẩn hoá độ lệch theo **đường chéo ảnh** → cần kích thước ảnh ở mọi nơi chấm: `KhopDapAn(..., metadata mẫu)` (task-svc, project-svc) và `annotation.submitted.sampleMetadata` → `labels.sample_metadata` (quality-svc) | Ngưỡng theo pixel sẽ sai giữa ảnh 4K và ảnh thu nhỏ. Thêm vài chục byte vào một event, đổi lại quality-svc không phải gọi đồng bộ sang service khác (luật 1 mục 4). Mẫu cũ không có kích thước: dùng hình bao của chính các điểm đang so |
@@ -1319,7 +1319,7 @@ Mỗi cụm kéo theo consumer, chống event lộn thứ tự (`sequence`, `ver
 - Nới cô lập credential của 3.1 có kiểm soát: bên đọc chỉ thấy đúng view, không thấy bảng. Hợp đồng giữa service chuyển một phần từ event sang **view** — chủ đổi bảng thì sửa view của mình; đổi cột của view là đổi hợp đồng.
 - Khởi động phụ thuộc DB chủ: admin_db chưa sẵn sàng thì service chưa nhận việc (warm-up chờ); gate mới khởi động cần project / ledger / link DB. Đang chạy thì gate vẫn phục vụ từ bộ nhớ khi DB chủ tắt (e2e: tắt `db-project`, gate vẫn trả lời).
 - Độ trễ: đổi setting, tạm dừng dự án, khoá link, hết ngân sách có hiệu lực sau tối đa một chu kỳ (5 giây) thay vì gần như tức thì qua event. Ledger vẫn là bên chặn cuối khi chi tiền cổng.
-- Tải đọc nhỏ: mỗi instance đọc `v_settings` (190 dòng) mỗi 5 giây; mỗi gate đọc danh sách dự án / link / ngân sách mỗi 5 giây.
+- Tải đọc nhỏ: mỗi instance đọc `v_settings` (190 dòng; 187 sau 3.34) mỗi 5 giây; mỗi gate đọc danh sách dự án / link / ngân sách mỗi 5 giây.
 
 ### 3.33. Bỏ hàng đợi duyệt chung — mỗi loại đơn duyệt ở trang riêng (11/2026)
 
@@ -1338,6 +1338,30 @@ Các event mở / đóng đơn (`business.kyb_submitted`, `withdrawal.review_req
 **Thay đổi CSDL.** Migration admin `BoHangDoiDuyetChung` (DROP `approval_requests`, CREATE `manual_actions`).
 
 **Đánh đổi.** Admin không còn một màn hình "mọi thứ đang chờ" và không thấy tổng số đơn chờ trên trang tổng quan — phải mở từng trang. Bù lại bỏ được một read model dễ lệch và toàn bộ logic dựng nó.
+
+### 3.34. Câu hỏi của mẫu thay hướng dẫn Markdown của dự án (11/2026)
+
+**Vấn đề.** Mẫu (= một câu trong bài) chỉ có nội dung: ảnh, âm thanh, video, văn bản không có chỗ ghi *hỏi gì*. Labeler phải tự hiểu từ hướng dẫn Markdown của dự án (`projects.guideline`: markdown + ví dụ đúng / sai). Chỉ mẫu dạng cặp / danh sách có `content.prompt` tuỳ chọn. Trong khi đó frontend đã có hướng dẫn kiểu game (màn luyện tập từng loại công cụ + tour trang làm bài), nên hướng dẫn Markdown vừa trùng vừa hay bị bỏ qua.
+
+**Quyết định (người dùng chọn "chung + ghi đè").**
+
+| | Làm gì |
+|---|---|
+| Câu hỏi chung | `label_schema.question` (1–1000 ký tự, cắt khoảng trắng) — **bắt buộc trước khi publish** (`readiness.missing` có `chua_co_cau_hoi`, thay `chua_co_huong_dan`). Nằm trong tập nhãn nên đi cùng mọi nơi đã có tập nhãn (bài làm, test đầu vào, mẫu bài toán của admin, view `v_gate_projects`) |
+| Dòng nhắc công cụ | `label_schema.tools[].hint` (tuỳ chọn, ≤ 300 ký tự) — hiện dưới tên công cụ |
+| Câu hỏi riêng | `samples.question` (nullable, ≤ 1000) — chủ dự án điền khi thêm mẫu (`"question"` trong dòng JSON, mọi loại dữ liệu) hoặc sửa từng mẫu `PUT /projects/{id}/samples/{sampleId}/question` (chỉ khi `draft`; rỗng = bỏ). Đoạn cắt từ file dài kế thừa câu của file gốc. **Không** chép câu chung vào từng mẫu — NULL nghĩa là dùng câu chung |
+| Câu hiển thị | `Sample.CauHoiHienThi(tapNhan)` = câu riêng, không có thì câu chung. Trả sẵn trong `questions[].question` (bài làm, test đầu vào), `sampleQuestion` (nhãn, kết quả gộp); view `v_gate_samples` thêm cột `question = COALESCE(s.question, label_schema->>'question')` cho gate |
+| Bỏ | `projects.guideline`, nhóm `guideline` của `PATCH /projects/{id}`, domain `Guideline`, 3 setting `guideline.*` (catalog còn 187 khoá), `workspace_templates.guideline_markdown`, `content.prompt` của mẫu cặp / danh sách (chuyển thành `samples.question`) |
+
+**Chống trùng mẫu** tính theo *(nội dung, câu hỏi riêng)*: cùng một ảnh hỏi hai câu khác nhau là hai mẫu (hỏi đáp về ảnh); cùng ảnh cùng câu (hoặc cùng dùng câu chung) vẫn là trùng. Chỉ mục `ux_samples_project_sha256_question (project_id, sha256, question) NULLS NOT DISTINCT WHERE sha256 IS NOT NULL` thay `ux_samples_project_sha256` (Postgres 16 cho phép trên bảng phân vùng vì có cột phân vùng). Sửa câu riêng trùng với mẫu khác → `409 noi_dung_trung`.
+
+**Đã có câu vàng** vẫn sửa được câu hỏi chung / dòng nhắc (so tập nhãn sau khi bỏ `question` và `hint`); đổi công cụ / lớp thì vẫn `409 da_co_cau_hoi_vang` như trước.
+
+**Hướng dẫn cho người tạo dự án (frontend, người dùng chọn "tour + ⓘ + xem trước").** Tour làm nổi từng vùng ở tab Cấu hình (tự mở lần đầu, nút "Xem lại hướng dẫn"; trạng thái nhớ trên trình duyệt như tour của labeler); biểu tượng ⓘ cạnh mỗi thông số giải thích *tác dụng với dự án* và *labeler thấy ở đâu*; nút "Xem như labeler" dựng thẻ dự án ở chợ + một câu trong bài (câu ví dụ, gán thử được) từ cấu hình đang soạn. Màn luyện tập của labeler thêm bước "đọc câu hỏi"; tour trang làm bài thay điểm dừng "Hướng dẫn của dự án" bằng "Câu hỏi của câu".
+
+**Thay đổi CSDL.** Migration project `CauHoiThayHuongDan` (DROP `projects.guideline`; ADD `samples.question`; đổi chỉ mục chống trùng; `CREATE OR REPLACE VIEW v_gate_samples` thêm cột `question` ở cuối). Migration admin `BoHuongDanMauBaiToan` (DROP `workspace_templates.guideline_markdown`). Dữ liệu seed: tập nhãn của mọi dự án / mẫu bài toán seed có `question`; mẫu cặp seed chuyển `prompt` sang `question` — demo phải seed lại (`down -v`).
+
+**Đánh đổi.** Mất chỗ viết luật dài và ví dụ đúng / sai theo dự án: luật ngắn đưa vào câu hỏi / dòng nhắc, cách dùng công cụ do màn luyện tập dạy. Đổi câu hỏi chỉ được khi còn nháp (như tập nhãn) — trước đây hướng dẫn sửa được cả khi tạm dừng.
 
 ## 4. Dữ liệu chéo — ba luật cứng
 

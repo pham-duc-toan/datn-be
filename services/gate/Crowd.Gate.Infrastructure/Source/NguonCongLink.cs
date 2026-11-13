@@ -80,7 +80,7 @@ namespace Crowd.Gate.Infrastructure.Source
         {
             List<MauCong> mau = new List<MauCong>();
             await using (NpgsqlCommand cmd = _project.CreateCommand(
-                "SELECT sample_id, modality, storage_key, content::text, metadata::text FROM v_gate_samples WHERE project_id = $1"))
+                "SELECT sample_id, modality, storage_key, content::text, metadata::text, question FROM v_gate_samples WHERE project_id = $1"))
             {
                 cmd.Parameters.Add(new NpgsqlParameter { Value = projectId });
                 await using (NpgsqlDataReader r = await cmd.ExecuteReaderAsync(ct))
@@ -93,7 +93,8 @@ namespace Crowd.Gate.Infrastructure.Source
                             r.GetString(1),
                             r.IsDBNull(2) ? null : r.GetString(2),
                             r.IsDBNull(3) ? null : RawJson.Tu(r.GetString(3)),
-                            RawJson.Tu(r.GetString(4))));
+                            RawJson.Tu(r.GetString(4)),
+                            r.IsDBNull(5) ? null : r.GetString(5)));
                     }
                 }
             }

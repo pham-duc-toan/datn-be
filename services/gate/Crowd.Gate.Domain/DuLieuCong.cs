@@ -56,7 +56,7 @@ namespace Crowd.Gate.Domain
     /// <summary>Mau cua du an len cong — doc tu view v_gate_samples (mot lan moi du an: sau publish mau khong doi).</summary>
     public sealed class MauCong
     {
-        public MauCong(Guid sampleId, Guid projectId, string modality, string? storageKey, RawJson? content, RawJson metadata)
+        public MauCong(Guid sampleId, Guid projectId, string modality, string? storageKey, RawJson? content, RawJson metadata, string? question)
         {
             if (modality == null)
             {
@@ -74,6 +74,7 @@ namespace Crowd.Gate.Domain
             StorageKey = storageKey;
             Content = content;
             Metadata = metadata;
+            Question = question;
         }
 
         public Guid SampleId { get; }
@@ -87,6 +88,9 @@ namespace Crowd.Gate.Domain
         public RawJson? Content { get; }
 
         public RawJson Metadata { get; }
+
+        /// <summary>Cau hoi hien cho khach — project quyet trong view (cau rieng cua mau, khong co thi cau chung).</summary>
+        public string? Question { get; }
     }
 
     /// <summary>

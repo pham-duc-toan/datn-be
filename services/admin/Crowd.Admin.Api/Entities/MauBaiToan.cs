@@ -4,16 +4,16 @@ namespace Crowd.Admin.Api.Entities
 {
     /// <summary>
     /// Danh muc loai bai toan / template workspace (FM-03). Admin soan san: loai du lieu + tap nhan (cong cu,
-    /// lop) + huong dan mau + goi y gia. Doanh nghiep chon mot mau khi tao du an roi sua tiep — frontend chep
-    /// tap nhan / huong dan sang du an qua API cua project-svc (du an KHONG tham chieu mau: sua mau khong lam
-    /// doi du an da tao). Tap nhan duoc kiem bang chinh bo doc LabelSchema cua project-svc.
+    /// lop, CAU HOI CHUNG "question") + goi y gia. Doanh nghiep chon mot mau khi tao du an roi sua tiep — frontend
+    /// chep tap nhan sang du an qua API cua project-svc (du an KHONG tham chieu mau: sua mau khong lam doi du an da
+    /// tao). Tap nhan duoc kiem bang chinh bo doc LabelSchema cua project-svc. Huong dan Markdown da bo (cau hoi
+    /// thay huong dan).
     /// </summary>
     public sealed class MauBaiToan
     {
         public const int DoDaiMaToiDa = 60;
         public const int DoDaiTenToiDa = 120;
         public const int DoDaiMoTaToiDa = 1000;
-        public const int DoDaiHuongDanToiDa = 20000;
 
         private MauBaiToan()
         {
@@ -22,7 +22,6 @@ namespace Crowd.Admin.Api.Entities
             Description = string.Empty;
             Modality = string.Empty;
             LabelSchemaJson = string.Empty;
-            GuidelineMarkdown = string.Empty;
         }
 
         public Guid Id { get; private set; }
@@ -37,8 +36,6 @@ namespace Crowd.Admin.Api.Entities
         public string Modality { get; private set; }
 
         public string LabelSchemaJson { get; private set; }
-
-        public string GuidelineMarkdown { get; private set; }
 
         public long? SuggestedUnitPriceVnd { get; private set; }
 
@@ -56,7 +53,7 @@ namespace Crowd.Admin.Api.Entities
         public Guid UpdatedBy { get; private set; }
 
         public static MauBaiToan Tao(
-            string code, string name, string description, string modality, string labelSchemaJson, string guideline,
+            string code, string name, string description, string modality, string labelSchemaJson,
             long? giaGoiY, int? redundancyGoiY, Guid adminId, DateTimeOffset luc)
         {
             MauBaiToan m = new MauBaiToan();
@@ -65,19 +62,18 @@ namespace Crowd.Admin.Api.Entities
             m.Active = true;
             m.Version = 0;
             m.CreatedAt = luc;
-            m.Sua(name, description, modality, labelSchemaJson, guideline, giaGoiY, redundancyGoiY, adminId, luc);
+            m.Sua(name, description, modality, labelSchemaJson, giaGoiY, redundancyGoiY, adminId, luc);
             return m;
         }
 
         public void Sua(
-            string name, string description, string modality, string labelSchemaJson, string guideline,
+            string name, string description, string modality, string labelSchemaJson,
             long? giaGoiY, int? redundancyGoiY, Guid adminId, DateTimeOffset luc)
         {
             Name = name;
             Description = description;
             Modality = modality;
             LabelSchemaJson = labelSchemaJson;
-            GuidelineMarkdown = guideline;
             SuggestedUnitPriceVnd = giaGoiY;
             SuggestedRedundancy = redundancyGoiY;
             Version = Version + 1;

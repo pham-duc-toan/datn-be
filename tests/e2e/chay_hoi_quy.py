@@ -79,6 +79,8 @@ ok &= chay("thong_bao_realtime", "e2e_thong_bao_realtime.py")
 ok &= chay("grpc_phu_thuoc", "e2e_grpc_phu_thuoc.py")
 # Cho du an chi hien du an labeler lam duoc ngay (dieu kien, cho, han chot, da nop).
 ok &= chay("cho_du_an", "e2e_cho_du_an.py")
+# Cau hoi cua mau thay huong dan (11/2026): cau hoi chung bat buoc, cau rieng tung mau, chong trung (noi dung, cau hoi).
+ok &= chay("cau_hoi", "e2e_cau_hoi.py")
 
 dat("ledger.gate_batch_interval", 2)
 dat("ledger.gate_payout_mode", "batched")

@@ -175,11 +175,6 @@ namespace Crowd.Admin.Api.Persistence.Migrations
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("description");
 
-                    b.Property<string>("GuidelineMarkdown")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("guideline_markdown");
-
                     b.Property<string>("LabelSchemaJson")
                         .IsRequired()
                         .HasColumnType("jsonb")

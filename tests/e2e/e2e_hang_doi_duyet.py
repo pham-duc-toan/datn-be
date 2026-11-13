@@ -139,8 +139,9 @@ try:
     print("\n[5] Mau bai toan (FM-03)")
     ma = f"ner-{TAG}".lower()[:60]
     mau = {"code": ma, "name": "Gan the thuc the tieng Viet", "description": "Nguoi, dia diem",
-           "labelSchema": {"modality": "text", "tools": [{"name": "ner", "kind": "span", "classes": ["PER", "LOC"]}]},
-           "guidelineMarkdown": "# Huong dan\nBoi den ten nguoi.", "suggestedUnitPriceVnd": 800, "suggestedRedundancy": 3}
+           "labelSchema": {"modality": "text", "question": "Cau nay nhac toi ai, o dau?",
+                           "tools": [{"name": "ner", "kind": "span", "classes": ["PER", "LOC"], "hint": "Boi den ca cum tu"}]},
+           "suggestedUnitPriceVnd": 800, "suggestedRedundancy": 3}
     r = requests.post(G + "/admin/templates", headers=admin, json=mau)
     kiem("admin tao mau → 201, version 1", r.status_code == 201 and r.json()["version"] == 1 and r.json()["modality"] == "text", r.text)
     mid = r.json().get("id")

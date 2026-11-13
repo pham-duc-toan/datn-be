@@ -208,11 +208,14 @@ namespace Crowd.Project.Api.Services
 
             if (mau.IngestState == TrangThaiNap.SanSang)
             {
-                // Trung noi dung voi mau da san sang → khong nhan doi cau hoi (UNIQUE project_id + sha256).
-                bool trung = await _db.Samples.AnyAsync(s => s.ProjectId == mau.ProjectId && s.Sha256 == mau.Sha256 && s.Id != mau.Id, ct);
+                // Trung noi dung VA cau hoi rieng voi mau da san sang → khong nhan doi cau hoi
+                // (UNIQUE project_id + sha256 + question). Cung file hoi cau khac nhau la hai mau.
+                string? cauHoi = mau.Question;
+                bool trung = await _db.Samples.AnyAsync(
+                    s => s.ProjectId == mau.ProjectId && s.Sha256 == mau.Sha256 && s.Question == cauHoi && s.Id != mau.Id, ct);
                 if (trung)
                 {
-                    mau.NapLoi("Trùng nội dung với một mẫu đã có trong dự án.", doDaiLoi);
+                    mau.NapLoi("Trùng nội dung (và câu hỏi) với một mẫu đã có trong dự án.", doDaiLoi);
                     doanThem.Clear();
                 }
             }
@@ -384,7 +387,10 @@ namespace Crowd.Project.Api.Services
                 }
                 else
                 {
-                    them.Add(Sample.TaoTuFile(duAn.Id, duAn.Modality, khoa, tenDoan, loai, tt.SizeBytes, bamDoan, md, bayGio, quyDinh));
+                    Sample doanMoi = Sample.TaoTuFile(duAn.Id, duAn.Modality, khoa, tenDoan, loai, tt.SizeBytes, bamDoan, md, bayGio, quyDinh);
+                    // Doan cat ra hoi cung cau voi file goc.
+                    doanMoi.DatCauHoi(mau.Question);
+                    them.Add(doanMoi);
                 }
             }
 

@@ -115,7 +115,7 @@ namespace Crowd.Admin.Api.Controllers
             return Ok(await _mau.LayAsync(id, true, ct));
         }
 
-        /// <summary>POST /admin/templates { code, name, description, labelSchema, guidelineMarkdown, suggestedUnitPriceVnd, suggestedRedundancy }</summary>
+        /// <summary>POST /admin/templates { code, name, description, labelSchema, suggestedUnitPriceVnd, suggestedRedundancy }</summary>
         [HttpPost("templates")]
         public async Task<IActionResult> TaoMau([FromBody] TemplateRequest body, CancellationToken ct)
         {

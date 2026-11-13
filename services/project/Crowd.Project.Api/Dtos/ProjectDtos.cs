@@ -31,10 +31,11 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>Ten, mo ta, che do hien thi.</summary>
         public UpdateProjectInfoRequest? Info { get; init; }
 
-        /// <summary>Tap nhan {"tools":[...], "segmentSeconds"?: ...}; "modality" co the bo (lay theo du an).</summary>
+        /// <summary>
+        /// Tap nhan {"question": "...", "tools":[...], "segmentSeconds"?: ...}; "modality" co the bo (lay theo du an).
+        /// "question" = cau hoi chung labeler thay o moi cau (thay huong dan Markdown da bo).
+        /// </summary>
         public System.Text.Json.JsonElement? LabelSchema { get; init; }
-
-        public GuidelineRequest? Guideline { get; init; }
 
         public PricingRequest? Pricing { get; init; }
 
@@ -59,24 +60,6 @@ namespace Crowd.Project.Api.Dtos
         public string? Description { get; init; }
 
         public ProjectVisibility? Visibility { get; init; }
-    }
-
-    public sealed class GuidelineRequest
-    {
-        public string? Markdown { get; init; }
-
-        public IReadOnlyList<GuidelineExampleDto>? Examples { get; init; }
-    }
-
-    public sealed class GuidelineExampleDto
-    {
-        public Guid? SampleId { get; init; }
-
-        public string? Label { get; init; }
-
-        public bool IsCorrect { get; init; }
-
-        public string? Explanation { get; init; }
     }
 
     /// <summary>Tien theo CA DU AN (docs 3.18) — ky quy tinh tu dong, khong nhap ngan sach.</summary>
@@ -129,13 +112,6 @@ namespace Crowd.Project.Api.Dtos
 
     // ---- Response ----
 
-    public sealed class GuidelineResponse
-    {
-        public required string Markdown { get; init; }
-
-        public required IReadOnlyList<GuidelineExampleDto> Examples { get; init; }
-    }
-
     /// <summary>
     /// Chi tiet du an. Cac truong danh dau "chi chu du an" la null khi nguoi
     /// xem la labeler — ngan sach va ly do bi tu choi la thong tin noi bo cua
@@ -157,8 +133,6 @@ namespace Crowd.Project.Api.Dtos
 
         /// <summary>Tap nhan dang chuan (Crowd.Labeling): {"modality":..., "tools":[...]}. null = chua dat.</summary>
         public RawJson? LabelSchema { get; init; }
-
-        public GuidelineResponse? Guideline { get; init; }
 
         /// <summary>Thuong cho MOT nguoi lam dat ca du an (moi labeler lam het cac cau trong mot bai).</summary>
         public required long RewardVnd { get; init; }

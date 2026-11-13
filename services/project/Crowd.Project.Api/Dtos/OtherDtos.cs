@@ -200,6 +200,19 @@ namespace Crowd.Project.Api.Dtos
 
     // ---- Mau & tien trinh nap ----
 
+    /// <summary>PUT /projects/{id}/samples/{sampleId}/question — null / rong = bo cau hoi rieng.</summary>
+    public sealed class DatCauHoiMauRequest
+    {
+        public string? Question { get; init; }
+    }
+
+    public sealed class SampleQuestionResponse
+    {
+        public required Guid SampleId { get; init; }
+
+        public string? Question { get; init; }
+    }
+
     public sealed class SampleResponse
     {
         public required Guid Id { get; init; }
@@ -213,8 +226,11 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>Link xem / nghe BAN GOC qua media-svc, het han sau vai phut (S-07). null voi text / pair, hoac khi mau chua nap xong.</summary>
         public string? FileUrl { get; init; }
 
-        /// <summary>Noi dung voi text / pair: {"text"} hoac {"prompt","a","b"}.</summary>
+        /// <summary>Noi dung voi text / pair / list: {"text"}, {"a","b"} hoac {"items"}.</summary>
         public RawJson? Content { get; init; }
+
+        /// <summary>Cau hoi RIENG cua mau. null = labeler thay cau hoi chung (labelSchema.question).</summary>
+        public string? Question { get; init; }
 
         /// <summary>width/height, durationSec, length, segmentStart/segmentEnd...</summary>
         public required RawJson Metadata { get; init; }
@@ -318,7 +334,8 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>
         /// Cac dong (toi da dataset.manifest_inline_max_rows). Theo loai du lieu:
         ///   image / audio / video: {"file":"&lt;key&gt;", "durationSec"?: 12.5, "width"?:..., "height"?:...}
-        ///   text: {"text":"..."}     pair: {"prompt"?:"...", "a":"...", "b":"..."}     list: {"prompt"?:"...", "items":["..",".."]}
+        ///   text: {"text":"..."}     pair: {"a":"...", "b":"..."}     list: {"items":["..",".."]}
+        ///   moi loai them "question"?: cau hoi rieng cua mau (bo trong = cau hoi chung cua du an)
         /// Moi dong co the them "name" de doi chieu.
         /// </summary>
         public JsonElement? Rows { get; init; }
@@ -382,6 +399,9 @@ namespace Crowd.Project.Api.Dtos
         public string? FileUrl { get; init; }
 
         public RawJson? Content { get; init; }
+
+        /// <summary>Cau hoi labeler thay o cau nay: cau rieng cua mau, khong co thi cau hoi chung cua du an.</summary>
+        public string? Question { get; init; }
 
         public required RawJson Metadata { get; init; }
     }

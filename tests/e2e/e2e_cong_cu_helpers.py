@@ -3,6 +3,7 @@ import os, subprocess, sys, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from moi_truong import dat_cau_hoi_chung  # noqa: E402
 from tro_giup import G, TAG, cho, nap_mau, vi  # noqa: E402
 import tao_media  # noqa: E402
 
@@ -38,7 +39,7 @@ def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, red=2, tran=3, go
     pid = r.json()["id"]
     r = requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"labelSchema": tap_nhan})
     assert r.status_code == 200, r.text
-    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
+    dat_cau_hoi_chung(chu["h"], pid)
     if dieu_kien:
         requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"eligibility": dieu_kien}).raise_for_status()
 

@@ -156,12 +156,19 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.MediaError).HasColumnName("media_error").HasMaxLength(CotDb.LoiMedia);
             builder.Property(x => x.ExcludedAt).HasColumnName("excluded_at");
             builder.Property(x => x.ExcludedReason).HasColumnName("excluded_reason").HasMaxLength(20);
+            builder.Property(x => x.Question).HasColumnName("question").HasMaxLength(CotDb.CauHoiMau);
 
             builder.HasOne<LabelingProject>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
 
-            // Cung mot anh chi la MOT mau trong du an. UNIQUE o database de hai
-            // lan nap song song cung khong lot duoc.
-            builder.HasIndex(x => new { x.ProjectId, x.Sha256 }).IsUnique().HasDatabaseName("ux_samples_project_sha256");
+            // Cung mot anh VOI CUNG mot cau hoi chi la MOT mau trong du an (cung anh, hai cau hoi rieng khac nhau = hai
+            // mau — hoi dap ve anh). UNIQUE o database de hai lan nap song song cung khong lot duoc. NULLS NOT
+            // DISTINCT: hai mau cung anh cung dung cau hoi chung (question NULL) van la trung; mau chua doc xong
+            // (sha256 NULL) khong tham gia (loc WHERE).
+            builder.HasIndex(x => new { x.ProjectId, x.Sha256, x.Question })
+                .IsUnique()
+                .AreNullsDistinct(false)
+                .HasFilter("sha256 IS NOT NULL")
+                .HasDatabaseName("ux_samples_project_sha256_question");
 
             // Worker tim mau cho nap / dang nap.
             builder.HasIndex(x => x.IngestState).HasFilter("ingest_state IN ('queued','processing')").HasDatabaseName("ix_samples_dang_nap");

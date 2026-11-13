@@ -200,8 +200,8 @@ Lưu ý: mốc thu hồi tính theo **giây** — token cấp trong cùng giây 
 | Doanh nghiệp | Hồ sơ doanh nghiệp (KYB) — **phải được duyệt mới publish được** | `GET/PUT /kyb/me`, `POST /kyb/me/license`, `POST /kyb/me/submit` (mục 13) |
 | | Ví, nạp tiền | `GET /ledger/me/balance`, `POST /payments/deposits`, `GET /payments/deposits/{id}` |
 | | Danh sách dự án của tôi | `GET /projects?mine=true` |
-| | Wizard tạo dự án | `POST /projects`, `PATCH /projects/{id}` (mỗi bước gửi một nhóm: `labelSchema`, `guideline`, `pricing`, `channels`, `eligibility`… — mục 21) |
-| | Nạp dữ liệu | `POST /projects/{id}/samples/zip` (ZIP), `POST /projects/{id}/uploads` + `POST /projects/{id}/samples` (file đã upload / dòng JSON), `POST /projects/{id}/samples/import` (nguồn ngoài), `GET /projects/{id}/samples` (+ `/status`), `DELETE /projects/{id}/samples/failed` |
+| | Wizard tạo dự án | `POST /projects`, `PATCH /projects/{id}` (mỗi bước gửi một nhóm: `labelSchema` — kèm câu hỏi chung, `pricing`, `channels`, `eligibility`… — mục 21, 22) |
+| | Nạp dữ liệu | `POST /projects/{id}/samples/zip` (ZIP), `POST /projects/{id}/uploads` + `POST /projects/{id}/samples` (file đã upload / dòng JSON), `POST /projects/{id}/samples/import` (nguồn ngoài), `GET /projects/{id}/samples` (+ `/status`), `PUT /projects/{id}/samples/{sampleId}/question` (câu hỏi riêng — mục 22), `DELETE /projects/{id}/samples/failed` |
 | | Câu hỏi vàng | `GET/POST /projects/{id}/gold-items`, `DELETE /projects/{id}/gold-items/{goldItemId}` |
 | | Checklist + publish | `GET /projects/{id}/readiness`, `POST /projects/{id}/publish` |
 | | Kiểm soát chất lượng | `PUT /projects/{id}/quality-control`, `GET /quality/projects/{id}/summary`, `GET /quality/projects/{id}/labelers` |
@@ -329,7 +329,7 @@ POST /projects
 {
   "id": "...", "name": "...", "description": "...", "modality": "image",
   "status": "draft", "visibility": "public",
-  "labelSchema": null, "guideline": null,
+  "labelSchema": null,
   "unitPriceVnd": 0, "redundancy": 0, "maxRedundancy": 0, "goldCheckPercent": 10, "deadline": null,
   "allowProfessional": true, "allowLinkGateway": false, "allowCollaborative": false,
   "minLevel": null, "minReputation": null,
@@ -412,7 +412,7 @@ Sai hình dạng → 400 `tap_nhan_sai_dinh_dang` (`detail` liệt kê từng ch
 
 ### 4.5 Hướng dẫn, giá, kênh, điều kiện tham gia
 
-> **Phần giá (`pricing`), `quality-control`, `requireReview`, `budgetVnd` đã thay bằng [mục 18.1](#181-doanh-nghiệp-giá-cả-dự-án-kênh-checklist).** Hướng dẫn và điều kiện tham gia giữ nguyên.
+> **Phần giá (`pricing`), `quality-control`, `requireReview`, `budgetVnd` đã thay bằng [mục 18.1](#181-doanh-nghiệp-giá-cả-dự-án-kênh-checklist).** **Hướng dẫn (`guideline`) đã bỏ** — thay bằng câu hỏi chung trong tập nhãn + câu hỏi riêng của mẫu ([mục 22](#22-câu-hỏi-của-mẫu-thay-hướng-dẫn-kiến-trúc-334)). Các route `PUT` bên dưới đã gộp vào `PATCH /projects/{id}` (mục 21).
 
 ```http
 PUT /projects/{id}/guideline
@@ -529,8 +529,10 @@ Một dòng theo loại dữ liệu:
 |---|---|---|
 | image, audio, video | `{ "file": "<key>", "name": "tùy chọn" }` | Audio/video: backend tự đo thời lượng; nếu máy chủ không có ffprobe thì khai thêm `"durationSec"` |
 | text | `{ "text": "...", "name": "tùy chọn" }` | ≤ 100.000 ký tự |
-| pair | `{ "prompt": "tùy chọn", "a": "...", "b": "..." }` | |
-| list | `{ "prompt": "tùy chọn", "items": ["...", "...", "..."] }` | 2–50 mục, mỗi mục là chuỗi không rỗng. Thứ tự trong `items` là **chỉ số mục** (từ 0) dùng khi xếp hạng |
+| pair | `{ "a": "...", "b": "..." }` | |
+| list | `{ "items": ["...", "...", "..."] }` | 2–50 mục, mỗi mục là chuỗi không rỗng. Thứ tự trong `items` là **chỉ số mục** (từ 0) dùng khi xếp hạng |
+
+Mọi loại nhận thêm `"question"` (tuỳ chọn, ≤ 1000 ký tự): câu hỏi **riêng** của mẫu; bỏ trống thì labeler thấy câu hỏi chung của dự án (mục 22). `prompt` của cặp / danh sách đã bỏ — dùng `question`.
 
 Mỗi lần gửi tối đa 1.000 dòng (`dataset.manifest_inline_max_rows`); nhiều hơn thì **chia thành nhiều lần gửi** (không còn file manifest `.jsonl`). Văn bản / cặp / danh sách thành `ready` ngay trong response (không qua hàng đợi), dòng sai bị bỏ qua kèm lý do trong `errors`.
 
@@ -542,7 +544,8 @@ GET /projects/{id}/samples?ids=<id1>,<id2>,...      ← chỉ các mẫu này (t
 → { "items": [ { "id", "modality", "originalName", "sizeBytes",
                  "ingestState": "ready", "ingestError": null,
                  "fileUrl": "http://localhost:9000/...",   // null với text / pair / list, hoặc khi chưa ready
-                 "content": null,                         // {"text"}, {"prompt","a","b"} hoặc {"prompt","items"} với text / pair / list
+                 "content": null,                         // {"text"}, {"a","b"} hoặc {"items"} với text / pair / list
+                 "question": null,                        // câu hỏi riêng của mẫu; null = dùng câu hỏi chung
                  "metadata": { "width": 300, "height": 200 } } ], ... }
 ```
 
@@ -764,7 +767,7 @@ GET /annotations/projects/{id}/results
   "samples": [
     {
       "sampleId": "...", "storageKey": null,
-      "sampleContent": { "prompt": "...", "a": "...", "b": "..." }, "sampleMetadata": {},
+      "sampleContent": { "a": "...", "b": "..." }, "sampleQuestion": "...", "sampleMetadata": {},
       "approvedCount": 2, "disputed": false,
       "tools": {
         "tot_hon": { "kind": "pairwise", "method": "majority", "final": { "choice": "a" }, "votes": { "a": 2 }, "agrees": [true, true], "disputed": false },
@@ -917,7 +920,7 @@ GET /ledger/disputes/mine?status=open|refundedBusiness|paidLabeler&page=1&pageSi
 
 ```http
 GET  /projects?status=running&page=1&pageSize=20   dự án công khai đang chạy + dự án mình đã tham gia
-GET  /projects/{id}                        chi tiết, có labelSchema + guideline để xem trước
+GET  /projects/{id}                        chi tiết, có labelSchema (kèm câu hỏi chung) để xem trước
 POST /projects/{id}/join                   → 200 { "userId", "role": "labeler", "state": "active", "joinedAt" }
 ```
 
@@ -1122,7 +1125,8 @@ GET /ledger/me/earnings?from=2026-10-01&to=2026-10-31&groupBy=day|project
 |---|---|
 | `modality` | Chọn khung hiển thị mẫu: ảnh, văn bản, player âm thanh, player video, hai cột A/B, danh sách mục |
 | `fileUrl` | Link xem / nghe file qua media-svc, sống 5 phút. `null` với text / pair. Ảnh labeler nhận có **watermark chìm** mang mã của chính họ (không nhìn thấy, không đổi kích thước — mục 16). Hết hạn khi đang làm thì gọi lại `next` (trả lại đúng task, kèm link mới) |
-| `content` | Nội dung text (`{"text"}`), pair (`{"prompt"?, "a", "b"}`) hoặc list (`{"prompt"?, "items": [...]}`). `null` với dữ liệu file |
+| `content` | Nội dung text (`{"text"}`), pair (`{"a", "b"}`) hoặc list (`{"items": [...]}`). `null` với dữ liệu file |
+| `question` | Câu hỏi của câu này, đã gộp: câu riêng của mẫu, không có thì câu hỏi chung của dự án. Hiện nổi bật trên mẫu (mục 22) |
 | `metadata` | Thông tin mẫu, chỉ có những trường liên quan: `width`, `height` (ảnh, video), `durationSec`, `segmentStart`, `segmentEnd`, `sourceDurationSec` (audio, video), `length` (text), `itemCount` (list) |
 | `labelSchema` | Danh sách công cụ, **đã điền đủ giá trị mặc định**. Mỗi công cụ là một khối trên màn hình, theo đúng thứ tự trong mảng |
 | `expiresAt` | Hiện đồng hồ đếm ngược; cảnh báo khi còn ~2 phút |
@@ -1276,7 +1280,7 @@ Công cụ dạng danh sách (trừ `relation`) có thể khai `attributes`; khi
 
 #### `pairwise` — so sánh cặp (pair)
 
-- UI: hai cột A / B (kèm `prompt` nếu có), nút chọn A, B, và "ngang nhau" khi `allowTie: true` (mặc định).
+- UI: hai cột A / B (câu hỏi ở `question` của câu), nút chọn A, B, và "ngang nhau" khi `allowTie: true` (mặc định).
 - Gửi: `{ "choice": "a" }` (`"a"` | `"b"` | `"tie"`).
 
 ### 6.4 Lưu ý theo loại dữ liệu
@@ -1287,8 +1291,8 @@ Công cụ dạng danh sách (trừ `relation`) có thể khai `attributes`; khi
 | `text` | `content.text` | Hiển thị đúng chuỗi gốc (giữ khoảng trắng, xuống dòng) để chỉ số `span` khớp |
 | `audio` | `<audio src=fileUrl>` + waveform | Nếu `metadata.segmentStart` có giá trị, mẫu là **một đoạn cắt từ file dài** và `fileUrl` là **cả file**. Player phải tua tới `segmentStart` và dừng ở `segmentEnd`; mốc 0 trên timeline = `segmentStart`. Thời gian gửi lên = thời gian player − `segmentStart` |
 | `video` | `<video src=fileUrl>` | Giống audio. Công cụ `track`: vẽ khung lên lớp canvas phủ trên video, toạ độ theo `metadata.width × height` |
-| `pair` | `content.prompt`, `content.a`, `content.b` | Nên đảo ngẫu nhiên vị trí trái/phải trên màn hình để giảm thiên vị, nhưng **gửi lên theo tên gốc** `a` / `b` |
-| `list` | `content.prompt`, `content.items[]` | Mỗi mục là một chuỗi; chỉ số trong mảng là định danh mục. Hiển thị xáo trộn được, gửi lên theo chỉ số gốc |
+| `pair` | `question`, `content.a`, `content.b` | Nên đảo ngẫu nhiên vị trí trái/phải trên màn hình để giảm thiên vị, nhưng **gửi lên theo tên gốc** `a` / `b` |
+| `list` | `question`, `content.items[]` | Mỗi mục là một chuỗi; chỉ số trong mảng là định danh mục. Hiển thị xáo trộn được, gửi lên theo chỉ số gốc |
 
 ### 6.5 Kiểm trước ở frontend và chấm câu vàng
 
@@ -1585,9 +1589,9 @@ Không có sự kiện nào: **bỏ hẳn khóa** công cụ tùy chọn.
 
 `allowTie` mặc định là `true` (cho chọn "ngang nhau"). Muốn bắt buộc chọn một bên thì khai `"allowTie": false`.
 
-(b) Manifest: `{ "prompt": "Thu do cua Viet Nam la gi?", "a": "Ha Noi.", "b": "Viet Nam co nhieu thanh pho dep." }`.
+(b) Dòng nạp: `{ "question": "Thu do cua Viet Nam la gi?", "a": "Ha Noi.", "b": "Viet Nam co nhieu thanh pho dep." }`.
 
-(c) `{ "modality": "pair", "fileUrl": null, "content": { "prompt": "...", "a": "...", "b": "..." }, "metadata": {} }`
+(c) `{ "modality": "pair", "fileUrl": null, "content": { "a": "...", "b": "..." }, "question": "Thu do cua Viet Nam la gi?", "metadata": {} }`
 
 (d) `{ "payload": { "tot_hon": { "choice": "a" }, "an_toan": { "labelIds": ["an_toan"] } } }`
 
@@ -1811,9 +1815,9 @@ Không có quan hệ nào thì bỏ khoá `quan_he` (công cụ tùy chọn) ho�
     { "name": "diem_tot_nhat", "kind": "number", "integer": true, "min": 1, "max": 5, "tolerance": 1 } ] }
 ```
 
-(b) Manifest: `{ "prompt": "Cau tra loi nao tot nhat?", "items": ["Tra loi A", "Tra loi B", "Tra loi C", "Tra loi D"] }`.
+(b) Dòng nạp: `{ "question": "Cau tra loi nao tot nhat?", "items": ["Tra loi A", "Tra loi B", "Tra loi C", "Tra loi D"] }`.
 
-(c) `"modality": "list", "fileUrl": null, "content": { "prompt": "...", "items": ["Tra loi A", "Tra loi B", "Tra loi C", "Tra loi D"] }, "metadata": { "itemCount": 4 }`.
+(c) `"modality": "list", "fileUrl": null, "content": { "items": ["Tra loi A", "Tra loi B", "Tra loi C", "Tra loi D"] }, "question": "Cau tra loi nao tot nhat?", "metadata": { "itemCount": 4 }`.
 
 (d) "C tốt nhất, rồi A, D, B; câu tốt nhất được 4 điểm":
 
@@ -2773,12 +2777,12 @@ Mỗi mục `{ actionId, kind, title, detail, projectId, userId, amountVnd, stat
 GET  /templates?modality=image          (mọi người đăng nhập — chỉ mẫu đang bật)
 GET  /templates/{id}
 GET  /admin/templates                   (admin — cả mẫu đã tắt)
-POST /admin/templates   { code, name, description, labelSchema, guidelineMarkdown, suggestedUnitPriceVnd, suggestedRedundancy }
+POST /admin/templates   { code, name, description, labelSchema (kèm question), suggestedUnitPriceVnd, suggestedRedundancy }
 PUT  /admin/templates/{id}
 POST /admin/templates/{id}/deactivate | /activate
 ```
 
-Tạo dự án từ mẫu: frontend tạo dự án với `modality` của mẫu rồi gọi **một** `PATCH /projects/{id}` `{ labelSchema: <labelSchema của mẫu>, guideline: { markdown: <guidelineMarkdown>, examples: [] } }` — dự án **không** tham chiếu mẫu (sửa mẫu không đổi dự án đã tạo).
+Tạo dự án từ mẫu: frontend tạo dự án với `modality` của mẫu rồi gọi **một** `PATCH /projects/{id}` `{ labelSchema: <labelSchema của mẫu> }` (câu hỏi chung + dòng nhắc nằm sẵn trong tập nhãn; hướng dẫn Markdown đã bỏ — mục 22) — dự án **không** tham chiếu mẫu (sửa mẫu không đổi dự án đã tạo).
 
 **Tình trạng hệ thống** (kiến trúc 3.29): `GET /admin/system-health` → `{ status: "ok" | "co_loi" | "khong_ro", failedCount, affectedAreas, checkedAt, techTeamNotified }` — chỉ đếm lỗi KỸ THUẬT (việc hệ thống không tự xử lý được); trang Tổng quan hiện thẻ bằng lời ("Có N việc hệ thống không tự xử lý được — đội kỹ thuật đã được báo"), không nút thao tác, không tên hàng đợi. Chi tiết lỗi dev tra ở Kibana. **Duyệt dự án đầy đủ:** trang `/admin/du-an/{id}` ghép `GET /projects/{id}`, `/readiness`, `/samples` (+ `/status`), `/gold-items`, `/members` — admin đọc được mọi API này của dự án chờ duyệt; không có endpoint riêng.
 
@@ -2924,8 +2928,7 @@ Thay **chín** route cũ: `PUT /projects/{id}` (thông tin), `PUT /projects/{id}
 PATCH /projects/{id}
 {
   "info":        { "name": "...", "description": "...", "visibility": "public" },
-  "labelSchema": { "tools": [ ... ], "segmentSeconds": 30 },          // "modality" có thể bỏ
-  "guideline":   { "markdown": "...", "examples": [ ... ] },
+  "labelSchema": { "question": "...", "tools": [ ... ], "segmentSeconds": 30 },   // "modality" có thể bỏ; nhóm guideline đã bỏ (mục 22)
   "pricing":     { "rewardVnd": 200000, "slots": 5, "passThresholdPercent": 80, "fillSlotsMinPercent": null, "deadline": "2027-01-31T00:00:00Z" },
   "channels":    { "allowProfessional": true, "allowLinkGateway": false, "allowCollaborative": false, "gateBudgetVnd": null },
   "eligibility": { "minLevel": null, "minReputation": null, "requireEntranceTest": false, "entranceQuestionCount": 10, "entrancePassPercent": 80 },
@@ -2938,8 +2941,29 @@ PATCH /projects/{id}
 
 - **Sửa theo NHÓM, không theo từng trường.** Chỉ gửi nhóm muốn đổi; nhóm có mặt thì gửi **đủ** trường của nhóm (nội dung mỗi nhóm giữ nguyên như route cũ). Nhóm vắng mặt hoặc `null` = giữ nguyên. Không có nhóm nào → `400 khong_co_gi_de_sua`.
 - **Tất cả hoặc không gì:** một nhóm lỗi thì cả request không lưu (vd `{ info, pricing }` mà `pricing` sai → tên cũng không đổi).
-- Luật trạng thái vẫn **theo từng nhóm** như trước: phần lớn chỉ khi `draft`; `guideline` sửa được cả khi `paused`; `tags` và `retention` sửa được tới khi dự án kết thúc. Sai trạng thái → `409 chuyen_trang_thai_khong_hop_le`.
-- Gửi nhiều nhóm một lần thì `labelSchema` được áp **trước** `guideline` (ví dụ trong hướng dẫn kiểm theo tập nhãn mới).
+- Luật trạng thái vẫn **theo từng nhóm** như trước: phần lớn chỉ khi `draft`; `tags` và `retention` sửa được tới khi dự án kết thúc. Sai trạng thái → `409 chuyen_trang_thai_khong_hop_le`.
 - `protection` nay trả **dự án** như các nhóm khác (route cũ trả điều khoản). Điều khoản cho labeler vẫn đọc ở `GET /projects/{id}/terms`.
 - Quyền không đổi: chủ dự án (hoặc admin); dự án người khác → 404.
 
+## 22. Câu hỏi của mẫu thay hướng dẫn (kiến trúc 3.34)
+
+Mỗi câu labeler thấy đều có **câu hỏi**: hỏi gì về mẫu này. Hướng dẫn Markdown của dự án (`guideline`, ví dụ đúng / sai) **đã bỏ** — cách dùng công cụ do màn luyện tập dạy, còn "trả lời gì" nằm ở câu hỏi.
+
+| Ở đâu | Trường | Luật |
+|---|---|---|
+| Tập nhãn | `labelSchema.question` | Câu hỏi CHUNG, 1–1000 ký tự. **Bắt buộc trước khi publish** — thiếu thì `readiness.missing` có `chua_co_cau_hoi` |
+| Từng công cụ | `labelSchema.tools[].hint` | Dòng nhắc tuỳ chọn (≤ 300 ký tự), hiện dưới tên công cụ |
+| Từng mẫu | `Sample.question` | Câu hỏi RIÊNG (≤ 1000), thay câu chung cho mẫu đó. `null` = dùng câu chung |
+
+```http
+POST /projects/{id}/samples   { "rows": [ { "text": "...", "question": "Câu riêng (tuỳ chọn)" }, { "file": "<key>", "question": "..." } ] }
+PUT  /projects/{id}/samples/{sampleId}/question   { "question": "Có bao nhiêu người?" }   // null / "" = bỏ câu riêng
+→ 200 { "sampleId", "question" }
+```
+
+- Sửa câu riêng chỉ khi dự án `draft` (sau đó → `409`). ZIP / nguồn ngoài không mang câu hỏi theo file — nạp xong rồi đặt từng mẫu bằng `PUT`.
+- **Chống trùng theo (nội dung, câu hỏi riêng):** cùng ảnh hỏi hai câu khác nhau là hai mẫu; cùng nội dung + cùng câu (hoặc cùng dùng câu chung) là trùng — dòng bị bỏ kèm lý do, `PUT` → `409 noi_dung_trung`.
+- Đã có câu vàng vẫn sửa được `question` / `hint` trong tập nhãn; đổi công cụ / lớp thì vẫn `409 da_co_cau_hoi_vang`.
+- Câu hiển thị đã gộp sẵn (câu riêng, không có thì câu chung): `questions[].question` của bài làm và bài test đầu vào, `sampleQuestion` của nhãn / kết quả gộp, `questions[].question` của phiên cổng vượt link. Frontend hiện nổi bật **trên** mẫu, không đặt trong `content` nữa (`content.prompt` của cặp / danh sách đã bỏ).
+
+**Hướng dẫn kiểu game cho người tạo dự án** (tab Cấu hình): tour làm nổi từng vùng (tự mở lần đầu, nút "Xem lại hướng dẫn"), biểu tượng ⓘ cạnh mỗi thông số ("Tác dụng với dự án" / "Labeler thấy ở đâu"), nút "Xem như labeler" dựng thẻ dự án ở chợ + một câu trong bài từ cấu hình đang soạn. Labeler: màn luyện tập có thêm bước "đọc câu hỏi"; tour trang làm bài có điểm dừng "Câu hỏi của câu".

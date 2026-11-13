@@ -10,6 +10,7 @@ import os, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from moi_truong import dat_cau_hoi_chung  # noqa: E402
 from tro_giup import *  # noqa: E402,F401,F403
 
 try:
@@ -85,7 +86,7 @@ try:
     ky_quy_a = 3 * (THUONG_A + phi)
     kiem("ky quy = 3 suat x (60.000 + phi san), san sang publish", rdy["estimatedCostVnd"] == ky_quy_a and rdy["ready"] and phi > 0, rdy)
     kiem("biz2 sua du an cua biz → 404 (BOLA)", requests.patch(G + f"/projects/{A}", headers=biz2["h"],
-                                                             json={"guideline": {"markdown": "hack", "examples": []}}).status_code == 404)
+                                                             json={"info": {"name": "hack"}}).status_code == 404)
     kiem("labeler xem du an nhap cua nguoi khac → 404", requests.get(G + f"/projects/{A}", headers=lab["lab1"]["h"]).status_code == 404)
     requests.post(G + f"/projects/{A}/publish", headers=biz["h"]).raise_for_status()
     ok = cho(lambda: requests.get(G + f"/projects/{A}", headers=biz["h"]).json()["status"] == "pendingApproval", 30)
@@ -381,7 +382,7 @@ try:
         p = r.json()["id"]
         r = requests.patch(G + f"/projects/{p}", headers=biz["h"], json={"labelSchema": {"modality": modality, "tools": cong_cu}})
         assert r.status_code == 200, r.text
-        requests.patch(G + f"/projects/{p}", headers=biz["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
+        dat_cau_hoi_chung(biz["h"], p)
         dat_gia(biz, p, 10000, 3)
         nap_mau(p, biz["h"], rows)
         publish_va_duyet(biz, p)
@@ -413,10 +414,11 @@ try:
 
     CAP = du_an_cong_cu("pair", [{"name": "tot_hon", "kind": "pairwise", "allowTie": False},
                                  {"name": "an_toan", "kind": "classification", "classes": ["an_toan", "khong_an_toan"]}],
-                        [{"prompt": "Thu do Viet Nam?", "a": "Ha Noi", "b": "Hue", "name": "c1"}])
+                        [{"question": "Thu do Viet Nam?", "a": "Ha Noi", "b": "Hue", "name": "c1"}])
     bai = bat_dau(l1, CAP)
     qc = bai["questions"][0]
-    kiem("cau so sanh cap co content a / b", qc["content"].get("a") and qc["content"].get("b"), qc)
+    kiem("cau so sanh cap co content a / b + cau hoi rieng (khong nam trong content)",
+         qc["content"].get("a") and qc["content"].get("b") and qc["question"] == "Thu do Viet Nam?" and "prompt" not in qc["content"], qc)
     kiem("choice ngoai a/b/tie → bi chan", thu(bai, qc["sampleId"], {"tot_hon": {"choice": "c"}, "an_toan": {"labelIds": ["an_toan"]}}) is not None)
     kiem("tie khi allowTie=false → bi chan", thu(bai, qc["sampleId"], {"tot_hon": {"choice": "tie"}, "an_toan": {"labelIds": ["an_toan"]}}) is not None)
     kiem("so sanh cap hop le → nop 200", thu(bai, qc["sampleId"], {"tot_hon": {"choice": "a"}, "an_toan": {"labelIds": ["an_toan"]}}) is None)

@@ -88,10 +88,8 @@ namespace Crowd.Admin.Api.Dtos
 
         public string? Description { get; init; }
 
-        /// <summary>Tap nhan (cung dinh dang nhom labelSchema cua PATCH /projects/{id}), co modality.</summary>
+        /// <summary>Tap nhan (cung dinh dang nhom labelSchema cua PATCH /projects/{id}), co modality va cau hoi chung.</summary>
         public JsonElement LabelSchema { get; init; }
-
-        public string? GuidelineMarkdown { get; init; }
 
         public long? SuggestedUnitPriceVnd { get; init; }
 
@@ -111,8 +109,6 @@ namespace Crowd.Admin.Api.Dtos
         public required string Modality { get; init; }
 
         public required JsonNode? LabelSchema { get; init; }
-
-        public required string GuidelineMarkdown { get; init; }
 
         public long? SuggestedUnitPriceVnd { get; init; }
 

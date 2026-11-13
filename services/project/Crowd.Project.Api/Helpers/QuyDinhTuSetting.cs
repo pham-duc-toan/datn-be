@@ -30,9 +30,6 @@ namespace Crowd.Project.Api.Helpers
                 SoCauTestMacDinh = s.SoNguyen(SettingKeys.ProjectEntranceQuestionDefault),
                 NguongDauMacDinh = s.SoNguyen(SettingKeys.ProjectEntrancePassPercentDefault),
                 SoCauTestToiDa = s.SoNguyen(SettingKeys.ProjectEntranceQuestionMax),
-                DoDaiHuongDanToiDa = s.SoNguyen(SettingKeys.GuidelineMarkdownMaxLength),
-                SoViDuToiDa = s.SoNguyen(SettingKeys.GuidelineExamplesMax),
-                DoDaiGiaiThichToiDa = s.SoNguyen(SettingKeys.GuidelineExplanationMaxLength),
                 ThuongToiThieu = s.SoLon(SettingKeys.ProjectMinRewardVnd),
             };
         }

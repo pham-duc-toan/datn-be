@@ -31,7 +31,6 @@ namespace Crowd.Project.Tests
         {
             LabelingProject p = DuAnMoi();
             p.DatLabelSchema(PhanLoaiAnh("cho", "meo"), Luc);
-            p.DatHuongDan(Guideline.Tao("# Huong dan", null, QuyDinhMau.DuAn), Luc);
             p.DatCauHinhGia(100000, 5, 80, Luc.AddDays(30), Luc, QuyDinhMau.DuAn);
             return p;
         }
@@ -72,7 +71,7 @@ namespace Crowd.Project.Tests
         internal static LabelSchema PhanLoaiAnh(string a, string b)
         {
             return LabelSchema.Doc(
-                "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\""
+                "{\"modality\":\"image\",\"question\":\"Anh nay la con gi?\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\""
                 + a + "\",\"" + b + "\"]}]}");
         }
 
@@ -109,7 +108,6 @@ namespace Crowd.Project.Tests
             IReadOnlyList<string> thieu = Thieu(DuAnMoi(), 0, 0);
 
             Assert.Contains("chua_co_tap_nhan", thieu);
-            Assert.Contains("chua_co_huong_dan", thieu);
             Assert.Contains("chua_cau_hinh_gia", thieu);
             Assert.Contains("chua_co_du_lieu", thieu);
         }
@@ -173,9 +171,6 @@ namespace Crowd.Project.Tests
                 SoCauTestMacDinh = 10,
                 NguongDauMacDinh = 80,
                 SoCauTestToiDa = 500,
-                DoDaiHuongDanToiDa = 20000,
-                SoViDuToiDa = 20,
-                DoDaiGiaiThichToiDa = 1000,
             };
 
             Assert.Contains("nguong_dat_ngoai_khoang", p.NhungGiConThieu(100, 0, false, hep, null, Luc));
@@ -454,7 +449,6 @@ namespace Crowd.Project.Tests
         {
             LabelingProject p = LabelingProject.Tao(Owner, "rieng", null, Modalities.Image, ProjectVisibility.Private, Luc, QuyDinhMau.DuAn);
             p.DatLabelSchema(PhanLoaiAnh("a", "b"), Luc);
-            p.DatHuongDan(Guideline.Tao("x", null, QuyDinhMau.DuAn), Luc);
             p.DatCauHinhGia(100000, 3, 80, Luc.AddDays(1), Luc, QuyDinhMau.DuAn);
             Publish(p, 1);
             p.XacNhanDaKyQuy(Luc);
@@ -485,12 +479,39 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
-        public void Vi_du_trong_huong_dan_phai_dung_lop_co_trong_tap_nhan()
+        public void Tap_nhan_chua_co_cau_hoi_chung_thi_chua_publish_duoc()
         {
             LabelingProject p = DuAnSanSang();
-            Guideline sai = Guideline.Tao("x", new List<GuidelineExample> { new GuidelineExample(null, "voi", true, "giai thich") }, QuyDinhMau.DuAn);
+            Assert.DoesNotContain("chua_co_cau_hoi", Thieu(p, 10, 0));
 
-            Assert.Throws<InvalidValueException>(() => p.DatHuongDan(sai, Luc));
+            p.DatLabelSchema(
+                LabelSchema.Doc("{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"]}]}"),
+                Luc);
+
+            IReadOnlyList<string> thieu = Thieu(p, 10, 0);
+            Assert.Contains("chua_co_cau_hoi", thieu);
+            Assert.DoesNotContain("chua_co_tap_nhan", thieu);
+        }
+
+        [Fact]
+        public void Cau_hoi_chung_va_dong_nhac_duoc_cat_khoang_trang_va_giu_trong_dang_chuan()
+        {
+            LabelSchema s = LabelSchema.Doc(
+                "{\"modality\":\"image\",\"question\":\"  Con gi?  \",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"],\"hint\":\" chon mot \"}]}");
+
+            Assert.Equal("Con gi?", s.Question);
+            Assert.Equal("chon mot", s.Tools[0].Hint);
+
+            LabelSchema doc = LabelSchema.Doc(s.ToRawJson());
+            Assert.Equal("Con gi?", doc.Question);
+            Assert.Equal("chon mot", doc.Tools[0].Hint);
+        }
+
+        [Fact]
+        public void Cau_hoi_chung_rong_bi_tu_choi()
+        {
+            Assert.Throws<LabelFormatException>(() => LabelSchema.Doc(
+                "{\"modality\":\"image\",\"question\":\"   \",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"]}]}"));
         }
     }
 }

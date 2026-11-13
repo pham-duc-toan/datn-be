@@ -171,7 +171,6 @@ namespace Crowd.Admin.Api.Persistence
                 b.Property(x => x.Description).HasColumnName("description").HasMaxLength(MauBaiToan.DoDaiMoTaToiDa).IsRequired();
                 b.Property(x => x.Modality).HasColumnName("modality").HasMaxLength(20).IsRequired();
                 b.Property(x => x.LabelSchemaJson).HasColumnName("label_schema").HasColumnType("jsonb").IsRequired();
-                b.Property(x => x.GuidelineMarkdown).HasColumnName("guideline_markdown").IsRequired();
                 b.Property(x => x.SuggestedUnitPriceVnd).HasColumnName("suggested_unit_price_vnd");
                 b.Property(x => x.SuggestedRedundancy).HasColumnName("suggested_redundancy");
                 b.Property(x => x.Active).HasColumnName("active").IsRequired();

@@ -100,7 +100,7 @@ doanh nghiep — thuat toan gop chi con o quality). Stub Python sinh san o `serv
 |---|---|---|
 | `prelabel.ready` | project | Gan goi y vao cau hoi (FA-01) |
 | `activelearning.ranked` | project | Doi thu tu uu tien cau hoi (FA-02) |
-| `guideline.issues_found` | project, notification | LLM phat hien huong dan mo ho (FA-05) |
+| ~~`guideline.issues_found`~~ | — | Da bo cung huong dan Markdown cua du an (kien truc 3.34) — chua tung duoc phat |
 
 ## ledger-svc
 
@@ -285,7 +285,7 @@ Dinh nghia trong `shared/labeling` (Crowd.Labeling). Hinh dang JSON nam trong
 **Metadata mau** (`IngestedSample.Metadata`, `AssignmentSubmitted.SampleMetadata`):
 `width`, `height`, `durationSec`, `length`, `segmentStart`, `segmentEnd`, `sourceDurationSec`
 — truong nao khong co thi bo. Mau la file (`StorageKey`) hoac noi dung (`Content`:
-`{"text"}` / `{"prompt"?, "a", "b"}`), khong bao gio ca hai.
+`{"text"}` / `{"a", "b"}` / `{"items"}`; cau hoi rieng cua mau o samples.question, khong nam trong content — 3.34), khong bao gio ca hai.
 
 Them loai cong cu moi (keypoint, cuboid...) = them mot file `contracts/labeling/tools/*.result.schema.json`
 va mot lop `IToolKind` trong `shared/labeling/Tools` — **khong doi hop dong event, khong doi bang**.

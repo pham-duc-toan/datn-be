@@ -13,6 +13,7 @@ os.environ["E2E_HE_SO_NGUOI_LAM"] = "giu"  # tro_giup khong ep he so = 1
 import requests  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from moi_truong import dat_cau_hoi_chung  # noqa: E402
 from tro_giup import G, GOC, KQ, TAG, admin, cho, dang_ky, dat, dat_va_cho, kiem, luu, nap_mau, nop_bai, tham_gia, vi  # noqa: E402,F401
 
 
@@ -55,7 +56,7 @@ try:
     P = r.json()["id"]
     requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"labelSchema": {"modality": "text", "tools": [
         {"name": "nhan", "kind": "classification", "classes": ["a", "b"]}]}}).raise_for_status()
-    requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
+    dat_cau_hoi_chung(biz["h"], P)
     requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"pricing": {"rewardVnd": 30000, "slots": 3, "passThresholdPercent": 60,
                                                                       "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
     nap_mau(P, biz["h"], [{"text": v, "name": k} for k, v in MAU.items()])

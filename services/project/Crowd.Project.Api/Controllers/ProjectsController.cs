@@ -84,9 +84,9 @@ namespace Crowd.Project.Api.Controllers
 
         /// <summary>
         /// PATCH /projects/{id} — sua cau hinh du an THEO NHOM, mot API cho moi nhom: info, labelSchema (FB-12),
-        /// guideline (FB-13), pricing (FB-14), channels (FB-17), eligibility (FB-15), protection, tags, retention.
-        /// Chi gui nhom muon doi, moi nhom gui du truong. Luat trang thai van theo tung nhom (phan lon chi khi Nhap;
-        /// huong dan sua duoc khi Tam dung; tags / retention sua duoc toi khi ket thuc). Mot nhom loi → khong luu gi.
+        /// pricing (FB-14), channels (FB-17), eligibility (FB-15), protection, tags, retention. Chi gui nhom muon doi,
+        /// moi nhom gui du truong. Luat trang thai van theo tung nhom (phan lon chi khi Nhap; tags / retention sua duoc
+        /// toi khi ket thuc). Mot nhom loi → khong luu gi. Cau hoi chung nam trong labelSchema.question.
         /// </summary>
         [HttpPatch("{id:guid}")]
         public async Task<IActionResult> CapNhat(Guid id, [FromBody] PatchProjectRequest body, CancellationToken ct)

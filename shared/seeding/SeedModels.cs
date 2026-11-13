@@ -77,8 +77,11 @@ namespace Crowd.Seeding
         /// </summary>
         public string? StorageKey { get; init; }
 
-        /// <summary>Noi dung text / pair: {"text"} hoac {"prompt","a","b"}.</summary>
+        /// <summary>Noi dung text / pair: {"text"} hoac {"a","b"}.</summary>
         public string? ContentJson { get; init; }
+
+        /// <summary>Cau hoi rieng cua mau (samples.question). null = dung cau hoi chung cua du an.</summary>
+        public string? Question { get; init; }
 
         public required SampleMetadata Metadata { get; init; }
 
@@ -186,8 +189,6 @@ namespace Crowd.Seeding
         public required string Name { get; init; }
 
         public required string Description { get; init; }
-
-        public required string GuidelineMarkdown { get; init; }
 
         /// <summary>image | text | audio | video | pair.</summary>
         public required string Modality { get; init; }

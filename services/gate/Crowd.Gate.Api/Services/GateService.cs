@@ -302,6 +302,7 @@ namespace Crowd.Gate.Api.Services
                                 NguoiXem.Khach(p.SessionId),
                                 CheDoXem.Watermark),
                         Content = m.Content == null ? null : m.Content.Element(),
+                        Question = m.Question,
                         Metadata = m.Metadata.Element(),
                     });
                 }

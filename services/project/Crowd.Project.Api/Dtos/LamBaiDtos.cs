@@ -25,6 +25,9 @@ namespace Crowd.Project.Api.Dtos
 
         public RawJson? Content { get; init; }
 
+        /// <summary>Cau hoi labeler thay o cau nay: cau rieng cua mau, khong co thi cau hoi chung cua du an.</summary>
+        public string? Question { get; init; }
+
         public required RawJson Metadata { get; init; }
 
         /// <summary>

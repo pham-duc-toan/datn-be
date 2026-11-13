@@ -34,9 +34,6 @@ namespace Crowd.Project.Tests
                 SoCauTestMacDinh = 5,
                 NguongDauMacDinh = 80,
                 SoCauTestToiDa = 50,
-                DoDaiHuongDanToiDa = 20000,
-                SoViDuToiDa = 20,
-                DoDaiGiaiThichToiDa = 500,
                 ThuongToiThieu = 50000,
             };
             LabelingProject p = DuAn();
@@ -56,9 +53,6 @@ namespace Crowd.Project.Tests
                 SoCauTestMacDinh = 5,
                 NguongDauMacDinh = 80,
                 SoCauTestToiDa = 50,
-                DoDaiHuongDanToiDa = 20000,
-                SoViDuToiDa = 20,
-                DoDaiGiaiThichToiDa = 500,
                 ThuongToiThieu = 100000,
             };
             Assert.Contains("thuong_duoi_toi_thieu", p.NhungGiConThieu(0, 0, false, nangMuc, null, Luc));

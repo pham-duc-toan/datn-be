@@ -7,6 +7,7 @@ import hashlib, json, os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from moi_truong import dat_cau_hoi_chung  # noqa: E402
 from moi_truong import G, GOC_REPO, RABBIT_MGMT, TIEN_TO_CONTAINER, URL_GATE, URL_LINK, cho_moi_noi_doc_lai_setting, rabbit_container, sql_container  # noqa: E402,F401
 sys.path.insert(0, os.path.join(GOC_REPO, "services", "quality"))
 from tai_khoan_e2e import mo_rong_gioi_han, xac_thuc_email  # noqa: E402
@@ -166,7 +167,7 @@ def tao_du_an(chu, ten, mau, red=None, tran=None, gia=None, gold_pct=0, dieu_kie
     pid = r.json()["id"]
     requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"labelSchema": {"modality": "text", "tools": [
         {"name": "nhan", "kind": "classification", "classes": list(classes)}]}}).raise_for_status()
-    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
+    dat_cau_hoi_chung(chu["h"], pid)
     dat_gia(chu, pid, thuong if thuong is not None else max(10000, (gia or 1000) * len(mau)),
             suat if suat is not None else max(3, tran or 0, red or 0), nguong)
     if dieu_kien:

@@ -8,6 +8,7 @@ import os, sys, time
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from moi_truong import dat_cau_hoi_chung  # noqa: E402
 from tro_giup import *  # noqa: E402,F401,F403
 from e2e_cong_cu_helpers import nap  # noqa: E402
 
@@ -41,7 +42,7 @@ try:
     d = requests.get(G + f"/projects/{P}", headers=admin)
     j = d.json()
     kiem("admin doc duoc thong tin day du (chu, ky quy, phi, tap nhan, huong dan, hach toan)",
-         d.status_code == 200 and j["ownerId"] == biz["id"] and j["escrowVnd"] and j["platformFeePercent"] is not None and j["labelSchema"] and j["guideline"], d.text[:300])
+         d.status_code == 200 and j["ownerId"] == biz["id"] and j["escrowVnd"] and j["platformFeePercent"] is not None and j["labelSchema"] and j["labelSchema"].get("question") and "guideline" not in j, d.text[:300])
     kiem("admin doc readiness", requests.get(G + f"/projects/{P}/readiness", headers=admin).status_code == 200)
     st = requests.get(G + f"/projects/{P}/samples/status", headers=admin)
     kiem("admin doc tien trinh nap mau: 3 san sang", st.status_code == 200 and st.json()["ready"] == 3, st.text)
@@ -63,7 +64,7 @@ try:
     kiem("doanh nghiep khong doi duoc setting (403)", requests.put(G + "/admin/settings/gate.unit_price_vnd", headers=biz["h"], json={"value": 1, "reason": "x"}).status_code == 403)
     dat_va_cho("gate.unit_price_vnd", 2500, ["project"])
     nap(biz, 600000)
-    requests.patch(G + f"/projects/{Q}", headers=biz["h"], json={"guideline": {"markdown": "e2e", "examples": []}}).raise_for_status()
+    dat_cau_hoi_chung(biz["h"], Q)
     # cong link can cau vang kiem tra: them 2 cau vang qualityCheck
     ids = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{Q}/samples?pageSize=50", headers=biz["h"]).json()["items"]}
     rv = requests.post(G + f"/projects/{Q}/gold-items", headers=biz["h"], json={"items": [

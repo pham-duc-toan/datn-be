@@ -266,6 +266,7 @@ namespace Crowd.Project.Api.Services
                     SampleId = r.SampleId,
                     StorageKey = goc == null ? null : goc.StorageKey,
                     SampleContent = goc == null ? null : goc.Content,
+                    SampleQuestion = goc == null ? tapNhan.Question : goc.CauHoiHienThi(tapNhan),
                     SampleMetadata = goc == null ? SampleMetadata.Rong.ToRawJson() : goc.Metadata,
                     ApprovedCount = r.ApprovedCount,
                     Disputed = r.Disputed,
@@ -583,14 +584,17 @@ namespace Crowd.Project.Api.Services
                 .ToDictionaryAsync(m => m.Id, ct);
 
             // Loai du lieu cua nhan = loai du lieu du an (bang annotations khong luu task_type).
-            Dictionary<Guid, string> loaiDuLieu = await _db.Projects.AsNoTracking()
+            // Kem tap nhan: cau hoi chung cho mau khong co cau rieng.
+            var duAn = await _db.Projects.AsNoTracking()
                 .Where(p => duAnIds.Contains(p.Id))
-                .ToDictionaryAsync(p => p.Id, p => p.Modality, ct);
+                .Select(p => new { p.Id, p.Modality, p.LabelSchema })
+                .ToDictionaryAsync(p => p.Id, ct);
             foreach (NhanKemBai x in ds)
             {
                 Sample? m;
                 mau.TryGetValue(x.Nhan.SampleId, out m);
-                items.Add(TaoResponse(x, loaiDuLieu[x.Nhan.ProjectId], goc, m));
+                var da = duAn[x.Nhan.ProjectId];
+                items.Add(TaoResponse(x, da.Modality, goc, m, da.LabelSchema));
             }
 
             return new PagedResponse<AnnotationResponse> { Items = items, Page = page, PageSize = pageSize, Total = tong };
@@ -603,7 +607,7 @@ namespace Crowd.Project.Api.Services
             return caller.IsAdmin ? GocXem.CuaAdmin(uid) : new GocXem(NguoiXem.ChuDuAn(uid), CheDoXem.Goc);
         }
 
-        private AnnotationResponse TaoResponse(NhanKemBai x, string modality, GocXem goc, Sample? thongTinMau)
+        private AnnotationResponse TaoResponse(NhanKemBai x, string modality, GocXem goc, Sample? thongTinMau, LabelSchema? tapNhan)
         {
             LabelAnnotation a = x.Nhan;
             string? fileUrl = null;
@@ -626,6 +630,7 @@ namespace Crowd.Project.Api.Services
                 Source = a.Source,
                 FileUrl = fileUrl,
                 SampleContent = thongTinMau == null ? null : thongTinMau.Content,
+                SampleQuestion = thongTinMau == null ? null : thongTinMau.CauHoiHienThi(tapNhan),
                 SampleMetadata = thongTinMau == null ? SampleMetadata.Rong.ToRawJson() : thongTinMau.Metadata,
                 LabelerId = a.LabelerId,
                 Payload = a.LayPayload(modality),

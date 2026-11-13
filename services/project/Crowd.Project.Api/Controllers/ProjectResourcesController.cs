@@ -331,6 +331,16 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.TrangThaiNapAsync(projectId, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
         }
 
+        /// <summary>
+        /// PUT /projects/{id}/samples/{sampleId}/question — {"question": "..."} dat cau hoi RIENG cho mau (null / rong =
+        /// bo, dung cau hoi chung). Chi khi du an con Nhap.
+        /// </summary>
+        [HttpPut("samples/{sampleId:guid}/question")]
+        public async Task<IActionResult> DatCauHoi(Guid projectId, Guid sampleId, [FromBody] DatCauHoiMauRequest body, CancellationToken ct)
+        {
+            return Ok(await _service.DatCauHoiAsync(projectId, sampleId, body, Caller.TuHttp(HttpContext, ActorRole.Business), ct));
+        }
+
         /// <summary>DELETE /projects/{id}/samples/failed — xoa cac mau nap loi (de nap lai). Chi khi du an con Nhap.</summary>
         [HttpDelete("samples/failed")]
         public async Task<IActionResult> XoaMauLoi(Guid projectId, CancellationToken ct)

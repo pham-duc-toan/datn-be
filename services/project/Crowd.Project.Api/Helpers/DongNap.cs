@@ -16,9 +16,12 @@ namespace Crowd.Project.Api.Helpers
     /// KHONG phai file (noi dung nam ngay trong database nen tao xong la ready).
     ///
     ///   text  {"text":...}
-    ///   pair  {"a":...,"b":...,"prompt"?:...}
-    ///   list  {"prompt"?:..., "items":["...","..."]}   2–50 muc
+    ///   pair  {"a":...,"b":...}
+    ///   list  {"items":["...","..."]}   2–50 muc
     ///   file  {"file":"&lt;key&gt;", "name"?, "durationSec"?, "width"?, "height"?, "fps"?}
+    ///
+    /// Moi loai deu nhan them "question"?: cau hoi RIENG cua mau (samples.question) — bo trong thi labeler thay
+    /// cau hoi chung cua du an. Cau hoi khong nam trong content (truoc day pair / list co "prompt").
     ///
     /// Dong sai nem InvalidValueException — nguoi goi bo qua dong do va ghi ly do, mot dong hong khong lam hong ca lo.
     /// </summary>
@@ -28,6 +31,26 @@ namespace Crowd.Project.Api.Helpers
         private const int SoMucToiThieu = 2;
 
         private const int SoMucToiDa = 50;
+
+        /// <summary>"question" cua dong (cau hoi rieng cua mau). null = khong gui / chuoi rong.</summary>
+        public static string? CauHoi(JsonObject o)
+        {
+            if (o == null)
+            {
+                throw new ArgumentNullException(nameof(o));
+            }
+
+            return ChuoiTuyChon(o, "question");
+        }
+
+        /// <summary>
+        /// Khoa chong trung cua mau: noi dung (Sha256) + cau hoi rieng — cung mot anh hoi hai cau khac nhau la hai
+        /// mau. Khop voi chi muc ux_samples_project_sha256_question.
+        /// </summary>
+        public static string KhoaTrung(string sha256, string? question)
+        {
+            return sha256 + "|" + (question ?? string.Empty);
+        }
 
         public static Sample TaoMauNoiDung(JsonObject o, string modality, string ten, Guid projectId, DateTimeOffset bayGio, ISettings settings)
         {
@@ -67,12 +90,6 @@ namespace Crowd.Project.Api.Helpers
                         ["b"] = ChuoiBatBuoc(o, "b"),
                     };
 
-                    string? cauHoi = ChuoiTuyChon(o, "prompt");
-                    if (cauHoi != null)
-                    {
-                        nd["prompt"] = cauHoi;
-                    }
-
                     RawJson raw = RawJson.Tu(nd);
                     if (raw.Json.Length > doDaiToiDa)
                     {
@@ -91,7 +108,7 @@ namespace Crowd.Project.Api.Helpers
         }
 
         /// <summary>
-        /// Mau DANH SACH (cong cu ranking): {"prompt":"...","items":["...","..."]} — 2 den 50 muc, moi muc
+        /// Mau DANH SACH (cong cu ranking): {"items":["...","..."]} — 2 den 50 muc, moi muc
         /// la mot chuoi khong rong. So muc ghi vao metadata (itemCount) de kiem nhan xep hang.
         /// </summary>
         private static Sample TaoDanhSach(JsonObject o, string ten, Guid projectId, DateTimeOffset bayGio, QuyDinhDuLieu quyDinh, int doDaiToiDa)
@@ -122,12 +139,6 @@ namespace Crowd.Project.Api.Helpers
             }
 
             JsonObject noiDung = new JsonObject { ["items"] = muc };
-            string? cauHoi = ChuoiTuyChon(o, "prompt");
-            if (cauHoi != null)
-            {
-                noiDung["prompt"] = cauHoi;
-            }
-
             RawJson nd = RawJson.Tu(noiDung);
             if (nd.Json.Length > doDaiToiDa)
             {

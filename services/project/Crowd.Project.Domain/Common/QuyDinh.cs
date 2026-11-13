@@ -32,12 +32,6 @@ namespace Crowd.Project.Domain.Common
 
         public required int SoCauTestToiDa { get; init; }
 
-        public required int DoDaiHuongDanToiDa { get; init; }
-
-        public required int SoViDuToiDa { get; init; }
-
-        public required int DoDaiGiaiThichToiDa { get; init; }
-
         /// <summary>Thuong toi thieu cho mot nguoi dat (FM-04, project.min_reward_vnd). 0 = khong gioi han.</summary>
         public long ThuongToiThieu { get; init; }
     }
@@ -88,5 +82,8 @@ namespace Crowd.Project.Domain.Common
         public const int VanBanNda = 20000;
 
         public const int LoiMedia = 500;
+
+        /// <summary>samples.question — cau hoi rieng cua mau (bang tran "question" trong label-schema.schema.json).</summary>
+        public const int CauHoiMau = 1000;
     }
 }

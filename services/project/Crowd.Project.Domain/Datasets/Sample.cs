@@ -9,8 +9,11 @@ namespace Crowd.Project.Domain.Datasets
     ///
     ///   image / audio / video : FILE trong MinIO — database chi giu KHOA (StorageKey),
     ///                           muon xem phai xin link co han (S-07).
-    ///   text / pair           : NOI DUNG luu thang trong Content (jsonb):
-    ///                           {"text":"..."} hoac {"prompt":"...","a":"...","b":"..."}.
+    ///   text / pair / list    : NOI DUNG luu thang trong Content (jsonb):
+    ///                           {"text":"..."}, {"a":"...","b":"..."} hoac {"items":[...]}.
+    ///
+    /// Question: cau hoi RIENG cua mau (vd hoi dap ve anh: moi anh mot cau). null = dung cau hoi chung cua du an
+    /// (label_schema.question) — khong chep cau chung vao tung mau.
     ///
     /// Metadata (jsonb) giu thong tin de kiem nhan: kich thuoc anh, thoi luong,
     /// do dai van ban — xem Crowd.Labeling.SampleMetadata.
@@ -44,6 +47,12 @@ namespace Crowd.Project.Domain.Datasets
 
         /// <summary>Thong tin mau (Crowd.Labeling.SampleMetadata).</summary>
         public RawJson Metadata { get; private set; }
+
+        /// <summary>
+        /// Cau hoi rieng cua mau, hien thay cau hoi chung. Chong trung tinh theo (Sha256, Question): cung mot anh
+        /// voi hai cau hoi khac nhau la hai mau.
+        /// </summary>
+        public string? Question { get; private set; }
 
         /// <summary>Ten file goc / ten dong trong manifest — de doanh nghiep doi chieu voi du lieu goc.</summary>
         public string OriginalName { get; private set; }
@@ -97,6 +106,41 @@ namespace Crowd.Project.Domain.Datasets
 
         /// <summary>report_accepted (chu du an loai) | auto_reports (du nguoi bao).</summary>
         public string? ExcludedReason { get; private set; }
+
+        /// <summary>
+        /// Dat / xoa cau hoi rieng (chuoi rong = xoa, dung lai cau hoi chung). Chi khi du an con Nhap — service
+        /// kiem truoc (LabelingProject.KiemTraCoTheNapDuLieu): doi cau hoi giua chung thi bai nop truoc va sau tra
+        /// loi hai cau khac nhau.
+        /// </summary>
+        public void DatCauHoi(string? cauHoi)
+        {
+            string? q = cauHoi == null ? null : cauHoi.Trim();
+            if (string.IsNullOrEmpty(q))
+            {
+                Question = null;
+                return;
+            }
+
+            if (q.Length > CotDb.CauHoiMau)
+            {
+                throw new InvalidValueException(
+                    "cau_hoi_qua_dai",
+                    "Câu hỏi tối đa " + CotDb.CauHoiMau + " ký tự.");
+            }
+
+            Question = q;
+        }
+
+        /// <summary>Cau hoi labeler THAY cho mau nay: cau rieng neu co, khong thi cau hoi chung cua du an.</summary>
+        public string? CauHoiHienThi(LabelSchema? tapNhan)
+        {
+            if (Question != null)
+            {
+                return Question;
+            }
+
+            return tapNhan == null ? null : tapNhan.Question;
+        }
 
         /// <summary>Loai mau (mot lan). Tra ve false neu da bi loai tu truoc.</summary>
         public bool LoaiBo(string lyDo, DateTimeOffset luc)

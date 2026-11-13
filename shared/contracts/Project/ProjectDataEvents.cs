@@ -45,7 +45,7 @@ namespace Crowd.Contracts.Project
         /// <summary>Khoa trong bucket "datasets" cua MinIO. null voi du lieu khong phai file (text, pair).</summary>
         public string? StorageKey { get; init; }
 
-        /// <summary>Noi dung khi du lieu khong phai file: {"text"} hoac {"prompt","a","b"}. null voi file.</summary>
+        /// <summary>Noi dung khi du lieu khong phai file: {"text"}, {"a","b"} hoac {"items"} (cau hoi khong nam trong content). null voi file.</summary>
         public RawJson? Content { get; init; }
 
         /// <summary>Thong tin mau (Crowd.Labeling.SampleMetadata): width/height, durationSec, length, doan cat.</summary>

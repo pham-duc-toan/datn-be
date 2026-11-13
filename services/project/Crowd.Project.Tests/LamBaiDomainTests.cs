@@ -23,7 +23,7 @@ namespace Crowd.Project.Tests
 
         public static LabelSchema TapNhanAnh(params string[] lop)
         {
-            return LabelSchema.Doc("{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":"
+            return LabelSchema.Doc("{\"modality\":\"image\",\"question\":\"Anh nay la con gi?\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":"
                                    + JsonSerializer.Serialize(lop) + "}]}");
         }
 
@@ -32,7 +32,6 @@ namespace Crowd.Project.Tests
         {
             LabelingProject p = LabelingProject.Tao(Guid.NewGuid(), "Phan loai", "mo ta", Modalities.Image, ProjectVisibility.Public, Luc, QuyDinhMau.DuAn);
             p.DatLabelSchema(TapNhanAnh("cho", "meo"), Luc);
-            p.DatHuongDan(Guideline.Tao("# Huong dan", null, QuyDinhMau.DuAn), Luc);
             p.DatCauHinhGia(100000, 5, 80, Luc.AddDays(10), Luc, QuyDinhMau.DuAn);
             p.DatDieuKienThamGia(minLevel, minReputation, false, 10, 80, Luc, QuyDinhMau.DuAn);
             p.YeuCauPublish(20, 0, 30, false, QuyDinhMau.DuAn, null, Luc);

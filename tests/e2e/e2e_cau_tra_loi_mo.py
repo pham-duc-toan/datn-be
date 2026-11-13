@@ -15,6 +15,7 @@ import uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from moi_truong import dat_cau_hoi_chung  # noqa: E402
 from moi_truong import sql_container  # noqa: E402
 from tro_giup import (  # noqa: E402
     G, GOC, KQ, TAG, admin, bai_cua_toi, bat_dau, cho, cho_cham, dang_ky, dat_va_cho, kiem, luu, nap_mau, nop_bai, sql, tham_gia, vi,
@@ -39,7 +40,7 @@ def tao_du_an(chu, ten, mau, thuong=20000, suat=3, nguong=60):
     pid = r.json()["id"]
     requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"labelSchema": {"modality": "text", "tools": [
         {"name": "mo_ta", "kind": "freeText", "maxLength": 500}]}}).raise_for_status()
-    requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"guideline": {"markdown": "Mo ta noi dung bang mot cau.", "examples": []}}).raise_for_status()
+    dat_cau_hoi_chung(chu["h"], pid)
     requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"pricing": {
         "rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
     nap_mau(pid, chu["h"], [{"text": v, "name": k} for k, v in mau.items()])

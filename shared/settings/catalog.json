@@ -658,42 +658,6 @@
     "description": "Độ dài mô tả dự án (tối đa 5000)."
   },
   {
-    "key": "guideline.markdown_max_length",
-    "name": "Độ dài hướng dẫn",
-    "group": "Dự án",
-    "type": "int",
-    "default": 20000,
-    "min": 100,
-    "max": 200000,
-    "unit": "ký tự",
-    "effect": "newOperations",
-    "description": "Độ dài tối đa phần hướng dẫn làm bài."
-  },
-  {
-    "key": "guideline.examples_max",
-    "name": "Số ví dụ trong hướng dẫn",
-    "group": "Dự án",
-    "type": "int",
-    "default": 50,
-    "min": 0,
-    "max": 500,
-    "unit": "ví dụ",
-    "effect": "newOperations",
-    "description": "Số ví dụ tối đa trong hướng dẫn."
-  },
-  {
-    "key": "guideline.explanation_max_length",
-    "name": "Độ dài giải thích ví dụ",
-    "group": "Dự án",
-    "type": "int",
-    "default": 1000,
-    "min": 10,
-    "max": 10000,
-    "unit": "ký tự",
-    "effect": "newOperations",
-    "description": "Độ dài giải thích mỗi ví dụ."
-  },
-  {
     "key": "entrance.max_attempts",
     "name": "Số lần làm bài test",
     "group": "Dự án",

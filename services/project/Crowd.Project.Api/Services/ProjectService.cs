@@ -161,12 +161,13 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// PATCH /projects/{id} — sua cau hinh du an THEO NHOM (info, labelSchema, guideline, pricing, channels,
-        /// eligibility, protection, tags, retention). Body chi mang nhom muon doi; moi nhom goi DUNG ham domain cua
-        /// no, nen luat theo trang thai giu nguyen (vd du an Tam dung: sua guideline duoc, sua pricing → 409).
+        /// PATCH /projects/{id} — sua cau hinh du an THEO NHOM (info, labelSchema, pricing, channels, eligibility,
+        /// protection, tags, retention). Body chi mang nhom muon doi; moi nhom goi DUNG ham domain cua no, nen luat
+        /// theo trang thai giu nguyen (vd du an Tam dung: sua pricing → 409).
         ///
         /// Mot nhom loi → KHONG luu gi: domain nem loi truoc SaveChanges, request la tat ca hoac khong gi.
-        /// Thu tu co dinh: tap nhan TRUOC huong dan — vi du trong huong dan duoc kiem theo tap nhan moi.
+        /// Huong dan Markdown cua du an da bo: labeler co cau hoi (label_schema.question / samples.question) va man
+        /// luyen tap cong cu.
         /// </summary>
         public async Task<ProjectResponse> CapNhatAsync(Guid id, PatchProjectRequest body, Caller caller, CancellationToken ct)
         {
@@ -179,7 +180,7 @@ namespace Crowd.Project.Api.Services
             {
                 throw new InvalidValueException(
                     "khong_co_gi_de_sua",
-                    "Cần ít nhất một nhóm cấu hình để sửa (info, labelSchema, guideline, pricing, channels, eligibility, protection, tags, retention).");
+                    "Cần ít nhất một nhóm cấu hình để sửa (info, labelSchema, pricing, channels, eligibility, protection, tags, retention).");
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
@@ -194,11 +195,6 @@ namespace Crowd.Project.Api.Services
             if (body.LabelSchema.HasValue)
             {
                 await ApTapNhanAsync(duAn, body.LabelSchema.Value, bayGio, ct);
-            }
-
-            if (body.Guideline != null)
-            {
-                await ApHuongDanAsync(duAn, body.Guideline, bayGio, quyDinh, ct);
             }
 
             if (body.Pricing != null)
@@ -240,7 +236,6 @@ namespace Crowd.Project.Api.Services
         {
             return b.Info == null
                    && !b.LabelSchema.HasValue
-                   && b.Guideline == null
                    && b.Pricing == null
                    && b.Channels == null
                    && b.Eligibility == null
@@ -259,25 +254,14 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// Tap nhan: {"tools":[...], "segmentSeconds"?: ...}. "modality" co the bo — lay theo du an; neu gui thi
-        /// phai trung. Kiem hinh dang bang JSON Schema roi ngu nghia (Crowd.Labeling.LabelSchema).
+        /// Tap nhan: {"question": "...", "tools":[...], "segmentSeconds"?: ...}. "modality" co the bo — lay theo du an;
+        /// neu gui thi phai trung. Kiem hinh dang bang JSON Schema roi ngu nghia (Crowd.Labeling.LabelSchema).
         /// </summary>
         private async Task ApTapNhanAsync(LabelingProject duAn, JsonElement body, DateTimeOffset luc, CancellationToken ct)
         {
             if (body.ValueKind != JsonValueKind.Object)
             {
                 throw new InvalidValueException("tap_nhan_sai_dinh_dang", "Tập nhãn phải là một object JSON.");
-            }
-
-            // Doi tap nhan sau khi da co cau hoi vang se lam dap an vang tro vao
-            // lop khong con ton tai. Bat xoa cau hoi vang truoc.
-            Guid id = duAn.Id;
-            bool coCauVang = await _db.GoldItems.AnyAsync(g => g.ProjectId == id, ct);
-            if (coCauVang)
-            {
-                throw new RuleViolationException(
-                    "da_co_cau_hoi_vang",
-                    "Dự án đã có câu hỏi vàng. Xoá câu hỏi vàng trước khi đổi tập nhãn.");
             }
 
             System.Text.Json.Nodes.JsonObject o = (System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(body.GetRawText())!;
@@ -287,33 +271,42 @@ namespace Crowd.Project.Api.Services
             }
 
             LabelSchema schema = LabelSchema.Doc(o.ToJsonString());
+
+            // Doi CONG CU sau khi da co cau hoi vang se lam dap an vang tro vao lop / cong cu khong con ton tai —
+            // bat xoa cau hoi vang truoc. Chi sua chu (cau hoi chung, dong nhac tung cong cu) thi dap an van dung.
+            Guid id = duAn.Id;
+            bool coCauVang = await _db.GoldItems.AnyAsync(g => g.ProjectId == id, ct);
+            if (coCauVang && !CungCongCu(duAn.LabelSchema, schema))
+            {
+                throw new RuleViolationException(
+                    "da_co_cau_hoi_vang",
+                    "Dự án đã có câu hỏi vàng. Xoá câu hỏi vàng trước khi đổi công cụ gán nhãn (sửa câu hỏi và dòng nhắc thì không cần).");
+            }
+
             duAn.DatLabelSchema(schema, luc);
         }
 
-        private async Task ApHuongDanAsync(
-            LabelingProject duAn, GuidelineRequest b, DateTimeOffset luc, QuyDinhDuAn quyDinh, CancellationToken ct)
+        /// <summary>Hai tap nhan giong het nhau neu bo phan chu (cau hoi chung, dong nhac cong cu).</summary>
+        private static bool CungCongCu(LabelSchema? cu, LabelSchema moi)
         {
-            List<GuidelineExample> viDu = new List<GuidelineExample>();
-            List<Guid> mauCanKiem = new List<Guid>();
-
-            if (b.Examples != null)
+            if (cu == null)
             {
-                foreach (GuidelineExampleDto e in b.Examples)
-                {
-                    viDu.Add(new GuidelineExample(e.SampleId, e.Label, e.IsCorrect, e.Explanation ?? string.Empty));
-
-                    if (e.SampleId.HasValue)
-                    {
-                        mauCanKiem.Add(e.SampleId.Value);
-                    }
-                }
+                return false;
             }
 
-            // Vi du chi duoc tro toi mau CUA CHINH du an nay — khong thi chu du an
-            // A nhet id anh cua du an B vao huong dan de xem trom (BOLA).
-            await KiemMauThuocDuAnAsync(duAn.Id, mauCanKiem, ct);
+            return BoPhanChu(cu) == BoPhanChu(moi);
+        }
 
-            duAn.DatHuongDan(Guideline.Tao(b.Markdown ?? string.Empty, viDu, quyDinh), luc);
+        private static string BoPhanChu(LabelSchema s)
+        {
+            System.Text.Json.Nodes.JsonObject o = (System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(s.ToRawJson().Json)!;
+            o.Remove("question");
+            foreach (System.Text.Json.Nodes.JsonNode? t in (System.Text.Json.Nodes.JsonArray)o["tools"]!)
+            {
+                ((System.Text.Json.Nodes.JsonObject)t!).Remove("hint");
+            }
+
+            return o.ToJsonString();
         }
 
         private static void ApGia(LabelingProject duAn, PricingRequest b, DateTimeOffset luc, QuyDinhDuAn quyDinh)
@@ -1114,22 +1107,6 @@ namespace Crowd.Project.Api.Services
                 ct);
         }
 
-        private async Task KiemMauThuocDuAnAsync(Guid projectId, List<Guid> sampleIds, CancellationToken ct)
-        {
-            if (sampleIds.Count == 0)
-            {
-                return;
-            }
-
-            List<Guid> khacNhau = sampleIds.Distinct().ToList();
-            int soThuoc = await _db.Samples.CountAsync(s => s.ProjectId == projectId && khacNhau.Contains(s.Id), ct);
-
-            if (soThuoc != khacNhau.Count)
-            {
-                throw new InvalidValueException("mau_khong_thuoc_du_an", "Có mẫu không thuộc dự án này.");
-            }
-        }
-
         /// <summary>Mot dong cua danh sach du an (GET /projects va cho du an GET /projects/market).</summary>
         public static ProjectListItem TaoListItem(LabelingProject p, Caller caller)
         {
@@ -1188,24 +1165,6 @@ namespace Crowd.Project.Api.Services
 
             bool laChu = ProjectAccessService.LaChu(p, caller);
 
-            GuidelineResponse? huongDan = null;
-            if (p.Guideline != null)
-            {
-                List<GuidelineExampleDto> viDu = new List<GuidelineExampleDto>();
-                foreach (GuidelineExample e in p.Guideline.Examples)
-                {
-                    viDu.Add(new GuidelineExampleDto
-                    {
-                        SampleId = e.SampleId,
-                        Label = e.Label,
-                        IsCorrect = e.IsCorrect,
-                        Explanation = e.Explanation,
-                    });
-                }
-
-                huongDan = new GuidelineResponse { Markdown = p.Guideline.Markdown, Examples = viDu };
-            }
-
             return new ProjectResponse
             {
                 Id = p.Id,
@@ -1215,7 +1174,6 @@ namespace Crowd.Project.Api.Services
                 Status = p.Status,
                 Visibility = p.Visibility,
                 LabelSchema = p.LabelSchema == null ? null : p.LabelSchema.ToRawJson(),
-                Guideline = huongDan,
                 RewardVnd = p.RewardVnd,
                 Slots = p.Slots,
                 PassThresholdPercent = p.PassThresholdPercent,

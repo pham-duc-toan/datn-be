@@ -43,15 +43,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
                 .HasColumnType("jsonb")
                 .HasConversion(doiSchema);
 
-            ValueConverter<Guideline?, string> doiHuongDan = new ValueConverter<Guideline?, string>(
-                v => JsonColumns.VietGuideline(v),
-                s => JsonColumns.DocGuideline(s));
-
-            builder.Property(x => x.Guideline)
-                .HasColumnName("guideline")
-                .HasColumnType("jsonb")
-                .HasConversion(doiHuongDan);
-
             // Tien theo CA DU AN (docs 3.18): thuong moi nguoi dat x so suat; ky quy tinh tu dong.
             builder.Property(x => x.RewardVnd).HasColumnName("reward_vnd").IsRequired();
             builder.Property(x => x.Slots).HasColumnName("slots").IsRequired();

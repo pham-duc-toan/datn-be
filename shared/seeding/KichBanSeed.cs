@@ -122,12 +122,6 @@ namespace Crowd.Seeding
             return ds;
         }
 
-        private const string HuongDan =
-            "# Huong dan\n\n"
-            + "Moi anh la MOT mau. Chon dung mot lop:\n\n"
-            + "- `do`\n- `xanh_la`\n- `xanh_duong`\n- `vang`\n\n"
-            + "Anh toi hay sang deu chon theo sac mau chinh.";
-
         /// <summary>
         /// P1 — DANG CHAY: 8 anh (anh 8 la cau vang kiem tra) → de 7 cau. 3 suat, thuong 50.000d,
         /// nguong 80%. lab1 DA NOP bai (dung het), lab2 DANG LAM (nhap 3/7 cau).
@@ -172,7 +166,6 @@ namespace Crowd.Seeding
                 OwnerId = biz1,
                 Name = "[Seed] Phan loai mau anh - dang chay",
                 Description = "Du an mau dang chay: lab1 da nop bai, lab2 dang lam do.",
-                GuidelineMarkdown = HuongDan,
                 Stage = SeedStage.Running,
                 IsPrivate = false,
                 Modality = Modalities.Image,
@@ -215,7 +208,6 @@ namespace Crowd.Seeding
                 OwnerId = User("biz1").Id,
                 Name = "[Seed] Phan loai mau anh - cho duyet",
                 Description = "Du an da ky quy, dang nam trong hang doi duyet cua admin.",
-                GuidelineMarkdown = HuongDan,
                 Stage = SeedStage.PendingApproval,
                 IsPrivate = false,
                 Modality = Modalities.Image,
@@ -253,7 +245,6 @@ namespace Crowd.Seeding
                 OwnerId = User("biz1").Id,
                 Name = "[Seed] Phan loai mau anh - nhap",
                 Description = "Du an nhap da cau hinh du, bam publish la chay saga ky quy.",
-                GuidelineMarkdown = HuongDan,
                 Stage = SeedStage.Draft,
                 IsPrivate = false,
                 Modality = Modalities.Image,
@@ -292,12 +283,10 @@ namespace Crowd.Seeding
                 OwnerId = User("biz2").Id,
                 Name = "[Seed] Anh - khung xoay, da giac, diem moc - nhap",
                 Description = "Du an nhap dung cac cong cu hinh hoc: khung xoay (goc), vung da giac, diem moc.",
-                GuidelineMarkdown = "# Huong dan\n\n- `khung`: ve khung bao vat the, XOAY khung theo huong vat the (goc do).\n"
-                    + "- `vung`: khoanh vung mau chinh bang da giac.\n- `diem`: dat diem `tam` vao giua anh.",
                 Stage = SeedStage.Draft,
                 IsPrivate = false,
                 Modality = Modalities.Image,
-                LabelSchemaJson = "{\"modality\":\"image\",\"tools\":["
+                LabelSchemaJson = "{\"modality\":\"image\",\"question\":\"Ve khung, khoanh vung va danh dau tam cua vat the trong anh.\",\"tools\":["
                     + "{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"vat_the\"],\"rotatable\":true},"
                     + "{\"name\":\"vung\",\"kind\":\"polygon\",\"classes\":[\"mau_chinh\"]},"
                     + "{\"name\":\"diem\",\"kind\":\"keypoint\",\"classes\":[\"tam\"]}]}",
@@ -339,7 +328,6 @@ namespace Crowd.Seeding
                 OwnerId = User("biz1").Id,
                 Name = "[Seed] Phan loai mau anh - can test dau vao",
                 Description = "Du an dang chay, labeler phai dau bai test 3 cau truoc khi lam bai.",
-                GuidelineMarkdown = HuongDan,
                 Stage = SeedStage.Running,
                 IsPrivate = false,
                 Modality = Modalities.Image,
@@ -450,10 +438,9 @@ namespace Crowd.Seeding
                 OwnerId = biz1,
                 Name = "[Seed] Van ban - cam xuc va thuc the",
                 Description = "Moi cau: chon cam xuc va boi den ten nguoi, dia diem, to chuc.",
-                GuidelineMarkdown = "# Huong dan\n\nChon cam xuc cua ca cau. Boi den tung thuc the (vi tri tinh theo ky tu, end khong tinh).",
                 Modality = Modalities.Text,
                 LabelSchemaJson =
-                    "{\"modality\":\"text\",\"tools\":["
+                    "{\"modality\":\"text\",\"question\":\"Cau nay mang cam xuc gi, va co nhung ten nguoi, dia diem, to chuc nao?\",\"tools\":["
                     + "{\"name\":\"cam_xuc\",\"kind\":\"classification\",\"classes\":[\"tich_cuc\",\"tieu_cuc\",\"trung_tinh\"]},"
                     + "{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"TEN_NGUOI\",\"DIA_DIEM\",\"TO_CHUC\"]}]}",
                 Stage = SeedStage.Running,
@@ -507,10 +494,9 @@ namespace Crowd.Seeding
                 OwnerId = User("biz1").Id,
                 Name = "[Seed] Am thanh - chep loi va danh dau doan",
                 Description = "Nghe tung doan 10 giay: chep lai loi noi va danh dau doan giong noi / nhac / im lang.",
-                GuidelineMarkdown = "# Huong dan\n\nChep dung tung tu nghe duoc. Thoi gian tinh tu dau DOAN (0 den do dai doan).",
                 Modality = Modalities.Audio,
                 LabelSchemaJson =
-                    "{\"modality\":\"audio\",\"segmentSeconds\":10,\"tools\":["
+                    "{\"modality\":\"audio\",\"segmentSeconds\":10,\"question\":\"Doan am thanh nay noi gi, va dau la giong noi, nhac, im lang?\",\"tools\":["
                     + "{\"name\":\"loi_noi\",\"kind\":\"transcription\"},"
                     + "{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"giong_noi\",\"nhac\",\"im_lang\"]}]}",
                 Stage = SeedStage.Running,
@@ -570,10 +556,9 @@ namespace Crowd.Seeding
                 OwnerId = biz1,
                 Name = "[Seed] So sanh cap cau tra loi LLM",
                 Description = "Doc cau hoi va hai cau tra loi a, b: chon cau tot hon va danh gia co an toan khong.",
-                GuidelineMarkdown = "# Huong dan\n\nChon cau tra loi DUNG va HUU ICH hon. Bang nhau thi chon tie.",
                 Modality = Modalities.Pair,
                 LabelSchemaJson =
-                    "{\"modality\":\"pair\",\"tools\":["
+                    "{\"modality\":\"pair\",\"question\":\"Cau tra loi nao dung va huu ich hon?\",\"tools\":["
                     + "{\"name\":\"tot_hon\",\"kind\":\"pairwise\",\"allowTie\":true},"
                     + "{\"name\":\"an_toan\",\"kind\":\"classification\",\"classes\":[\"an_toan\",\"khong_an_toan\"]}]}",
                 Stage = SeedStage.Completed,
@@ -613,7 +598,7 @@ namespace Crowd.Seeding
 
         /// <summary>Tap nhan cua P1-P4: mot cong cu phan loai mau, ten "label".</summary>
         public const string TapNhanMau =
-            "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\","
+            "{\"modality\":\"image\",\"question\":\"Mau chu dao cua anh la mau gi?\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\","
             + "\"classes\":[\"do\",\"xanh_la\",\"xanh_duong\",\"vang\"]}]}";
 
         /// <summary>Kich thuoc anh mau (px) — ProjectSeeder sinh anh dung kich thuoc nay.</summary>
@@ -660,11 +645,11 @@ namespace Crowd.Seeding
             };
         }
 
-        private static SeedSample MauCap(string projectKey, int index, string prompt, string a, string b)
+        /// <summary>Mau cap: cau hoi cua tung cap la cau hoi RIENG cua mau (samples.question), khong nam trong content.</summary>
+        private static SeedSample MauCap(string projectKey, int index, string cauHoi, string a, string b)
         {
             System.Text.Json.Nodes.JsonObject noiDung = new System.Text.Json.Nodes.JsonObject
             {
-                ["prompt"] = prompt,
                 ["a"] = a,
                 ["b"] = b,
             };
@@ -677,6 +662,7 @@ namespace Crowd.Seeding
                 Modality = Modalities.Pair,
                 ContentJson = noiDung.ToJsonString(),
                 Metadata = SampleMetadata.Rong,
+                Question = cauHoi,
             };
         }
 

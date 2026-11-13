@@ -42,8 +42,11 @@ namespace Crowd.Gate.Api.Dtos
         /// <summary>Anh: link xem co han (MinIO). Van ban / cap: null.</summary>
         public string? FileUrl { get; init; }
 
-        /// <summary>Van ban {"text"} / cap {"a","b","prompt"?}. Anh: null.</summary>
+        /// <summary>Van ban {"text"} / cap {"a","b"} / danh sach {"items"}. Anh: null.</summary>
         public JsonElement? Content { get; init; }
+
+        /// <summary>Cau hoi cua cau nay (cau rieng cua mau, khong co thi cau hoi chung cua du an).</summary>
+        public string? Question { get; init; }
 
         public required JsonElement Metadata { get; init; }
     }

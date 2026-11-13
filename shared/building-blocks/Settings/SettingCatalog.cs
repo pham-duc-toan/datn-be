@@ -52,9 +52,6 @@ namespace Crowd.BuildingBlocks.Settings
         public const string ProjectGoldItemsMax = "project.gold_items_max";
         public const string ProjectNameMaxLength = "project.name_max_length";
         public const string ProjectDescriptionMaxLength = "project.description_max_length";
-        public const string GuidelineMarkdownMaxLength = "guideline.markdown_max_length";
-        public const string GuidelineExamplesMax = "guideline.examples_max";
-        public const string GuidelineExplanationMaxLength = "guideline.explanation_max_length";
         public const string EntranceMaxAttempts = "entrance.max_attempts";
         public const string EntranceDuration = "entrance.duration";
         public const string ProjectMemberBatchMax = "project.member_batch_max";
@@ -440,12 +437,6 @@ namespace Crowd.BuildingBlocks.Settings
                 "Độ dài tên dự án (tối đa 200)."));
             ds.Add(Int(SettingKeys.ProjectDescriptionMaxLength, NhomDuAn, 5000, 100, 5000, "ký tự",
                 "Độ dài mô tả dự án (tối đa 5000)."));
-            ds.Add(Int(SettingKeys.GuidelineMarkdownMaxLength, NhomDuAn, 20000, 100, 200000, "ký tự",
-                "Độ dài tối đa phần hướng dẫn làm bài."));
-            ds.Add(Int(SettingKeys.GuidelineExamplesMax, NhomDuAn, 50, 0, 500, "ví dụ",
-                "Số ví dụ tối đa trong hướng dẫn."));
-            ds.Add(Int(SettingKeys.GuidelineExplanationMaxLength, NhomDuAn, 1000, 10, 10000, "ký tự",
-                "Độ dài giải thích mỗi ví dụ."));
             ds.Add(Int(SettingKeys.EntranceMaxAttempts, NhomDuAn, 3, 1, 100, "lần",
                 "Số lần làm bài test đầu vào tối đa mỗi dự án."));
             ds.Add(Seconds(SettingKeys.EntranceDuration, NhomDuAn, 30 * 60, 60, Ngay,

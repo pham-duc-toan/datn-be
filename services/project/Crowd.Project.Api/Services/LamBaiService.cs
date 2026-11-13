@@ -994,6 +994,7 @@ namespace Crowd.Project.Api.Services
                     Modality = s.Modality,
                     FileUrl = fileUrl,
                     Content = s.Content,
+                    Question = s.CauHoiHienThi(p.LabelSchema),
                     Metadata = s.Metadata,
                     Answer = co ? RawJson.Tu(x.Key) : null,
                     AnsweredAt = co ? x.Value : null,

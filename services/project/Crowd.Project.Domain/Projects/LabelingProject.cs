@@ -67,9 +67,6 @@ namespace Crowd.Project.Domain.Projects
         /// </summary>
         public LabelSchema? LabelSchema { get; private set; }
 
-        /// <summary>null = chua viet huong dan.</summary>
-        public Guideline? Guideline { get; private set; }
-
         // ---- Cau hinh tien (FB-14) — theo CA DU AN (docs 3.18). Tien la long, so nguyen dong (VD-M-07). ----
 
         /// <summary>
@@ -278,37 +275,6 @@ namespace Crowd.Project.Domain.Projects
             }
 
             LabelSchema = schema;
-            UpdatedAt = luc;
-        }
-
-        /// <summary>
-        /// Duoc sua ca khi Tam dung: phat hien huong dan mo ho giua chung thi tam
-        /// dung, lam ro, roi chay tiep. Khong cho sua khi dang chay — labeler dang
-        /// lam bai se bi doi luat giua chung.
-        /// </summary>
-        public void DatHuongDan(Guideline guideline, DateTimeOffset luc)
-        {
-            if (guideline == null)
-            {
-                throw new ArgumentNullException(nameof(guideline));
-            }
-
-            if (Status != ProjectStatus.Draft && Status != ProjectStatus.Paused)
-            {
-                throw KhongTheKhi("sửa hướng dẫn");
-            }
-
-            foreach (GuidelineExample viDu in guideline.Examples)
-            {
-                if (viDu.Label != null && (LabelSchema == null || !LabelSchema.CoLop(viDu.Label)))
-                {
-                    throw new InvalidValueException(
-                        "nhan_vi_du_khong_co",
-                        "Ví dụ dùng nhãn '" + viDu.Label + "' không có trong tập nhãn.");
-                }
-            }
-
-            Guideline = guideline;
             UpdatedAt = luc;
         }
 
@@ -785,10 +751,11 @@ namespace Crowd.Project.Domain.Projects
             {
                 thieu.Add("chua_co_tap_nhan");
             }
-
-            if (Guideline == null)
+            else if (LabelSchema.Question == null)
             {
-                thieu.Add("chua_co_huong_dan");
+                // Huong dan Markdown cua du an da bo: labeler chi con cau hoi (chung / rieng tung mau) + man luyen
+                // tap cong cu. Thieu cau hoi chung thi mau khong co cau rieng se hien ra ma khong biet phai lam gi.
+                thieu.Add("chua_co_cau_hoi");
             }
 
             if (RewardVnd <= 0 || Slots < 1 || Deadline == null)

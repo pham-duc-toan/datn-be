@@ -83,7 +83,7 @@ namespace Crowd.Admin.Api.Services
             }
 
             DuLieuMau d = KiemTra(body);
-            MauBaiToan m = MauBaiToan.Tao(ma, d.Ten, d.MoTa, d.Modality, d.TapNhan, d.HuongDan, body.SuggestedUnitPriceVnd,
+            MauBaiToan m = MauBaiToan.Tao(ma, d.Ten, d.MoTa, d.Modality, d.TapNhan, body.SuggestedUnitPriceVnd,
                 body.SuggestedRedundancy, adminId, _clock.GetUtcNow());
             _db.MauBaiToans.Add(m);
             try
@@ -107,7 +107,7 @@ namespace Crowd.Admin.Api.Services
 
             MauBaiToan m = await LayDeSuaAsync(id, ct);
             DuLieuMau d = KiemTra(body);
-            m.Sua(d.Ten, d.MoTa, d.Modality, d.TapNhan, d.HuongDan, body.SuggestedUnitPriceVnd, body.SuggestedRedundancy, adminId, _clock.GetUtcNow());
+            m.Sua(d.Ten, d.MoTa, d.Modality, d.TapNhan, body.SuggestedUnitPriceVnd, body.SuggestedRedundancy, adminId, _clock.GetUtcNow());
             await _db.SaveChangesAsync(ct);
             return TaoResponse(m);
         }
@@ -126,21 +126,17 @@ namespace Crowd.Admin.Api.Services
         /// </summary>
         public async Task<int> SeedAsync(Guid adminId, CancellationToken ct)
         {
-            // { ma, ten cu (ban khong dau), ten, mo ta, tap nhan, huong dan }
+            // { ma, ten cu (ban khong dau), ten, mo ta, tap nhan (kem cau hoi chung + dong nhac cong cu) }
             string[][] ds = new string[][]
             {
                 new string[] { "phan-loai-anh", "Phan loai anh", "Phân loại ảnh", "Mỗi ảnh chọn một lớp.",
-                    "{\"modality\":\"image\",\"tools\":[{\"name\":\"lop\",\"kind\":\"classification\",\"classes\":[\"Lớp A\",\"Lớp B\"]}]}",
-                    "# Hướng dẫn\n\nChọn đúng MỘT lớp cho mỗi ảnh." },
+                    "{\"modality\":\"image\",\"question\":\"Ảnh này thuộc lớp nào?\",\"tools\":[{\"name\":\"lop\",\"kind\":\"classification\",\"classes\":[\"Lớp A\",\"Lớp B\"],\"hint\":\"Chọn đúng một lớp.\"}]}" },
                 new string[] { "ner-tieng-viet", "Gan the thuc the tieng Viet", "Gán thẻ thực thể tiếng Việt", "Đánh dấu tên người, địa điểm, tổ chức trong văn bản.",
-                    "{\"modality\":\"text\",\"tools\":[{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"Tên người\",\"Địa điểm\",\"Tổ chức\"]}]}",
-                    "# Hướng dẫn\n\nBôi đen trọn cụm từ của thực thể, không lấy dấu câu." },
+                    "{\"modality\":\"text\",\"question\":\"Câu này nhắc tới những người, địa điểm, tổ chức nào?\",\"tools\":[{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"Tên người\",\"Địa điểm\",\"Tổ chức\"],\"hint\":\"Bôi đen trọn cụm từ, không lấy dấu câu.\"}]}" },
                 new string[] { "chep-loi-am-thanh", "Chep loi am thanh", "Chép lời âm thanh", "Nghe và chép lại lời nói, đánh dấu đoạn có tiếng nói.",
-                    "{\"modality\":\"audio\",\"tools\":[{\"name\":\"loi_noi\",\"kind\":\"transcription\"},{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"Giọng nói\",\"Im lặng\"]}]}",
-                    "# Hướng dẫn\n\nChép đúng từng từ, không sửa ngữ pháp." },
+                    "{\"modality\":\"audio\",\"question\":\"Đoạn âm thanh này nói gì?\",\"tools\":[{\"name\":\"loi_noi\",\"kind\":\"transcription\",\"hint\":\"Chép đúng từng từ, không sửa ngữ pháp.\"},{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"Giọng nói\",\"Im lặng\"]}]}" },
                 new string[] { "phat-hien-vat-the-xoay", "Phat hien vat the (khung xoay)", "Phát hiện vật thể (khung xoay)", "Vẽ khung xoay theo hướng vật thể — xuất YOLO-OBB.",
-                    "{\"modality\":\"image\",\"tools\":[{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"Vật thể\"],\"rotatable\":true}]}",
-                    "# Hướng dẫn\n\nKhung ôm sát vật thể, xoay theo cạnh dài." },
+                    "{\"modality\":\"image\",\"question\":\"Khoanh tất cả vật thể trong ảnh.\",\"tools\":[{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"Vật thể\"],\"rotatable\":true,\"hint\":\"Khung ôm sát vật thể, xoay theo cạnh dài.\"}]}" },
             };
 
             int moi = 0;
@@ -151,12 +147,12 @@ namespace Crowd.Admin.Api.Services
                 MauBaiToan? co = await _db.MauBaiToans.FirstOrDefaultAsync(x => x.Code == ma, ct);
                 if (co == null)
                 {
-                    _db.MauBaiToans.Add(MauBaiToan.Tao(ma, m[2], m[3], tapNhan.Modality, tapNhan.ToRawJson().Json, m[5], null, null, adminId, _clock.GetUtcNow()));
+                    _db.MauBaiToans.Add(MauBaiToan.Tao(ma, m[2], m[3], tapNhan.Modality, tapNhan.ToRawJson().Json, null, null, adminId, _clock.GetUtcNow()));
                     moi++;
                 }
                 else if (co.Version == 1 && co.UpdatedBy == adminId && co.Name == m[1])
                 {
-                    co.Sua(m[2], m[3], tapNhan.Modality, tapNhan.ToRawJson().Json, m[5], co.SuggestedUnitPriceVnd, co.SuggestedRedundancy, adminId, _clock.GetUtcNow());
+                    co.Sua(m[2], m[3], tapNhan.Modality, tapNhan.ToRawJson().Json, co.SuggestedUnitPriceVnd, co.SuggestedRedundancy, adminId, _clock.GetUtcNow());
                 }
             }
 
@@ -184,8 +180,6 @@ namespace Crowd.Admin.Api.Services
             public required string Modality { get; init; }
 
             public required string TapNhan { get; init; }
-
-            public required string HuongDan { get; init; }
         }
 
         private static DuLieuMau KiemTra(TemplateRequest body)
@@ -200,12 +194,6 @@ namespace Crowd.Admin.Api.Services
             if (moTa.Length > MauBaiToan.DoDaiMoTaToiDa)
             {
                 throw new AdminException(400, "mo_ta_qua_dai", "description tối đa " + MauBaiToan.DoDaiMoTaToiDa + " ký tự.");
-            }
-
-            string huongDan = body.GuidelineMarkdown ?? string.Empty;
-            if (huongDan.Length > MauBaiToan.DoDaiHuongDanToiDa)
-            {
-                throw new AdminException(400, "huong_dan_qua_dai", "guidelineMarkdown tối đa " + MauBaiToan.DoDaiHuongDanToiDa + " ký tự.");
             }
 
             if (body.SuggestedUnitPriceVnd.HasValue && body.SuggestedUnitPriceVnd.Value < 0)
@@ -240,7 +228,6 @@ namespace Crowd.Admin.Api.Services
                 MoTa = moTa,
                 Modality = tapNhan.Modality,
                 TapNhan = tapNhan.ToRawJson().Json,
-                HuongDan = huongDan,
             };
         }
 
@@ -254,7 +241,6 @@ namespace Crowd.Admin.Api.Services
                 Description = m.Description,
                 Modality = m.Modality,
                 LabelSchema = JsonNode.Parse(m.LabelSchemaJson),
-                GuidelineMarkdown = m.GuidelineMarkdown,
                 SuggestedUnitPriceVnd = m.SuggestedUnitPriceVnd,
                 SuggestedRedundancy = m.SuggestedRedundancy,
                 Active = m.Active,

@@ -464,6 +464,11 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("original_name");
 
+                    b.Property<string>("Question")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("question");
+
                     b.Property<string>("Sha256")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
@@ -484,9 +489,12 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_samples_dang_nap")
                         .HasFilter("ingest_state IN ('queued','processing')");
 
-                    b.HasIndex("ProjectId", "Sha256")
+                    b.HasIndex("ProjectId", "Sha256", "Question")
                         .IsUnique()
-                        .HasDatabaseName("ux_samples_project_sha256");
+                        .HasDatabaseName("ux_samples_project_sha256_question")
+                        .HasFilter("sha256 IS NOT NULL");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("ProjectId", "Sha256", "Question"), false);
 
                     b.ToTable("samples", null, t =>
                         {
@@ -1051,10 +1059,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("GradingStartedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("grading_started_at");
-
-                    b.Property<string>("Guideline")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("guideline");
 
                     b.Property<string>("LabelSchema")
                         .HasColumnType("jsonb")
