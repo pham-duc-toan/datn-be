@@ -24,6 +24,8 @@ namespace Crowd.Project.Api.Services
     ///   - la admin, HOAC
     ///   - la thanh vien dang hoat dong (owner / labeler / reviewer), HOAC
     ///   - du an dang chay VA cong khai.
+    /// TRU du an chu du an da "xoa" (an, kien truc 3.36): chu du an khong con thay — ca danh sach lan mo theo id
+    /// (404). Labeler / reviewer cua du an van thay (lich su bai lam cua ho), admin thay het.
     /// </summary>
     public sealed class ProjectAccessService
     {
@@ -58,9 +60,10 @@ namespace Crowd.Project.Api.Services
             Guid userId = caller.LayUserId();
 
             return _db.Projects.Where(p =>
-                _db.ProjectMembers.Any(m =>
-                    m.ProjectId == p.Id && m.UserId == userId && m.State == MemberState.Active)
-                || (p.Status == ProjectStatus.Running && p.Visibility != ProjectVisibility.Private));
+                !(p.HiddenByOwnerAt != null && p.OwnerId == userId)
+                && (_db.ProjectMembers.Any(m =>
+                        m.ProjectId == p.Id && m.UserId == userId && m.State == MemberState.Active)
+                    || (p.Status == ProjectStatus.Running && p.Visibility != ProjectVisibility.Private)));
         }
 
         /// <summary>Lay mot du an de XEM. Khong xem duoc thi 404 — khong tiet lo no ton tai.</summary>

@@ -71,7 +71,7 @@ namespace Crowd.Project.Tests
         internal static LabelSchema PhanLoaiAnh(string a, string b)
         {
             return LabelSchema.Doc(
-                "{\"modality\":\"image\",\"question\":\"Anh nay la con gi?\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\""
+                "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"question\":\"Anh nay la con gi?\",\"classes\":[\""
                 + a + "\",\"" + b + "\"]}]}");
         }
 
@@ -230,27 +230,57 @@ namespace Crowd.Project.Tests
         [Fact]
         public void Chi_xoa_han_duoc_du_an_nhap_hoac_da_huy_chua_tung_publish()
         {
-            DuAnMoi().KiemTraCoTheXoa();
+            Assert.True(DuAnMoi().XoaHanDuoc());
 
             LabelingProject huyNhap = DuAnMoi();
             huyNhap.Huy("doi y", Luc);
-            huyNhap.KiemTraCoTheXoa();
+            Assert.True(huyNhap.XoaHanDuoc());
 
-            // Da publish (co tien ky quy) → huy duoc nhung khong xoa han duoc.
+            // Da publish (co tien ky quy) → khong xoa han duoc.
             LabelingProject daKyQuy = DuAnSanSang();
             Publish(daKyQuy, 100);
             daKyQuy.XacNhanDaKyQuy(Luc);
-            Assert.Throws<RuleViolationException>(() => daKyQuy.KiemTraCoTheXoa());
-
-            LabelingProject chay = DuAnDangChay();
-            RuleViolationException loi = Assert.Throws<RuleViolationException>(() => chay.KiemTraCoTheXoa());
-            Assert.Equal("khong_the_xoa_du_an", loi.Code);
+            Assert.False(daKyQuy.XoaHanDuoc());
+            Assert.False(DuAnDangChay().XoaHanDuoc());
 
             LabelingProject huySauKyQuy = DuAnSanSang();
             Publish(huySauKyQuy, 100);
             huySauKyQuy.XacNhanDaKyQuy(Luc);
             huySauKyQuy.Huy("khong lam nua", Luc);
-            Assert.Throws<RuleViolationException>(() => huySauKyQuy.KiemTraCoTheXoa());
+            Assert.False(huySauKyQuy.XoaHanDuoc());
+        }
+
+        [Fact]
+        public void Du_an_da_ket_thuc_bi_xoa_thi_chi_an_voi_chu_du_an()
+        {
+            // Chua ket thuc (cho duyet / dang chay / dang cham) → chua xoa duoc.
+            LabelingProject daKyQuy = DuAnSanSang();
+            Publish(daKyQuy, 100);
+            daKyQuy.XacNhanDaKyQuy(Luc);
+            RuleViolationException loi = Assert.Throws<RuleViolationException>(() => daKyQuy.AnVoiChu(Luc));
+            Assert.Equal("khong_the_xoa_du_an", loi.Code);
+
+            LabelingProject p = DuAnDangChay();
+            Assert.Throws<RuleViolationException>(() => p.AnVoiChu(Luc));
+            p.BatDauCham(Luc.AddDays(1));
+            Assert.Throws<RuleViolationException>(() => p.AnVoiChu(Luc));
+            Assert.Null(p.HiddenByOwnerAt);
+
+            // Hoan thanh → an, trang thai va du lieu giu nguyen; bam lai khong doi moc.
+            p.HoanThanh(Luc.AddDays(4));
+            p.AnVoiChu(Luc.AddDays(5));
+            Assert.Equal(Luc.AddDays(5), p.HiddenByOwnerAt);
+            Assert.Equal(ProjectStatus.Completed, p.Status);
+            p.AnVoiChu(Luc.AddDays(6));
+            Assert.Equal(Luc.AddDays(5), p.HiddenByOwnerAt);
+
+            // Da huy sau khi ky quy → cung chi an.
+            LabelingProject huySauKyQuy = DuAnSanSang();
+            Publish(huySauKyQuy, 100);
+            huySauKyQuy.XacNhanDaKyQuy(Luc);
+            huySauKyQuy.Huy("khong lam nua", Luc);
+            huySauKyQuy.AnVoiChu(Luc);
+            Assert.Equal(Luc, huySauKyQuy.HiddenByOwnerAt);
         }
 
         [Fact]
@@ -479,39 +509,56 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
-        public void Tap_nhan_chua_co_cau_hoi_chung_thi_chua_publish_duoc()
+        public void Con_cong_cu_chua_co_cau_hoi_thi_chua_publish_duoc()
         {
             LabelingProject p = DuAnSanSang();
             Assert.DoesNotContain("chua_co_cau_hoi", Thieu(p, 10, 0));
 
+            // Luu nhap duoc khi con cong cu thieu cau hoi — chi chan publish.
             p.DatLabelSchema(
-                LabelSchema.Doc("{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"]}]}"),
+                LabelSchema.Doc("{\"modality\":\"image\",\"tools\":["
+                    + "{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"],\"question\":\"Anh nay la gi?\"},"
+                    + "{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"xe\"]}]}"),
                 Luc);
 
             IReadOnlyList<string> thieu = Thieu(p, 10, 0);
             Assert.Contains("chua_co_cau_hoi", thieu);
             Assert.DoesNotContain("chua_co_tap_nhan", thieu);
+            Assert.Equal("khung", Assert.Single(p.LabelSchema!.CongCuThieuCauHoi()));
         }
 
         [Fact]
-        public void Cau_hoi_chung_va_dong_nhac_duoc_cat_khoang_trang_va_giu_trong_dang_chuan()
+        public void Cau_hoi_cong_cu_duoc_cat_khoang_trang_va_giu_trong_dang_chuan()
         {
             LabelSchema s = LabelSchema.Doc(
-                "{\"modality\":\"image\",\"question\":\"  Con gi?  \",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"],\"hint\":\" chon mot \"}]}");
+                "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"],\"question\":\"  Con gi?  \"}]}");
 
-            Assert.Equal("Con gi?", s.Question);
-            Assert.Equal("chon mot", s.Tools[0].Hint);
+            Assert.Equal("Con gi?", s.Tools[0].Question);
+            Assert.Empty(s.CongCuThieuCauHoi());
 
             LabelSchema doc = LabelSchema.Doc(s.ToRawJson());
-            Assert.Equal("Con gi?", doc.Question);
-            Assert.Equal("chon mot", doc.Tools[0].Hint);
+            Assert.Equal("Con gi?", doc.Tools[0].Question);
         }
 
         [Fact]
-        public void Cau_hoi_chung_rong_bi_tu_choi()
+        public void Cau_hoi_cong_cu_toan_khoang_trang_coi_nhu_chua_dat()
         {
+            LabelSchema s = LabelSchema.Doc(
+                "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"],\"question\":\"   \"}]}");
+
+            Assert.Null(s.Tools[0].Question);
+            Assert.Equal("label", Assert.Single(s.CongCuThieuCauHoi()));
+            Assert.DoesNotContain("question", s.ToRawJson().Json);
+        }
+
+        [Fact]
+        public void Tap_nhan_khong_con_cau_hoi_chung_va_dong_nhac()
+        {
+            // Cau hoi chung (label_schema.question) va dong nhac (tools[].hint) da bo (kien truc 3.35) — gui len la sai hinh dang.
             Assert.Throws<LabelFormatException>(() => LabelSchema.Doc(
-                "{\"modality\":\"image\",\"question\":\"   \",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"]}]}"));
+                "{\"modality\":\"image\",\"question\":\"Con gi?\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"],\"question\":\"Con gi?\"}]}"));
+            Assert.Throws<LabelFormatException>(() => LabelSchema.Doc(
+                "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":[\"a\",\"b\"],\"question\":\"Con gi?\",\"hint\":\"chon mot\"}]}"));
         }
     }
 }

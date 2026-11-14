@@ -1,5 +1,5 @@
 # E2E QUAN LY DU AN CHO DOANH NGHIEP VA ADMIN (bo sung):
-#   - xoa han du an nhap (DELETE /projects/{id}); du an da publish khong xoa duoc;
+#   - xoa han du an nhap (DELETE /projects/{id}); du an chua ket thuc khong xoa duoc; du an da ket thuc "xoa" = an voi chu du an;
 #   - don gia nhan khach vang lai (cong link) do ADMIN dat bang setting gate.unit_price_vnd: doanh nghiep gui len
 #     bi bo qua, chi duoc thong bao (readiness.gateUnitPriceVnd), chot lai luc publish;
 #   - admin xem duoc moi thong tin cua du an dang cho duyet (thong tin, readiness, mau + tien trinh nap, cau vang, thanh vien).
@@ -8,7 +8,7 @@ import os, sys, time
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import dat_cau_hoi_chung  # noqa: E402
+from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
 from tro_giup import *  # noqa: E402,F401,F403
 from e2e_cong_cu_helpers import nap  # noqa: E402
 
@@ -34,7 +34,7 @@ try:
     requests.post(G + f"/projects/{P}/publish", headers=biz["h"]).raise_for_status()
     cho(lambda: requests.get(G + f"/projects/{P}", headers=biz["h"]).json()["status"] == "pendingApproval", 25)
     r = requests.delete(G + f"/projects/{P}", headers=biz["h"])
-    kiem("du an da publish (co ky quy) → 409 khong_the_xoa_du_an", r.status_code == 409 and r.json().get("code") == "khong_the_xoa_du_an", r.text)
+    kiem("du an chua ket thuc (dang cho duyet, co ky quy) → 409 khong_the_xoa_du_an", r.status_code == 409 and r.json().get("code") == "khong_the_xoa_du_an", r.text)
 
     # =================================================================================
     print("\n[2] Admin xem day du du an cho duyet")
@@ -42,7 +42,7 @@ try:
     d = requests.get(G + f"/projects/{P}", headers=admin)
     j = d.json()
     kiem("admin doc duoc thong tin day du (chu, ky quy, phi, tap nhan, huong dan, hach toan)",
-         d.status_code == 200 and j["ownerId"] == biz["id"] and j["escrowVnd"] and j["platformFeePercent"] is not None and j["labelSchema"] and j["labelSchema"].get("question") and "guideline" not in j, d.text[:300])
+         d.status_code == 200 and j["ownerId"] == biz["id"] and j["escrowVnd"] and j["platformFeePercent"] is not None and j["labelSchema"] and all(t.get("question") for t in j["labelSchema"]["tools"]) and "question" not in j["labelSchema"] and "guideline" not in j, d.text[:300])
     kiem("admin doc readiness", requests.get(G + f"/projects/{P}/readiness", headers=admin).status_code == 200)
     st = requests.get(G + f"/projects/{P}/samples/status", headers=admin)
     kiem("admin doc tien trinh nap mau: 3 san sang", st.status_code == 200 and st.json()["ready"] == 3, st.text)
@@ -52,6 +52,25 @@ try:
     kiem("admin doc thanh vien", requests.get(G + f"/projects/{P}/members", headers=admin).status_code == 200)
     kiem("nguoi khong phai chu, khong phai admin khong doc duoc mau (404)", requests.get(G + f"/projects/{P}/samples", headers=other["h"]).status_code in (403, 404))
     requests.post(G + f"/projects/{P}/reject", headers=admin, json={"reason": "e2e"})
+
+    # =================================================================================
+    print("\n[2b] Xoa du an da ket thuc = chi an voi chu du an (kien truc 3.36)")
+    cho(lambda: requests.get(G + f"/projects/{P}", headers=biz["h"]).json()["status"] == "cancelled", 25)
+    kiem("admin tu choi → du an da huy sau khi ky quy (khong xoa han duoc)",
+         sql("project", f"select was_escrowed from projects where id = '{P}'") == "t")
+    kiem("nguoi khac khong xoa duoc → 403 / 404", requests.delete(G + f"/projects/{P}", headers=other["h"]).status_code in (403, 404))
+    r = requests.delete(G + f"/projects/{P}", headers=biz["h"])
+    kiem("chu xoa du an da ket thuc → 204 (nhu xoa du an nhap)", r.status_code == 204, r.text)
+    kiem("chu du an mo theo id → 404", requests.get(G + f"/projects/{P}", headers=biz["h"]).status_code == 404)
+    mine = requests.get(G + "/projects?mine=true&pageSize=100", headers=biz["h"]).json()["items"]
+    kiem("khong con trong danh sach du an cua toi", all(x["id"] != P for x in mine), [x["name"] for x in mine])
+    kiem("chu du an khong thao tac duoc nua (404)",
+         requests.get(G + f"/projects/{P}/readiness", headers=biz["h"]).status_code == 404)
+    kiem("xoa lan 2 → 404", requests.delete(G + f"/projects/{P}", headers=biz["h"]).status_code == 404)
+    kiem("dong du an + mau + thanh vien van con (chi an)",
+         sql("project", f"select (select count(*) from projects where id = '{P}' and hidden_by_owner_at is not null)::text || '/' || (select count(*) from samples where project_id = '{P}')::text || '/' || (select count(*) from project_members where project_id = '{P}')::text") == "1/3/1")
+    a = requests.get(G + f"/projects/{P}", headers=admin)
+    kiem("admin van xem duoc, kem hiddenByOwnerAt", a.status_code == 200 and a.json().get("hiddenByOwnerAt"), a.text[:200])
 
     # =================================================================================
     print("\n[3] Don gia nhan khach vang lai do admin dat — doanh nghiep khong dat duoc")
@@ -64,7 +83,7 @@ try:
     kiem("doanh nghiep khong doi duoc setting (403)", requests.put(G + "/admin/settings/gate.unit_price_vnd", headers=biz["h"], json={"value": 1, "reason": "x"}).status_code == 403)
     dat_va_cho("gate.unit_price_vnd", 2500, ["project"])
     nap(biz, 600000)
-    dat_cau_hoi_chung(biz["h"], Q)
+    dat_cau_hoi_cong_cu(biz["h"], Q)
     # cong link can cau vang kiem tra: them 2 cau vang qualityCheck
     ids = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{Q}/samples?pageSize=50", headers=biz["h"]).json()["items"]}
     rv = requests.post(G + f"/projects/{Q}/gold-items", headers=biz["h"], json={"items": [

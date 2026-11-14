@@ -23,7 +23,7 @@ namespace Crowd.Project.Tests
 
         public static LabelSchema TapNhanAnh(params string[] lop)
         {
-            return LabelSchema.Doc("{\"modality\":\"image\",\"question\":\"Anh nay la con gi?\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"classes\":"
+            return LabelSchema.Doc("{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"question\":\"Anh nay la con gi?\",\"classes\":"
                                    + JsonSerializer.Serialize(lop) + "}]}");
         }
 

@@ -12,8 +12,8 @@ namespace Crowd.Project.Domain.Datasets
     ///   text / pair / list    : NOI DUNG luu thang trong Content (jsonb):
     ///                           {"text":"..."}, {"a":"...","b":"..."} hoac {"items":[...]}.
     ///
-    /// Question: cau hoi RIENG cua mau (vd hoi dap ve anh: moi anh mot cau). null = dung cau hoi chung cua du an
-    /// (label_schema.question) — khong chep cau chung vao tung mau.
+    /// Question: NGU CANH / cau hoi rieng cua mau (vd hoi dap ve anh: moi anh mot cau; cau hoi goc cua cap tra loi
+    /// LLM), hien o dau cau. Tuy chon — cau hoi bat buoc nam o tung cong cu (label_schema.tools[].question, 3.35).
     ///
     /// Metadata (jsonb) giu thong tin de kiem nhan: kich thuoc anh, thoi luong,
     /// do dai van ban — xem Crowd.Labeling.SampleMetadata.
@@ -49,8 +49,8 @@ namespace Crowd.Project.Domain.Datasets
         public RawJson Metadata { get; private set; }
 
         /// <summary>
-        /// Cau hoi rieng cua mau, hien thay cau hoi chung. Chong trung tinh theo (Sha256, Question): cung mot anh
-        /// voi hai cau hoi khac nhau la hai mau.
+        /// Ngu canh / cau hoi rieng cua mau, hien o dau cau (tren cau hoi cua tung cong cu). Chong trung tinh theo
+        /// (Sha256, Question): cung mot anh voi hai cau hoi khac nhau la hai mau.
         /// </summary>
         public string? Question { get; private set; }
 
@@ -108,7 +108,7 @@ namespace Crowd.Project.Domain.Datasets
         public string? ExcludedReason { get; private set; }
 
         /// <summary>
-        /// Dat / xoa cau hoi rieng (chuoi rong = xoa, dung lai cau hoi chung). Chi khi du an con Nhap — service
+        /// Dat / xoa cau hoi rieng (chuoi rong = xoa). Chi khi du an con Nhap — service
         /// kiem truoc (LabelingProject.KiemTraCoTheNapDuLieu): doi cau hoi giua chung thi bai nop truoc va sau tra
         /// loi hai cau khac nhau.
         /// </summary>
@@ -129,17 +129,6 @@ namespace Crowd.Project.Domain.Datasets
             }
 
             Question = q;
-        }
-
-        /// <summary>Cau hoi labeler THAY cho mau nay: cau rieng neu co, khong thi cau hoi chung cua du an.</summary>
-        public string? CauHoiHienThi(LabelSchema? tapNhan)
-        {
-            if (Question != null)
-            {
-                return Question;
-            }
-
-            return tapNhan == null ? null : tapNhan.Question;
         }
 
         /// <summary>Loai mau (mot lan). Tra ve false neu da bi loai tu truoc.</summary>

@@ -32,8 +32,8 @@ namespace Crowd.Project.Api.Dtos
         public UpdateProjectInfoRequest? Info { get; init; }
 
         /// <summary>
-        /// Tap nhan {"question": "...", "tools":[...], "segmentSeconds"?: ...}; "modality" co the bo (lay theo du an).
-        /// "question" = cau hoi chung labeler thay o moi cau (thay huong dan Markdown da bo).
+        /// Tap nhan {"tools":[{..., "question": "..."}], "segmentSeconds"?: ...}; "modality" co the bo (lay theo du an).
+        /// Moi cong cu co "question" — cau hoi labeler thay tren cong cu, bat buoc truoc khi publish (3.35).
         /// </summary>
         public System.Text.Json.JsonElement? LabelSchema { get; init; }
 
@@ -208,6 +208,12 @@ namespace Crowd.Project.Api.Dtos
 
         public DateTimeOffset? FilesPurgedAt { get; init; }
 
+        /// <summary>
+        /// Chi admin: luc doanh nghiep da "xoa" du an da ket thuc (an voi chu du an, du lieu giu nguyen — kien truc 3.36).
+        /// null = chua xoa (hoac nguoi xem khong phai admin).
+        /// </summary>
+        public DateTimeOffset? HiddenByOwnerAt { get; init; }
+
         /// <summary>true = nguoi xem la chu du an.</summary>
         public required bool IsOwner { get; init; }
 
@@ -283,8 +289,11 @@ namespace Crowd.Project.Api.Dtos
     {
         public required bool Ready { get; init; }
 
-        /// <summary>Ma nhung muc con thieu (chan publish), vd "chua_co_huong_dan".</summary>
+        /// <summary>Ma nhung muc con thieu (chan publish), vd "chua_co_cau_hoi".</summary>
         public required IReadOnlyList<string> Missing { get; init; }
+
+        /// <summary>Ten khoa cac cong cu chua co cau hoi (di kem "chua_co_cau_hoi"); rong = du.</summary>
+        public required IReadOnlyList<string> ToolsMissingQuestion { get; init; }
 
         /// <summary>Canh bao KHONG chan publish, vd "cham_cau_tra_loi_mo_lau".</summary>
         public required IReadOnlyList<string> Warnings { get; init; }

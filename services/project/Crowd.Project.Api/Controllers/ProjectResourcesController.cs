@@ -333,7 +333,7 @@ namespace Crowd.Project.Api.Controllers
 
         /// <summary>
         /// PUT /projects/{id}/samples/{sampleId}/question — {"question": "..."} dat cau hoi RIENG cho mau (null / rong =
-        /// bo, dung cau hoi chung). Chi khi du an con Nhap.
+        /// bo). Chi khi du an con Nhap.
         /// </summary>
         [HttpPut("samples/{sampleId:guid}/question")]
         public async Task<IActionResult> DatCauHoi(Guid projectId, Guid sampleId, [FromBody] DatCauHoiMauRequest body, CancellationToken ct)

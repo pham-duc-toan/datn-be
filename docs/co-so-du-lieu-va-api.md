@@ -39,7 +39,7 @@ Tài liệu này **trích từ code** (model snapshot EF Core, migration SQL c�
 | View | DB chủ | Role | Ai đọc |
 |---|---|---|---|
 | `v_settings` (`key`, `value`, `version`) | admin_db | `settings_reader` | mọi service, gateway, quality, media (bộ nhớ) |
-| `v_gate_projects`, `v_gate_samples` (kèm `question` = câu riêng hoặc câu chung, 3.34), `v_gate_gold` | project_db | `gate_reader` | gate (bộ nhớ) |
+| `v_gate_projects`, `v_gate_samples` (kèm `question` = câu riêng của mẫu, 3.34 / 3.35), `v_gate_gold` | project_db | `gate_reader` | gate (bộ nhớ) |
 | `v_gate_budgets` (`project_id`, `remaining_vnd`) | ledger_db | `gate_reader` | gate (bộ nhớ) |
 | `v_gate_links` | link_db | `gate_reader` | gate (bộ nhớ) |
 | `v_contacts` (`user_id`, `email`, `display_name`, `roles`) | identity_db | `notification_reader` | notification (lúc gửi email / thông báo toàn hệ thống) |
@@ -72,11 +72,11 @@ Quy ước: `PK` là khoá chính. `?` là cột cho phép null. Cột `xmin` xu
 | Bảng | Cột chính | Ý nghĩa |
 |---|---|---|
 | `projects` | `id` PK; `owner_id`; `name`, `description`, `modality` (image/text/audio/video…); `status` (`Draft, PendingEscrow, PendingApproval, Running, Paused, Grading, Completed, Cancelled`); `status_reason?`; `visibility` (`Public, Private, Approval`) | Dự án. `status` đi theo máy trạng thái, mọi lần chuyển dùng `xmin` để chống ghi chồng |
-| (tiếp) | `label_schema` jsonb: tập công cụ gán nhãn + `question` (câu hỏi chung, bắt buộc trước khi publish) + `tools[].hint` (dòng nhắc) | Cấu hình gán nhãn. Hướng dẫn Markdown (`guideline`) đã bỏ — kiến trúc 3.34 |
+| (tiếp) | `label_schema` jsonb: tập công cụ gán nhãn, mỗi công cụ một `tools[].question` (câu hỏi, bắt buộc trước khi publish — 3.35; câu hỏi chung và `hint` đã bỏ) | Cấu hình gán nhãn. Hướng dẫn Markdown (`guideline`) đã bỏ — kiến trúc 3.34 |
 | (tiếp) | `slots` (số suất thưởng S); `reward_vnd` (thưởng mỗi suất R); `platform_fee_percent`; `pass_threshold_percent` (ngưỡng t); `question_count` (số câu của một bài); `fill_slots_min_percent?` (lấp suất trống) | Cấu hình kinh tế. Ký quỹ = `S × (R + phí) + ngân sách cổng link` |
 | (tiếp) | `allow_collaborative`, `allow_professional`, `allow_link_gateway`; `gate_unit_price_vnd?`, `gate_budget_vnd?` | Kênh làm việc: cộng đồng, chuyên nghiệp, cổng link (sharer) và giá/ngân sách cổng |
 | (tiếp) | `min_level?`, `min_reputation?`, `require_verified_identity`, `require_entrance_test`, `entrance_question_count`, `entrance_pass_percent` | Điều kiện tham gia |
-| (tiếp) | `nda_required`, `nda_text?`, `nda_version`, `sensitive_content`, `content_warning?`, `delete_files_after_close`, `files_purged_at?` | Bảo vệ dữ liệu nhạy cảm, NDA, xoá file sau khi đóng |
+| (tiếp) | `nda_required`, `nda_text?`, `nda_version`, `sensitive_content`, `content_warning?`, `delete_files_after_close`, `files_purged_at?`, `hidden_by_owner_at?` | Bảo vệ dữ liệu nhạy cảm, NDA, xoá file sau khi đóng; lúc doanh nghiệp "xoá" dự án đã kết thúc (chỉ ẩn với chủ dự án — kiến trúc 3.36) |
 | (tiếp) | `deadline?`, `submitted_for_approval_at?`, `published_at?`, `finish_requested_at?`, `grading_started_at?`, `closed_at?`, `was_escrowed`, `created_at`, `updated_at` | Mốc thời gian vòng đời. `was_escrowed` cho biết đã từng giữ ký quỹ, để biết có cần hoàn khi huỷ không |
 | `samples` | `(project_id, id)` PK; `modality`; `storage_key?` (file MinIO) hoặc `content?` (jsonb cho text/pair/list, nén lz4); `original_name`, `content_type?`, `size_bytes?`, `sha256?` (NULL tới khi đọc xong file); `metadata` jsonb (lz4; kích thước ảnh, thời lượng…); `ingest_state` (`queued`, `processing`, `ready`, `failed`), `ingest_error?`, `ingest_source?` (link tải của nhập nguồn ngoài, xoá khi xong); `media_state?`, `media_error?` (chuẩn hoá video do media-svc); `excluded_at?`, `excluded_reason?` (`report_accepted`, `auto_reports`); `question?` (câu hỏi RIÊNG, ≤ 1000 ký tự — NULL = dùng câu hỏi chung của dự án, 3.34) | Một mẫu cần gán nhãn — cũng chính là **câu hỏi** của bài (không còn bảng `tasks` riêng). **Không có bảng "lô nạp" (`datasets`)**: tiến trình nạp nằm ngay trên từng mẫu (`ingest_state`); mọi truy vấn nghiệp vụ chỉ thấy mẫu `ready` (bộ lọc toàn cục của EF), chủ dự án xem cả mẫu đang chờ / lỗi. **Phân vùng HASH(`project_id`) 64 phần** (`samples_p00..p63`). UNIQUE `(project_id, sha256, question) NULLS NOT DISTINCT WHERE sha256 IS NOT NULL` chống trùng: cùng nội dung + cùng câu hỏi là trùng, cùng nội dung khác câu hỏi là hai mẫu |
 | `gold_items` | `id`; `project_id`; `sample_id` (FK `samples (project_id, id)`); `purpose` (câu kiểm tra hoặc bài test đầu vào); `expected_payload` jsonb, `expected_task_type`, `expected_schema_version` | Câu vàng và đáp án đúng; chấm ngay lúc nộp bài |
@@ -368,7 +368,7 @@ payment: xác minh HMAC, cập nhật intent ──deposit.confirmed──► le
 ```
 POST /projects → PATCH labelSchema (kèm câu hỏi chung) / pricing / channels / eligibility
 → POST /projects/{id}/samples/zip (ảnh) | /uploads → PUT MinIO → POST /samples (mỗi file một mẫu `queued`; worker xử lý → `ready`/`failed`) | /samples/import (nguồn ngoài)
-→ (tuỳ chọn) dòng JSON kèm "question" hoặc PUT /projects/{id}/samples/{sampleId}/question: câu hỏi riêng của mẫu (3.34)
+→ (tuỳ chọn) dòng JSON kèm "question" hoặc PUT /projects/{id}/samples/{sampleId}/question: ngữ cảnh / câu hỏi riêng của mẫu, tuỳ chọn (3.34)
 → POST /projects/{id}/publish: Draft → PendingEscrow, phát project.publish_requested
 ledger: giữ ký quỹ S×(R+phí) + ngân sách cổng, idempotent theo projectId
    đủ tiền → escrow.reserved ──► project: PendingApproval

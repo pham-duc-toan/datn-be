@@ -162,7 +162,7 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
 
             // Cung mot anh VOI CUNG mot cau hoi chi la MOT mau trong du an (cung anh, hai cau hoi rieng khac nhau = hai
             // mau — hoi dap ve anh). UNIQUE o database de hai lan nap song song cung khong lot duoc. NULLS NOT
-            // DISTINCT: hai mau cung anh cung dung cau hoi chung (question NULL) van la trung; mau chua doc xong
+            // DISTINCT: hai mau cung anh cung khong co cau rieng (question NULL) van la trung; mau chua doc xong
             // (sha256 NULL) khong tham gia (loc WHERE).
             builder.HasIndex(x => new { x.ProjectId, x.Sha256, x.Question })
                 .IsUnique()

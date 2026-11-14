@@ -6,7 +6,7 @@ import hashlib, io, os, sys, time, zipfile
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import dat_cau_hoi_chung  # noqa: E402
+from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
 from tro_giup import *  # noqa: E402,F401,F403
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -63,7 +63,7 @@ try:
     P = r.json()["id"]
     requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"labelSchema": {"modality": "image", "tools": [
         {"name": "nhan", "kind": "classification", "classes": ["co_nguoi", "khong"]}]}}).raise_for_status()
-    dat_cau_hoi_chung(biz["h"], P)
+    dat_cau_hoi_cong_cu(biz["h"], P)
     requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
                                                                        "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
     r = requests.post(G + f"/projects/{P}/samples/zip", headers=biz["h"], files={"file": ("anh.zip", zip_anh(["mat.jpg", "canh.png"]), "application/zip")}, data={"name": "anh"})

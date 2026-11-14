@@ -89,6 +89,7 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property(x => x.GradingStartedAt).HasColumnName("grading_started_at");
             builder.Property(x => x.DeleteFilesAfterClose).HasColumnName("delete_files_after_close").IsRequired().HasDefaultValue(false);
             builder.Property(x => x.FilesPurgedAt).HasColumnName("files_purged_at");
+            builder.Property(x => x.HiddenByOwnerAt).HasColumnName("hidden_by_owner_at");
 
             // OPTIMISTIC CONCURRENCY (VD-D-11) bang cot he thong xmin cua Postgres.
             //

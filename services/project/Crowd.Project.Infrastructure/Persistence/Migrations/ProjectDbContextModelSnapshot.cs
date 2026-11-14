@@ -1060,6 +1060,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("grading_started_at");
 
+                    b.Property<DateTimeOffset?>("HiddenByOwnerAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("hidden_by_owner_at");
+
                     b.Property<string>("LabelSchema")
                         .HasColumnType("jsonb")
                         .HasColumnName("label_schema");

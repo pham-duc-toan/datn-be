@@ -286,10 +286,10 @@ namespace Crowd.Seeding
                 Stage = SeedStage.Draft,
                 IsPrivate = false,
                 Modality = Modalities.Image,
-                LabelSchemaJson = "{\"modality\":\"image\",\"question\":\"Ve khung, khoanh vung va danh dau tam cua vat the trong anh.\",\"tools\":["
-                    + "{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"vat_the\"],\"rotatable\":true},"
-                    + "{\"name\":\"vung\",\"kind\":\"polygon\",\"classes\":[\"mau_chinh\"]},"
-                    + "{\"name\":\"diem\",\"kind\":\"keypoint\",\"classes\":[\"tam\"]}]}",
+                LabelSchemaJson = "{\"modality\":\"image\",\"tools\":["
+                    + "{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"vat_the\"],\"rotatable\":true,\"question\":\"Ve khung bao vat the, xoay khung theo huong vat the.\"},"
+                    + "{\"name\":\"vung\",\"kind\":\"polygon\",\"classes\":[\"mau_chinh\"],\"question\":\"Khoanh vung mau chinh bang da giac.\"},"
+                    + "{\"name\":\"diem\",\"kind\":\"keypoint\",\"classes\":[\"tam\"],\"question\":\"Dat diem tam vao giua vat the.\"}]}",
                 RewardVnd = 40000,
                 Slots = 3,
                 PassThresholdPercent = 75,
@@ -440,9 +440,9 @@ namespace Crowd.Seeding
                 Description = "Moi cau: chon cam xuc va boi den ten nguoi, dia diem, to chuc.",
                 Modality = Modalities.Text,
                 LabelSchemaJson =
-                    "{\"modality\":\"text\",\"question\":\"Cau nay mang cam xuc gi, va co nhung ten nguoi, dia diem, to chuc nao?\",\"tools\":["
-                    + "{\"name\":\"cam_xuc\",\"kind\":\"classification\",\"classes\":[\"tich_cuc\",\"tieu_cuc\",\"trung_tinh\"]},"
-                    + "{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"TEN_NGUOI\",\"DIA_DIEM\",\"TO_CHUC\"]}]}",
+                    "{\"modality\":\"text\",\"tools\":["
+                    + "{\"name\":\"cam_xuc\",\"kind\":\"classification\",\"classes\":[\"tich_cuc\",\"tieu_cuc\",\"trung_tinh\"],\"question\":\"Cau nay mang cam xuc gi?\"},"
+                    + "{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"TEN_NGUOI\",\"DIA_DIEM\",\"TO_CHUC\"],\"question\":\"Boi den ten nguoi, dia diem, to chuc trong cau.\"}]}",
                 Stage = SeedStage.Running,
                 IsPrivate = false,
                 RewardVnd = 20000,
@@ -496,9 +496,9 @@ namespace Crowd.Seeding
                 Description = "Nghe tung doan 10 giay: chep lai loi noi va danh dau doan giong noi / nhac / im lang.",
                 Modality = Modalities.Audio,
                 LabelSchemaJson =
-                    "{\"modality\":\"audio\",\"segmentSeconds\":10,\"question\":\"Doan am thanh nay noi gi, va dau la giong noi, nhac, im lang?\",\"tools\":["
-                    + "{\"name\":\"loi_noi\",\"kind\":\"transcription\"},"
-                    + "{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"giong_noi\",\"nhac\",\"im_lang\"]}]}",
+                    "{\"modality\":\"audio\",\"segmentSeconds\":10,\"tools\":["
+                    + "{\"name\":\"loi_noi\",\"kind\":\"transcription\",\"question\":\"Doan am thanh nay noi gi? Chep dung tung tu.\"},"
+                    + "{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"giong_noi\",\"nhac\",\"im_lang\"],\"question\":\"Danh dau doan giong noi, nhac, im lang.\"}]}",
                 Stage = SeedStage.Running,
                 IsPrivate = false,
                 RewardVnd = 25000,
@@ -558,9 +558,9 @@ namespace Crowd.Seeding
                 Description = "Doc cau hoi va hai cau tra loi a, b: chon cau tot hon va danh gia co an toan khong.",
                 Modality = Modalities.Pair,
                 LabelSchemaJson =
-                    "{\"modality\":\"pair\",\"question\":\"Cau tra loi nao dung va huu ich hon?\",\"tools\":["
-                    + "{\"name\":\"tot_hon\",\"kind\":\"pairwise\",\"allowTie\":true},"
-                    + "{\"name\":\"an_toan\",\"kind\":\"classification\",\"classes\":[\"an_toan\",\"khong_an_toan\"]}]}",
+                    "{\"modality\":\"pair\",\"tools\":["
+                    + "{\"name\":\"tot_hon\",\"kind\":\"pairwise\",\"allowTie\":true,\"question\":\"Cau tra loi nao dung va huu ich hon?\"},"
+                    + "{\"name\":\"an_toan\",\"kind\":\"classification\",\"classes\":[\"an_toan\",\"khong_an_toan\"],\"question\":\"Cac cau tra loi co an toan khong?\"}]}",
                 Stage = SeedStage.Completed,
                 IsPrivate = false,
                 RewardVnd = 30000,
@@ -598,7 +598,7 @@ namespace Crowd.Seeding
 
         /// <summary>Tap nhan cua P1-P4: mot cong cu phan loai mau, ten "label".</summary>
         public const string TapNhanMau =
-            "{\"modality\":\"image\",\"question\":\"Mau chu dao cua anh la mau gi?\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\","
+            "{\"modality\":\"image\",\"tools\":[{\"name\":\"label\",\"kind\":\"classification\",\"question\":\"Mau chu dao cua anh la mau gi?\","
             + "\"classes\":[\"do\",\"xanh_la\",\"xanh_duong\",\"vang\"]}]}";
 
         /// <summary>Kich thuoc anh mau (px) — ProjectSeeder sinh anh dung kich thuoc nay.</summary>

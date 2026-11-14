@@ -24,7 +24,7 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>Noi dung text / pair cua mau. null voi du lieu file.</summary>
         public RawJson? SampleContent { get; init; }
 
-        /// <summary>Cau hoi cua mau (cau rieng, khong co thi cau hoi chung cua du an).</summary>
+        /// <summary>Ngu canh / cau hoi rieng cua mau (samples.question, tuy chon).</summary>
         public string? SampleQuestion { get; init; }
 
         /// <summary>Metadata mau: kich thuoc, thoi luong, doan [segmentStart, segmentEnd].</summary>
@@ -82,7 +82,7 @@ namespace Crowd.Project.Api.Dtos
 
         public RawJson? SampleContent { get; init; }
 
-        /// <summary>Cau hoi cua mau (cau rieng, khong co thi cau hoi chung cua du an).</summary>
+        /// <summary>Ngu canh / cau hoi rieng cua mau (samples.question, tuy chon).</summary>
         public string? SampleQuestion { get; init; }
 
         public required RawJson SampleMetadata { get; init; }

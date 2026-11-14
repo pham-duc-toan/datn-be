@@ -86,7 +86,7 @@ namespace Crowd.Project.Api.Controllers
         /// PATCH /projects/{id} — sua cau hinh du an THEO NHOM, mot API cho moi nhom: info, labelSchema (FB-12),
         /// pricing (FB-14), channels (FB-17), eligibility (FB-15), protection, tags, retention. Chi gui nhom muon doi,
         /// moi nhom gui du truong. Luat trang thai van theo tung nhom (phan lon chi khi Nhap; tags / retention sua duoc
-        /// toi khi ket thuc). Mot nhom loi → khong luu gi. Cau hoi chung nam trong labelSchema.question.
+        /// toi khi ket thuc). Mot nhom loi → khong luu gi. Moi cong cu cua labelSchema mang cau hoi rieng (tools[].question).
         /// </summary>
         [HttpPatch("{id:guid}")]
         public async Task<IActionResult> CapNhat(Guid id, [FromBody] PatchProjectRequest body, CancellationToken ct)
@@ -126,7 +126,8 @@ namespace Crowd.Project.Api.Controllers
         }
 
         /// <summary>
-        /// DELETE /projects/{id} — xoa han du an nhap (hoac da huy chua tung publish). Du an da publish thi huy / ket thuc.
+        /// DELETE /projects/{id} — "xoa du an" cua doanh nghiep: du an nhap (hoac da huy chua tung publish) bi xoa han;
+        /// du an da ket thuc chi bi an voi chu du an, du lieu giu nguyen (kien truc 3.36). Du an chua ket thuc → 409.
         /// </summary>
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Xoa(Guid id, [FromServices] Crowd.BuildingBlocks.Storage.IObjectStorage kho, CancellationToken ct)

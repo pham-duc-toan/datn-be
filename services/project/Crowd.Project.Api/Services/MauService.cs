@@ -33,7 +33,7 @@ namespace Crowd.Project.Api.Services
     ///   - Nguon ngoai    : liet ke nguon → moi file mot mau "queued" kem link tai, worker tai ve roi xu ly.
     ///
     /// Cau hoi rieng cua mau (samples.question): dong JSON gui "question"; ZIP / nguon ngoai thi sua tung mau sau
-    /// (PUT .../samples/{id}/question). Khong gui = dung cau hoi chung cua du an.
+    /// (PUT .../samples/{id}/question). Khong gui = mau khong co ngu canh rieng, chi co cau hoi cua tung cong cu.
     ///
     /// Duong ZIP: thu tu doc ZIP → day tung anh len MinIO → ghi cac dong samples trong MOT SaveChanges. Anh len
     /// MinIO TRUOC khi commit: neu commit hong thi don anh da day (khong de file mo coi).
@@ -490,7 +490,7 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// Sua cau hoi RIENG cua mot mau (null / rong = bo, dung lai cau hoi chung). Chi khi du an con Nhap — doi cau
+        /// Sua cau hoi RIENG cua mot mau (null / rong = bo). Chi khi du an con Nhap — doi cau
         /// hoi giua chung thi bai nop truoc va sau tra loi hai cau khac nhau. Mau dang nap cung sua duoc (vd vua
         /// upload ZIP xong). Trung (cung noi dung + cung cau hoi) voi mau khac → 409.
         /// </summary>

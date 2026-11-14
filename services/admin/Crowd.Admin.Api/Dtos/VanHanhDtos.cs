@@ -88,7 +88,7 @@ namespace Crowd.Admin.Api.Dtos
 
         public string? Description { get; init; }
 
-        /// <summary>Tap nhan (cung dinh dang nhom labelSchema cua PATCH /projects/{id}), co modality va cau hoi chung.</summary>
+        /// <summary>Tap nhan (cung dinh dang nhom labelSchema cua PATCH /projects/{id}), co modality; moi cong cu kem "question".</summary>
         public JsonElement LabelSchema { get; init; }
 
         public long? SuggestedUnitPriceVnd { get; init; }

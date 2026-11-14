@@ -80,8 +80,11 @@ namespace Crowd.Labeling
         /// <summary>Chi bbox: cho phep khung XOAY ("angle" do quanh tam) — giay to chup nghieng, bien so, van ban xien.</summary>
         public bool Rotatable { get; private set; }
 
-        /// <summary>Dong nhac rieng cua cong cu, hien canh cong cu (vd "Khoanh sat mep"). null = khong co.</summary>
-        public string? Hint { get; private set; }
+        /// <summary>
+        /// Cau hoi cua cong cu, labeler thay ngay tren cong cu (vd "Khoanh tat ca xe trong anh"). Da cat khoang trang;
+        /// null = chua dat — luu nhap duoc, project-svc chan publish (chua_co_cau_hoi).
+        /// </summary>
+        public string? Question { get; private set; }
 
         public AttributeDefinition? ThuocTinh(string ten)
         {
@@ -156,11 +159,11 @@ namespace Crowd.Labeling
             t.Tolerance = DocSoThuc(o, "tolerance") ?? 0;
             t.Rotatable = DocBool(o, "rotatable", false);
 
-            JsonNode? nhac = o["hint"];
-            if (nhac != null)
+            JsonNode? cauHoi = o["question"];
+            if (cauHoi != null)
             {
-                string h = nhac.GetValue<string>().Trim();
-                t.Hint = h.Length == 0 ? null : h;
+                string q = cauHoi.GetValue<string>().Trim();
+                t.Question = q.Length == 0 ? null : q;
             }
 
             return t;
@@ -249,9 +252,9 @@ namespace Crowd.Labeling
                 o["rotatable"] = true;
             }
 
-            if (Hint != null)
+            if (Question != null)
             {
-                o["hint"] = Hint;
+                o["question"] = Question;
             }
 
             return o;

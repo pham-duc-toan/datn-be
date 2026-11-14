@@ -89,7 +89,7 @@ namespace Crowd.Gate.Domain
 
         public RawJson Metadata { get; }
 
-        /// <summary>Cau hoi hien cho khach — project quyet trong view (cau rieng cua mau, khong co thi cau chung).</summary>
+        /// <summary>Ngu canh / cau hoi rieng cua mau (samples.question, tuy chon) — cau hoi cua cong cu nam trong tap nhan.</summary>
         public string? Question { get; }
     }
 

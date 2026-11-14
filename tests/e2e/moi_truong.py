@@ -68,13 +68,14 @@ def cho_moi_noi_doc_lai_setting(gateway: str, headers: dict) -> None:
     time.sleep(float(giay) + 1.5)
 
 
-def dat_cau_hoi_chung(headers: dict, pid: str, cau: str = "Chon dap an dung cho mau nay.") -> None:
-    """Dat cau hoi chung (labelSchema.question) — bat buoc truoc khi publish, thay huong dan Markdown da bo.
-    Doc tap nhan hien tai roi gui lai kem cau hoi (chi sua chu: du an co cau vang van sua duoc)."""
+def dat_cau_hoi_cong_cu(headers: dict, pid: str, cau: str = "Chon dap an dung cho mau nay.") -> None:
+    """Dat cau hoi cho moi cong cu CHUA co (labelSchema.tools[].question) — bat buoc truoc khi publish (kien truc
+    3.35). Doc tap nhan hien tai roi gui lai kem cau hoi (chi sua cau hoi: du an co cau vang van sua duoc)."""
     import requests
 
     tn = requests.get(G + f"/projects/{pid}", headers=headers).json()["labelSchema"]
-    tn["question"] = cau
+    for t in tn["tools"]:
+        t.setdefault("question", cau)
     requests.patch(G + f"/projects/{pid}", headers=headers, json={"labelSchema": tn}).raise_for_status()
 
 

@@ -4,7 +4,7 @@ namespace Crowd.Admin.Api.Entities
 {
     /// <summary>
     /// Danh muc loai bai toan / template workspace (FM-03). Admin soan san: loai du lieu + tap nhan (cong cu,
-    /// lop, CAU HOI CHUNG "question") + goi y gia. Doanh nghiep chon mot mau khi tao du an roi sua tiep — frontend
+    /// lop, cau hoi "question" cua TUNG cong cu) + goi y gia. Doanh nghiep chon mot mau khi tao du an roi sua tiep — frontend
     /// chep tap nhan sang du an qua API cua project-svc (du an KHONG tham chieu mau: sua mau khong lam doi du an da
     /// tao). Tap nhan duoc kiem bang chinh bo doc LabelSchema cua project-svc. Huong dan Markdown da bo (cau hoi
     /// thay huong dan).

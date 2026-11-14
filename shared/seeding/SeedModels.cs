@@ -80,7 +80,7 @@ namespace Crowd.Seeding
         /// <summary>Noi dung text / pair: {"text"} hoac {"a","b"}.</summary>
         public string? ContentJson { get; init; }
 
-        /// <summary>Cau hoi rieng cua mau (samples.question). null = dung cau hoi chung cua du an.</summary>
+        /// <summary>Ngu canh / cau hoi rieng cua mau (samples.question, tuy chon). null = chi co cau hoi cua tung cong cu.</summary>
         public string? Question { get; init; }
 
         public required SampleMetadata Metadata { get; init; }

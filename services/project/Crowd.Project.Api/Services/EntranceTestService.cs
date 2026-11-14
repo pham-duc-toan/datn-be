@@ -159,7 +159,7 @@ namespace Crowd.Project.Api.Services
                         ? null
                         : _media.TaoLink(MauService.MauXem(s), NguoiXem.Labeler(userId), CheDoXem.Watermark),
                     Content = s.Content,
-                    Question = s.CauHoiHienThi(duAn.LabelSchema),
+                    Question = s.Question,
                     Metadata = s.Metadata,
                 });
             }

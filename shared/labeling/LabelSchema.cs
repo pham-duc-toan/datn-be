@@ -11,17 +11,17 @@ namespace Crowd.Labeling
     ///
     ///     {
     ///       "modality": "image",
-    ///       "question": "Anh chup luc nao, co nhung xe gi?",
     ///       "tools": [
-    ///         {"name":"loai_anh","kind":"classification","classes":["ngay","dem"]},
-    ///         {"name":"vat_the","kind":"bbox","classes":["xe","nguoi"],"maxItems":50}
+    ///         {"name":"loai_anh","kind":"classification","classes":["ngay","dem"],"question":"Anh chup ban ngay hay ban dem?"},
+    ///         {"name":"vat_the","kind":"bbox","classes":["xe","nguoi"],"maxItems":50,"question":"Khoanh tat ca xe va nguoi."}
     ///       ]
     ///     }
     ///
     /// Audio/video them "segmentSeconds": cat file dai thanh doan, moi doan mot task.
     ///
-    /// "question" = CAU HOI CHUNG labeler thay o dau moi cau; mau co cau hoi rieng (samples.question) thi hien cau
-    /// rieng thay the. Moi cong cu co the them "hint" (dong nhac rieng). Thay cho huong dan Markdown cua du an da bo.
+    /// MOI CONG CU co "question" rieng (labeler thay ngay tren cong cu) — khong co cau hoi chung cua ca tap nhan
+    /// (kien truc 3.35). Luu nhap duoc khi con cong cu thieu cau hoi; project-svc chan publish (CongCuThieuCauHoi).
+    /// Mau co the them ngu canh rieng (samples.question), hien o dau cau.
     ///
     /// Kiem hai lop: HINH DANG bang JSON Schema (contracts/labeling/label-schema.schema.json),
     /// roi NGU NGHIA trong code (ten cong cu khong trung, cong cu hop voi loai du
@@ -34,18 +34,14 @@ namespace Crowd.Labeling
     {
         private readonly List<ToolDefinition> _tools;
 
-        private LabelSchema(string modality, int? segmentSeconds, string? question, List<ToolDefinition> tools)
+        private LabelSchema(string modality, int? segmentSeconds, List<ToolDefinition> tools)
         {
             Modality = modality;
             SegmentSeconds = segmentSeconds;
-            Question = question;
             _tools = tools;
         }
 
         public string Modality { get; }
-
-        /// <summary>Cau hoi chung cua du an (da cat khoang trang). null = chua dat — project-svc chan publish.</summary>
-        public string? Question { get; }
 
         public int? SegmentSeconds { get; }
 
@@ -85,17 +81,6 @@ namespace Crowd.Labeling
             if (seg != null)
             {
                 segment = Crowd.Labeling.Tools.HinhHoc.SoNguyen(seg, "tap_nhan_sai_dinh_dang");
-            }
-
-            string? question = null;
-            JsonNode? cauHoi = o["question"];
-            if (cauHoi != null)
-            {
-                question = cauHoi.GetValue<string>().Trim();
-                if (question.Length == 0)
-                {
-                    throw Loi("Câu hỏi chung không được để trống.");
-                }
             }
 
             // 2. Ngu nghia.
@@ -158,7 +143,22 @@ namespace Crowd.Labeling
                 }
             }
 
-            return new LabelSchema(modality, segment, question, tools);
+            return new LabelSchema(modality, segment, tools);
+        }
+
+        /// <summary>Ten khoa cac cong cu CHUA co cau hoi (theo thu tu khai bao). Rong = du cau hoi, publish duoc.</summary>
+        public IReadOnlyList<string> CongCuThieuCauHoi()
+        {
+            List<string> thieu = new List<string>();
+            foreach (ToolDefinition t in _tools)
+            {
+                if (t.Question == null)
+                {
+                    thieu.Add(t.Name);
+                }
+            }
+
+            return thieu;
         }
 
         public ToolDefinition? Tool(string name)
@@ -202,11 +202,6 @@ namespace Crowd.Labeling
             if (SegmentSeconds.HasValue)
             {
                 o["segmentSeconds"] = SegmentSeconds.Value;
-            }
-
-            if (Question != null)
-            {
-                o["question"] = Question;
             }
 
             o["tools"] = tools;

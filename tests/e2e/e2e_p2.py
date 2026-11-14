@@ -5,7 +5,7 @@ import json, os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import dat_cau_hoi_chung  # noqa: E402
+from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
 from moi_truong import G, GOC_REPO, INTERNAL_KEY, RABBIT_MGMT, TIEN_TO_CONTAINER, URL_GATE, URL_LINK, cho_moi_noi_doc_lai_setting, rabbit_container, sql_container  # noqa: E402,F401
 from tro_giup import nap_mau  # noqa: E402
 GATE = URL_GATE   # goi thang gate de gia lap IP khach khac nhau (X-Forwarded-For)
@@ -154,7 +154,7 @@ try:
     pid = r.json()["id"]
     requests.patch(G + f"/projects/{pid}", headers=biz, json={"labelSchema": {"modality": "text", "tools": [
         {"name": "loai", "kind": "classification", "classes": ["cho", "meo"]}]}}).raise_for_status()
-    dat_cau_hoi_chung(biz, pid)
+    dat_cau_hoi_cong_cu(biz, pid)
     # Gia CA DU AN (3.18): 3 suat x (10.000 + 3.000) danh cho labeler; cong link don gia RIENG 1.000 / nhan khach gan,
     # ngan sach rieng 12.200 (cung nam trong ky quy).
     requests.patch(G + f"/projects/{pid}", headers=biz, json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
@@ -403,7 +403,7 @@ try:
     pid2 = r.json()["id"]
     requests.patch(G + f"/projects/{pid2}", headers=chu["h"], json={"labelSchema": {"modality": "text", "tools": [
         {"name": "loai", "kind": "classification", "classes": ["cho", "meo"]}]}}).raise_for_status()
-    dat_cau_hoi_chung(chu["h"], pid2)
+    dat_cau_hoi_cong_cu(chu["h"], pid2)
     requests.patch(G + f"/projects/{pid2}", headers=chu["h"], json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
     requests.patch(G + f"/projects/{pid2}", headers=chu["h"], json={"channels": {"allowProfessional": True, "allowLinkGateway": True, "allowCollaborative": False,
                                                                     "gateBudgetVnd": 12200}}).raise_for_status()

@@ -4,7 +4,7 @@ import json, os, subprocess, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import dat_cau_hoi_chung  # noqa: E402
+from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
 from moi_truong import G, GOC_REPO, RABBIT_MGMT, TIEN_TO_CONTAINER, URL_GATE, URL_LINK, cho_moi_noi_doc_lai_setting, rabbit_container, sql_container  # noqa: E402,F401
 from tro_giup import nap_mau  # noqa: E402
 SO_KHOA = len(json.load(open(os.path.join(GOC_REPO, "shared", "settings", "catalog.json"), encoding="utf-8")))
@@ -92,7 +92,7 @@ try:
     pid = r.json()["id"]
     requests.patch(G + f"/projects/{pid}", headers=biz, json={"labelSchema": {"modality": "text", "tools": [
         {"name": "cam_xuc", "kind": "classification", "classes": ["tich_cuc", "tieu_cuc"]}]}}).raise_for_status()
-    dat_cau_hoi_chung(biz, pid)
+    dat_cau_hoi_cong_cu(biz, pid)
     requests.patch(G + f"/projects/{pid}", headers=biz, json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
                                                                     "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
     rows = [{"text": "Hang dep, giao nhanh", "name": "a"}, {"text": "Chat luong te", "name": "b"}]

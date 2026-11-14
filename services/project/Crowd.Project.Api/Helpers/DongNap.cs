@@ -20,8 +20,8 @@ namespace Crowd.Project.Api.Helpers
     ///   list  {"items":["...","..."]}   2–50 muc
     ///   file  {"file":"&lt;key&gt;", "name"?, "durationSec"?, "width"?, "height"?, "fps"?}
     ///
-    /// Moi loai deu nhan them "question"?: cau hoi RIENG cua mau (samples.question) — bo trong thi labeler thay
-    /// cau hoi chung cua du an. Cau hoi khong nam trong content (truoc day pair / list co "prompt").
+    /// Moi loai deu nhan them "question"?: ngu canh / cau hoi RIENG cua mau (samples.question, tuy chon) — hien o
+    /// dau cau, tren cau hoi cua tung cong cu. Cau hoi khong nam trong content (truoc day pair / list co "prompt").
     ///
     /// Dong sai nem InvalidValueException — nguoi goi bo qua dong do va ghi ly do, mot dong hong khong lam hong ca lo.
     /// </summary>

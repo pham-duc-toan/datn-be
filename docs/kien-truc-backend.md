@@ -73,7 +73,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `api-gateway` | 8080 | redis-gateway | C# | — | Edge: authN, rate limit, Turnstile, correlationId |
 | `web-bff` | 8081 | — | C# | — | Gộp đa nguồn cho dashboard; nơi DUY NHẤT được biết nhiều service |
 | `identity-svc` | 8101 | identity_db | C# | users, credentials, sessions, roles, 2fa, profiles, reputation, badges | Bảo mật: DB chứa hash mật khẩu tách khỏi mọi thứ |
-| `project-svc` | 8102 | project_db | C# | projects (tập nhãn kèm câu hỏi chung — mục 3.34), samples (kèm tiến trình nạp `ingest_state`, câu hỏi riêng `question`; không còn bảng `datasets`), gold_items, entrance_tests, **project_members**; làm bài: project_collections, attempts, sample_reports; nhãn: annotations (6 cột — mục 3.25), sample_results — bảng đệm kết quả gộp, quality-svc gộp qua gRPC (mục 3.21, 3.24) | State machine vòng đời dự án — bài làm và nhãn cùng vòng đời nên cùng database (trước là task-svc :8103 và annotation-svc :8104) |
+| `project-svc` | 8102 | project_db | C# | projects (tập nhãn, mỗi công cụ kèm câu hỏi — mục 3.34, 3.35), samples (kèm tiến trình nạp `ingest_state`, ngữ cảnh riêng `question`; không còn bảng `datasets`), gold_items, entrance_tests, **project_members**; làm bài: project_collections, attempts, sample_reports; nhãn: annotations (6 cột — mục 3.25), sample_results — bảng đệm kết quả gộp, quality-svc gộp qua gRPC (mục 3.21, 3.24) | State machine vòng đời dự án — bài làm và nhãn cùng vòng đời nên cùng database (trước là task-svc :8103 và annotation-svc :8104) |
 | `ledger-svc` | 8105 | ledger_db | C# | accounts, journal_entries, holds, escrows | **Nhất quán tuyệt đối** |
 | `payment-svc` | 8106 | payment_db | C# | payment_intents, payouts, provider_txns, reconciliations | Tích hợp ngoài, webhook + retry, cô lập rủi ro |
 | `link-svc` | 8107 | link_db | C# | links, campaigns, api_keys, referral_codes, referrals, blocked_domains, link_reports | Bounded context của Sharer (**đã có**, mục 3.6) |
@@ -1172,7 +1172,7 @@ Bảy thay đổi cùng đợt, đều theo yêu cầu của người dùng. Ph�
 
 **4. Văn bản / cặp / danh sách có form nhập tay.** Tab "Nhập tay" là mặc định (dán JSONL chuyển thành tab "hàng loạt"): văn bản có "dán nhiều mẫu, mỗi dòng một mẫu"; cặp có ô câu hỏi, A, B; danh sách có ô câu hỏi và các mục thêm / bớt (2–50 mục). Form sinh đúng dòng JSON của `POST /projects/{id}/samples`, kiểm trước (thiếu A/B, mục trống...) rồi mới gửi.
 
-**5. Xoá dự án.** `DELETE /projects/{id}` (204): chỉ dự án **Nháp**, hoặc đã **huỷ mà chưa từng publish / ký quỹ** (`LabelingProject.KiemTraCoTheXoa`, mã `khong_the_xoa_du_an`). Xoá dòng `projects` — khoá ngoại CASCADE dọn mẫu, câu vàng, thành viên, lời mời… — rồi xoá file trong kho theo tiền tố `{projectId}/`. Dự án đã publish có ký quỹ, bài làm, nhãn nên chỉ huỷ / kết thúc, không xoá. Giao diện: nút ở danh sách (dự án nháp) và ở tab Tổng quan.
+**5. Xoá dự án.** `DELETE /projects/{id}` (204): dự án **Nháp**, hoặc đã **huỷ mà chưa từng publish / ký quỹ** (`LabelingProject.XoaHanDuoc`) bị xoá hẳn — xoá dòng `projects` (khoá ngoại CASCADE dọn mẫu, câu vàng, thành viên, lời mời…) rồi xoá file trong kho theo tiền tố `{projectId}/`. Dự án đã publish có ký quỹ, bài làm, nhãn nên không xoá hẳn: **đã kết thúc** thì chỉ ẩn với chủ dự án (mục 3.36), **chưa kết thúc** → 409 `khong_the_xoa_du_an`. Giao diện: nút ở danh sách (nháp + đã kết thúc) và ở tab Tổng quan.
 
 **6. Đơn giá nhãn khách vãng lai do admin đặt.** Setting mới `gate.unit_price_vnd` (mặc định 1.000 đ/nhãn). Doanh nghiệp không còn gửi `gateUnitPriceVnd` trong nhóm `channels` của `PATCH /projects/{id}` (bị bỏ khỏi DTO, giá trị gửi lên bị bỏ qua) — chỉ đặt **ngân sách cổng**; giá hiện hành trả ở `readiness.gateUnitPriceVnd` để giao diện **thông báo** (ô chỉ đọc). Giá được chốt vào dự án lúc bật kênh và **chốt lại lúc publish** (`GhimGiaCongLink`, như phí nền tảng); admin đổi sau đó chỉ ảnh hưởng dự án chưa publish.
 
@@ -1362,6 +1362,41 @@ Các event mở / đóng đơn (`business.kyb_submitted`, `withdrawal.review_req
 **Thay đổi CSDL.** Migration project `CauHoiThayHuongDan` (DROP `projects.guideline`; ADD `samples.question`; đổi chỉ mục chống trùng; `CREATE OR REPLACE VIEW v_gate_samples` thêm cột `question` ở cuối). Migration admin `BoHuongDanMauBaiToan` (DROP `workspace_templates.guideline_markdown`). Dữ liệu seed: tập nhãn của mọi dự án / mẫu bài toán seed có `question`; mẫu cặp seed chuyển `prompt` sang `question` — demo phải seed lại (`down -v`).
 
 **Đánh đổi.** Mất chỗ viết luật dài và ví dụ đúng / sai theo dự án: luật ngắn đưa vào câu hỏi / dòng nhắc, cách dùng công cụ do màn luyện tập dạy. Đổi câu hỏi chỉ được khi còn nháp (như tập nhãn) — trước đây hướng dẫn sửa được cả khi tạm dừng.
+
+### 3.35. Câu hỏi theo từng công cụ thay câu hỏi chung (11/2026)
+
+**Vấn đề.** Sau 3.34 tập nhãn có MỘT câu hỏi chung (`label_schema.question`, bắt buộc) và mỗi công cụ một dòng nhắc tuỳ chọn (`tools[].hint`). Dự án nhiều công cụ (vd cảm xúc + bôi đen thực thể) phải nhồi mọi yêu cầu vào một câu chung ("Câu này cảm xúc gì, và có tên người, địa điểm nào?"), còn công cụ cụ thể thì labeler phải tự đoán phần nào của câu chung ứng với nó; dòng nhắc lại tuỳ chọn nên hay bị bỏ trống.
+
+**Quyết định (người dùng chọn).** Bỏ câu hỏi chung; dòng nhắc của công cụ trở thành **câu hỏi của công cụ** và **bắt buộc**.
+
+| | Làm gì |
+|---|---|
+| Câu hỏi công cụ | `label_schema.tools[].question` (≤ 300 ký tự, cắt khoảng trắng; toàn khoảng trắng = chưa có) — thay `tools[].hint`. Hiện ngay trên công cụ |
+| Kiểm ở đâu | Lưu nháp tập nhãn còn công cụ thiếu câu hỏi **được** (soạn dần trên frontend); **chặn publish**: `readiness.missing` có `chua_co_cau_hoi`, tên công cụ thiếu ở `readiness.toolsMissingQuestion` (`LabelSchema.CongCuThieuCauHoi()`) |
+| Bỏ | `label_schema.question` (câu hỏi chung) và `tools[].hint` — JSON Schema `additionalProperties: false` nên gửi lên là `400 tap_nhan_sai_dinh_dang`; `Sample.CauHoiHienThi` (không còn gì để gộp) |
+| Câu riêng của mẫu | `samples.question` **giữ**, đổi vai: ngữ cảnh / câu hỏi tuỳ chọn hiện ở đầu câu (câu hỏi gốc của cặp trả lời LLM, câu hỏi về từng ảnh), **không** thay câu hỏi công cụ. API trả thẳng cột này (`questions[].question`, `sampleQuestion`), không còn gộp với câu chung. Chống trùng theo (nội dung, câu riêng) giữ nguyên |
+| Gate | Migration project `ViewGateBoCauHoiChung`: `v_gate_samples.question = s.question` (bỏ `COALESCE` với `label_schema->>'question'`, giữ tên / thứ tự cột nên `CREATE OR REPLACE`, grant còn nguyên). Câu hỏi công cụ đi cùng tập nhãn trong `v_gate_projects` |
+| Câu vàng | Đã có câu vàng vẫn sửa được câu hỏi công cụ (so tập nhãn sau khi bỏ `tools[].question`); đổi công cụ / lớp vẫn `409 da_co_cau_hoi_vang` |
+
+**Dữ liệu seed.** Mọi tập nhãn seed (dự án + 4 mẫu bài toán của admin) chuyển câu chung / dòng nhắc thành câu hỏi của từng công cụ; test seed kiểm mọi công cụ đều có câu hỏi. Tập nhãn cũ trong DB mang `question` / `hint` không còn đọc được — demo phải seed lại (`down -v`).
+
+**Đánh đổi.** Dự án một công cụ thì như cũ (câu chung = câu của công cụ đó). Dự án nhiều công cụ phải viết nhiều câu hơn, đổi lại labeler biết rõ từng công cụ để làm gì. Mất chỗ viết một câu bao quát cả mẫu — nếu cần thì dùng ngữ cảnh riêng của mẫu.
+
+### 3.36. Doanh nghiệp xoá dự án đã kết thúc = ẩn với chủ dự án (11/2026)
+
+**Vấn đề.** `DELETE /projects/{id}` chỉ cho dự án nháp (hoặc huỷ khi chưa từng publish). Dự án đã hoàn thành nằm mãi trong "Dự án của tôi", doanh nghiệp không dọn được. Nhưng xoá hẳn thì không được: dự án đã publish có ký quỹ, tiền công đã trả, hoá đơn VAT, bài làm / nhãn / khiếu nại và uy tín của labeler — dữ liệu của nhiều bên, xoá dòng `projects` (CASCADE) làm mất gốc đối soát.
+
+**Quyết định (người dùng chọn).** Phía doanh nghiệp vẫn là "Xoá dự án" như dự án nháp; bản chất chỉ **ẩn với chủ dự án**.
+
+| | Làm gì |
+|---|---|
+| Cột mới | `projects.hidden_by_owner_at` (migration `AnDuAnVoiChu`); null = chưa ẩn |
+| `DELETE /projects/{id}` | Một API, doanh nghiệp nhận **204** như nhau: `LabelingProject.XoaHanDuoc()` (Nháp / huỷ chưa từng ký quỹ, publish) → xoá hẳn như cũ; dự án **đã kết thúc** (Hoàn thành / Đã huỷ sau publish) → `AnVoiChu(luc)` ghi `hidden_by_owner_at`, không đụng dữ liệu nào. Chưa kết thúc (chờ ký quỹ / chờ duyệt / đang chạy / tạm dừng / đang chấm) → `409 khong_the_xoa_du_an` "hãy huỷ hoặc kết thúc trước". Xoá lần 2 → 404 |
+| Ai còn thấy | Một predicate `ProjectAccessService.XemDuoc` (dùng cho cả danh sách lẫn mở theo id) thêm điều kiện: dự án đã ẩn **không** hiện với chính chủ dự án — danh sách bỏ, mở / thao tác theo id → 404. Labeler / reviewer của dự án vẫn thấy (lịch sử bài làm của họ); admin thấy hết, `ProjectResponse.hiddenByOwnerAt` chỉ trả cho admin |
+| Giữ nguyên | Ký quỹ, sổ cái, hoá đơn (đã chụp tên dự án), bài làm, nhãn, uy tín; dọn dữ liệu vận hành và xoá file sau khi đóng vẫn theo mục 3.14 (L10) |
+| Frontend | Nút xoá ở danh sách và tab Tổng quan cho dự án Nháp, Hoàn thành, Đã huỷ. Dự án đã kết thúc: hộp thoại "Xoá dự án?" — "bị xoá khỏi tài khoản của bạn và không mở lại được; lịch sử thanh toán và hoá đơn vẫn được giữ". Trang admin hiện nhãn "Doanh nghiệp đã xoá khỏi tài khoản — dữ liệu vẫn giữ" |
+
+**Đánh đổi.** Không có "khôi phục" phía doanh nghiệp (muốn mở lại phải nhờ admin đặt `hidden_by_owner_at = null`). Các API ngoài project-svc nhận `projectId` (vd thống kê chất lượng hỏi chủ dự án qua gRPC) vẫn trả cho chủ dự án nếu họ còn giữ id — giao diện không còn đường dẫn tới, nên chấp nhận.
 
 ## 4. Dữ liệu chéo — ba luật cứng
 

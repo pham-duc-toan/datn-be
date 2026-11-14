@@ -164,6 +164,13 @@ namespace Crowd.Project.Domain.Projects
         /// <summary>Luc da xoa file trong kho; null = chua.</summary>
         public DateTimeOffset? FilesPurgedAt { get; private set; }
 
+        /// <summary>
+        /// Luc doanh nghiep bam "Xoa du an" voi du an DA KET THUC (kien truc 3.36): du an chi bi AN voi chu du an —
+        /// khong con trong danh sach, mo theo id thi 404 — con dong du an va moi du lieu (ky quy, bai lam, nhan,
+        /// hoa don, uy tin labeler) giu nguyen. null = chua an.
+        /// </summary>
+        public DateTimeOffset? HiddenByOwnerAt { get; private set; }
+
         // ---- Nhan de goi y du an (FL-02): so khop voi ho so ky nang cua labeler ----
 
         public IReadOnlyList<string> Domains
@@ -406,18 +413,36 @@ namespace Crowd.Project.Domain.Projects
         }
 
         /// <summary>
-        /// Xoa han du an: chi du an CHUA TUNG co tien — con Nhap, hoac da huy ma chua tung ky quy. Du an da publish
-        /// (co so cai, bai lam, nhan) la du lieu cua nhieu ben, chi huy chu khong xoa.
+        /// Xoa HAN duoc: du an CHUA TUNG co tien — con Nhap, hoac da huy ma chua tung ky quy / publish. Khong co so cai,
+        /// bai lam, nhan nao cua ben khac de mat.
         /// </summary>
-        public void KiemTraCoTheXoa()
+        public bool XoaHanDuoc()
         {
-            bool duoc = Status == ProjectStatus.Draft || (Status == ProjectStatus.Cancelled && !WasEscrowed && PublishedAt == null);
-            if (!duoc)
+            return Status == ProjectStatus.Draft || (Status == ProjectStatus.Cancelled && !WasEscrowed && PublishedAt == null);
+        }
+
+        /// <summary>
+        /// "Xoa du an" cua doanh nghiep voi du an DA KET THUC (Hoan thanh / Da huy sau khi publish): chi AN voi chu du an
+        /// (kien truc 3.36). Du an da publish co ky quy, bai lam, nhan, hoa don va uy tin cua labeler — du lieu cua nhieu
+        /// ben — nen dong du an giu nguyen. Du an chua ket thuc (cho ky quy / cho duyet / dang chay / tam dung / dang cham)
+        /// thi chua xoa duoc: phai huy hoac ket thuc truoc. An roi bam lai: khong lam gi.
+        /// </summary>
+        public void AnVoiChu(DateTimeOffset luc)
+        {
+            if (!DaKetThuc())
             {
                 throw new RuleViolationException(
                     "khong_the_xoa_du_an",
-                    "Chỉ xoá được dự án nháp (hoặc đã huỷ mà chưa từng publish). Dự án đã publish phải huỷ / kết thúc, dữ liệu được giữ theo quy định.");
+                    "Dự án chưa kết thúc — hãy huỷ hoặc kết thúc dự án trước khi xoá.");
             }
+
+            if (HiddenByOwnerAt.HasValue)
+            {
+                return;
+            }
+
+            HiddenByOwnerAt = luc;
+            UpdatedAt = luc;
         }
 
         public void DatDieuKienThamGia(
@@ -751,10 +776,10 @@ namespace Crowd.Project.Domain.Projects
             {
                 thieu.Add("chua_co_tap_nhan");
             }
-            else if (LabelSchema.Question == null)
+            else if (LabelSchema.CongCuThieuCauHoi().Count > 0)
             {
-                // Huong dan Markdown cua du an da bo: labeler chi con cau hoi (chung / rieng tung mau) + man luyen
-                // tap cong cu. Thieu cau hoi chung thi mau khong co cau rieng se hien ra ma khong biet phai lam gi.
+                // Moi cong cu phai co cau hoi rieng (kien truc 3.35) — khong co huong dan Markdown hay cau hoi chung,
+                // cong cu thieu cau hoi thi labeler khong biet dung no de lam gi.
                 thieu.Add("chua_co_cau_hoi");
             }
 

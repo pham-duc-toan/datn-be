@@ -72,6 +72,16 @@ namespace Crowd.Seeding.Tests
         }
 
         [Fact]
+        public void Moi_cong_cu_cua_du_an_seed_deu_co_cau_hoi()
+        {
+            // Thieu cau hoi thi du an nhap seed khong publish duoc (chua_co_cau_hoi — kien truc 3.35).
+            foreach (SeedProject p in KichBanSeed.Projects)
+            {
+                Assert.True(LabelSchema.Doc(p.LabelSchemaJson).CongCuThieuCauHoi().Count == 0, p.Key);
+            }
+        }
+
+        [Fact]
         public void Moc_thoi_gian_vong_doi_dung_thu_tu()
         {
             DateTimeOffset bayGio = DateTimeOffset.UtcNow;

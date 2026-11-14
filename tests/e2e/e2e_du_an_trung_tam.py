@@ -13,7 +13,7 @@ import uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import dat_cau_hoi_chung  # noqa: E402
+from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
 from tro_giup import (  # noqa: E402
     G, GOC, KQ, TAG, admin, cho, dang_ky, dat, dat_va_cho, kiem, nap_mau, sql, tham_gia, vi,
 )
@@ -38,7 +38,7 @@ def tao_du_an(chu, ten, mau, thuong, suat, nguong, vang=()):
     pid = r.json()["id"]
     requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"labelSchema": {"modality": "text", "tools": [
         {"name": "nhan", "kind": "classification", "classes": list(LOP)}]}}).raise_for_status()
-    dat_cau_hoi_chung(chu["h"], pid)
+    dat_cau_hoi_cong_cu(chu["h"], pid)
     r = requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"pricing": {
         "rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": "2027-12-31T00:00:00Z"}})
     assert r.status_code == 200, r.text

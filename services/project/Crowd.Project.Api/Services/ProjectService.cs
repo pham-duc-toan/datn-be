@@ -254,7 +254,7 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// Tap nhan: {"question": "...", "tools":[...], "segmentSeconds"?: ...}. "modality" co the bo — lay theo du an;
+        /// Tap nhan: {"tools":[{..., "question": "..."}], "segmentSeconds"?: ...}. "modality" co the bo — lay theo du an;
         /// neu gui thi phai trung. Kiem hinh dang bang JSON Schema roi ngu nghia (Crowd.Labeling.LabelSchema).
         /// </summary>
         private async Task ApTapNhanAsync(LabelingProject duAn, JsonElement body, DateTimeOffset luc, CancellationToken ct)
@@ -273,20 +273,20 @@ namespace Crowd.Project.Api.Services
             LabelSchema schema = LabelSchema.Doc(o.ToJsonString());
 
             // Doi CONG CU sau khi da co cau hoi vang se lam dap an vang tro vao lop / cong cu khong con ton tai —
-            // bat xoa cau hoi vang truoc. Chi sua chu (cau hoi chung, dong nhac tung cong cu) thi dap an van dung.
+            // bat xoa cau hoi vang truoc. Chi sua cau hoi cua cong cu thi dap an van dung.
             Guid id = duAn.Id;
             bool coCauVang = await _db.GoldItems.AnyAsync(g => g.ProjectId == id, ct);
             if (coCauVang && !CungCongCu(duAn.LabelSchema, schema))
             {
                 throw new RuleViolationException(
                     "da_co_cau_hoi_vang",
-                    "Dự án đã có câu hỏi vàng. Xoá câu hỏi vàng trước khi đổi công cụ gán nhãn (sửa câu hỏi và dòng nhắc thì không cần).");
+                    "Dự án đã có câu hỏi vàng. Xoá câu hỏi vàng trước khi đổi công cụ gán nhãn (chỉ sửa câu hỏi của công cụ thì không cần).");
             }
 
             duAn.DatLabelSchema(schema, luc);
         }
 
-        /// <summary>Hai tap nhan giong het nhau neu bo phan chu (cau hoi chung, dong nhac cong cu).</summary>
+        /// <summary>Hai tap nhan giong het nhau neu bo cau hoi cua tung cong cu.</summary>
         private static bool CungCongCu(LabelSchema? cu, LabelSchema moi)
         {
             if (cu == null)
@@ -300,10 +300,9 @@ namespace Crowd.Project.Api.Services
         private static string BoPhanChu(LabelSchema s)
         {
             System.Text.Json.Nodes.JsonObject o = (System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(s.ToRawJson().Json)!;
-            o.Remove("question");
             foreach (System.Text.Json.Nodes.JsonNode? t in (System.Text.Json.Nodes.JsonArray)o["tools"]!)
             {
-                ((System.Text.Json.Nodes.JsonObject)t!).Remove("hint");
+                ((System.Text.Json.Nodes.JsonObject)t!).Remove("question");
             }
 
             return o.ToJsonString();
@@ -531,6 +530,7 @@ namespace Crowd.Project.Api.Services
             {
                 Ready = thieu.Count == 0,
                 Missing = thieu,
+                ToolsMissingQuestion = duAn.LabelSchema == null ? new List<string>() : duAn.LabelSchema.CongCuThieuCauHoi(),
                 Warnings = LabelingProject.CanhBao(duAn.LabelSchema, videoLoi),
                 VideoPreparingCount = videoDangChuanBi,
                 VideoFailedCount = videoLoi,
@@ -846,8 +846,11 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// Xoa han du an nhap (hoac da huy chua tung publish): xoa dong du an (khoa ngoai CASCADE don mau, cau vang, thanh
-        /// vien, loi moi...) roi don file trong kho theo tien to "{projectId}/". Khong co ky quy / bai lam nao de mat.
+        /// "Xoa du an" cua doanh nghiep — hai cach tuy du an, doanh nghiep thay nhu nhau (204, du an bien mat):
+        ///   - du an nhap (hoac da huy chua tung publish): xoa HAN dong du an (khoa ngoai CASCADE don mau, cau vang, thanh
+        ///     vien, loi moi...) roi don file trong kho theo tien to "{projectId}/". Khong co ky quy / bai lam nao de mat;
+        ///   - du an da ket thuc (Hoan thanh / Da huy sau khi publish): chi AN voi chu du an (kien truc 3.36), du lieu giu nguyen.
+        /// Du an chua ket thuc → 409 khong_the_xoa_du_an.
         /// </summary>
         public async Task XoaAsync(Guid id, IObjectStorage kho, Caller caller, CancellationToken ct)
         {
@@ -857,7 +860,13 @@ namespace Crowd.Project.Api.Services
             }
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(id, caller, ct);
-            duAn.KiemTraCoTheXoa();
+            if (!duAn.XoaHanDuoc())
+            {
+                duAn.AnVoiChu(_clock.GetUtcNow());
+                await _db.SaveChangesAsync(ct);
+                _logger.LogInformation("Chu du an da xoa (an) du an da ket thuc {ProjectId}", id);
+                return;
+            }
 
             _db.Projects.Remove(duAn);
             await _db.SaveChangesAsync(ct);
@@ -1206,6 +1215,7 @@ namespace Crowd.Project.Api.Services
                 Languages = p.Languages,
                 DeleteFilesAfterClose = laChu && p.DeleteFilesAfterClose,
                 FilesPurgedAt = laChu ? p.FilesPurgedAt : null,
+                HiddenByOwnerAt = caller.IsAdmin ? p.HiddenByOwnerAt : null,
 
                 OwnerId = laChu ? p.OwnerId : null,
                 EscrowVnd = laChu && p.PlatformFeePercent > 0 ? p.ChiPhiUocTinhVnd(p.PlatformFeePercent) : null,

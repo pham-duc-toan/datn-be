@@ -45,7 +45,7 @@ namespace Crowd.Gate.Api.Dtos
         /// <summary>Van ban {"text"} / cap {"a","b"} / danh sach {"items"}. Anh: null.</summary>
         public JsonElement? Content { get; init; }
 
-        /// <summary>Cau hoi cua cau nay (cau rieng cua mau, khong co thi cau hoi chung cua du an).</summary>
+        /// <summary>Ngu canh / cau hoi rieng cua mau (tuy chon). Cau hoi cua tung cong cu nam trong LabelSchema.tools[].question.</summary>
         public string? Question { get; init; }
 
         public required JsonElement Metadata { get; init; }

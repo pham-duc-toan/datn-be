@@ -10,7 +10,7 @@ import os, sys, time, uuid
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import dat_cau_hoi_chung  # noqa: E402
+from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
 from tro_giup import *  # noqa: E402,F401,F403
 
 try:
@@ -382,7 +382,7 @@ try:
         p = r.json()["id"]
         r = requests.patch(G + f"/projects/{p}", headers=biz["h"], json={"labelSchema": {"modality": modality, "tools": cong_cu}})
         assert r.status_code == 200, r.text
-        dat_cau_hoi_chung(biz["h"], p)
+        dat_cau_hoi_cong_cu(biz["h"], p)
         dat_gia(biz, p, 10000, 3)
         nap_mau(p, biz["h"], rows)
         publish_va_duyet(biz, p)

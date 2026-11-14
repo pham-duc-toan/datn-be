@@ -126,17 +126,17 @@ namespace Crowd.Admin.Api.Services
         /// </summary>
         public async Task<int> SeedAsync(Guid adminId, CancellationToken ct)
         {
-            // { ma, ten cu (ban khong dau), ten, mo ta, tap nhan (kem cau hoi chung + dong nhac cong cu) }
+            // { ma, ten cu (ban khong dau), ten, mo ta, tap nhan (moi cong cu kem cau hoi) }
             string[][] ds = new string[][]
             {
                 new string[] { "phan-loai-anh", "Phan loai anh", "Phân loại ảnh", "Mỗi ảnh chọn một lớp.",
-                    "{\"modality\":\"image\",\"question\":\"Ảnh này thuộc lớp nào?\",\"tools\":[{\"name\":\"lop\",\"kind\":\"classification\",\"classes\":[\"Lớp A\",\"Lớp B\"],\"hint\":\"Chọn đúng một lớp.\"}]}" },
+                    "{\"modality\":\"image\",\"tools\":[{\"name\":\"lop\",\"kind\":\"classification\",\"classes\":[\"Lớp A\",\"Lớp B\"],\"question\":\"Ảnh này thuộc lớp nào?\"}]}" },
                 new string[] { "ner-tieng-viet", "Gan the thuc the tieng Viet", "Gán thẻ thực thể tiếng Việt", "Đánh dấu tên người, địa điểm, tổ chức trong văn bản.",
-                    "{\"modality\":\"text\",\"question\":\"Câu này nhắc tới những người, địa điểm, tổ chức nào?\",\"tools\":[{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"Tên người\",\"Địa điểm\",\"Tổ chức\"],\"hint\":\"Bôi đen trọn cụm từ, không lấy dấu câu.\"}]}" },
+                    "{\"modality\":\"text\",\"tools\":[{\"name\":\"thuc_the\",\"kind\":\"span\",\"classes\":[\"Tên người\",\"Địa điểm\",\"Tổ chức\"],\"question\":\"Bôi đen tên người, địa điểm, tổ chức (trọn cụm từ, không lấy dấu câu).\"}]}" },
                 new string[] { "chep-loi-am-thanh", "Chep loi am thanh", "Chép lời âm thanh", "Nghe và chép lại lời nói, đánh dấu đoạn có tiếng nói.",
-                    "{\"modality\":\"audio\",\"question\":\"Đoạn âm thanh này nói gì?\",\"tools\":[{\"name\":\"loi_noi\",\"kind\":\"transcription\",\"hint\":\"Chép đúng từng từ, không sửa ngữ pháp.\"},{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"Giọng nói\",\"Im lặng\"]}]}" },
+                    "{\"modality\":\"audio\",\"tools\":[{\"name\":\"loi_noi\",\"kind\":\"transcription\",\"question\":\"Đoạn âm thanh này nói gì? Chép đúng từng từ, không sửa ngữ pháp.\"},{\"name\":\"doan\",\"kind\":\"temporalSegment\",\"classes\":[\"Giọng nói\",\"Im lặng\"],\"question\":\"Đánh dấu đoạn có giọng nói và đoạn im lặng.\"}]}" },
                 new string[] { "phat-hien-vat-the-xoay", "Phat hien vat the (khung xoay)", "Phát hiện vật thể (khung xoay)", "Vẽ khung xoay theo hướng vật thể — xuất YOLO-OBB.",
-                    "{\"modality\":\"image\",\"question\":\"Khoanh tất cả vật thể trong ảnh.\",\"tools\":[{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"Vật thể\"],\"rotatable\":true,\"hint\":\"Khung ôm sát vật thể, xoay theo cạnh dài.\"}]}" },
+                    "{\"modality\":\"image\",\"tools\":[{\"name\":\"khung\",\"kind\":\"bbox\",\"classes\":[\"Vật thể\"],\"rotatable\":true,\"question\":\"Khoanh tất cả vật thể trong ảnh — khung ôm sát, xoay theo cạnh dài.\"}]}" },
             };
 
             int moi = 0;

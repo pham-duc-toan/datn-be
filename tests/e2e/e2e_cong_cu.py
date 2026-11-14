@@ -15,7 +15,7 @@ import copy, io, os, subprocess, sys, zipfile
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from moi_truong import dat_cau_hoi_chung  # noqa: E402
+from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
 from tro_giup import *  # noqa: E402,F401,F403
 import tao_media  # noqa: E402
 
@@ -47,7 +47,7 @@ def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, suat=3, dieu_kien
     pid = r.json()["id"]
     r = requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"labelSchema": tap_nhan})
     assert r.status_code == 200, r.text
-    dat_cau_hoi_chung(chu["h"], pid)
+    dat_cau_hoi_cong_cu(chu["h"], pid)
     if dieu_kien:
         requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"eligibility": dieu_kien}).raise_for_status()
 
@@ -135,14 +135,15 @@ try:
     ls = requests.get(G + f"/projects/{P1}", headers=biz["h"]).json()["labelSchema"]
     kiem("tap nhan luu dang chuan: thuoc tinh co maxLength / required, so co integer / tolerance",
          ls["tools"][0]["attributes"][0] == {"name": "noi_dung", "type": "text", "required": True, "maxLength": 50}
-         and ls["tools"][4] == {"name": "so_dong", "kind": "number", "required": True, "integer": True, "tolerance": 0, "min": 0, "max": 20}, ls)
+         and ls["tools"][4] == {"name": "so_dong", "kind": "number", "required": True, "integer": True, "tolerance": 0, "min": 0, "max": 20,
+                                "question": "Chon dap an dung cho mau nay."}, ls)
 
     r = requests.patch(G + f"/projects/{P1}", headers=biz["h"], json={"labelSchema": {"modality": "image", "tools": [{"name": "xep", "kind": "ranking"}]}})
     kiem("cong cu ranking cho du an anh → 400", r.status_code == 400, r.text)
     r = requests.patch(G + f"/projects/{P1}", headers=biz["h"], json={"labelSchema": {"modality": "image", "tools": [
         {"name": "v", "kind": "bbox", "classes": ["a"], "attributes": [{"name": "x", "type": "choice"}]}]}})
     kiem("thuoc tinh choice thieu options → 400", r.status_code == 400, r.text)
-    requests.patch(G + f"/projects/{P1}", headers=biz["h"], json={"labelSchema": dict(TAP_NHAN_ANH, question="Doc chu va danh dau anh.")}).raise_for_status()
+    requests.patch(G + f"/projects/{P1}", headers=biz["h"], json={"labelSchema": dict(TAP_NHAN_ANH, tools=[dict(t, question="Doc chu va danh dau anh.") for t in TAP_NHAN_ANH["tools"]])}).raise_for_status()
 
     publish_va_duyet(biz, P1)
     for u in (l1, l2):
