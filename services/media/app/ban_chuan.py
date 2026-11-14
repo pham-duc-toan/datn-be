@@ -1,100 +1,59 @@
-"""Ban chuan cua video (watermark_av.chuan_hoa_video): tao SAN luc doanh nghiep nap du lieu.
+"""Cat san HLS cho video vua nap (hls.py) — MOT lan moi doan mau, truoc khi du an publish.
 
-Moi nguoi xem chi nhung watermark vao khung dau + khung cuoi (vai giay), nhung ban chuan phai ma hoa lai CA
-video mot lan (video 8 phut 720p ~30 giay). Truoc day lam o lan mo dau tien → nguoi dau tien cho lau. Nay:
-  - nghe samples.ingested: moi file video → MOT viec trong queue ben "media-svc.chuan-hoa" (khoi dong lai khong
-    mat); worker lam lan luot tung viec: chuan hoa, ghi len MinIO canh file goc
-    ("<projectId>/_wm/chuan-v2/<phan con lai>.mp4" — xoa du an xoa theo tien to "<projectId>/" la xoa luon),
-    roi phat video.prepared (thanh cong / file hong) → project-svc moi cho publish / duyet;
-  - luc phat: bo dem dia → MinIO → (video nap truoc ban nay) chuan hoa tai cho roi ghi len MinIO.
-Khong co DB: viec giao lai thay da co tren MinIO → chi phat lai video.prepared (project-svc ghi de, vo hai).
+  - nghe samples.ingested: moi FILE video → MOT viec trong queue ben "media-svc.chuan-hoa" (khoi dong lai khong
+    mat), kem cac doan mau cua file (metadata segmentStart / segmentEnd, khong cat = ca file) va chu watermark
+    dung chung project-svc dung san;
+  - worker lam lan luot tung viec: tai file goc MOT lan, cat tung doan chua co, ghi len MinIO canh file goc
+    ("<projectId>/_wm/hls-v1/…"), roi phat video.prepared (thanh cong / file hong) → project-svc moi cho publish / duyet;
+  - luc phat: doan nao chua co (video nap truoc ban nay) thi views.py cat tai cho (hls.dam_bao_doan).
+Khong co DB: viec giao lai thay doan da co tren MinIO → bo qua, chi phat lai video.prepared (project-svc ghi de, vo hai).
 """
 
 import asyncio
 import json
 import logging
-import os
-import tempfile
 import uuid
-from pathlib import Path, PurePosixPath
+from typing import Any
 
 import aio_pika
 
-from app import settings_store, watermark_av
+from app import hls, settings_store, watermark_av
 from app.config import settings
 from app.contracts import SamplesIngested, VideoPrepared
 from app.messaging import envelope as env_mod
 from app.messaging import thu_lai
 from app.messaging.envelope import LoiHopDong
-from app.storage import KhongCoFile, kho
+from app.storage import KhongCoFile
 
 log = logging.getLogger(__name__)
 
-PHIEN_BAN = "chuan-v2"
 TEN_QUEUE = "media-svc.samples-ingested"
 TEN_VIEC = "media-svc.chuan-hoa"
-# Mot viec chuan hoa video dai co the lau hon han ack mac dinh cua RabbitMQ (30 phut).
+# Mot viec cat video dai co the lau hon han ack mac dinh cua RabbitMQ (30 phut).
 HAN_VIEC_MS = 4 * 3600 * 1000
 
 
-def khoa_ban_chuan(storage_key: str) -> str:
-    """Khoa MinIO cua ban chuan — cung tien to du an voi file goc."""
-    du_an, _, con_lai = storage_key.partition("/")
-    if not con_lai:
-        return f"_wm/{PHIEN_BAN}/{storage_key}.mp4"
-    return f"{du_an}/_wm/{PHIEN_BAN}/{con_lai}.mp4"
+def doan_cua_mau(metadata: Any) -> tuple[float, float | None]:
+    """[a, b] cua mau trong file (giay). b None = het file (metadata khong co thoi luong)."""
+    md = metadata if isinstance(metadata, dict) else {}
+    a = md.get("segmentStart")
+    b = md.get("segmentEnd")
+    if b is None:
+        b = md.get("durationSec")
+    return float(a or 0), None if b is None else float(b)
 
 
-def _tam(duoi: str) -> str:
-    fd, duong = tempfile.mkstemp(prefix="media-chuan-", suffix=duoi)
-    os.close(fd)
-    return duong
-
-
-def chuan_hoa_va_luu(storage_key: str, dich: Path) -> None:
-    """Tai file goc → chuan hoa vao `dich` → ghi len MinIO."""
-    goc = _tam(PurePosixPath(storage_key).suffix)
-    try:
-        kho().tai_ve(storage_key, goc)
-        watermark_av.chuan_hoa_video(Path(goc), dich)
-    finally:
-        os.unlink(goc)
-    kho().tai_len(khoa_ban_chuan(storage_key), str(dich), "video/mp4")
-
-
-def tao_ban_chuan(storage_key: str, dich: Path) -> None:
-    """Cho bo dem dia: lay ban da co tren MinIO; chua co thi chuan hoa tai cho."""
-    try:
-        kho().tai_ve(khoa_ban_chuan(storage_key), str(dich))
-        return
-    except KhongCoFile:
-        pass
-    log.info("Chua co ban chuan cua %s tren MinIO — chuan hoa tai cho", storage_key)
-    chuan_hoa_va_luu(storage_key, dich)
-
-
-def chuan_hoa_san(storage_key: str) -> None:
-    """Da co tren MinIO thi thoi. Nem LoiMedia (file hong), KhongCoFile (file goc da xoa)."""
-    try:
-        kho().thong_tin(khoa_ban_chuan(storage_key))
-        return
-    except KhongCoFile:
-        pass
-    dich = Path(_tam(".mp4"))
-    try:
-        chuan_hoa_va_luu(storage_key, dich)
-        log.info("Da chuan hoa san video %s", storage_key)
-    finally:
-        dich.unlink(missing_ok=True)
-
-
-def cac_viec(p: SamplesIngested) -> list[str]:
-    """Moi FILE video mot viec (cac doan cat tu mot file dung chung khoa)."""
-    ra: list[str] = []
+def cac_viec(p: SamplesIngested) -> list[dict[str, Any]]:
+    """Moi FILE video mot viec (cac doan cat tu mot file dung chung khoa) kem moi doan mau cua file."""
+    theo_file: dict[str, list[list[float | None]]] = {}
     for s in p.samples:
-        if s.modality == "video" and s.storage_key and s.storage_key not in ra:
-            ra.append(s.storage_key)
-    return ra
+        if s.modality != "video" or not s.storage_key:
+            continue
+        a, b = doan_cua_mau(s.metadata)
+        ds = theo_file.setdefault(s.storage_key, [])
+        if [a, b] not in ds:
+            ds.append([a, b])
+    return [{"storageKey": k, "doan": v, "chu": p.watermark_text} for k, v in theo_file.items()]
 
 
 async def tra_lai(message: aio_pika.abc.AbstractIncomingMessage, mo_ta: str) -> None:
@@ -111,7 +70,7 @@ async def tra_lai(message: aio_pika.abc.AbstractIncomingMessage, mo_ta: str) -> 
 
 
 class ChuanHoaSan:
-    """Consumer samples.ingested → queue viec ben → worker chuan hoa lan luot (khong chiem het CPU)."""
+    """Consumer samples.ingested → queue viec ben → worker cat HLS lan luot (khong chiem het CPU)."""
 
     def __init__(self) -> None:
         self._kenh_nhan: aio_pika.abc.AbstractChannel | None = None
@@ -152,15 +111,15 @@ class ChuanHoaSan:
             return
         try:
             assert self._kenh_nhan is not None
-            for key in cac_viec(env.payload):
-                than = json.dumps({"projectId": str(env.payload.project_id), "storageKey": key,
+            for viec in cac_viec(env.payload):
+                than = json.dumps({**viec, "projectId": str(env.payload.project_id),
                                    "correlationId": str(env.correlation_id), "causationId": str(env.event_id)})
                 await self._kenh_nhan.default_exchange.publish(
                     aio_pika.Message(than.encode(), content_type="application/json",
                                      delivery_mode=aio_pika.DeliveryMode.PERSISTENT),
                     routing_key=TEN_VIEC)
         except Exception:  # noqa: BLE001
-            await tra_lai(message, f"Queue {TEN_QUEUE}: khong xep duoc viec chuan hoa")
+            await tra_lai(message, f"Queue {TEN_QUEUE}: khong xep duoc viec cat HLS")
             return
         await message.ack()
 
@@ -168,24 +127,27 @@ class ChuanHoaSan:
         try:
             v = json.loads(message.body)
             du_an, key = uuid.UUID(v["projectId"]), str(v["storageKey"])
+            doan = [(float(a), None if b is None else float(b)) for a, b in v["doan"]]
+            chu = str(v["chu"])
             tuong_quan, nguyen_nhan = uuid.UUID(v["correlationId"]), uuid.UUID(v["causationId"])
         except (ValueError, KeyError, TypeError) as ex:
-            log.error("Viec chuan hoa sai dinh dang → DLQ: %s", ex)
+            log.error("Viec cat HLS sai dinh dang → DLQ: %s", ex)
             await message.reject(requeue=False)
             return
 
         loi: str | None = None
         try:
-            await asyncio.to_thread(chuan_hoa_san, key)
+            so = await asyncio.to_thread(hls.cat_cac_doan, key, doan, chu)
+            log.info("Da cat HLS video %s: %d doan moi / %d doan", key, so, len(doan))
         except KhongCoFile:
             log.info("File %s khong con (du an da xoa?) — bo qua", key)
             await message.ack()
             return
         except watermark_av.LoiMedia as ex:
-            log.warning("Video %s hong, khong chuan hoa duoc: %s", key, ex)
+            log.warning("Video %s hong, khong cat duoc HLS: %s", key, ex)
             loi = str(ex)[:500]
         except Exception:  # noqa: BLE001 — MinIO / dia: thu lai (qua x-delivery-limit thi vao DLQ)
-            await tra_lai(message, f"Chuan hoa video {key} that bai")
+            await tra_lai(message, f"Cat HLS video {key} that bai")
             return
 
         try:

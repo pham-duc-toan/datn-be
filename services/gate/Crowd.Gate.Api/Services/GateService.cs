@@ -276,9 +276,11 @@ namespace Crowd.Gate.Api.Services
             if (p.ProjectId.HasValue)
             {
                 DuAnPhucVu? d = _catalog.LayDuAn(p.ProjectId.Value);
+                string? tenDoanhNghiep = null;
                 if (d != null)
                 {
                     tapNhan = d.TapNhanJson;
+                    tenDoanhNghiep = d.TenDoanhNghiep;
                 }
 
                 // Tron vang + that: client khong phan biet duoc cau nao duoc cham.
@@ -294,11 +296,18 @@ namespace Crowd.Gate.Api.Services
                     {
                         SampleId = m.SampleId,
                         Modality = m.Modality,
-                        // Khach vang lai: anh co watermark mang ma cua PHIEN vuot link (FP-02/03).
+                        // Khach vang lai: anh co chu noi mang ma cua PHIEN vuot link + ten doanh nghiep (FP-02/03).
                         FileUrl = m.StorageKey == null
                             ? null
                             : _media.TaoLink(
-                                new MauCanXem { SampleId = m.SampleId, ProjectId = m.ProjectId, StorageKey = m.StorageKey, Modality = m.Modality },
+                                new MauCanXem
+                                {
+                                    SampleId = m.SampleId,
+                                    ProjectId = m.ProjectId,
+                                    StorageKey = m.StorageKey,
+                                    Modality = m.Modality,
+                                    TenDoanhNghiep = tenDoanhNghiep,
+                                },
                                 NguoiXem.Khach(p.SessionId),
                                 CheDoXem.Watermark),
                         Content = m.Content == null ? null : m.Content.Element(),

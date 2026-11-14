@@ -37,6 +37,7 @@ namespace Crowd.Project.Api.Services
         private readonly MemberService _members;
         private readonly JoinRequestService _joinRequests;
         private readonly IMediaLinks _media;
+        private readonly TenDoanhNghiep _tenDoanhNghiep;
         private readonly TimeProvider _clock;
         private readonly ISettings _settings;
 
@@ -46,6 +47,7 @@ namespace Crowd.Project.Api.Services
             MemberService members,
             JoinRequestService joinRequests,
             IMediaLinks media,
+            TenDoanhNghiep tenDoanhNghiep,
             TimeProvider clock,
             ISettings settings)
         {
@@ -81,6 +83,11 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(media));
             }
 
+            if (tenDoanhNghiep == null)
+            {
+                throw new ArgumentNullException(nameof(tenDoanhNghiep));
+            }
+
             if (clock == null)
             {
                 throw new ArgumentNullException(nameof(clock));
@@ -91,6 +98,7 @@ namespace Crowd.Project.Api.Services
             _members = members;
             _joinRequests = joinRequests;
             _media = media;
+            _tenDoanhNghiep = tenDoanhNghiep;
             _clock = clock;
         }
 
@@ -146,18 +154,22 @@ namespace Crowd.Project.Api.Services
                 .Where(s => cauHoi.Contains(s.Id))
                 .ToDictionaryAsync(s => s.Id, ct);
 
-            // Cau hoi hien thi giong het mot task that: file (qua media-svc: watermark chim mang ma
-            // cua labeler — FP-02/03) hoac noi dung (van ban / cap), kem metadata.
+            // Cau hoi hien thi giong het mot task that: file (qua media-svc: anh / video chu noi mang ma labeler, am
+            // thanh watermark chim — FP-02/03) hoac noi dung (van ban / cap), kem metadata.
+            string? tenDoanhNghiep = mau.Values.Any(s => s.StorageKey != null)
+                ? await _tenDoanhNghiep.LayAsync(duAn.OwnerId, ct)
+                : null;
+            NguoiXem labeler = NguoiXem.Labeler(userId);
             List<EntranceQuestion> ds = new List<EntranceQuestion>();
             foreach (Guid id in lanMoi.QuestionSampleIds)
             {
                 Sample s = mau[id];
+                MauCanXem? xem = s.StorageKey == null ? null : MauService.MauXem(s, tenDoanhNghiep);
                 ds.Add(new EntranceQuestion
                 {
                     SampleId = id,
-                    FileUrl = s.StorageKey == null
-                        ? null
-                        : _media.TaoLink(MauService.MauXem(s), NguoiXem.Labeler(userId), CheDoXem.Watermark),
+                    FileUrl = xem == null ? null : _media.TaoLink(xem, labeler, CheDoXem.Watermark),
+                    WatermarkText = xem == null ? null : _media.ChuDeLenTrinhPhat(xem, labeler, CheDoXem.Watermark),
                     Content = s.Content,
                     Question = s.Question,
                     Metadata = s.Metadata,

@@ -32,7 +32,10 @@ namespace Crowd.BuildingBlocks.Storage
         /// <summary>Ban goc — chi chu du an va admin.</summary>
         Goc,
 
-        /// <summary>Anh mang watermark chim = ma cua nguoi xem — labeler, reviewer, khach cong link.</summary>
+        /// <summary>
+        /// Ban co watermark — labeler, reviewer, khach cong link. Anh / video: chu NOI mo goc duoi phai
+        /// "nguon: &lt;nguoi xem&gt; - &lt;doanh nghiep&gt; - &lt;domain&gt;"; am thanh: watermark CHIM mang ma nguoi xem.
+        /// </summary>
         Watermark,
     }
 
@@ -46,6 +49,68 @@ namespace Crowd.BuildingBlocks.Storage
         public required string StorageKey { get; init; }
 
         public required string Modality { get; init; }
+
+        /// <summary>Ten doanh nghiep chu du an (identity) — in vao watermark noi. null = khong biet (bo khoi chu).</summary>
+        public string? TenDoanhNghiep { get; init; }
+
+        /// <summary>Video cat doan: giay bat dau CUA MAU trong file (metadata segmentStart, khong cat = 0).</summary>
+        public double? BatDau { get; init; }
+
+        /// <summary>Giay ket thuc CUA MAU trong file (metadata segmentEnd, khong cat = durationSec).</summary>
+        public double? KetThuc { get; init; }
+    }
+
+    /// <summary>
+    /// Noi dung watermark noi (anh / video) — MOT cho dinh dang duy nhat. project, gate dung chu nay khi tao link
+    /// (dat trong token) va tra cho frontend ve de len trinh phat; media-svc chi ve chu nhan duoc, khong tu ghep.
+    /// </summary>
+    public static class ChuWatermark
+    {
+        /// <summary>"nguồn: &lt;userId | ma phien khach&gt; - &lt;doanh nghiep&gt; - &lt;domain&gt;".</summary>
+        public static string CaNhan(NguoiXem nguoi, string? tenDoanhNghiep, string domain)
+        {
+            if (nguoi == null)
+            {
+                throw new ArgumentNullException(nameof(nguoi));
+            }
+
+            Guid? ma = nguoi.UserId.HasValue ? nguoi.UserId : nguoi.GuestSessionId;
+            return Ghep(ma.HasValue ? ma.Value.ToString() : null, tenDoanhNghiep, domain);
+        }
+
+        /// <summary>Phan DUNG CHUNG cua video (khong co nguoi xem): "nguồn: &lt;doanh nghiep&gt; - &lt;domain&gt;".</summary>
+        public static string DungChung(string? tenDoanhNghiep, string domain)
+        {
+            return Ghep(null, tenDoanhNghiep, domain);
+        }
+
+        /// <summary>Domain in vao chu = host[:port] cua dia chi trang web (setting identity.frontend_url).</summary>
+        public static string DomainTu(string? diaChiTrang)
+        {
+            Uri? uri;
+            if (!string.IsNullOrWhiteSpace(diaChiTrang) && Uri.TryCreate(diaChiTrang.Trim(), UriKind.Absolute, out uri))
+            {
+                return uri.IsDefaultPort ? uri.Host : uri.Authority;
+            }
+
+            return (diaChiTrang ?? string.Empty).Trim().TrimEnd('/');
+        }
+
+        private static string Ghep(string? nguoiXem, string? tenDoanhNghiep, string domain)
+        {
+            StringBuilder sb = new StringBuilder("nguồn:");
+            string tach = " ";
+            foreach (string? phan in new string?[] { nguoiXem, tenDoanhNghiep, domain })
+            {
+                if (!string.IsNullOrWhiteSpace(phan))
+                {
+                    sb.Append(tach).Append(phan.Trim());
+                    tach = " - ";
+                }
+            }
+
+            return sb.ToString();
+        }
     }
 
     /// <summary>Ai xem — ma cua nguoi nay duoc nhung vao watermark (FP-02).</summary>
@@ -95,7 +160,20 @@ namespace Crowd.BuildingBlocks.Storage
     /// <summary>Tao link xem mau qua media-svc (thay link MinIO ky san — FP-03).</summary>
     public interface IMediaLinks
     {
+        /// <summary>
+        /// Link xem. Video co watermark → danh sach phat HLS "{PublicUrl}/media/v/{token}/index.m3u8" (chi doan cua mau,
+        /// moc 0 = dau mau); con lai → "{PublicUrl}/media/v/{token}" (file nguyen, tua bang Range).
+        /// </summary>
         string TaoLink(MauCanXem mau, NguoiXem nguoi, CheDoXem cheDo);
+
+        /// <summary>
+        /// Chu watermark noi frontend ve de len trinh phat VIDEO (phan giua video dung chung chi mang doanh nghiep +
+        /// domain; lop nay mang ca nguoi xem — quay man hinh van thay). null = khong ve (ban goc, khong phai video, tat watermark).
+        /// </summary>
+        string? ChuDeLenTrinhPhat(MauCanXem mau, NguoiXem nguoi, CheDoXem cheDo);
+
+        /// <summary>Chu in vao phan giua video luc nap (dung chung moi nguoi xem): "nguồn: &lt;doanh nghiep&gt; - &lt;domain&gt;".</summary>
+        string ChuDungChung(string? tenDoanhNghiep);
     }
 
     /// <summary>
@@ -137,9 +215,65 @@ namespace Crowd.BuildingBlocks.Storage
 
             DateTimeOffset bayGio = _clock.GetUtcNow();
             TimeSpan han = _settings.ThoiGian(SettingKeys.StorageViewLinkTtl);
-            byte[] noiDung = MediaGrant.TaoNoiDung(mau, nguoi, cheDo, Guid.NewGuid(), bayGio, bayGio + han);
+            bool coWatermark = CoWatermark(mau, cheDo);
+            string? chuCaNhan = null;
+            string? chuChung = null;
+            if (coWatermark && mau.Modality != "audio")
+            {
+                chuCaNhan = ChuWatermark.CaNhan(nguoi, mau.TenDoanhNghiep, Domain());
+                chuChung = ChuDungChung(mau.TenDoanhNghiep);
+            }
+
+            byte[] noiDung = MediaGrant.TaoNoiDung(mau, nguoi, cheDo, Guid.NewGuid(), bayGio, bayGio + han, chuCaNhan, chuChung);
             string token = MediaGrant.MaHoa(_khoa, noiDung, RandomNumberGenerator.GetBytes(MediaGrant.DoDaiNonce));
-            return _options.PublicUrl.TrimEnd('/') + "/media/v/" + token;
+            string link = _options.PublicUrl.TrimEnd('/') + "/media/v/" + token;
+            if (coWatermark && mau.Modality == "video")
+            {
+                return link + "/" + MediaGrant.TenDanhSachPhat;
+            }
+
+            return link;
+        }
+
+        public string? ChuDeLenTrinhPhat(MauCanXem mau, NguoiXem nguoi, CheDoXem cheDo)
+        {
+            if (mau == null)
+            {
+                throw new ArgumentNullException(nameof(mau));
+            }
+
+            if (nguoi == null)
+            {
+                throw new ArgumentNullException(nameof(nguoi));
+            }
+
+            if (mau.Modality != "video" || !CoWatermark(mau, cheDo))
+            {
+                return null;
+            }
+
+            return ChuWatermark.CaNhan(nguoi, mau.TenDoanhNghiep, Domain());
+        }
+
+        public string ChuDungChung(string? tenDoanhNghiep)
+        {
+            return ChuWatermark.DungChung(tenDoanhNghiep, Domain());
+        }
+
+        /// <summary>
+        /// Ban watermark khi: nguoi xem nhan ban watermark (khong phai chu / admin), loai co file (anh / am thanh / video)
+        /// va admin chua tat (media.watermark_enabled). media-svc kiem lai setting voi anh / am thanh.
+        /// </summary>
+        private bool CoWatermark(MauCanXem mau, CheDoXem cheDo)
+        {
+            return cheDo == CheDoXem.Watermark
+                && (mau.Modality == "image" || mau.Modality == "video" || mau.Modality == "audio")
+                && _settings.DungSai(SettingKeys.MediaWatermarkEnabled);
+        }
+
+        private string Domain()
+        {
+            return ChuWatermark.DomainTu(_settings.Chuoi(SettingKeys.IdentityFrontendUrl));
         }
     }
 
@@ -152,6 +286,9 @@ namespace Crowd.BuildingBlocks.Storage
         public const int DoDaiNonce = 12;
         public const int DoDaiTag = 16;
         public const int PhienBan = 1;
+
+        /// <summary>Video co watermark: ten danh sach phat HLS sau token; cac doan "c/…", "p/…" tuong doi voi no.</summary>
+        public const string TenDanhSachPhat = "index.m3u8";
 
         /// <summary>Du lieu xac thuc kem (AAD): token cua ung dung khac dung cung khoa cung khong lot qua.</summary>
         public static readonly byte[] Aad = Encoding.ASCII.GetBytes("crowd-media-grant-v1");
@@ -177,6 +314,17 @@ namespace Crowd.BuildingBlocks.Storage
         }
 
         public static byte[] TaoNoiDung(MauCanXem mau, NguoiXem nguoi, CheDoXem cheDo, Guid grantId, DateTimeOffset luc, DateTimeOffset het)
+        {
+            return TaoNoiDung(mau, nguoi, cheDo, grantId, luc, het, null, null);
+        }
+
+        /// <summary>
+        /// chuCaNhan ("wt"): chu noi ve len anh / doan dau + cuoi video. chuChung ("ws"): chu phan giua video — media-svc
+        /// dung khi phai tao lai doan dung chung luc phat. "a" / "b": doan cua mau trong file video. Ca bon TUY CHON: khong
+        /// co thi KHONG ghi (am thanh, ban goc, token kieu cu giu nguyen dinh dang).
+        /// </summary>
+        public static byte[] TaoNoiDung(
+            MauCanXem mau, NguoiXem nguoi, CheDoXem cheDo, Guid grantId, DateTimeOffset luc, DateTimeOffset het, string? chuCaNhan, string? chuChung)
         {
             if (mau == null)
             {
@@ -205,6 +353,22 @@ namespace Crowd.BuildingBlocks.Storage
                     w.WriteString("m", TenCheDo(cheDo));
                     w.WriteNumber("iat", luc.ToUnixTimeSeconds());
                     w.WriteNumber("exp", het.ToUnixTimeSeconds());
+                    if (chuCaNhan != null)
+                    {
+                        w.WriteString("wt", chuCaNhan);
+                    }
+
+                    if (chuChung != null)
+                    {
+                        w.WriteString("ws", chuChung);
+                    }
+
+                    if (mau.BatDau.HasValue && mau.KetThuc.HasValue && mau.KetThuc.Value > mau.BatDau.Value)
+                    {
+                        w.WriteNumber("a", Math.Round(mau.BatDau.Value, 3));
+                        w.WriteNumber("b", Math.Round(mau.KetThuc.Value, 3));
+                    }
+
                     w.WriteEndObject();
                 }
 

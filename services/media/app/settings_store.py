@@ -21,7 +21,6 @@ CATALOG_MAC_DINH = Path(__file__).resolve().parents[3] / "shared" / "settings" /
 
 # Khoa media-svc dung (ten giong SettingKeys ben C#).
 WATERMARK_ENABLED = "media.watermark_enabled"
-WATERMARK_STRENGTH = "media.watermark_strength"
 CONSUMERS_RECONNECT_DELAY = "consumers.reconnect_delay"
 CONSUMERS_RETRY_MAX_DELAY = "consumers.retry_max_delay"
 

@@ -18,7 +18,7 @@ from app.messaging.envelope import HopDong, Payload
 
 
 # =====================================================================
-# DU LIEU (project-svc) — chuan hoa san video vua nap (ban_chuan.py)
+# DU LIEU (project-svc) — cat san HLS video vua nap (ban_chuan.py)
 # =====================================================================
 
 
@@ -32,9 +32,12 @@ class IngestedSample(HopDong):
 
 class SamplesIngested(Payload):
     EVENT_TYPE = "samples.ingested"
+    VERSION = 2
 
     project_id: uuid.UUID
     samples: list[IngestedSample]
+    # Chu watermark noi in vao phan giua video (dung chung moi nguoi xem) — project-svc dung san.
+    watermark_text: str
 
 
 class VideoPrepared(Payload):

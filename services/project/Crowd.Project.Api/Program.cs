@@ -153,6 +153,9 @@ builder.Services.AddGrpcClient<IdentityData.IdentityDataClient>(o =>
     o.Address = new Uri(noiBo.IdentityGrpcUrl);
 });
 builder.Services.AddScoped<IdentityClient>();
+// Ten doanh nghiep cho watermark noi anh / video: hoi identity, giu trong RAM (Helpers/TenDoanhNghiep.cs).
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<TenDoanhNghiep>();
 builder.Services.AddGrpcClient<LabelAggregation.LabelAggregationClient>(o =>
 {
     o.Address = new Uri(noiBo.QualityGrpcUrl);

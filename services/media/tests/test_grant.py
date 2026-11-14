@@ -46,3 +46,37 @@ def test_sua_mot_ky_tu_hoac_khac_khoa_thi_tu_choi():
 def test_khoa_sai_bi_tu_choi(khoa):
     with pytest.raises(ValueError):
         doc_khoa(khoa)
+
+
+def _ma_hoa(khoa: bytes, noi_dung: dict) -> str:
+    import base64
+    import json
+    import os
+
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+    from app.grant import AAD
+
+    nonce = os.urandom(12)
+    du = nonce + AESGCM(khoa).encrypt(nonce, json.dumps(noi_dung).encode(), AAD)
+    return base64.urlsafe_b64encode(du).decode().rstrip("=")
+
+
+def _noi_dung_goc() -> dict:
+    return {"v": 1, "g": str(uuid.uuid4()), "s": str(uuid.uuid4()), "p": str(uuid.uuid4()), "k": "p/a.mp4", "mo": "video",
+            "u": str(uuid.uuid4()), "gs": None, "r": "labeler", "m": "watermarked", "iat": 1760000000, "exp": 1760000300}
+
+
+def test_truong_watermark_noi_va_doan_video():
+    khoa = doc_khoa(KHOA_VECTOR)
+    nd = _noi_dung_goc() | {"wt": "nguồn: u - Công ty A - gannhan.vn", "ws": "nguồn: Công ty A - gannhan.vn", "a": 120.0, "b": 240.5}
+    q = giai_ma(khoa, _ma_hoa(khoa, nd))
+    assert q.chu_ca_nhan == "nguồn: u - Công ty A - gannhan.vn"
+    assert q.chu_chung == "nguồn: Công ty A - gannhan.vn"
+    assert (q.bat_dau, q.ket_thuc) == (120.0, 240.5)
+
+
+def test_token_kieu_cu_khong_co_truong_moi():
+    khoa = doc_khoa(KHOA_VECTOR)
+    q = giai_ma(khoa, _ma_hoa(khoa, _noi_dung_goc()))
+    assert q.chu_ca_nhan is None and q.chu_chung is None and q.bat_dau is None and q.ket_thuc is None

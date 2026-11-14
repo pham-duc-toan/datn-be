@@ -1,11 +1,12 @@
 # syntax=docker/dockerfile:1
-# media-svc (Python) — bao ve du lieu: phat file mau qua token, watermark chim.
+# media-svc (Python) — bao ve du lieu: phat file mau qua token, watermark (anh / video chu noi + HLS, am thanh chim).
 # Ngu canh build = goc repo: can shared/settings/catalog.json. Giu bo cuc thu muc nhu repo vi
 # settings_store tim catalog theo duong dan tuong doi.
 FROM python:3.12-slim
-# libglib2.0-0: OpenCV headless can. ffmpeg: nhung / giai watermark am thanh, video (watermark_av.py).
+# libglib2.0-0: OpenCV headless can. ffmpeg: watermark am thanh, cat HLS video (watermark_av.py, hls.py).
+# fonts-dejavu-core: DejaVu Sans co dau tieng Viet cho chu noi "nguồn: …" (chu_noi.py).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libglib2.0-0 ffmpeg \
+    && apt-get install -y --no-install-recommends libglib2.0-0 ffmpeg fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /srv/services/media
 COPY services/media/requirements.txt .

@@ -1,4 +1,4 @@
-"""Diem vao media-svc: phat file mau qua token + watermark chim. KHONG co database.
+"""Diem vao media-svc: phat file mau qua token + watermark (anh / video: chu noi, HLS; am thanh: chim). KHONG co database.
 
 Chay dev:  .venv/Scripts/python -m app.main     (cong 8109)
 """
@@ -42,13 +42,13 @@ async def lifespan(app: FastAPI):
     doc_khoa(cfg.grant_key)
     doc_khoa(cfg.watermark_key)
 
-    # Setting (bat / tat, do manh watermark) — kien truc 3.32: WARM-UP doc view v_settings cua admin_db truoc khi
+    # Setting (bat / tat watermark) — kien truc 3.32: WARM-UP doc view v_settings cua admin_db truoc khi
     # nhan viec; chua doc duoc thi cho. Sau do doc lai dinh ky.
     await settings_sync.warm_up()
     dung = asyncio.Event()
     nap_lai = asyncio.create_task(settings_sync.vong_lap_nap_lai(dung), name="settings-reload")
     ket_noi = await noi_rabbitmq(cfg)
-    # Video vua nap: chuan hoa san (ma hoa lai ca video), xong phat video.prepared cho project-svc.
+    # Video vua nap: cat san HLS tung doan mau (hls.py), xong phat video.prepared cho project-svc.
     await ChuanHoaSan().bat_dau(ket_noi)
     log.info("media-svc san sang tren cong %s", cfg.port)
     try:

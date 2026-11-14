@@ -274,7 +274,7 @@ Tranh chấp              → tăng lên 5 người hoặc đẩy reviewer cấp
 | Mã    | Chức năng                                                               |
 | ----- | ----------------------------------------------------------------------- |
 | FP-01 | Ký NDA điện tử trước khi vào dự án nhạy cảm                             |
-| FP-02 | Ảnh stream qua proxy có **watermark chìm mang ID labeler**              |
+| FP-02 | Ảnh / video stream qua proxy có **chữ nổi “nguồn: ID người xem - doanh nghiệp - trang”** góc dưới phải (video phát HLS theo đoạn mẫu); âm thanh có **watermark chìm mang ID người nghe** |
 | FP-03 | Chặn tải ảnh gốc                                                        |
 | FP-04 | Tự động che PII: blur khuôn mặt, biển số, số CCCD                       |
 | FP-05 | **Private pool** — dự án riêng tư chỉ mời labeler đã xác minh danh tính |

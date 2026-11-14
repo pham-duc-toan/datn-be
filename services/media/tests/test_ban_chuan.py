@@ -1,69 +1,66 @@
-"""Ban chuan video: khoa MinIO, lay ban co san / chuan hoa tai cho, doc event samples.ingested."""
+"""Viec nap video: doc event samples.ingested v2, gom doan mau theo file, bo qua doan da cat san."""
 
 import json
 import uuid
 from pathlib import Path
 
-from app import ban_chuan
+from app import ban_chuan, hls
 from app.contracts import SamplesIngested
 from app.messaging import envelope as env_mod
-from app.storage import KhongCoFile
+
+CHU = "nguồn: Công ty A - gannhan.vn"
 
 
-def test_khoa_ban_chuan_cung_tien_to_du_an():
-    assert ban_chuan.khoa_ban_chuan("p1/abc.mov") == "p1/_wm/chuan-v2/abc.mov.mp4"
-    assert ban_chuan.khoa_ban_chuan("abc.mp4") == "_wm/chuan-v2/abc.mp4.mp4"
+def test_doan_cua_mau():
+    assert ban_chuan.doan_cua_mau({"durationSec": 30}) == (0.0, 30.0)
+    assert ban_chuan.doan_cua_mau({"segmentStart": 120, "segmentEnd": 240, "durationSec": 120}) == (120.0, 240.0)
+    assert ban_chuan.doan_cua_mau({}) == (0.0, None)
+    assert ban_chuan.doan_cua_mau(None) == (0.0, None)
 
 
-class _KhoGia:
-    def __init__(self, co: set[str]) -> None:
-        self.co = co
-        self.da_len: list[str] = []
-
-    def tai_ve(self, key: str, duong: str) -> None:
-        if key not in self.co:
-            raise KhongCoFile(key)
-        Path(duong).write_bytes(key.encode())
-
-    def tai_len(self, key: str, duong: str, loai: str) -> None:
-        self.da_len.append(key)
-
-
-def test_co_san_tren_minio_thi_khong_chuan_hoa(tmp_path: Path, monkeypatch):
-    k = _KhoGia({"p1/_wm/chuan-v2/v.mp4.mp4"})
-    monkeypatch.setattr(ban_chuan, "kho", lambda: k)
-    monkeypatch.setattr(ban_chuan.watermark_av, "chuan_hoa_video", lambda *_: (_ for _ in ()).throw(AssertionError()))
-    ban_chuan.tao_ban_chuan("p1/v.mp4", tmp_path / "c.mp4")
-    assert (tmp_path / "c.mp4").read_bytes() == b"p1/_wm/chuan-v2/v.mp4.mp4"
-    assert k.da_len == []
-
-
-def test_chua_co_thi_chuan_hoa_roi_ghi_len(tmp_path: Path, monkeypatch):
-    k = _KhoGia({"p1/v.mp4"})
-    monkeypatch.setattr(ban_chuan, "kho", lambda: k)
-    monkeypatch.setattr(ban_chuan.watermark_av, "chuan_hoa_video", lambda nguon, dich: Path(dich).write_bytes(b"chuan"))
-    ban_chuan.tao_ban_chuan("p1/v.mp4", tmp_path / "c.mp4")
-    assert (tmp_path / "c.mp4").read_bytes() == b"chuan"
-    assert k.da_len == ["p1/_wm/chuan-v2/v.mp4.mp4"]
-
-
-def test_doc_event_samples_ingested():
+def test_doc_event_samples_ingested_v2():
     env = {
-        "eventId": str(uuid.uuid4()), "eventType": "samples.ingested", "version": 1,
-        "occurredAt": "2026-10-24T00:00:00Z", "producer": "project-svc", "correlationId": str(uuid.uuid4()),
+        "eventId": str(uuid.uuid4()), "eventType": "samples.ingested", "version": 2,
+        "occurredAt": "2026-11-14T00:00:00Z", "producer": "project-svc", "correlationId": str(uuid.uuid4()),
         "causationId": None, "actor": None,
-        "payload": {"projectId": str(uuid.uuid4()), "samples": [{"sampleId": str(uuid.uuid4()), "modality": "video", "storageKey": "p/x.mp4",
+        "payload": {"projectId": str(uuid.uuid4()), "watermarkText": CHU,
+                    "samples": [{"sampleId": str(uuid.uuid4()), "modality": "video", "storageKey": "p/x.mp4",
                                  "content": None, "metadata": {"durationSec": 3}}]},
     }
     p = env_mod.doc(json.dumps(env).encode(), SamplesIngested).payload
-    assert p.samples[0].storage_key == "p/x.mp4"
+    assert p.samples[0].storage_key == "p/x.mp4" and p.watermark_text == CHU
 
 
-def test_moi_file_video_mot_viec():
-    p = SamplesIngested(project_id=uuid.uuid4(), samples=[
-        {"sample_id": uuid.uuid4(), "modality": "video", "storage_key": "p/a.mp4", "content": None, "metadata": {}},
-        {"sample_id": uuid.uuid4(), "modality": "video", "storage_key": "p/a.mp4", "content": None, "metadata": {}},
-        {"sample_id": uuid.uuid4(), "modality": "video", "storage_key": "p/b.mp4", "content": None, "metadata": {}},
+def test_moi_file_video_mot_viec_kem_cac_doan():
+    p = SamplesIngested(project_id=uuid.uuid4(), watermark_text=CHU, samples=[
+        {"sample_id": uuid.uuid4(), "modality": "video", "storage_key": "p/a.mp4", "content": None,
+         "metadata": {"segmentStart": 0, "segmentEnd": 120, "durationSec": 120}},
+        {"sample_id": uuid.uuid4(), "modality": "video", "storage_key": "p/a.mp4", "content": None,
+         "metadata": {"segmentStart": 120, "segmentEnd": 200.5, "durationSec": 80.5}},
+        {"sample_id": uuid.uuid4(), "modality": "video", "storage_key": "p/b.mp4", "content": None, "metadata": {"durationSec": 9}},
         {"sample_id": uuid.uuid4(), "modality": "image", "storage_key": "p/c.png", "content": None, "metadata": {}},
     ])
-    assert ban_chuan.cac_viec(p) == ["p/a.mp4", "p/b.mp4"]
+    assert ban_chuan.cac_viec(p) == [
+        {"storageKey": "p/a.mp4", "doan": [[0.0, 120.0], [120.0, 200.5]], "chu": CHU},
+        {"storageKey": "p/b.mp4", "doan": [[0.0, 9.0]], "chu": CHU},
+    ]
+
+
+def test_cat_cac_doan_bo_qua_doan_da_co(tmp_path: Path, monkeypatch):
+    da_co = {("p/a.mp4", 0.0, 120.0)}
+    da_cat: list[tuple[float, float]] = []
+    goc = tmp_path / "goc.mp4"
+    goc.write_bytes(b"x")
+    monkeypatch.setattr(hls, "da_co", lambda k, a, b: (k, a, b) in da_co)
+    monkeypatch.setattr(hls, "tai_goc", lambda k: goc)
+    monkeypatch.setattr(hls, "cat_va_luu", lambda g, k, a, b, chu: da_cat.append((a, b)))
+
+    assert hls.cat_cac_doan("p/a.mp4", [(0.0, 120.0), (120.0, 200.5)], CHU) == 1
+    assert da_cat == [(120.0, 200.5)]
+    assert not goc.exists()     # file goc tam bi xoa sau khi cat
+
+
+def test_khong_doan_nao_moi_thi_khong_tai_file_goc(monkeypatch):
+    monkeypatch.setattr(hls, "da_co", lambda k, a, b: True)
+    monkeypatch.setattr(hls, "tai_goc", lambda k: (_ for _ in ()).throw(AssertionError("khong duoc tai")))
+    assert hls.cat_cac_doan("p/a.mp4", [(0.0, 10.0)], CHU) == 0

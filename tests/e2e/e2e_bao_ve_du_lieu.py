@@ -1,9 +1,11 @@
-# E2E BAO VE DU LIEU (media-svc): chan tai ban goc (FP-03) + watermark chim mang ma nguoi xem (FP-02),
-# API giai ma anh ro ri ra dung nguoi.
+# E2E BAO VE DU LIEU (media-svc): chan tai ban goc (FP-03) + chu noi "nguồn: <nguoi xem> - <doanh nghiep> - <domain>"
+# goc duoi phai anh (FP-02, kien truc 3.37). API giai ma chi con cho am thanh (anh doc thang chu tren hinh).
 # Anh mau: data/mat.jpg (anh NASA, public domain), data/canh.png. Tu tao tai khoan + du an moi.
 # Chay: python e2e_bao_ve_du_lieu.py   (stack demo: E2E_PROFILE=demo)
 import hashlib, io, os, sys, time, zipfile
+import numpy as np
 import requests
+from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
@@ -48,6 +50,14 @@ def tai(url):
     return requests.get(url)
 
 
+def vung_khac(goc: bytes, moi: bytes) -> tuple[float, float]:
+    """Ti le (tren, duoi) cua vung pixel khac nhau giua hai anh cung kich thuoc — chu noi chi o day anh."""
+    a = np.asarray(Image.open(io.BytesIO(goc)).convert("RGB"), dtype=np.int16)
+    b = np.asarray(Image.open(io.BytesIO(moi)).convert("RGB"), dtype=np.int16)
+    ys = np.nonzero(np.abs(a - b).max(axis=2) > 40)[0]
+    return (float(ys.min()) / a.shape[0], float(ys.max()) / a.shape[0]) if len(ys) else (1.0, 0.0)
+
+
 try:
     biz = dang_ky(["business"], "bvdl-biz")
     lab1 = dang_ky(["labeler"], "bvdl-lab1")
@@ -77,10 +87,9 @@ try:
     kiem("phan hoi khong cho luu dem (no-store, nosniff, inline)",
          "no-store" in r.headers.get("Cache-Control", "") and r.headers.get("X-Content-Type-Options") == "nosniff"
          and r.headers.get("Content-Disposition") == "inline", dict(r.headers))
-    kiem("ban goc khong mang ma ai", giai_ma(r.content).json().get("found") is False)
 
     # =================================================================================
-    print("\n[2] Labeler: anh mang watermark chim = ma cua chinh ho; admin giai ma ra dung nguoi")
+    print("\n[2] Labeler: anh mang chu noi 'nguồn: <ma cua chinh ho> - ...' goc duoi phai; admin khong can giai ma")
     publish_va_duyet(biz, P)
     for u in (lab1, lab2):
         cho(lambda: requests.post(G + f"/projects/{P}/join", headers=u["h"]).status_code in (200, 409), 10)
@@ -91,32 +100,22 @@ try:
     kiem("labeler 1 mo bai: cau hoi co fileUrl qua media", "/media/v/" in (t1.get("fileUrl") or ""), t1)
     r1 = tai(t1["fileUrl"])
     ten1 = goc[t1["sampleId"]]
-    kiem("labeler nhan anh KHAC ban goc (co watermark)", r1.status_code == 200 and sha(r1.content) != sha(ANH[ten1]), (r1.status_code, ten1))
+    kiem("labeler nhan anh KHAC ban goc (co chu noi)", r1.status_code == 200 and sha(r1.content) != sha(ANH[ten1]), (r1.status_code, ten1))
+    tren, duoi = vung_khac(ANH[ten1], r1.content)
+    kiem("chi vung day anh bi doi (chu noi goc duoi, phan con lai giu nguyen)", tren > 0.8 and duoi > 0.9, (tren, duoi))
     kiem("tai lai cung link → cung noi dung", sha(tai(t1["fileUrl"]).content) == sha(r1.content))
-    g = giai_ma(r1.content).json()
-    kiem("admin giai ma anh 'ro ri' cua labeler 1 → dung labeler 1",
-         g.get("found") and g["viewer"]["type"] == "user" and g["viewer"]["userId"] == lab1["id"] and g["confidence"] > 0.6, g)
 
     b2 = bat_dau(lab2, P)
     t2 = next(q for q in b2["questions"] if q["sampleId"] == t1["sampleId"])
     r2 = tai(t2["fileUrl"])
-    g2 = giai_ma(r2.content).json()
-    kiem("CUNG anh trong bai cua labeler 2 → giai ra labeler 2 (khong nham labeler 1)",
-         sha(r2.content) != sha(r1.content) and g2.get("found") and g2["viewer"]["userId"] == lab2["id"], g2)
+    kiem("CUNG anh trong bai cua labeler 2 → chu khac labeler 1 (mang ma nguoi xem)", sha(r2.content) != sha(r1.content))
 
-    # Anh thu hai cua cung nguoi → van giai ra nguoi do (nguoi xem nhung thang trong anh).
-    t1b = b1["questions"][1]
-    g1b = giai_ma(tai(t1b["fileUrl"]).content).json()
-    kiem("anh thu hai cua labeler 1 → van giai ra labeler 1", g1b.get("found") and g1b["viewer"]["userId"] == lab1["id"], g1b)
-
+    kiem("anh / video → API giai ma tra 400 (doc chu tren hinh)",
+         giai_ma(r1.content).status_code == 400 and code(giai_ma(r1.content)) == "khong_can_giai_ma")
     kiem("labeler goi API giai ma → 403", giai_ma(r1.content, h=lab1["h"]).status_code == 403)
     kiem("khong dang nhap → 401", requests.post(G + "/media/admin/watermark/decode", files={"file": ("x.jpg", r1.content)}).status_code == 401)
-    r = giai_ma(b"khong phai anh")
-    kiem("file khong phai anh → 400 anh_khong_hop_le", r.status_code == 400 and code(r) == "anh_khong_hop_le", r.text)
-    r = giai_ma(r1.content, data={"width": "512"})
-    kiem("width ma thieu height → 400 kich_thuoc_khong_hop_le", r.status_code == 400 and code(r) == "kich_thuoc_khong_hop_le", r.text)
-    g = giai_ma(r1.content, data={"width": "512", "height": "512"}).json()
-    kiem("gui kem kich thuoc goc van giai dung", g.get("found") and g["viewer"]["userId"] == lab1["id"], g)
+    r = giai_ma(b"khong phai file", ten="x.bin")
+    kiem("file khong phai am thanh → 400 media_khong_hop_le", r.status_code == 400 and code(r) == "media_khong_hop_le", r.text)
 
     # =================================================================================
     print("\n[3] Link: bi sua → 403, het han → 410")
@@ -148,7 +147,7 @@ try:
          requests.get(G + f"/annotations/projects/{P}", headers=lab2["h"]).status_code in (403, 404))
 
     # =================================================================================
-    print("\n[5] Admin tat watermark (setting) → labeler nhan ban goc")
+    print("\n[5] Admin tat watermark (setting) → labeler nhan ban goc (khong chu noi)")
     # media-svc khong co DB: giu setting trong bo nho → cho toi khi anh labeler doi.
     def anh_la_goc():
         tt = requests.get(G + f"/tasks/attempts/{b2['attemptId']}", headers=lab2["h"]).json()["questions"][0]

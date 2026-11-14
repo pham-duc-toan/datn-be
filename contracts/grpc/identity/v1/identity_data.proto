@@ -42,6 +42,9 @@ message UserInfo {
   repeated string domains = 11;
   repeated string languages = 12;
   repeated string modalities = 13;
+  // Ten cong ty trong ho so doanh nghiep (rong = khong phai doanh nghiep / chua khai). project-svc, gate-svc in vao
+  // watermark noi cua anh / video ("nguon: <nguoi xem> - <ten doanh nghiep> - <domain>").
+  string company_name = 14;
 }
 
 message LookupUsersResponse {

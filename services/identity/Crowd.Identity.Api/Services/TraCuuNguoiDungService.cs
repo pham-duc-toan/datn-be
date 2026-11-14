@@ -124,6 +124,10 @@ namespace Crowd.Identity.Api.Services
             Dictionary<Guid, XacMinhDanhTinh> xacMinh = await _db.XacMinhDanhTinhs.AsNoTracking()
                 .Where(x => tim.Contains(x.UserId) && x.Status == KybStatus.Verified)
                 .ToDictionaryAsync(x => x.UserId, ct);
+            // Ten cong ty (ho so doanh nghiep): project / gate in vao watermark noi cua anh / video ban cho labeler.
+            Dictionary<Guid, string> tenCongTy = await _db.BusinessProfiles.AsNoTracking()
+                .Where(b => tim.Contains(b.UserId) && b.CompanyName != string.Empty)
+                .ToDictionaryAsync(b => b.UserId, b => b.CompanyName, ct);
             int tuoi = _settings.SoNguyen(SettingKeys.IdentityAdultAge);
             DateOnly homNay = XacMinhDanhTinhService.HomNayVietNam(_clock.GetUtcNow());
 
@@ -150,6 +154,7 @@ namespace Crowd.Identity.Api.Services
                     Domains = u.Domains,
                     Languages = u.Languages,
                     Modalities = u.Modalities,
+                    CompanyName = tenCongTy.TryGetValue(u.Id, out string? cty) ? cty : null,
                 });
             }
 

@@ -40,9 +40,9 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `project.cancelled` **v2** | ledger, quality, notification | Chi khi CHUA co bai nop (khong con `ApprovedAnnotationCount`) — huy bai dang lam + hoan TOAN BO ky quy; bao doanh nghiep neu da ky quy. quality: moc bat dau dem `project.closed_data_retention` (don du lieu van hanh). gate tu bo du an khoi bo nho khi view khong con tra ve |
 | `project.grading_applied` | identity | 3.24: project-svc DA GHI ket qua cham (`project.graded`) vao bai lam — `ApprovedLabelerIds` = labeler co bai dat. identity xep vao hang cho `level_dirty`, worker doc so cau qua gRPC roi tinh cap. Tach khoi `project.graded` vi luc quality phat event do project-svc co the chua ghi, tong doc ve se thieu du an vua cham |
 | `project.completed` **v2** | ledger, quality, notification | `PassedAttemptCount` = so bai dat cuoi cung: ledger tra du so bai do roi hoan phan con lai (con thieu → `Closing`, NC-B-01). quality: moc bat dau dem `project.closed_data_retention`. gate tu bo du an khoi bo nho khi view khong con tra ve |
-| `samples.ingested` | media | media chuan hoa san video (chi phat cho video; moi event la MOT file + cac doan cat cua no) (ban chuan watermark, ghi MinIO). gate KHONG nghe: doc mau + cau vang qua view `v_gate_samples` / `v_gate_gold` cua project (3.32) |
+| `samples.ingested` v2 | media | media cat san HLS tung doan mau cua video (chi phat cho video; moi event la MOT file + cac doan cat cua no; `watermarkText` = chu dung chung in phan giua, 3.37) (ghi MinIO). gate KHONG nghe: doc mau + cau vang qua view `v_gate_samples` / `v_gate_gold` cua project (3.32) |
 | ~~`gold_set.updated`~~ | — | **DA BO (3.23)**: chi gate nghe; gate keo cau vang qua gRPC luc publish (cau vang khoa tu luc roi Draft) |
-| `video.prepared` (media phat) | project | media-svc chuan bi xong ban chuan cua mot FILE video (`succeeded`, `error`). project ghi `samples.media_state`; con video dang chuan bi thi chua publish / duyet |
+| `video.prepared` (media phat) | project | media-svc cat xong HLS moi doan mau cua mot FILE video (`succeeded`, `error`). project ghi `samples.media_state`; con video dang chuan bi thi chua publish / duyet |
 | `member.added` / `member.blocked` / `member.unblocked` / `member.removed` | admin (audit) | Phan lam bai / nhan doc thang `project_members` (cung database) nen khong con ban sao `*_members_cache`; event van phat de audit |
 | `member.added` (them `via`, `projectName`, khong bat buoc) | notification | `via = owner_invite`: bao nguoi duoc chu du an moi. Cac duong khac (`invite_code`, `join`, `entrance_test`, `join_request`) khong bao — nguoi do tu bam, don duoc duyet bao qua `join_request.decided`. Ban tin cu khong co `via` → khong bao |
 | `project.invitation_created` | notification | Loi moi vao du an: `userId` co → thong bao + email theo tuy chon; `userId` null (email chua co tai khoan) → email giao dich kem link dang ky `…/dang-ky?email=&invitation=` |
@@ -155,8 +155,9 @@ doanh nghiep — thuat toan gop chi con o quality). Stub Python sinh san o `serv
 
 ## media-svc  *(Python)*
 
-Khong phat event nghiep vu: chi phat file mau qua token (FP-03) va gan watermark chim (FP-02). Nghe
-view `v_settings` cua admin_db (bat / tat, do manh watermark) nhu moi service (3.32). Cac service phat
+Khong phat event nghiep vu: chi phat file mau qua token (FP-03) va gan watermark (FP-02: anh / video chu noi, video
+HLS theo doan mau; am thanh watermark chim — 3.37). Doc view `v_settings` cua admin_db (bat / tat watermark) nhu moi
+service (3.32). Cac service phat
 link (project, gate) tu ky token bang khoa dung chung — khong goi media-svc.
 
 *Da bo (2026-10-13):* che PII tu dong (`pii.scrubbed`) — xung dot voi du an gan nhan chinh khuon mat / bien

@@ -1,21 +1,16 @@
-"""Watermark chim (FP-02): nhung THANG nguoi xem vao anh — khong luu gi, giai ma doc nguoc ra nguoi.
+"""Watermark CHIM (FP-02) — loi QIM dung cho AM THANH (watermark_av.py): nhung THANG nguoi nghe, khong luu gi.
+
+Anh / video nay mang watermark NOI (chu "nguồn: …" hien tren hinh — chu_noi.py), khong dung watermark chim nua.
 
 Noi dung nhung (168 bit): 1 byte loai (1 = tai khoan, 2 = khach cong link) + UUID 16 byte (userId /
-ma phien vuot link) + CRC-32 4 byte. CRC-32 loai ket qua sai (anh khong co watermark, khoa khac, anh
-bien doi qua nang): xac suat mot lan giai "trung" ngau nhien ~2^-32.
+ma phien vuot link) + CRC-32 4 byte. CRC-32 loai ket qua sai (file khong co watermark, khoa khac, bien
+doi qua nang): xac suat mot lan giai "trung" ngau nhien ~2^-32.
 
-Cach lam — QIM tren he so DCT (Chen & Wornell 2001):
-  - Kenh do sang Y (YCrCb), chia khoi 8x8, DCT truc chuan tung khoi.
-  - Moi khoi mang 5 he so tan so trung binh (HE_SO). Moi he so duoc gan MOT bit (168 bit lap lai
-    tren nhieu khoi), gan theo hoan vi bi mat sinh tu khoa watermark — khong co khoa thi khong biet
-    he so nao mang bit nao.
+Cach lam — QIM (Chen & Wornell 2001) tren he so mang bit (he so DCT cua tung khung am thanh):
+  - Moi he so duoc gan MOT bit (168 bit lap lai tren nhieu he so), gan theo hoan vi bi mat sinh tu khoa
+    watermark — khong co khoa thi khong biet he so nao mang bit nao.
   - Nhung bit b: lam tron he so ve luoi buoc `buoc`, lech d + b*buoc/2 (d: dither bi mat).
-  - Giai ma: moi he so bo phieu MEM (gan luoi 0 hay luoi 1 hon), cong theo bit → chiu duoc nen JPEG,
-    nhieu, doi do sang. Buoc la so nguyen trong [BUOC_MIN, BUOC_MAX]: bo giai tinh DCT MOT lan roi thu
-    lan luot moi buoc (buoc hien tai truoc) — anh phat truoc khi admin doi do manh van giai duoc.
-
-Gioi han: cat xen (crop) lam lech luoi khoi → khong giai duoc; thu nho thi phai phong lai DUNG kich
-thuoc goc truoc khi giai (API nhan width / height); anh nho hon ~130x130 khong du cho → khong nhung.
+  - Giai ma: moi he so bo phieu MEM (gan luoi 0 hay luoi 1 hon), cong theo bit (nhieu kenh cong chung).
 
 Ham THUAN tren numpy — test khong can MinIO.
 """
@@ -25,19 +20,12 @@ import uuid
 import zlib
 from dataclasses import dataclass
 
-import cv2
 import numpy as np
 
 LOAI_TAI_KHOAN = 1
 LOAI_KHACH = 2
 SO_BYTE = 1 + 16 + 4
 SO_BIT = SO_BYTE * 8
-KICH_THUOC_KHOI = 8
-# (hang, cot) trong khoi 8x8: tan so trung binh — it lo hon tan so thap, ben voi JPEG hon tan so cao.
-HE_SO = ((1, 2), (2, 1), (2, 2), (1, 3), (3, 1))
-# Gioi han cua setting media.watermark_strength (catalog) — bo giai thu het khoang nay.
-BUOC_MIN = 6
-BUOC_MAX = 80
 
 
 @dataclass(frozen=True)
@@ -67,62 +55,11 @@ def mo_goi(bit: np.ndarray) -> NguoiXem | None:
     return NguoiXem(than[0], uuid.UUID(bytes=than[1:]))
 
 
-def _ma_tran_dct() -> np.ndarray:
-    n = KICH_THUOC_KHOI
-    d = np.zeros((n, n), dtype=np.float64)
-    for k in range(n):
-        he = np.sqrt(1.0 / n) if k == 0 else np.sqrt(2.0 / n)
-        for i in range(n):
-            d[k, i] = he * np.cos(np.pi * (2 * i + 1) * k / (2 * n))
-    return d
-
-
-DCT = _ma_tran_dct()
-
-
 def _ke_hoach(khoa: bytes, so_vi_tri: int) -> tuple[np.ndarray, np.ndarray]:
     """Bit nao o vi tri nao + dither — tat dinh theo (khoa, so vi tri) nen nhung va giai khop nhau."""
     hat = int.from_bytes(hashlib.sha256(khoa + b"crowd-watermark-plan-v2").digest()[:8], "big")
     rng = np.random.default_rng(hat)
     return rng.permutation(so_vi_tri) % SO_BIT, rng.random(so_vi_tri)
-
-
-def _khoi_dct(y: np.ndarray) -> tuple[np.ndarray, int, int]:
-    h8 = (y.shape[0] // KICH_THUOC_KHOI) * KICH_THUOC_KHOI
-    w8 = (y.shape[1] // KICH_THUOC_KHOI) * KICH_THUOC_KHOI
-    bh, bw = h8 // KICH_THUOC_KHOI, w8 // KICH_THUOC_KHOI
-    khoi = y[:h8, :w8].reshape(bh, KICH_THUOC_KHOI, bw, KICH_THUOC_KHOI).transpose(0, 2, 1, 3)
-    return DCT @ khoi @ DCT.T, h8, w8
-
-
-def du_cho(anh: np.ndarray) -> bool:
-    """Anh du khoi de moi bit lap lai it nhat ~8 lan."""
-    so_khoi = (anh.shape[0] // KICH_THUOC_KHOI) * (anh.shape[1] // KICH_THUOC_KHOI)
-    return so_khoi * len(HE_SO) >= SO_BIT * 8
-
-
-def nhung(anh_bgr: np.ndarray, nguoi: NguoiXem, khoa: bytes, buoc: int) -> np.ndarray:
-    """Tra anh moi (uint8 BGR) mang nguoi xem. Anh qua nho thi tra nguyen anh (khong du cho)."""
-    if not du_cho(anh_bgr):
-        return anh_bgr.copy()
-
-    ycrcb = cv2.cvtColor(anh_bgr, cv2.COLOR_BGR2YCrCb)
-    y = ycrcb[:, :, 0].astype(np.float64)
-    he_so, h8, w8 = _khoi_dct(y)
-    bh, bw = he_so.shape[0], he_so.shape[1]
-    so_khoi = bh * bw
-    bit = dong_goi(nguoi)
-    bit_cua, dither = _ke_hoach(khoa, so_khoi * len(HE_SO))
-
-    for j, (r, c) in enumerate(HE_SO):
-        vi_tri = np.arange(so_khoi) * len(HE_SO) + j
-        lech = dither[vi_tri] * buoc + bit[bit_cua[vi_tri]] * (buoc / 2.0)
-        cu = he_so[:, :, r, c].reshape(-1)
-        he_so[:, :, r, c] = (np.round((cu - lech) / buoc) * buoc + lech).reshape(bh, bw)
-
-    y[:h8, :w8] = (DCT.T @ he_so @ DCT).transpose(0, 2, 1, 3).reshape(h8, w8)
-    ycrcb[:, :, 0] = np.clip(np.round(y), 0, 255).astype(np.uint8)
-    return cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2BGR)
 
 
 @dataclass(frozen=True)
@@ -134,14 +71,14 @@ class KetQuaGiai:
 
 @dataclass(frozen=True)
 class HeSoGiai:
-    """He so mang bit cua mot anh / kenh am thanh + bit nao, dither nao o tung he so."""
+    """He so mang bit cua mot kenh am thanh + bit nao, dither nao o tung he so."""
     gt: np.ndarray
     bit_o: np.ndarray
     d_o: np.ndarray
 
 
 class PhieuBit:
-    """Cong phieu mem tren nhieu nguon (nhieu khung hinh video, nhieu kenh am thanh) roi moi chot bit."""
+    """Cong phieu mem tren nhieu nguon (nhieu kenh, doan dau / cuoi am thanh) roi moi chot bit."""
 
     def __init__(self) -> None:
         self.diem = np.zeros(SO_BIT)
@@ -165,19 +102,6 @@ class PhieuBit:
         return mo_goi(bit), tin_cay
 
 
-def he_so_giai(anh_bgr: np.ndarray, khoa: bytes) -> HeSoGiai | None:
-    """DCT mot lan cho moi buoc thu. None = anh qua nho."""
-    if not du_cho(anh_bgr):
-        return None
-    y = cv2.cvtColor(anh_bgr, cv2.COLOR_BGR2YCrCb)[:, :, 0].astype(np.float64)
-    he_so, _, _ = _khoi_dct(y)
-    so_khoi = he_so.shape[0] * he_so.shape[1]
-    bit_cua, dither = _ke_hoach(khoa, so_khoi * len(HE_SO))
-    gt = np.stack([he_so[:, :, r, c].reshape(-1) for r, c in HE_SO], axis=1).reshape(-1)
-    vi_tri = (np.arange(so_khoi)[:, None] * len(HE_SO) + np.arange(len(HE_SO))[None, :]).reshape(-1)
-    return HeSoGiai(gt, bit_cua[vi_tri], dither[vi_tri])
-
-
 def giai_nhieu(nguon: list[HeSoGiai], cac_buoc: list[float]) -> KetQuaGiai:
     """Thu lan luot cac buoc, moi buoc cong phieu cua MOI nguon; dung o buoc dau tien ra nguoi xem hop le."""
     if not nguon:
@@ -192,20 +116,3 @@ def giai_nhieu(nguon: list[HeSoGiai], cac_buoc: list[float]) -> KetQuaGiai:
         if nguoi is not None:
             return KetQuaGiai(nguoi, tin_cay, buoc)
     return KetQuaGiai(None, tot_nhat, None)
-
-
-def giai(anh_bgr: np.ndarray, khoa: bytes, cac_buoc: list[int]) -> KetQuaGiai:
-    """Thu lan luot cac buoc; dung o buoc dau tien ra nguoi xem hop le (CRC dung)."""
-    h = he_so_giai(anh_bgr, khoa)
-    return giai_nhieu([h] if h is not None else [], cac_buoc)
-
-
-def thu_tu_buoc(hien_tai: int) -> list[int]:
-    """Buoc hien tai truoc, roi moi buoc con lai trong khoang setting cho phep."""
-    return [hien_tai] + [b for b in range(BUOC_MIN, BUOC_MAX + 1) if b != hien_tai]
-
-
-def psnr(goc: np.ndarray, moi: np.ndarray) -> float:
-    """Do khac biet (dB) — cang cao cang kho thay; > 38 dB coi nhu khong nhin ra."""
-    mse = float(np.mean((goc.astype(np.float64) - moi.astype(np.float64)) ** 2))
-    return float("inf") if mse == 0 else 10.0 * np.log10(255.0 ** 2 / mse)

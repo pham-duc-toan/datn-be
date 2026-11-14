@@ -391,6 +391,8 @@ services:
       ConnectionStrings__ProjectRead: Host=db-project;Port=5432;Database=project_db;Username=gate_reader;Password=${DB_READER_GATE_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
       ConnectionStrings__LedgerRead: Host=db-ledger;Port=5432;Database=ledger_db;Username=gate_reader;Password=${DB_READER_GATE_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
       ConnectionStrings__LinkRead: Host=db-link;Port=5432;Database=link_db;Username=gate_reader;Password=${DB_READER_GATE_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
+      # Ten doanh nghiep cho watermark noi cua anh khach vuot link: hoi identity qua gRPC luc nap bo nho.
+      InternalApi__IdentityGrpcUrl: http://identity:9101
 
   quality:
     image: datn/quality:demo
@@ -434,7 +436,8 @@ services:
       LOG_FORMAT: json
 
   media:
-    # Bao ve du lieu (FP-02, FP-03): phat file mau qua token, watermark chim nhung thang nguoi xem. Khong co DB.
+    # Bao ve du lieu (FP-02, FP-03): phat file mau qua token. Anh / video: chu noi "nguồn: …" (video phat HLS theo
+    # doan mau); am thanh: watermark chim nhung thang nguoi nghe. Khong co DB.
     image: datn/media:demo
     container_name: datn-demo-media
     restart: unless-stopped
@@ -453,7 +456,7 @@ services:
       MEDIA_MINIO_SECRET_KEY: ${MINIO_PASSWORD:?chay python deploy/tao_env.py}
       MEDIA_GRANT_KEY: ${MEDIA_GRANT_KEY:?chay python deploy/tao_env.py}
       MEDIA_WATERMARK_KEY: ${MEDIA_WATERMARK_KEY:?chay python deploy/tao_env.py}
-      # Bo dem ban chuan / ban da nhung watermark cua am thanh, video: volume rieng, tao lai container khong mat.
+      # Bo dem mang HLS rieng tung nguoi xem / am thanh da nhung watermark: volume rieng, tao lai container khong mat.
       MEDIA_AV_CACHE_DIR: /var/cache/media-wm
       LOG_FORMAT: json
     volumes: [media-cache:/var/cache/media-wm]

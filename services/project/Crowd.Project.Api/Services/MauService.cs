@@ -623,9 +623,27 @@ namespace Crowd.Project.Api.Services
         /// <summary>Mau co file → thong tin de media-svc phat dung file (khoa nam trong token da ma hoa).</summary>
         public static MauCanXem MauXem(Sample s)
         {
+            return MauXem(s, null);
+        }
+
+        /// <summary>
+        /// Nhu tren, kem ten doanh nghiep (watermark noi anh / video) va doan cua mau trong file video (media-svc chi
+        /// phat doan nay, moc 0 = dau mau): segmentStart / segmentEnd, khong cat thi 0 / durationSec.
+        /// </summary>
+        public static MauCanXem MauXem(Sample s, string? tenDoanhNghiep)
+        {
             if (s == null)
             {
                 throw new ArgumentNullException(nameof(s));
+            }
+
+            double? batDau = null;
+            double? ketThuc = null;
+            if (s.Modality == Modalities.Video)
+            {
+                SampleMetadata md = SampleMetadata.Tu(s.Metadata);
+                batDau = md.SegmentStart ?? 0;
+                ketThuc = md.SegmentEnd ?? md.DurationSec;
             }
 
             return new MauCanXem
@@ -634,6 +652,9 @@ namespace Crowd.Project.Api.Services
                 ProjectId = s.ProjectId,
                 StorageKey = s.StorageKey ?? throw new InvalidOperationException("Mau khong co file."),
                 Modality = s.Modality,
+                TenDoanhNghiep = tenDoanhNghiep,
+                BatDau = batDau,
+                KetThuc = ketThuc,
             };
         }
 

@@ -44,6 +44,9 @@ namespace Crowd.Project.Api.Helpers
 
         public IReadOnlyList<string> Modalities { get; init; } = new List<string>();
 
+        /// <summary>Ten cong ty trong ho so doanh nghiep (rong = khong co) — in vao watermark noi.</summary>
+        public string CompanyName { get; init; } = string.Empty;
+
         public HoSoNguoiDung HoSo()
         {
             return new HoSoNguoiDung(UserId, Roles.Contains(CrowdRoles.Labeler, StringComparer.Ordinal), Locked, Level, Reputation);
@@ -153,6 +156,7 @@ namespace Crowd.Project.Api.Helpers
                     Domains = u.Domains.ToList(),
                     Languages = u.Languages.ToList(),
                     Modalities = u.Modalities.ToList(),
+                    CompanyName = u.CompanyName,
                 });
             }
 

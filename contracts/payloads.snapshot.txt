@@ -308,9 +308,10 @@ reputation.changed v1  (ReputationChanged)
     Reputation               Int32                required
     UserId                   Guid                 required
 
-samples.ingested v1  (SamplesIngested)
+samples.ingested v2  (SamplesIngested)
     ProjectId                Guid                 required
     Samples                  IReadOnlyList<IngestedSample> required
+    WatermarkText            String               required
 
 sensitive_document.viewed v1  (SensitiveDocumentViewed)
     DocumentKind             String               required

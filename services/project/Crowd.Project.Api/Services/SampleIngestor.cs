@@ -52,6 +52,8 @@ namespace Crowd.Project.Api.Services
         private readonly ILogger<SampleIngestor> _logger;
         private readonly ISettings _settings;
         private readonly NhapNguonNgoaiService _nhapNgoai;
+        private readonly TenDoanhNghiep _tenDoanhNghiep;
+        private readonly IMediaLinks _media;
 
         public SampleIngestor(
             ProjectDbContext db,
@@ -61,7 +63,9 @@ namespace Crowd.Project.Api.Services
             TimeProvider clock,
             ILogger<SampleIngestor> logger,
             ISettings settings,
-            NhapNguonNgoaiService nhapNgoai)
+            NhapNguonNgoaiService nhapNgoai,
+            TenDoanhNghiep tenDoanhNghiep,
+            IMediaLinks media)
         {
             if (nhapNgoai == null)
             {
@@ -69,6 +73,20 @@ namespace Crowd.Project.Api.Services
             }
 
             _nhapNgoai = nhapNgoai;
+
+            if (tenDoanhNghiep == null)
+            {
+                throw new ArgumentNullException(nameof(tenDoanhNghiep));
+            }
+
+            _tenDoanhNghiep = tenDoanhNghiep;
+
+            if (media == null)
+            {
+                throw new ArgumentNullException(nameof(media));
+            }
+
+            _media = media;
 
             if (settings == null)
             {
@@ -227,14 +245,21 @@ namespace Crowd.Project.Api.Services
 
             if (mau.IngestState == TrangThaiNap.SanSang && mau.Modality == Modalities.Video)
             {
-                // Chi video moi can nghe: media-svc chuan hoa ban chuan (watermark chi nhung khung dau + cuoi).
+                // Chi video moi can nghe: media-svc cat san HLS tung doan mau, phan giua in chu dung chung (ten doanh
+                // nghiep chu du an — hoi identity; worker nen goi gRPC duoc, identity khong tra loi thi chu chi con domain).
                 List<IngestedSample> trongLo = new List<IngestedSample> { ChoMedia(mau) };
                 foreach (Sample s in doanThem)
                 {
                     trongLo.Add(ChoMedia(s));
                 }
 
-                _events.Phat(Caller.HeThong(Guid.NewGuid(), null), new SamplesIngested { ProjectId = mau.ProjectId, Samples = trongLo });
+                string chuChung = _media.ChuDungChung(await _tenDoanhNghiep.LayAsync(duAn.OwnerId, ct));
+                _events.Phat(Caller.HeThong(Guid.NewGuid(), null), new SamplesIngested
+                {
+                    ProjectId = mau.ProjectId,
+                    Samples = trongLo,
+                    WatermarkText = chuChung,
+                });
             }
 
             try

@@ -65,6 +65,7 @@ namespace Crowd.Identity.Api.Grpc
                     Level = u.Level,
                     IdentityVerified = u.IdentityVerified,
                     Adult = u.Adult,
+                    CompanyName = u.CompanyName ?? string.Empty,
                 };
                 if (u.Reputation.HasValue)
                 {

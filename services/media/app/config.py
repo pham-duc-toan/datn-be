@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     av_cache_ttl_seconds: int = 6 * 3600
     av_cache_max_bytes: int = 5 * 1024 * 1024 * 1024
 
+    # Font TrueType co dau tieng Viet cho watermark noi (chu_noi.py). Trong: thu DejaVu Sans / Arial thuong gap.
+    font_path: str | None = None
+    # Link HLS: danh sach phat song bang token (storage.view_link_ttl); cac DOAN trong danh sach duoc tai them
+    # bay lau sau khi token het han (labeler tam dung roi xem tiep khong bi loi giua chung).
+    hls_grace_seconds: int = 6 * 3600
+
 
 # S-08: gia tri DEV cong khai trong repo — chi duoc dung o moi truong Development.
 _KHOA_DEV = ("pgZwtqPVxGvu3oA5esvFaUio+ltJ2sSfgOWqYQNHwyU=", "TUmrnIsOHHdHl7BEEngcDqPfPQW6v956RTfgOEOlILo=", "demo_internal_key")

@@ -5,9 +5,11 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.Gate.Api.Helpers;
 using Crowd.Gate.Domain;
 using Crowd.Gate.Infrastructure.Source;
 using Crowd.Labeling;
+using Grpc.Core;
 using Microsoft.Extensions.Logging;
 
 namespace Crowd.Gate.Api.Services
@@ -15,9 +17,11 @@ namespace Crowd.Gate.Api.Services
     /// <summary>Mot du an DANG phuc vu duoc tren trang vuot link (da qua LuatCongLink).</summary>
     public sealed class DuAnPhucVu
     {
-        public DuAnPhucVu(DuAnCong duAn, long nganSachVnd, LabelSchema tapNhan, List<Guid> cauThat, Dictionary<Guid, LabelPayload> dapAnVang)
+        public DuAnPhucVu(
+            DuAnCong duAn, long nganSachVnd, LabelSchema tapNhan, List<Guid> cauThat, Dictionary<Guid, LabelPayload> dapAnVang, string? tenDoanhNghiep)
         {
             DuAn = duAn;
+            TenDoanhNghiep = tenDoanhNghiep;
             NganSachVnd = nganSachVnd;
             TapNhan = tapNhan;
             CauThat = cauThat;
@@ -44,6 +48,9 @@ namespace Crowd.Gate.Api.Services
 
         /// <summary>Dap an cau vang — chi dung de cham, KHONG BAO GIO tra ra client.</summary>
         public Dictionary<Guid, LabelPayload> DapAnVang { get; }
+
+        /// <summary>Ten cong ty chu du an (identity) — in vao watermark noi cua anh. null = chua biet / khong co.</summary>
+        public string? TenDoanhNghiep { get; }
     }
 
     /// <summary>
@@ -62,21 +69,31 @@ namespace Crowd.Gate.Api.Services
     public sealed class GateCatalog : IDisposable
     {
         private readonly ILogger<GateCatalog> _logger;
+        private readonly TenDoanhNghiepCong _tenCongTy;
         private readonly ConcurrentDictionary<Guid, long> _daTieuTaiCho = new ConcurrentDictionary<Guid, long>();
+
+        // Ten cong ty theo chu du an (watermark noi). Chi luong nap doc / ghi; hoi identity cho chu du an chua biet.
+        private readonly Dictionary<Guid, string?> _tenDoanhNghiep = new Dictionary<Guid, string?>();
 
         // Chi mot luong nap (warmup roi worker, khong chong nhau) doc / ghi.
         private readonly Dictionary<Guid, NoiDungDuAn> _noiDung = new Dictionary<Guid, NoiDungDuAn>();
         private readonly SemaphoreSlim _khoaNap = new SemaphoreSlim(1, 1);
         private AnhChup _hienTai = AnhChup.Rong;
 
-        public GateCatalog(ILogger<GateCatalog> logger)
+        public GateCatalog(ILogger<GateCatalog> logger, TenDoanhNghiepCong tenCongTy)
         {
             if (logger == null)
             {
                 throw new ArgumentNullException(nameof(logger));
             }
 
+            if (tenCongTy == null)
+            {
+                throw new ArgumentNullException(nameof(tenCongTy));
+            }
+
             _logger = logger;
+            _tenCongTy = tenCongTy;
         }
 
         public void Dispose()
@@ -241,6 +258,8 @@ namespace Crowd.Gate.Api.Services
                 }
             }
 
+            await NapTenDoanhNghiepAsync(duAn.Select(p => p.OwnerId).Distinct().ToList(), ct);
+
             Dictionary<Guid, DuAnPhucVu> phucVu = new Dictionary<Guid, DuAnPhucVu>();
             Dictionary<Guid, MauCong> mauTheoId = new Dictionary<Guid, MauCong>();
             foreach (DuAnCong d in duAn)
@@ -280,7 +299,9 @@ namespace Crowd.Gate.Api.Services
 
                 long conLaiVnd;
                 nganSach.TryGetValue(d.ProjectId, out conLaiVnd);
-                phucVu[d.ProjectId] = new DuAnPhucVu(d, conLaiVnd, tapNhan, cauThat, dapAn);
+                string? tenDoanhNghiep;
+                _tenDoanhNghiep.TryGetValue(d.OwnerId, out tenDoanhNghiep);
+                phucVu[d.ProjectId] = new DuAnPhucVu(d, conLaiVnd, tapNhan, cauThat, dapAn, tenDoanhNghiep);
             }
 
             Dictionary<string, LinkCong> linkTheoMa = new Dictionary<string, LinkCong>(StringComparer.Ordinal);
@@ -291,6 +312,32 @@ namespace Crowd.Gate.Api.Services
 
             Volatile.Write(ref _hienTai, new AnhChup(phucVu, mauTheoId, linkTheoMa, DateTimeOffset.UtcNow));
             _daTieuTaiCho.Clear();
+        }
+
+        /// <summary>
+        /// Hoi identity ten cong ty cua chu du an chua biet. identity khong tra loi → ghi log, anh tam khong co ten doanh
+        /// nghiep, lan nap sau hoi lai (KHONG lam hong ca lan nap: ngan sach / link van phai cap nhat).
+        /// </summary>
+        private async Task NapTenDoanhNghiepAsync(List<Guid> chuDuAn, CancellationToken ct)
+        {
+            List<Guid> chuaBiet = chuDuAn.Where(id => !_tenDoanhNghiep.ContainsKey(id)).ToList();
+            if (chuaBiet.Count == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                IReadOnlyDictionary<Guid, string?> ten = await _tenCongTy.TraCuuAsync(chuaBiet, ct);
+                foreach (KeyValuePair<Guid, string?> cap in ten)
+                {
+                    _tenDoanhNghiep[cap.Key] = cap.Value;
+                }
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogWarning(ex, "Chua hoi duoc ten doanh nghiep tu identity-svc cho {SoChu} chu du an — thu lai lan nap sau", chuaBiet.Count);
+            }
         }
 
         private sealed class AnhChup

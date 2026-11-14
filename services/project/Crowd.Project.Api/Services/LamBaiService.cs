@@ -53,6 +53,7 @@ namespace Crowd.Project.Api.Services
         private readonly ProjectAccessService _access;
         private readonly IMediaLinks _media;
         private readonly IdentityClient _identity;
+        private readonly TenDoanhNghiep _tenDoanhNghiep;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
 
@@ -63,6 +64,7 @@ namespace Crowd.Project.Api.Services
             ProjectAccessService access,
             IMediaLinks media,
             IdentityClient identity,
+            TenDoanhNghiep tenDoanhNghiep,
             ISettings settings,
             TimeProvider clock)
         {
@@ -96,6 +98,11 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(identity));
             }
 
+            if (tenDoanhNghiep == null)
+            {
+                throw new ArgumentNullException(nameof(tenDoanhNghiep));
+            }
+
             if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
@@ -112,6 +119,7 @@ namespace Crowd.Project.Api.Services
             _access = access;
             _media = media;
             _identity = identity;
+            _tenDoanhNghiep = tenDoanhNghiep;
             _settings = settings;
             _clock = clock;
         }
@@ -961,6 +969,14 @@ namespace Crowd.Project.Api.Services
                 }
             }
 
+            // Watermark noi anh / video mang ten doanh nghiep chu du an (identity, giu trong RAM). Chi hoi khi co file.
+            string? tenDoanhNghiep = null;
+            if (cauHoi.Values.Any(s => s.StorageKey != null))
+            {
+                tenDoanhNghiep = await _tenDoanhNghiep.LayAsync(p.OwnerId, ct);
+            }
+
+            NguoiXem labeler = NguoiXem.Labeler(a.LabelerId);
             List<AttemptQuestion> ds = new List<AttemptQuestion>();
             for (int i = 0; i < a.QuestionOrder.Count; i++)
             {
@@ -970,19 +986,15 @@ namespace Crowd.Project.Api.Services
                     continue;
                 }
 
-                // FP-02/03: file qua media-svc — anh mang watermark chim = ma cua labeler; client khong biet khoa
-                // MinIO, khong tai duoc ban goc.
+                // FP-02/03: file qua media-svc — anh / video mang chu noi co ma labeler, am thanh watermark chim; client
+                // khong biet khoa MinIO, khong tai duoc ban goc.
                 string? fileUrl = null;
+                string? chuNoi = null;
                 if (s.StorageKey != null)
                 {
-                    MauCanXem mau = new MauCanXem
-                    {
-                        SampleId = s.Id,
-                        ProjectId = s.ProjectId,
-                        StorageKey = s.StorageKey,
-                        Modality = s.Modality,
-                    };
-                    fileUrl = _media.TaoLink(mau, NguoiXem.Labeler(a.LabelerId), CheDoXem.Watermark);
+                    MauCanXem mau = MauService.MauXem(s, tenDoanhNghiep);
+                    fileUrl = _media.TaoLink(mau, labeler, CheDoXem.Watermark);
+                    chuNoi = _media.ChuDeLenTrinhPhat(mau, labeler, CheDoXem.Watermark);
                 }
 
                 KeyValuePair<string, DateTimeOffset> x;
@@ -993,6 +1005,7 @@ namespace Crowd.Project.Api.Services
                     SampleId = s.Id,
                     Modality = s.Modality,
                     FileUrl = fileUrl,
+                    WatermarkText = chuNoi,
                     Content = s.Content,
                     Question = s.Question,
                     Metadata = s.Metadata,

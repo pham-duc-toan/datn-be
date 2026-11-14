@@ -11,4 +11,18 @@
     <ProjectReference Include="..\..\..\shared\storage\Crowd.BuildingBlocks.Storage.csproj" />
   </ItemGroup>
 
+  <!-- gRPC noi bo (kien truc 3.24): ten doanh nghiep chu du an in vao watermark noi cua anh, hoi identity-svc luc nap bo nho. -->
+  <ItemGroup>
+    <Protobuf Include="..\..\..\contracts\grpc\identity\v1\identity_data.proto" ProtoRoot="..\..\..\contracts\grpc" GrpcServices="Client" Link="Grpc\identity_data.proto" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Net.ClientFactory" />
+    <PackageReference Include="Grpc.Tools">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
 </Project>

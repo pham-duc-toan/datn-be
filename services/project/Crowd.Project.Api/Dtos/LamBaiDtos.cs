@@ -20,8 +20,14 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>image | text | audio | video | pair | list — frontend mo workspace tuong ung.</summary>
         public required string Modality { get; init; }
 
-        /// <summary>Link xem file qua media-svc (watermark chim = ma labeler), song ngan. null voi text / pair / list.</summary>
+        /// <summary>
+        /// Link xem file qua media-svc, song ngan. Anh: chu noi mang ma labeler; video: danh sach phat HLS
+        /// ".../index.m3u8" CHI doan cua mau (moc 0 = dau mau); am thanh: watermark chim. null voi text / pair / list.
+        /// </summary>
         public string? FileUrl { get; init; }
+
+        /// <summary>Video: chu watermark noi frontend ve de len trinh phat (goc duoi phai). null voi loai khac.</summary>
+        public string? WatermarkText { get; init; }
 
         public RawJson? Content { get; init; }
 

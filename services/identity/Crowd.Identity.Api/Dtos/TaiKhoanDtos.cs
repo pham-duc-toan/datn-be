@@ -229,5 +229,8 @@ namespace Crowd.Identity.Api.Dtos
         public IReadOnlyList<string> Languages { get; init; } = new List<string>();
 
         public IReadOnlyList<string> Modalities { get; init; } = new List<string>();
+
+        /// <summary>Ten cong ty trong ho so doanh nghiep — null = khong co ho so. Dung cho watermark noi anh / video.</summary>
+        public string? CompanyName { get; init; }
     }
 }

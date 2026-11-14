@@ -298,8 +298,8 @@ Exchange `datn.events` (topic). Mỗi consumer có queue riêng, tên dạng `<s
 | `escrow.reserved` | ledger | project | Đủ tiền → `PendingApproval` |
 | `escrow.rejected` (v2, có `ownerId`) | ledger | project, notification | Thiếu tiền → về `Draft` |
 | `project.published` | project | ledger, notification | Dự án chạy: ledger chốt điều khoản tiền, notification báo (phần làm bài mở đợt thu bài ngay trong transaction duyệt). quality (3.22) và gate (3.32) không nghe nữa |
-| `samples.ingested` | project | media | Video vừa nạp xong: chuẩn hoá sẵn bản chuẩn (chỉ phát cho video; gate không nghe — đọc view `v_gate_samples`, 3.32) |
-| `video.prepared` | media | project | Video đã chuẩn hoá, cho phép publish/duyệt |
+| `samples.ingested` v2 | project | media | Video vừa nạp xong: cắt sẵn HLS từng đoạn mẫu, phần giữa in chữ `watermarkText` (chỉ phát cho video; gate không nghe — đọc view `v_gate_samples`, 3.32; 3.37) |
+| `video.prepared` | media | project | Video đã cắt HLS xong, cho phép publish/duyệt |
 | `member.added/blocked/unblocked/removed` | project | notification (`added`), admin (audit) | Thông báo / nhật ký (phần làm bài đọc thẳng `project_members`) |
 | `join_request.submitted/decided`, `project.invitation_created` | project | notification | Xin vào / lời mời |
 | `project.paused`, `project.resumed` | project | (admin ghi audit) | Tạm dừng / tiếp tục. gate đọc trạng thái qua view (3.32) |
@@ -465,7 +465,7 @@ Frontend cần hiển thị ảnh / video / âm thanh của một mẫu
 → trình duyệt <img src=…> GET /media/v/{token} (qua gateway, không cần header Authorization)
 media: kiểm token, lấy file gốc từ MinIO, nhúng watermark chìm (ảnh / âm thanh / chỉ đầu-cuối video), cache vào media-cache, trả về
 media dùng để truy ngược rò rỉ: POST /media/admin/watermark/decode
-Video mới nạp: media nghe samples.ingested → chuẩn hoá → phát video.prepared ─► project (không cho publish khi chưa xong)
+Video mới nạp: media nghe samples.ingested → cắt HLS từng đoạn mẫu → phát video.prepared ─► project (không cho publish khi chưa xong)
 ```
 
 ### 5.10 Cập nhật setting (đồng bộ cấu hình)

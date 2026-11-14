@@ -18,8 +18,14 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>professional (labeler) | linkGateway (khach vang lai qua trang vuot link).</summary>
         public required LabelSource Source { get; init; }
 
-        /// <summary>Link xem / nghe file cua mau, co han vai phut (S-07). null voi text / pair.</summary>
+        /// <summary>
+        /// Link xem / nghe file cua mau, co han vai phut (S-07). null voi text / pair. Labeler xem video: danh sach phat
+        /// HLS chi doan cua mau (moc 0 = dau mau); chu du an / admin: file goc.
+        /// </summary>
         public string? FileUrl { get; init; }
+
+        /// <summary>Video ban watermark: chu noi frontend ve de len trinh phat. null voi ban goc / loai khac.</summary>
+        public string? WatermarkText { get; init; }
 
         /// <summary>Noi dung text / pair cua mau. null voi du lieu file.</summary>
         public RawJson? SampleContent { get; init; }

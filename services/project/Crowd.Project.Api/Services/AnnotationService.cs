@@ -48,6 +48,7 @@ namespace Crowd.Project.Api.Services
         private readonly TimeProvider _clock;
         private readonly ISettings _settings;
         private readonly GopNhanClient _gop;
+        private readonly TenDoanhNghiep _tenDoanhNghiep;
 
         public AnnotationService(
             ProjectDbContext db,
@@ -55,7 +56,8 @@ namespace Crowd.Project.Api.Services
             IMediaLinks media,
             TimeProvider clock,
             ISettings settings,
-            GopNhanClient gop)
+            GopNhanClient gop,
+            TenDoanhNghiep tenDoanhNghiep)
         {
             if (access == null)
             {
@@ -91,10 +93,16 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(gop));
             }
 
+            if (tenDoanhNghiep == null)
+            {
+                throw new ArgumentNullException(nameof(tenDoanhNghiep));
+            }
+
             _db = db;
             _media = media;
             _clock = clock;
             _gop = gop;
+            _tenDoanhNghiep = tenDoanhNghiep;
         }
 
         // =====================================================================
@@ -584,15 +592,31 @@ namespace Crowd.Project.Api.Services
                 .ToDictionaryAsync(m => m.Id, ct);
 
             // Loai du lieu cua nhan = loai du lieu du an (bang annotations khong luu task_type).
-            Dictionary<Guid, string> duAn = await _db.Projects.AsNoTracking()
+            var thongTinDuAn = await _db.Projects.AsNoTracking()
                 .Where(p => duAnIds.Contains(p.Id))
-                .Select(p => new { p.Id, p.Modality })
-                .ToDictionaryAsync(p => p.Id, p => p.Modality, ct);
+                .Select(p => new { p.Id, p.Modality, p.OwnerId })
+                .ToListAsync(ct);
+            Dictionary<Guid, string> duAn = thongTinDuAn.ToDictionary(p => p.Id, p => p.Modality);
+
+            // Ban watermark (labeler xem lai nhan cua minh): anh / video mang chu noi co ten doanh nghiep chu du an.
+            Dictionary<Guid, string?> tenTheoDuAn = new Dictionary<Guid, string?>();
+            if (goc.CheDo == CheDoXem.Watermark && mau.Values.Any(m => m.StorageKey != null))
+            {
+                IReadOnlyDictionary<Guid, string?> ten = await _tenDoanhNghiep.LayNhieuAsync(thongTinDuAn.Select(p => p.OwnerId), ct);
+                foreach (var p in thongTinDuAn)
+                {
+                    string? t;
+                    tenTheoDuAn[p.Id] = ten.TryGetValue(p.OwnerId, out t) ? t : null;
+                }
+            }
+
             foreach (NhanKemBai x in ds)
             {
                 Sample? m;
                 mau.TryGetValue(x.Nhan.SampleId, out m);
-                items.Add(TaoResponse(x, duAn[x.Nhan.ProjectId], goc, m));
+                string? tenDoanhNghiep;
+                tenTheoDuAn.TryGetValue(x.Nhan.ProjectId, out tenDoanhNghiep);
+                items.Add(TaoResponse(x, duAn[x.Nhan.ProjectId], goc, m, tenDoanhNghiep));
             }
 
             return new PagedResponse<AnnotationResponse> { Items = items, Page = page, PageSize = pageSize, Total = tong };
@@ -605,20 +629,16 @@ namespace Crowd.Project.Api.Services
             return caller.IsAdmin ? GocXem.CuaAdmin(uid) : new GocXem(NguoiXem.ChuDuAn(uid), CheDoXem.Goc);
         }
 
-        private AnnotationResponse TaoResponse(NhanKemBai x, string modality, GocXem goc, Sample? thongTinMau)
+        private AnnotationResponse TaoResponse(NhanKemBai x, string modality, GocXem goc, Sample? thongTinMau, string? tenDoanhNghiep)
         {
             LabelAnnotation a = x.Nhan;
             string? fileUrl = null;
+            string? chuNoi = null;
             if (thongTinMau != null && thongTinMau.StorageKey != null)
             {
-                MauCanXem mau = new MauCanXem
-                {
-                    SampleId = a.SampleId,
-                    ProjectId = a.ProjectId,
-                    StorageKey = thongTinMau.StorageKey,
-                    Modality = modality,
-                };
+                MauCanXem mau = MauService.MauXem(thongTinMau, tenDoanhNghiep);
                 fileUrl = _media.TaoLink(mau, goc.Nguoi, goc.CheDo);
+                chuNoi = _media.ChuDeLenTrinhPhat(mau, goc.Nguoi, goc.CheDo);
             }
 
             return new AnnotationResponse
@@ -627,6 +647,7 @@ namespace Crowd.Project.Api.Services
                 SampleId = a.SampleId,
                 Source = a.Source,
                 FileUrl = fileUrl,
+                WatermarkText = chuNoi,
                 SampleContent = thongTinMau == null ? null : thongTinMau.Content,
                 SampleQuestion = thongTinMau == null ? null : thongTinMau.Question,
                 SampleMetadata = thongTinMau == null ? SampleMetadata.Rong.ToRawJson() : thongTinMau.Metadata,

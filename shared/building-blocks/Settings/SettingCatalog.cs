@@ -163,7 +163,6 @@ namespace Crowd.BuildingBlocks.Settings
 
         // ---- Bao ve du lieu: media-svc (FP-02, FP-03) ----
         public const string MediaWatermarkEnabled = "media.watermark_enabled";
-        public const string MediaWatermarkStrength = "media.watermark_strength";
 
         // ---- Gateway: gioi han tan suat (VD-S-12) ----
         public const string GatewayRateLimitPerMinute = "gateway.rate_limit_per_minute";
@@ -615,9 +614,7 @@ namespace Crowd.BuildingBlocks.Settings
             ds.Add(Int(SettingKeys.AdminAuditRetentionDays, NhomKyThuat, 365, 7, 3650, "ngày",
                 "Giữ nhật ký audit bao nhiêu ngày."));
             ds.Add(Bool(SettingKeys.MediaWatermarkEnabled, NhomBaoVeDuLieu, true,
-                "Gắn dấu chìm (không nhìn thấy, mang danh tính người xem) vào ảnh / âm thanh / video phát cho người làm, người duyệt và khách cổng link — để truy ra ai làm lộ dữ liệu."));
-            ds.Add(Int(SettingKeys.MediaWatermarkStrength, NhomBaoVeDuLieu, 24, 6, 80, "mức",
-                "Độ mạnh dấu chìm: lớn thì khó bị mất khi file bị nén lại nhưng dễ nhìn thấy hơn. Đổi giá trị thì file đã phát trước đó VẪN truy được người xem."));
+                "Ảnh / video phát cho người làm, người duyệt và khách cổng link mang chữ mờ ở góc dưới bên phải: “nguồn: <mã người xem> - <tên doanh nghiệp> - <địa chỉ trang>”. Âm thanh mang dấu chìm (không nghe thấy) chứa mã người xem ở đoạn đầu và đoạn cuối — để truy ra ai làm lộ dữ liệu."));
 
             // ================= GATEWAY =================
             ds.Add(Int(SettingKeys.GatewayRateLimitPerMinute, NhomKyThuat, 600, 10, 1000000, "request/phút",

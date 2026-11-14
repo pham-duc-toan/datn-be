@@ -395,8 +395,11 @@ namespace Crowd.Project.Api.Dtos
     {
         public required Guid SampleId { get; init; }
 
-        /// <summary>Link file (image / audio / video). null voi text / pair.</summary>
+        /// <summary>Link file (image / audio / video — video la danh sach phat HLS cua doan mau). null voi text / pair.</summary>
         public string? FileUrl { get; init; }
+
+        /// <summary>Video: chu watermark noi frontend ve de len trinh phat. null voi loai khac.</summary>
+        public string? WatermarkText { get; init; }
 
         public RawJson? Content { get; init; }
 

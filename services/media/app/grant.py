@@ -1,7 +1,8 @@
 """Token link xem mau — giai ma token do service C# tao (Crowd.BuildingBlocks.Storage.MediaGrant).
 
 token = base64url(nonce 12 byte | ban ma | tag 16 byte), AES-256-GCM, AAD "crowd-media-grant-v1".
-Ma hoa (khong chi ky) vi trong token co khoa MinIO — client khong duoc biet (FP-03). Ai khong co
+Ma hoa (khong chi ky) vi trong token co khoa MinIO — client khong duoc biet (FP-03). Truong tuy chon
+(wt, ws, a, b — watermark noi va doan video) khong co thi la None: token kieu cu van doc duoc. Ai khong co
 khoa thi khong tao / sua / doc duoc token: sai mot ky tu la giai ma that bai.
 """
 
@@ -38,6 +39,12 @@ class QuyenXem:
     mode: str
     issued_at: datetime
     expires_at: datetime
+    # Watermark noi (anh / video) do C# dung san: "wt" chu cua nguoi xem, "ws" chu dung chung phan giua video.
+    chu_ca_nhan: str | None = None
+    chu_chung: str | None = None
+    # Video: doan cua mau trong file (giay) — danh sach phat HLS chi gom doan nay.
+    bat_dau: float | None = None
+    ket_thuc: float | None = None
 
     def het_han(self, luc: datetime) -> bool:
         return luc >= self.expires_at
@@ -74,6 +81,10 @@ def _uuid_hoac_none(v: object) -> uuid.UUID | None:
     return None if v is None else uuid.UUID(str(v))
 
 
+def _chuoi_hoac_none(v: object) -> str | None:
+    return None if v is None else str(v)
+
+
 def giai_ma(khoa: bytes, token: str) -> QuyenXem:
     noi_dung = giai_ma_tho(khoa, token)
     try:
@@ -92,6 +103,10 @@ def giai_ma(khoa: bytes, token: str) -> QuyenXem:
             mode=str(d["m"]),
             issued_at=datetime.fromtimestamp(int(d["iat"]), timezone.utc),
             expires_at=datetime.fromtimestamp(int(d["exp"]), timezone.utc),
+            chu_ca_nhan=_chuoi_hoac_none(d.get("wt")),
+            chu_chung=_chuoi_hoac_none(d.get("ws")),
+            bat_dau=None if d.get("a") is None else float(d["a"]),
+            ket_thuc=None if d.get("b") is None else float(d["b"]),
         )
     except (KeyError, ValueError, TypeError) as ex:
         raise TokenKhongHopLe("noi dung token sai dinh dang") from ex

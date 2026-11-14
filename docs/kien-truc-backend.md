@@ -78,7 +78,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | `payment-svc` | 8106 | payment_db | C# | payment_intents, payouts, provider_txns, reconciliations | Tích hợp ngoài, webhook + retry, cô lập rủi ro |
 | `link-svc` | 8107 | link_db | C# | links, campaigns, api_keys, referral_codes, referrals, blocked_domains, link_reports | Bounded context của Sharer (**đã có**, mục 3.6) |
 | `gate-svc` | 8108 | **ClickHouse** + redis-gate + Postgres gate_db (outbox) | C# | Redis: phiên, jti, chống trùng IP, stream; ClickHouse: click_events; Postgres: chỉ outbox, processed_events. Dự án / mẫu / câu vàng / ngân sách / link đọc thẳng view `v_gate_*` của project / ledger / link vào bộ nhớ (mục 3.32) | **Traffic ~100× phần còn lại**, sập độc lập (**đã có**, mục 3.6) |
-| `media-svc` | 8109 | **không có** | **Python** | — (người xem nhúng thẳng vào ảnh, setting giữ trong bộ nhớ) (**đã có**, mục 3.13) | Phát file mẫu qua token + watermark chìm (CPU); Python vì OpenCV / numpy |
+| `media-svc` | 8109 | **không có** | **Python** | — (chữ watermark nằm trong token / event, setting giữ trong bộ nhớ) (**đã có**, mục 3.13, 3.37) | Phát file mẫu qua token: ảnh / video chữ nổi (video HLS theo đoạn mẫu), âm thanh watermark chìm (CPU); Python vì OpenCV / numpy / PyAV |
 | `notification-svc` | 8110 | notification_db | C# | notifications, email_preferences (**đã có**, mục 3.11; người nhận từng event đi trong payload — mục 3.21; địa chỉ liên lạc đọc view `v_contacts` của identity — mục 3.32) | Fan-out chậm không được chặn ai |
 | `admin-svc` | 8111 | admin_db | C# | **settings, setting_history** (đã có); review_queues, disputes, audit_log, requests_readmodel (P6) | Chủ của setting hệ thống (mục 3.10). Quyền cao nhất — giới hạn blast radius |
 | `quality-svc` | 8201 | quality_db | Python | sample_majorities, ds_skills, project_metrics, reputations, fraud_cases; hàng chờ pending_attempts, project_gradings, reputation_dirty. Đề bài / bài nộp / nhãn / bằng chứng uy tín đọc qua gRPC từ project-svc (mục 3.22) | Ngôn ngữ khác + tính batch nặng |
@@ -101,7 +101,7 @@ quality_db   ml_db   fraud_db        ledger_db  payment_db  collab_db  admin_db
 | quality | FQ-01→04, FB-22, FA-04, FM-07 (chống gian lận — gộp thay fraud-svc, mục 3.12) |
 | ml | FA-01→05 |
 | collab | FR-01→09 |
-| media | FP-02 (watermark ảnh, âm thanh, video — 3.13, 3.17), FP-03 (chặn tải bản gốc) — mục 3.13. **Bỏ** FP-04 che PII (xung đột dự án gán nhãn mặt / biển số) và nhật ký từng lượt xem |
+| media | FP-02 (ảnh / video chữ nổi + HLS theo đoạn mẫu — 3.37; âm thanh watermark chìm — 3.17), FP-03 (chặn tải bản gốc) — mục 3.13. **Bỏ** FP-04 che PII (xung đột dự án gán nhãn mặt / biển số) và nhật ký từng lượt xem |
 | notification | FC-06 (+ đẩy realtime qua WebSocket), FC-08 (ngôn ngữ thông báo / email) — mục 3.17 |
 | admin | FM-03 (mẫu bài toán), FM-09 (báo cáo, thông báo toàn hệ thống), FP-06 (nhật ký sự kiện, chỉ-ghi-thêm ở mức CSDL), hàng đợi duyệt chung (read model), cảnh báo DLQ — mục 3.17. Duyệt FM-01/02/05/08 gọi API của service chủ |
 | fraud | *(không tách — FM-07 nằm ở quality)*; chống lạm dụng referral để sau |
@@ -611,8 +611,10 @@ Khoá `FOR UPDATE` trên khoản treo khi mở / phân xử: không chạy song 
  trình duyệt <img src=fileUrl> ──► gateway ──► media-svc: giải mã token (sai 1 ký tự → 403), hết hạn? (410)
      ├── original    (chủ dự án / admin)              : bản gốc
      └── watermarked (labeler / reviewer / khách)     : ảnh mang watermark chìm = userId (hoặc mã phiên khách)
+                                                        [11/2026: ảnh / video chữ nổi, video HLS — mục 3.37]
 
  ảnh bị lộ ──► admin POST /media/admin/watermark/decode ──► đọc ngược userId từ ảnh (không tra bảng nào)
+                                                        [11/2026: chỉ còn âm thanh — mục 3.37]
 ```
 
 | # | Quyết định | Chọn | Lý do / đánh đổi |
@@ -620,9 +622,9 @@ Khoá `FOR UPDATE` trên khoản treo khi mở / phân xử: không chạy song 
 | M1 | Ngôn ngữ, trạng thái | **Python** (FastAPI), **không database**: setting nghe qua queue tạm và giữ trong bộ nhớ (như gateway) | numpy / OpenCV cho DCT và đọc / ghi ảnh. Không có gì cần lưu (xem M5) nên chạy nhiều bản sao tuỳ ý. Đánh đổi: phần đọc hợp đồng event / setting đang **chép** từ quality-svc thay vì dùng chung một gói |
 | M2 | Link xem | **Token mã hoá AES-256-GCM trong URL**, sống `storage.view_link_ttl` (5 phút); service phát link tự ký bằng khoá dùng chung | Thẻ `<img>` không gửi được header `Authorization`, nên quyền xem phải nằm trong URL. Mã hoá (không chỉ ký) vì token chứa khoá MinIO. Không gọi HTTP sang media-svc lúc phát link (luật dữ liệu chéo, mục 4). Test vector cố định giữa C# (`MediaGrantTests`) và Python (`test_grant.py`) giữ hai bên khớp định dạng |
 | M3 | Chặn tải bản gốc (FP-03) | Client không bao giờ thấy khoá / host MinIO; labeler, reviewer, khách chỉ nhận bản có watermark; header `Cache-Control: no-store`, `Content-Disposition: inline`, `nosniff` | **Không chặn được chụp màn hình** — không hệ thống web nào chặn được. Watermark để **truy ra** người làm lộ, không phải để ngăn |
-| M4 | Watermark (FP-02) | QIM trên 5 hệ số DCT tần số trung bình của khối 8×8 kênh độ sáng; mỗi bit lặp lại trên nhiều khối theo hoán vị bí mật (`MEDIA_WATERMARK_KEY`); giải mã bỏ phiếu mềm + **CRC-32** | Đo bước 24 (mặc định), ảnh 512×512 và 300×200: PSNR ~42,5 dB (không nhìn ra), giải đúng sau nén JPEG chất lượng 50, thu nhỏ 60 % rồi phóng lại, tăng độ sáng; khoá khác / ảnh sạch → không ra ai. Nhúng ~17 ms (ảnh 512×512), ~0,8 s (12 MP). **Không chịu được cắt xén**; ảnh bị thu nhỏ phải phóng lại đúng kích thước gốc (API giải mã nhận `width` / `height`); ảnh nhỏ hơn ~130×130 không nhúng |
+| M4 | Watermark (FP-02) — **ảnh thay bằng chữ nổi ở 3.37**, phần QIM còn dùng cho âm thanh | QIM trên 5 hệ số DCT tần số trung bình của khối 8×8 kênh độ sáng; mỗi bit lặp lại trên nhiều khối theo hoán vị bí mật (`MEDIA_WATERMARK_KEY`); giải mã bỏ phiếu mềm + **CRC-32** | Đo bước 24 (mặc định), ảnh 512×512 và 300×200: PSNR ~42,5 dB (không nhìn ra), giải đúng sau nén JPEG chất lượng 50, thu nhỏ 60 % rồi phóng lại, tăng độ sáng; khoá khác / ảnh sạch → không ra ai. Nhúng ~17 ms (ảnh 512×512), ~0,8 s (12 MP). **Không chịu được cắt xén**; ảnh bị thu nhỏ phải phóng lại đúng kích thước gốc (API giải mã nhận `width` / `height`); ảnh nhỏ hơn ~130×130 không nhúng |
 | M5 | Nhúng gì | **Nhúng thẳng người xem**: 1 byte loại (tài khoản / khách cổng link) + UUID 16 byte (userId / mã phiên vượt link) + CRC-32 = 168 bit. Không bảng tra | Đo cho thấy 168 bit bền **ngang** mã ngắn 48 bit + bảng tra (cùng 20/20 lần giải đúng mọi biến đổi kể cả ảnh 300×200), nên bảng tra là thừa. CRC-32: xác suất đọc nhầm ra một người ~2⁻³². Bước QIM là số nguyên 6–80: bộ giải tính DCT một lần rồi thử mọi bước (bước hiện tại trước) — đổi `media.watermark_strength` thì ảnh cũ vẫn giải được. Ảnh không có watermark phải thử hết 75 bước: ~9 giây với ảnh 12 MP (API admin, hiếm dùng) |
-| M6 | Âm thanh / video | Đi qua proxy (giấu khoá, hỗ trợ `Range` để tua), **không** watermark | Watermark âm thanh / từng khung video cần pipeline riêng — để sau |
+| M6 | Âm thanh / video | Đi qua proxy (giấu khoá, hỗ trợ `Range` để tua), **không** watermark | Watermark âm thanh / từng khung video cần pipeline riêng — để sau. **Đã làm:** âm thanh ở 3.17; video ở 3.17, thay bằng HLS + chữ nổi ở 3.37 |
 | M7 | Đã cân nhắc và **bỏ** | Che PII tự động (mặt / biển số / số CCCD) và nhật ký từng lượt xem | Che PII xung đột với dự án gán nhãn chính khuôn mặt / biển số. Nhật ký mỗi lượt xem phình theo lưu lượng (cổng link ~100× phần còn lại) mà không đủ giá trị so với watermark |
 
 ### 3.14. Lưu trữ: cái gì lớn theo người dùng, và dọn thế nào
@@ -849,7 +851,7 @@ Trước bản này chỉ có hai đường: dự án **công khai** thì labele
 
 **Chỉ số chất lượng (FQ-02) — quality.** Krippendorff alpha viết lại tổng quát theo hàm khoảng cách (đã khớp số liệu tham chiếu của Krippendorff và crowd-kit) thay vì chỉ dùng cho dữ liệu rời rạc; với công cụ dạng danh sách, khoảng cách = 1 − F1 giữa hai bộ đối tượng, **cùng phép ghép và ngưỡng** với gộp nhãn. STAPLE chạy trên cả ảnh nhưng gom pixel theo "kiểu phiếu" (tối đa 2ⁿ kiểu cho n người) nên nhanh như chỉ xét vùng tranh cãi mà vẫn tính đúng độ đặc hiệu — bản đầu chỉ xét vùng có người tô cho độ đặc hiệu sai bằng 0, E2E bắt được. STAPLE không vào uy tín: mặt nạ ít mẫu, ước lượng EM dao động. quality-svc đọc đề bài và nhãn qua gRPC từ project-svc (mục 3.22) nên không có trường hợp thiếu bản sao dự án.
 
-**Watermark âm thanh / video (FP-02) — media.** Âm thanh: QIM trên hệ số DCT khung 2048 mẫu, dải 1–5 kHz, cùng 168 bit + CRC-32 như ảnh, xuất FLAC (không mất thông tin). **Chỉ đoạn đầu và đoạn cuối** mang watermark (mỗi đoạn gấp đôi số khung tối thiểu cho 168 bit, ~1 giây ở 44,1 kHz); PCM chảy qua pipe từ bộ giải mã sang bộ mã hoá FLAC, phần giữa không xử lý và không nạp cả file vào RAM. Giải: đoạn đầu → đoạn cuối → cả file. Cắt bỏ cả hai đầu là mất watermark — cùng đánh đổi với video. Video (sửa 10/2026): **chỉ nhúng khung đầu tiên và khung cuối cùng**. Bản cũ nhúng mọi khung rồi mã hoá lại cả file cho từng người xem: đo trong container, 74 ms / khung 720p, video 10 giây mất 25 giây trước khi phát được byte đầu, video dài phải chờ hàng chục phút. Bản mới:
+**Watermark âm thanh / video (FP-02) — media.** *(Phần video dưới đây đã thay bằng HLS theo đoạn mẫu + chữ nổi — mục 3.37; phần âm thanh vẫn đúng.)* Âm thanh: QIM trên hệ số DCT khung 2048 mẫu, dải 1–5 kHz, cùng 168 bit + CRC-32 như ảnh, xuất FLAC (không mất thông tin). **Chỉ đoạn đầu và đoạn cuối** mang watermark (mỗi đoạn gấp đôi số khung tối thiểu cho 168 bit, ~1 giây ở 44,1 kHz); PCM chảy qua pipe từ bộ giải mã sang bộ mã hoá FLAC, phần giữa không xử lý và không nạp cả file vào RAM. Giải: đoạn đầu → đoạn cuối → cả file. Cắt bỏ cả hai đầu là mất watermark — cùng đánh đổi với video. Video (sửa 10/2026): **chỉ nhúng khung đầu tiên và khung cuối cùng**. Bản cũ nhúng mọi khung rồi mã hoá lại cả file cho từng người xem: đo trong container, 74 ms / khung 720p, video 10 giây mất 25 giây trước khi phát được byte đầu, video dài phải chờ hàng chục phút. Bản mới:
   1. **Bản chuẩn — một lần mỗi video, dùng chung mọi người xem**: H.264 CRF 18, không B-frame, keyframe mỗi giây, và **ép keyframe ngay sau khung đầu và ngay trước khung cuối**. Tạo **sẵn lúc nạp dữ liệu**: media-svc nghe `samples.ingested` (queue `media-svc.samples-ingested`), mỗi FILE video → một việc trong queue bền `media-svc.chuan-hoa` (`x-consumer-timeout` 4 giờ, khởi động lại không mất); worker làm lần lượt (prefetch 1): chuẩn hoá, ghi lên MinIO `<projectId>/_wm/chuan-v2/<phần còn lại>.mp4` (xoá dự án theo tiền tố `<projectId>/` là xoá luôn), rồi phát **`video.prepared`** (`succeeded`, `error` khi file hỏng). Lúc phát: bộ đệm đĩa → MinIO → chưa có (video nạp trước bản này) thì chuẩn hoá tại chỗ. Không có DB: việc giao lại thấy đã có trên MinIO thì chỉ phát lại `video.prepared`. Đo: video 8 phút 720p chuẩn hoá 32 s — trước đây người mở đầu tiên phải chờ chừng đó.
      - **Chặn publish / duyệt**: project-svc ghi `samples.media_state` (`preparing` khi nạp video → `ready` / `failed` khi nhận `video.prepared`, theo file — các đoạn cắt dùng chung file cùng cập nhật). Còn video `preparing` → checklist thiếu `video_dang_chuan_bi` (không publish được) và `POST /projects/{id}/approve` trả 409 `video_dang_chuan_bi`. Video `failed` chỉ là cảnh báo `video_khong_xu_ly_duoc` (chưa có cách xoá từng mẫu, chặn thì doanh nghiệp kẹt — admin xem rồi quyết). Mẫu nạp trước migration `VideoChuanBi` có `media_state = null` → coi như sẵn sàng.
   2. **Mỗi người xem**: cắt bản chuẩn thành [khung đầu | phần giữa | khung cuối] bằng `-c copy`, chỉ giải mã + nhúng + mã hoá lại **2 khung**, phần giữa copy nguyên từng byte, ghép lại (`concat`, ghi rõ `duration` từng đoạn). Hai khung nhúng mã hoá CRF 8 (bản chuẩn CRF 18); x264 `stitchable=1` để PPS không phụ thuộc CRF nên vẫn ghép được.
@@ -1397,6 +1399,49 @@ Các event mở / đóng đơn (`business.kyb_submitted`, `withdrawal.review_req
 | Frontend | Nút xoá ở danh sách và tab Tổng quan cho dự án Nháp, Hoàn thành, Đã huỷ. Dự án đã kết thúc: hộp thoại "Xoá dự án?" — "bị xoá khỏi tài khoản của bạn và không mở lại được; lịch sử thanh toán và hoá đơn vẫn được giữ". Trang admin hiện nhãn "Doanh nghiệp đã xoá khỏi tài khoản — dữ liệu vẫn giữ" |
 
 **Đánh đổi.** Không có "khôi phục" phía doanh nghiệp (muốn mở lại phải nhờ admin đặt `hidden_by_owner_at = null`). Các API ngoài project-svc nhận `projectId` (vd thống kê chất lượng hỏi chủ dự án qua gRPC) vẫn trả cho chủ dự án nếu họ còn giữ id — giao diện không còn đường dẫn tới, nên chấp nhận.
+
+### 3.37. Ảnh / video: watermark nổi + video phát HLS theo đoạn mẫu; âm thanh giữ watermark chìm (11/2026)
+
+**Vấn đề.** Video (3.17) chép **nguyên file cho từng người xem** (cắt bản chuẩn → nhúng 2 khung → ghép lại): 1000 người xem một video 1 giờ (~1,8 GB) là 1,8 TB ghi đĩa, bộ đệm 5 GB chỉ chứa 2 bản nên tạo / xoá liên tục. Watermark chìm chỉ ở khung đầu + cuối nên cắt 2 khung là mất, quay màn hình phần giữa không có gì; người làm mẫu 2 phút vẫn nhận bản cả video.
+
+**Quyết định (người dùng chọn).**
+
+| Loại | Watermark | Phát |
+|---|---|---|
+| Ảnh | **Chữ nổi** mờ góc dưới phải: `nguồn: <userId người xem, hoặc mã phiên khách> - <tên doanh nghiệp> - <domain của trang>` | Vẽ mỗi lần phát (vài ms, `chu_noi.py`) |
+| Video | Chữ nổi như ảnh. Phần giữa in chữ **dùng chung** `nguồn: <doanh nghiệp> - <domain>`; mảnh đầu + mảnh cuối của **đoạn mẫu** in chữ **của người xem**; frontend vẽ thêm chữ của người xem đè lên trình phát (quay màn hình vẫn thấy) | **HLS theo đoạn mẫu** (`hls.py`) — mỗi người chỉ tải đúng đoạn của mẫu |
+| Âm thanh | **Giữ watermark chìm** mang mã người nghe ở đoạn đầu + đoạn cuối (3.17) | Như cũ (FLAC, bộ đệm đĩa) |
+
+Admin không còn giải mã ảnh / video (đọc mã trên hình); `POST /media/admin/watermark/decode` chỉ nhận âm thanh. Bỏ setting `media.watermark_strength` (chỉ ảnh / video dùng); `media.watermark_enabled` vẫn bật / tắt cả ba loại.
+
+```
+ nạp video ─► project SampleIngestor: cắt đoạn mẫu (segmentSeconds) ─► samples.ingested v2 {samples, watermarkText}
+                (watermarkText = "nguồn: <doanh nghiệp> - <domain>", tên doanh nghiệp hỏi identity qua gRPC)
+          ─► media ban_chuan.py: mỗi FILE một việc (queue media-svc.chuan-hoa), MỖI ĐOẠN MẪU [a, b]:
+                ffmpeg -ss a -t (b-a) … overlay chữ dùng chung CHỈ phần giữa, -f segment tại các mốc
+                     [0,2] [2,8] [8,14] … [dai-2, dai]   (mảnh đầu / cuối 2 s để SẠCH, mảnh giữa 6 s có chữ)
+                ghi MinIO <projectId>/_wm/hls-v1/<file>/<a ms>-<b ms>/c00000.ts… + index.json  ─► video.prepared
+
+ mở bài ─► project / gate: fileUrl = {gateway}/media/v/{token}/index.m3u8, token thêm wt / ws / a / b (tuỳ chọn)
+          + AttemptQuestion.watermarkText (frontend vẽ đè)
+ trình duyệt (hls.js; Safari phát gốc) ─► media:
+     index.m3u8        token còn hạn → danh sách VOD: p/dau.ts, c/00001.ts … c/0000n.ts, p/cuoi.ts (#EXT-X-DISCONTINUITY quanh mảnh riêng)
+     c/{so}.ts         mảnh giữa dùng chung — stream thẳng từ MinIO qua media-svc (M3 giữ nguyên: client không thấy MinIO)
+     p/dau|cuoi|ca.ts  mảnh sạch (đệm đĩa, dùng chung) + chữ của người xem → PyAV mã hoá lại TRONG tiến trình, giữ mốc
+                       thời gian, âm thanh chép nguyên gói; đệm đĩa theo (mảnh, chữ)
+```
+
+| # | Quyết định | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| H1 | Watermark ảnh / video | Chữ **nổi** thay watermark chìm | Truy vết bằng mắt, không cần API giải mã; quay / chụp màn hình vẫn mang chữ. Đánh đổi: che / cắt chữ là mất (để lại dấu vết thấy rõ); chữ đè một góc nhỏ của mẫu — doanh nghiệp vẫn nhận bản gốc nên dữ liệu giao không bị ảnh hưởng |
+| H2 | Phát video | **HLS VOD theo đoạn mẫu**, mảnh giữa dùng chung | 1000 người xem cùng đoạn: 1000 × 2 mảnh riêng (~vài trăm KB) thay vì 1000 bản cả file. Mẫu 2 phút chỉ tải ~22 mảnh của đúng đoạn đó. Mốc 0 của danh sách phát = đầu mẫu (frontend nhận ra `.m3u8` thì không cộng `segmentStart`) |
+| H3 | Chữ người xem trên video | Mảnh đầu + cuối (2 s) **in vào file** + lớp chữ frontend đè suốt video | Lấy thẳng file qua công cụ trình duyệt → mảnh đầu / cuối mang mã người xem; quay màn hình → lớp frontend mang mã. Phần giữa file chỉ có doanh nghiệp + domain. Đánh đổi: cắt bỏ 2 mảnh đầu / cuối của file tải lậu thì phần còn lại không có mã người xem |
+| H4 | Mã hoá mảnh riêng | **PyAV** (libav trong tiến trình, bánh xe có sẵn FFmpeg + libx264) | Không khởi động tiến trình ffmpeg mỗi lần; mảnh 2 s 720p (50 khung) ~0,5–0,9 s, làm một lần cho mỗi (người, mẫu) rồi đệm đĩa. Mảnh riêng mã hoá khác lần với mảnh chung → `#EXT-X-DISCONTINUITY` để trình phát khởi tạo lại bộ giải mã |
+| H5 | Hạn link | Danh sách phát cần token còn hạn (`storage.view_link_ttl`); mảnh `c/`, `p/` tải thêm được `MEDIA_HLS_GRACE_SECONDS` (6 giờ) sau hạn | Labeler tạm dừng rồi xem tiếp không lỗi giữa chừng; link mới vẫn phải lấy qua API có kiểm quyền |
+| H6 | Nội dung chữ | C# dựng (`ChuWatermark`, domain = host của `identity.frontend_url`); media-svc chỉ vẽ chữ nhận trong token / event | Một chỗ định dạng. Tên doanh nghiệp: project hỏi identity qua gRPC `IdentityData` (trường mới `company_name`) và giữ RAM 10 phút; gate hỏi lúc nạp bộ nhớ (không trên đường nóng). identity không trả lời → chữ bỏ phần doanh nghiệp, không chặn việc xem |
+| H7 | Font | DejaVu Sans (`fonts-dejavu-core` trong image), Arial trên Windows dev; `MEDIA_FONT_PATH` ghi đè | Cần đủ dấu tiếng Việt; `cv2.putText` không vẽ được Unicode nên dùng Pillow, tính lớp chữ một lần rồi trộn numpy cho mọi khung |
+
+**Video nạp trước bản này** (chưa có HLS): lần mở đầu tiên media cắt tại chỗ đoạn đó (`hls.dam_bao_doan`, chữ dùng chung lấy từ token `ws`). Dữ liệu demo là seed nên reseed là đủ.
 
 ## 4. Dữ liệu chéo — ba luật cứng
 

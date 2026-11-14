@@ -9,9 +9,12 @@ pydantic>=2.7
 pydantic-settings>=2.3
 pyjwt[crypto]>=2.8
 cryptography>=42
-# Watermark DCT: doc / ghi anh, doi khong gian mau
+# Watermark: doc / ghi anh (OpenCV), ve chu noi co dau tieng Viet (Pillow), ma hoa lai mang HLS rieng trong tien
+# trinh (PyAV — banh xe co san FFmpeg + libx264).
 numpy>=1.26
 opencv-python-headless>=4.10
+pillow>=10.1
+av>=14
 # MinIO (giao thuc S3)
 minio>=7.2
 

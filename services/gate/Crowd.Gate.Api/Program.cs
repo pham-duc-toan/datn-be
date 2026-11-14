@@ -60,6 +60,20 @@ builder.Services.AddSingleton(new NguonCongLink(docProject, docLedger, docLink))
 
 // /internal/catalog (doi ky thuat, e2e) dung khoa noi bo.
 builder.Services.AddCrowdInternalApi(cfg);
+
+// Ten doanh nghiep cho watermark noi cua anh: hoi identity qua gRPC luc nap bo nho (khong tren duong nong).
+InternalApiOptions noiBo = new InternalApiOptions();
+cfg.GetSection(InternalApiOptions.Section).Bind(noiBo);
+if (string.IsNullOrWhiteSpace(noiBo.IdentityGrpcUrl))
+{
+    throw new InvalidOperationException("Thieu InternalApi:IdentityGrpcUrl trong appsettings (ten doanh nghiep cho watermark).");
+}
+
+builder.Services.AddGrpcClient<Crowd.Contracts.Grpc.Identity.IdentityData.IdentityDataClient>(o =>
+{
+    o.Address = new Uri(noiBo.IdentityGrpcUrl);
+});
+builder.Services.AddSingleton<TenDoanhNghiepCong>();
 builder.Services.Configure<PrivacyOptions>(cfg.GetSection(PrivacyOptions.SectionName));
 
 // ---- Duong nong: Redis rieng cua gate + ClickHouse cho thong ke ----
