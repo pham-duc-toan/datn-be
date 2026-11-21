@@ -26,7 +26,7 @@ namespace Crowd.Contracts.Payment
 
         public required long AmountVnd { get; init; }
 
-        /// <summary>"sandbox" | "vnpay" | "momo"</summary>
+        /// <summary>"sandbox" | "vnpay" | "momo" | "zalopay"</summary>
         public required string Provider { get; init; }
 
         public required string ProviderTxnId { get; init; }

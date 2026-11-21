@@ -377,12 +377,32 @@ services:
       PaymentProviders__Sandbox__CheckoutBaseUrl: http://localhost:18080/payments/sandbox/checkout/
       PaymentProviders__Sandbox__PublicUrl: http://localhost:18080
       ForwardedHeaders__TrustedNetworks__0: 10.88.0.0/24
-      # VNPay / MoMo GIA LAP (cong that: doi PayUrl / ApiUrl + khoa merchant qua bien moi truong).
-      PaymentProviders__VnPay__PayUrl: http://localhost:18080/payments/sandbox/vnpay/pay
-      PaymentProviders__VnPay__ApiUrl: http://payment:8106/payments/sandbox/vnpay/api
-      PaymentProviders__VnPay__IpnUrl: http://payment:8106/payments/webhooks/vnpay
-      PaymentProviders__MoMo__ApiUrl: http://payment:8106/payments/sandbox/momo
-      PaymentProviders__MoMo__IpnUrl: http://payment:8106/payments/webhooks/momo
+     
+      # VNPay: .env co khoa -> sandbox THAT (sandbox.vnpayment.vn); khong co -> cong GIA LAP.
+      PaymentProviders__VnPay__TmnCode: ${VNPAY_TMN_CODE:-DATNDEV1}
+      PaymentProviders__VnPay__HashSecret: ${VNPAY_HASH_SECRET:-dev_vnpay_hash_secret_gia_lap}
+      PaymentProviders__VnPay__PayUrl: ${VNPAY_PAY_URL:-http://localhost:18080/payments/sandbox/vnpay/pay}
+      PaymentProviders__VnPay__ApiUrl: ${VNPAY_API_URL:-http://payment:8106/payments/sandbox/vnpay/api}
+      PaymentProviders__VnPay__ReturnUrl: ${PUBLIC_FE_URL:-http://localhost:5173}/nap-tien/ket-qua
+      PaymentProviders__VnPay__IpnUrl: ${PUBLIC_API_URL:-http://payment:8106}/payments/webhooks/vnpay
+
+      # MoMo: .env co khoa -> sandbox THAT (test-payment.momo.vn); khong co -> cong GIA LAP.
+      PaymentProviders__MoMo__PartnerCode: ${MOMO_PARTNER_CODE:-MOMODATN}
+      PaymentProviders__MoMo__AccessKey: ${MOMO_ACCESS_KEY:-dev_momo_access_key}
+      PaymentProviders__MoMo__SecretKey: ${MOMO_SECRET_KEY:-dev_momo_secret_key_gia_lap}
+      PaymentProviders__MoMo__ApiUrl: ${MOMO_API_URL:-http://payment:8106/payments/sandbox/momo}
+      PaymentProviders__MoMo__RedirectUrl: ${PUBLIC_FE_URL:-http://localhost:5173}/nap-tien/ket-qua
+      PaymentProviders__MoMo__IpnUrl: ${PUBLIC_API_URL:-http://payment:8106}/payments/webhooks/momo
+      # payWithMethod: trang MoMo cho chon QR vi / the ATM / the quoc te.
+      PaymentProviders__MoMo__RequestType: ${MOMO_REQUEST_TYPE:-payWithMethod}
+
+      # ZaloPay: .env co khoa -> sandbox THAT (sb-openapi.zalopay.vn); khong co -> cong ZaloPay TAT.
+      PaymentProviders__ZaloPay__AppId: ${ZALOPAY_APP_ID:-}
+      PaymentProviders__ZaloPay__Key1: ${ZALOPAY_KEY1:-}
+      PaymentProviders__ZaloPay__Key2: ${ZALOPAY_KEY2:-}
+      PaymentProviders__ZaloPay__ApiUrl: ${ZALOPAY_API_URL:-https://sb-openapi.zalopay.vn}
+      PaymentProviders__ZaloPay__RedirectUrl: ${PUBLIC_FE_URL:-http://localhost:5173}/nap-tien/ket-qua
+      PaymentProviders__ZaloPay__CallbackUrl: ${PUBLIC_API_URL:-http://payment:8106}/payments/webhooks/zalopay
 
   link:
     <<: *dotnet-service

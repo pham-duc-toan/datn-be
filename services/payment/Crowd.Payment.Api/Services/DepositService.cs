@@ -324,6 +324,7 @@ namespace Crowd.Payment.Api.Services
         /// Xu ly thong bao ket qua cua cong. Adapter DA kiem chu ky (thongBao = null nghia la chu ky sai).
         /// Thanh cong thi HOI NGUOC cong (VD-S-02): chu ky dung chi chung minh tin den tu cong, hoi nguoc
         /// chung minh giao dich con hieu luc va dung so tien. Sandbox khong tra cuu duoc → tin chu ky.
+        /// Rieng VNPay: tin IPN (chu ky + so tien khop), khong hoi nguoc querydr.
         /// Thong bao lap lai (cong gui nhieu lan) → lan sau khong lam gi.
         /// Loi nem ra: ForbiddenException chu_ky_sai | NotFoundException | RuleViolationException
         /// (sai_cong, sai_so_tien, da_thanh_toan, lenh_nap_da_chot, cong_khong_xac_nhan) |
@@ -374,6 +375,14 @@ namespace Crowd.Payment.Api.Services
             if (thongBao.AmountVnd != intent.AmountVnd)
             {
                 throw new RuleViolationException("sai_so_tien", "Cổng báo " + thongBao.AmountVnd + "đ nhưng lệnh nạp là " + intent.AmountVnd + "đ.");
+            }
+
+            // VNPay: TIN IPN (chu ky HMAC-SHA512 da kiem o adapter + so tien da khop o tren), KHONG hoi nguoc
+            // querydr. Theo tai lieu VNPay, IPN la noi cap nhat ket qua; querydr sandbox luon tra 99 nen neu
+            // bat buoc hoi nguoc thi lenh nap VNPay khong bao gio duoc cong tien.
+            if (cong is VnPayProvider)
+            {
+                return await ChotThanhCongAsync(intent, thongBao.ProviderTxnId, thongBao.AmountVnd, correlationId, ct);
             }
 
             KetQuaTraCuuNap kq = await cong.TraCuuNapAsync(YeuCau(intent, null), ct);

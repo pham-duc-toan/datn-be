@@ -88,7 +88,7 @@
     "name": "Cổng nạp tiền đang mở",
     "group": "Phí và tiền",
     "type": "text",
-    "default": "sandbox,vnpay,momo",
+    "default": "sandbox,vnpay,momo,zalopay",
     "min": null,
     "max": 100,
     "unit": "ký tự",
@@ -97,7 +97,8 @@
     "multiChoices": [
       "sandbox",
       "vnpay",
-      "momo"
+      "momo",
+      "zalopay"
     ],
     "multiple": true
   },

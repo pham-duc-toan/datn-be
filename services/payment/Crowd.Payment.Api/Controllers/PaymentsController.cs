@@ -256,6 +256,41 @@ namespace Crowd.Payment.Api.Controllers
         }
 
         /// <summary>
+        /// POST /payments/webhooks/zalopay — callback ZaloPay {data, mac, type}, mac = HMAC(key2, data).
+        /// ZaloPay chi goi khi THANH CONG. Luon HTTP 200, ket qua nam trong return_code: 1 xong | 2 da cap
+        /// nhat truoc do | -1 sai mac | 0 loi khac (ZaloPay se goi lai, toi da 3 lan).
+        /// </summary>
+        [HttpPost("zalopay")]
+        public async Task<IActionResult> ZaloPay(CancellationToken ct)
+        {
+            ZaloPayProvider? zalopay = _sp.GetService<ZaloPayProvider>();
+            if (zalopay == null)
+            {
+                return NotFound();
+            }
+
+            string body = await DocBodyAsync(ct);
+            try
+            {
+                bool moi = await _service.XuLyThongBaoAsync(zalopay, zalopay.DocCallback(body), LayCorrelation(), ct);
+                return Ok(new ZaloPayCallbackResponse { ReturnCode = moi ? 1 : 2, ReturnMessage = moi ? "success" : "already updated" });
+            }
+            catch (ForbiddenException)
+            {
+                return Ok(new ZaloPayCallbackResponse { ReturnCode = -1, ReturnMessage = "mac not equal" });
+            }
+            catch (RuleViolationException ex) when (ex.Code == "da_thanh_toan" || ex.Code == "lenh_nap_da_chot")
+            {
+                return Ok(new ZaloPayCallbackResponse { ReturnCode = 2, ReturnMessage = "already updated" });
+            }
+            catch (Exception ex) when (ex is NotFoundException || ex is RuleViolationException || ex is CongChuaXacNhanException || ex is InvalidValueException)
+            {
+                _logger.LogWarning(ex, "Callback ZaloPay chua xu ly duoc");
+                return Ok(new ZaloPayCallbackResponse { ReturnCode = 0, ReturnMessage = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// POST /payments/webhooks/momo — IPN cua MoMo (JSON co chu ky). Xu ly xong → 204 (MoMo coi la da
         /// nhan); chu ky sai → 400; chua xac nhan duoc voi cong → 503 de MoMo gui lai.
         /// </summary>
@@ -334,6 +369,16 @@ namespace Crowd.Payment.Api.Controllers
 
             return Guid.CreateVersion7();
         }
+    }
+
+    /// <summary>Phan hoi callback theo quy uoc ZaloPay: 1 xong | 2 da cap nhat truoc do | khac → ZaloPay goi lai.</summary>
+    public sealed class ZaloPayCallbackResponse
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("return_code")]
+        public required int ReturnCode { get; init; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("return_message")]
+        public required string ReturnMessage { get; init; }
     }
 
     /// <summary>Phan hoi IPN theo quy uoc VNPay (ten truong viet hoa dung nhu tai lieu).</summary>

@@ -264,7 +264,7 @@ namespace Crowd.BuildingBlocks.Settings
         private static readonly string[] CheDoChiCongLink = new string[] { "perClick", "batched" };
 
         /// <summary>Cong nap tien co adapter (payment-svc PaymentProviders).</summary>
-        private static readonly string[] CongNap = new string[] { "sandbox", "vnpay", "momo" };
+        private static readonly string[] CongNap = new string[] { "sandbox", "vnpay", "momo", "zalopay" };
 
         /// <summary>Moi loai cong cu gan nhan — giu khop Crowd.Labeling.ToolKinds.</summary>
         private static readonly string[] CongCuGanNhan = new string[]
@@ -354,7 +354,7 @@ namespace Crowd.BuildingBlocks.Settings
                 "Chu kỳ worker gửi lệnh chi tiền ra cổng thanh toán."));
             ds.Add(Seconds(SettingKeys.PaymentPayoutLookupAfter, NhomKyThuat, 15 * 60, 60, Ngay,
                 "Lệnh chi treo quá lâu thì hỏi ngược cổng về trạng thái (đối soát)."));
-            ds.Add(Many(SettingKeys.PaymentEnabledProviders, NhomTien, "sandbox,vnpay,momo", 100, CongNap,
+            ds.Add(Many(SettingKeys.PaymentEnabledProviders, NhomTien, "sandbox,vnpay,momo,zalopay", 100, CongNap,
                 "Cổng nạp tiền đang mở. Cổng phải được đội kỹ thuật kết nối trước mới dùng được; tắt một cổng khi cổng đó gặp sự cố."));
             ds.Add(Seconds(SettingKeys.PaymentDepositLookupAfter, NhomKyThuat, 15 * 60, 60, Ngay,
                 "Lệnh nạp qua cổng chưa có kết quả sau bấy nhiêu thì hỏi ngược cổng (đối soát, VD-M-09) — phòng khi IPN bị lạc."));

@@ -65,6 +65,19 @@ if (momo.DuCauHinh)
     builder.Services.AddTransient<ICongNap>(sp => sp.GetRequiredService<MoMoProvider>());
 }
 
+builder.Services.Configure<ZaloPayOptions>(cfg.GetSection(ZaloPayOptions.SectionName));
+ZaloPayOptions zalopay = new ZaloPayOptions();
+cfg.GetSection(ZaloPayOptions.SectionName).Bind(zalopay);
+if (zalopay.DuCauHinh)
+{
+    builder.Services.AddHttpClient<ZaloPayProvider>(c =>
+    {
+        c.Timeout = TimeSpan.FromSeconds(15);
+        c.DefaultRequestHeaders.UserAgent.ParseAdd("Crowd.Payment/1.0");
+    });
+    builder.Services.AddTransient<ICongNap>(sp => sp.GetRequiredService<ZaloPayProvider>());
+}
+
 builder.Services.AddScoped<DanhBaCongNap>();
 
 // Cong gia lap VNPay / MoMo (chi Development — xem CongGiaLapController).
