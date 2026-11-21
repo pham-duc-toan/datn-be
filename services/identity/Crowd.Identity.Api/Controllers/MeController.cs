@@ -99,13 +99,6 @@ namespace Crowd.Identity.Api.Controllers
             return Ok(await _hoSo.CapNhatAsync(UserId(), body, ct));
         }
 
-        /// <summary>PUT /me/skills { domains, languages, modalities }</summary>
-        [HttpPut("skills")]
-        public async Task<IActionResult> SuaKyNang([FromBody] SkillsDto body, CancellationToken ct)
-        {
-            return Ok(await _hoSo.CapNhatKyNangAsync(UserId(), body, ct));
-        }
-
         /// <summary>POST /me/avatar/upload-url { fileName, sizeBytes } → link PUT anh len kho.</summary>
         [HttpPost("avatar/upload-url")]
         public async Task<IActionResult> XinLinkAvatar([FromBody] AvatarUploadRequest body)

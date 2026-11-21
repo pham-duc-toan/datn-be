@@ -140,11 +140,23 @@ try:
     kiem("sua ho so", r.status_code == 200 and r.json()["displayName"] == "Nguyen Van Ho So" and r.json()["bio"], r.text)
     r = requests.put(G + "/me/profile", headers=hs["h"], json={"displayName": " "})
     kiem("ten rong → 400 ten_khong_hop_le", r.status_code == 400 and code(r) == "ten_khong_hop_le", r.text)
-    r = requests.put(G + "/me/skills", headers=hs["h"], json={"domains": ["Y te", "y te"], "languages": ["vi"], "modalities": ["IMAGE", "text"]})
-    kiem("ky nang: bo trung, doi ve ma the (\"Y te\" → y-te), chuan hoa loai du lieu",
-         r.status_code == 200 and r.json()["skills"]["domains"] == ["y-te"] and r.json()["skills"]["modalities"] == ["image", "text"], r.text)
-    r = requests.put(G + "/me/skills", headers=hs["h"], json={"modalities": ["3d"]})
-    kiem("loai du lieu la → 400", r.status_code == 400 and code(r) == "loai_du_lieu_khong_hop_le", r.text)
+    # 3.38: so thich chon MOT LAN luc dang ky, sau do khong xem / sua qua API.
+    kiem("ho so khong con tra so thich", "skills" not in requests.get(G + "/me/profile", headers=hs["h"]).json())
+    kiem("PUT /me/skills da bo → 404/405", requests.put(G + "/me/skills", headers=hs["h"], json={"modalities": ["text"]}).status_code in (404, 405))
+    r = requests.post(G + "/auth/register", json={"email": f"e2e-{TAG}-st@crowd.local", "username": f"st_{TAG}", "password": PW,
+                                                   "displayName": "So thich", "roles": ["labeler"],
+                                                   "skills": {"domains": ["Y te", "y te"], "languages": ["vi"], "modalities": ["IMAGE", "text"]}})
+    kiem("dang ky kem so thich: bo trung, doi ve ma the, chuan hoa loai du lieu", r.status_code in (200, 201), r.text)
+    kiem("so thich luu dung (y-te; image, text)",
+         sql("identity", f"select skill_domains::text || '|' || skill_modalities::text from users where email = 'e2e-{TAG}-st@crowd.local'")
+         == "{y-te}|{image,text}")
+    r = requests.post(G + "/auth/register", json={"email": f"e2e-{TAG}-st2@crowd.local", "username": f"st2_{TAG}", "password": PW,
+                                                   "displayName": "So thich", "roles": ["labeler"], "skills": {"modalities": ["3d"]}})
+    kiem("loai du lieu la luc dang ky → 400", r.status_code == 400 and code(r) == "loai_du_lieu_khong_hop_le", r.text)
+    r = requests.post(G + "/auth/register", json={"email": f"e2e-{TAG}-st3@crowd.local", "username": f"st3_{TAG}", "password": PW,
+                                                   "displayName": "So thich", "roles": ["business"], "skills": {"domains": ["y-te"]}})
+    kiem("doanh nghiep gui so thich → 400", r.status_code == 400, r.text)
+    kiem("danh muc the doc duoc khi chua dang nhap (o chon luc dang ky)", requests.get(G + "/tags").status_code == 200)
     r = requests.post(G + "/me/avatar/upload-url", headers=hs["h"], json={"fileName": "a.exe", "sizeBytes": 10})
     kiem("anh .exe → 400 file_khong_hop_le", r.status_code == 400 and code(r) == "file_khong_hop_le", r.text)
     r = requests.post(G + "/me/avatar/upload-url", headers=hs["h"], json={"fileName": "a.png", "sizeBytes": 100 * 1024 * 1024})
@@ -240,8 +252,9 @@ try:
     kiem("2 nguoi bao cung cau → tu loai, moi bao loi cua cau → excluded",
          all(x["state"] == "excluded" for x in requests.get(G + f"/tasks/projects/{P1M}/reports?status=all", headers=biz["h"]).json()))
     td = requests.get(G + f"/tasks/projects/{P1}/progress", headers=biz["h"]).json()
-    kiem("tien do P1: 3/3 suat da nop, du suat → da cham", td["slots"] == 3 and td["submitted"] == 3
-         and td["finishReason"] == "du_suat" and td["phase"] in ("graded", "settled") and td["appealDeadline"], td)
+    # 3.38: khong con "du suat" — 3 bai nop bang 3 suat thi chu du an ket thuc som (lop mo phong cua tro_giup).
+    kiem("tien do P1: 3/3 suat da nop → ket thuc som → da cham", td["slots"] == 3 and td["submitted"] == 3
+         and td["finishReason"] == "ket_thuc_som" and td["phase"] in ("graded", "settled") and td["appealDeadline"], td)
     ds_bai = requests.get(G + f"/tasks/projects/{P1}/attempts", headers=biz["h"]).json()
     kiem("bai cua du an: 3 bai dat", sum(1 for x in ds(ds_bai) if x.get("passed") is True) == 3, ds_bai)
 

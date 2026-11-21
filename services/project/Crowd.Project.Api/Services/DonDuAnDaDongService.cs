@@ -112,7 +112,6 @@ namespace Crowd.Project.Api.Services
                 {
                     ProjectId = tienDo.ProjectId,
                     Slots = tienDo.Slots,
-                    MaxParticipants = tienDo.MaxParticipants,
                     QuestionCount = tienDo.QuestionCount,
                     InProgress = tienDo.InProgress,
                     Submitted = tienDo.Submitted,

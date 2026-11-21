@@ -548,7 +548,7 @@ namespace Crowd.Project.Api.Services
                     PassThresholdMax = quyDinh.NguongDatToiDa,
                     MinSlots = quyDinh.SoSuatToiThieu,
                     MaxSlots = quyDinh.SoSuatToiDa,
-                    ParticipantMultiplier = _settings.SoNguyen(SettingKeys.ProjectParticipantMultiplier),
+                    MaxDurationDays = quyDinh.HanChotToiDaNgay,
                     MaxQuestions = quyDinh.SoCauToiDa,
                     MinRewardVnd = quyDinh.ThuongToiThieu,
                     MatchThresholds = NguongKhopMacDinh(),
@@ -719,14 +719,12 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>
-        /// Du an vua duoc duyet (Dang chay): mo DOT THU BAI — tran nguoi lam = so suat x he so CHUP luc nay (admin
-        /// doi project.participant_multiplier sau do khong lam lech du an dang chay). Truoc khi gop, task-svc dung
-        /// ban sao nay tu project.published.
+        /// Du an vua duoc duyet (Dang chay): mo DOT THU BAI. Khong gioi han nguoi lam (kien truc 3.38) — thu bai dong
+        /// khi het han chot hoac chu du an ket thuc som.
         /// </summary>
         private void MoDotThuBai(LabelingProject duAn)
         {
-            _db.CollectionRounds.Add(CollectionRound.Mo(
-                duAn.Id, duAn.Slots, _settings.SoNguyen(SettingKeys.ProjectParticipantMultiplier), _clock.GetUtcNow()));
+            _db.CollectionRounds.Add(CollectionRound.Mo(duAn.Id, _clock.GetUtcNow()));
         }
 
         /// <summary>Admin tu choi: huy + ledger hoan ky quy (compensation).</summary>
@@ -1211,6 +1209,8 @@ namespace Crowd.Project.Api.Services
                 NdaVersion = p.NdaVersion,
                 RequireVerifiedIdentity = p.RequireVerifiedIdentity,
                 ConsentRequired = p.CanDongYCaNhan(),
+                PreviewEnabled = p.PreviewEnabled,
+                PreviewBlockedReason = p.LyDoKhongChoXemTruoc(),
                 Domains = p.Domains,
                 Languages = p.Languages,
                 DeleteFilesAfterClose = laChu && p.DeleteFilesAfterClose,

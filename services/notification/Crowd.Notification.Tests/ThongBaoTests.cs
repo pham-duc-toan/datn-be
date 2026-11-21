@@ -233,8 +233,8 @@ namespace Crowd.Notification.Tests
         [Fact]
         public void Du_an_da_cham_bao_so_bai_dat()
         {
-            Assert.StartsWith("2/3 bài đạt, 1 bài nộp sớm nhất được trả thưởng", NoiDungThongBao.DuAnDaCham(Guid.NewGuid(), 2, 1, 3).NoiDungChinh, StringComparison.Ordinal);
-            Assert.Equal("Bài làm đạt nhưng đã hết suất thưởng", NoiDungThongBao.BaiDat(Guid.NewGuid(), 90, 80, true, false).TieuDe);
+            Assert.StartsWith("2/3 bài đạt, 1 bài giống đa số nhất được trả thưởng", NoiDungThongBao.DuAnDaCham(Guid.NewGuid(), 2, 1, 3).NoiDungChinh, StringComparison.Ordinal);
+            Assert.Equal("Bài làm đạt nhưng chưa lọt vào suất thưởng", NoiDungThongBao.BaiDat(Guid.NewGuid(), 90, 80, true, false).TieuDe);
         }
 
         [Fact]

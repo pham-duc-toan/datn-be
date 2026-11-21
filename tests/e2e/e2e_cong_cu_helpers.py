@@ -5,6 +5,7 @@ import requests
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
 from tro_giup import G, TAG, cho, nap_mau, vi  # noqa: E402
+from tro_giup import HAN_CHOT  # noqa: E402
 import tao_media  # noqa: E402
 
 M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "media")
@@ -59,5 +60,5 @@ def du_an(chu, ten, modality, tap_nhan, rows=None, files=None, red=2, tran=3, go
     so = max(1, len(mau))
     requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"pricing": {
         "rewardVnd": max(10000, GIA * so), "slots": suat if suat is not None else max(3, tran), "passThresholdPercent": nguong,
-        "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
+        "deadline": HAN_CHOT}}).raise_for_status()
     return pid, lo, mau

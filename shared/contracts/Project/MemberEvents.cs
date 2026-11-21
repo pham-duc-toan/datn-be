@@ -137,6 +137,31 @@ namespace Crowd.Contracts.Project
         public required Guid UserId { get; init; }
     }
 
+    /// <summary>
+    /// Doanh nghiep CHAN / BO CHAN mot labeler o cap doanh nghiep (danh sach chan, ap cho moi du an cua ho — ke ca du an
+    /// labeler chua tham gia nen khong co member.blocked). Nguoi nghe: reco-svc (loai du an cua doanh nghiep khoi goi y
+    /// cho labeler do — kien truc 3.39).
+    /// </summary>
+    public sealed record OwnerBlocklistChanged : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "owner_blocklist.changed"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid OwnerId { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        /// <summary>true = vua chan; false = vua bo chan.</summary>
+        public required bool Blocked { get; init; }
+    }
+
     public sealed record MemberRemoved : IEventPayload
     {
         public static string EventType

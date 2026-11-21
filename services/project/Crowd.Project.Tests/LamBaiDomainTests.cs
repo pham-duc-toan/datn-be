@@ -249,18 +249,19 @@ namespace Crowd.Project.Tests
         private static readonly DateTimeOffset Luc = DuAnMau.Luc;
 
         [Fact]
-        public void Tran_nguoi_lam_la_so_suat_nhan_he_so_va_khong_duoi_so_suat()
+        public void Mo_dot_thu_bai_khong_co_tran_nguoi_lam_va_dang_mo()
         {
-            Assert.Equal(10, CollectionRound.Mo(Guid.NewGuid(), 5, 2, Luc).MaxParticipants);
-            Assert.Equal(5, CollectionRound.Mo(Guid.NewGuid(), 5, 0, Luc).MaxParticipants);
-            Assert.Throws<ArgumentOutOfRangeException>(() => CollectionRound.Mo(Guid.NewGuid(), 0, 2, Luc));
+            CollectionRound d = CollectionRound.Mo(Guid.NewGuid(), Luc);
+            Assert.Equal("open", d.GiaiDoan());
+            Assert.Null(d.FinishReason);
+            Assert.Throws<ArgumentException>(() => CollectionRound.Mo(Guid.Empty, Luc));
         }
 
         [Fact]
         public void Nhan_bai_khi_du_an_dang_chay_va_chua_dong_thu_bai()
         {
             LabelingProject p = DuAnMau.DangChay(null, null);
-            CollectionRound d = CollectionRound.Mo(p.Id, p.Slots, 2, Luc);
+            CollectionRound d = CollectionRound.Mo(p.Id, Luc);
 
             Assert.True(CollectionRound.ConNhanBai(p, d, Luc.AddDays(1)));
             Assert.False(CollectionRound.ConNhanBai(p, d, Luc.AddDays(10)));
@@ -274,11 +275,11 @@ namespace Crowd.Project.Tests
         public void Dong_thu_bai_mot_lan_roi_khong_nhan_bai_nua()
         {
             LabelingProject p = DuAnMau.DangChay(null, null);
-            CollectionRound d = CollectionRound.Mo(p.Id, p.Slots, 2, Luc);
+            CollectionRound d = CollectionRound.Mo(p.Id, Luc);
 
-            Assert.True(d.DongThuBai("du_suat"));
+            Assert.True(d.DongThuBai("ket_thuc_som"));
             Assert.False(d.DongThuBai("het_han"));
-            Assert.Equal("du_suat", d.FinishReason);
+            Assert.Equal("ket_thuc_som", d.FinishReason);
             Assert.False(CollectionRound.ConNhanBai(p, d, Luc.AddDays(1)));
             Assert.Equal("finished", d.GiaiDoan());
         }
@@ -286,8 +287,8 @@ namespace Crowd.Project.Tests
         [Fact]
         public void Cham_mo_han_khieu_nai_va_chot_mot_lan()
         {
-            CollectionRound d = CollectionRound.Mo(Guid.NewGuid(), 5, 2, Luc);
-            d.DongThuBai("du_suat");
+            CollectionRound d = CollectionRound.Mo(Guid.NewGuid(), Luc);
+            d.DongThuBai("ket_thuc_som");
 
             // Chua cham thi chua chot duoc.
             Assert.False(d.Chot(3, Luc.AddDays(2)));
@@ -306,7 +307,7 @@ namespace Crowd.Project.Tests
         [Fact]
         public void Tiep_tuc_tra_ve_thoi_gian_da_tam_dung()
         {
-            CollectionRound d = CollectionRound.Mo(Guid.NewGuid(), 5, 2, Luc);
+            CollectionRound d = CollectionRound.Mo(Guid.NewGuid(), Luc);
             d.GhiTamDung(Luc.AddHours(1));
 
             Assert.Equal(TimeSpan.FromHours(3), d.TiepTuc(Luc.AddHours(4)));
@@ -320,7 +321,7 @@ namespace Crowd.Project.Tests
         public void Du_an_dang_chay_khong_duoc_chup_tien_do_cuoi()
         {
             LabelingProject p = DuAnMau.DangChay(null, null);
-            CollectionRound d = CollectionRound.Mo(p.Id, p.Slots, 2, Luc);
+            CollectionRound d = CollectionRound.Mo(p.Id, Luc);
 
             RuleViolationException ex = Assert.Throws<RuleViolationException>(() => d.ChupTienDoCuoi(p, "{}"));
             Assert.Equal("du_an_chua_dong", ex.Code);
@@ -330,7 +331,7 @@ namespace Crowd.Project.Tests
         public void Du_an_da_dong_chup_mot_lan_va_danh_dau_da_don()
         {
             LabelingProject p = DuAnMau.DangChay(null, null);
-            CollectionRound d = CollectionRound.Mo(p.Id, p.Slots, 2, Luc);
+            CollectionRound d = CollectionRound.Mo(p.Id, Luc);
             Assert.Throws<InvalidOperationException>(() => d.DanhDauDaDon(Luc));
 
             p.TamDung(Luc.AddHours(1));
@@ -351,7 +352,6 @@ namespace Crowd.Project.Tests
             {
                 ProjectId = Guid.NewGuid(),
                 Slots = 5,
-                MaxParticipants = 10,
                 QuestionCount = 20,
                 InProgress = 0,
                 Submitted = 7,
@@ -377,13 +377,6 @@ namespace Crowd.Project.Tests
             Assert.Equal(Luc.AddDays(100), lai.FrozenAt);
         }
 
-        [Fact]
-        public void Uoc_tinh_xong_theo_toc_do_24_gio()
-        {
-            Assert.Equal(Luc, LamBaiService.UocTinhXong(0, 5, Luc));
-            Assert.Null(LamBaiService.UocTinhXong(4, 0, Luc));
-            Assert.Equal(Luc.AddHours(48), LamBaiService.UocTinhXong(4, 2, Luc));
-        }
     }
 
     /// <summary>Dieu kien lam bai: bang goc (du an, dot, thanh vien) + ho so identity (hoi qua gRPC luc mo bai, 3.24).</summary>
@@ -409,14 +402,14 @@ namespace Crowd.Project.Tests
         public void Du_dieu_kien_thi_null()
         {
             LabelingProject p = DuAnMau.DangChay(null, null);
-            Assert.Null(LyDo(p, CollectionRound.Mo(p.Id, 5, 2, Luc), Labeler(p), null, Luc));
+            Assert.Null(LyDo(p, CollectionRound.Mo(p.Id, Luc), Labeler(p), null, Luc));
         }
 
         [Fact]
         public void Chua_duyet_hoac_khong_phai_thanh_vien_thi_tu_choi()
         {
             LabelingProject p = DuAnMau.DangChay(null, null);
-            CollectionRound d = CollectionRound.Mo(p.Id, 5, 2, Luc);
+            CollectionRound d = CollectionRound.Mo(p.Id, Luc);
 
             Assert.Equal("du_an_chua_san_sang", LyDo(p, null, Labeler(p), null, Luc));
             Assert.Equal("khong_phai_thanh_vien", LyDo(p, d, null, null, Luc));
@@ -426,18 +419,18 @@ namespace Crowd.Project.Tests
         public void Cap_cua_identity_duoi_nguong_thi_tu_choi()
         {
             LabelingProject cap2 = DuAnMau.DangChay(2, null);
-            Assert.Equal("chua_du_cap_do", LyDo(cap2, CollectionRound.Mo(cap2.Id, 5, 2, Luc), Labeler(cap2), null, Luc));
+            Assert.Equal("chua_du_cap_do", LyDo(cap2, CollectionRound.Mo(cap2.Id, Luc), Labeler(cap2), null, Luc));
 
             // Nguoi moi (identity tinh cap 1): du an chi doi cap 1 thi khong chan.
             LabelingProject cap1 = DuAnMau.DangChay(1, null);
-            Assert.Null(LyDo(cap1, CollectionRound.Mo(cap1.Id, 5, 2, Luc), Labeler(cap1), null, Luc));
+            Assert.Null(LyDo(cap1, CollectionRound.Mo(cap1.Id, Luc), Labeler(cap1), null, Luc));
         }
 
         [Fact]
         public void Bi_chan_khoi_du_an_hoac_bi_khoa_tai_khoan()
         {
             LabelingProject p = DuAnMau.DangChay(null, null);
-            CollectionRound d = CollectionRound.Mo(p.Id, 5, 2, Luc);
+            CollectionRound d = CollectionRound.Mo(p.Id, Luc);
 
             ProjectMember biChan = Labeler(p);
             biChan.Chan(Luc);
@@ -453,25 +446,25 @@ namespace Crowd.Project.Tests
             HoSoNguoiDung l = new HoSoNguoiDung(UserId, true, false, 3, 70);
 
             LabelingProject vua = DuAnMau.DangChay(3, 70);
-            Assert.Null(LyDo(vua, CollectionRound.Mo(vua.Id, 5, 2, Luc), Labeler(vua), l, Luc));
+            Assert.Null(LyDo(vua, CollectionRound.Mo(vua.Id, Luc), Labeler(vua), l, Luc));
 
             LabelingProject cao = DuAnMau.DangChay(3, 71);
-            Assert.Equal("chua_du_uy_tin", LyDo(cao, CollectionRound.Mo(cao.Id, 5, 2, Luc), Labeler(cao), l, Luc));
+            Assert.Equal("chua_du_uy_tin", LyDo(cao, CollectionRound.Mo(cao.Id, Luc), Labeler(cao), l, Luc));
         }
 
         [Fact]
         public void Qua_deadline_tam_dung_hoac_da_dong_thu_bai_thi_khong_cho_lam()
         {
             LabelingProject p = DuAnMau.DangChay(null, null);
-            CollectionRound d = CollectionRound.Mo(p.Id, 5, 2, Luc);
+            CollectionRound d = CollectionRound.Mo(p.Id, Luc);
             Assert.Equal("da_qua_deadline", LyDo(p, d, Labeler(p), null, Luc.AddDays(11)));
 
-            d.DongThuBai("du_suat");
+            d.DongThuBai("ket_thuc_som");
             Assert.Equal("du_an_da_dong_thu_bai", LyDo(p, d, Labeler(p), null, Luc));
 
             LabelingProject dung = DuAnMau.DangChay(null, null);
             dung.TamDung(Luc.AddMinutes(1));
-            Assert.Equal("du_an_khong_chay", LyDo(dung, CollectionRound.Mo(dung.Id, 5, 2, Luc), Labeler(dung), null, Luc));
+            Assert.Equal("du_an_khong_chay", LyDo(dung, CollectionRound.Mo(dung.Id, Luc), Labeler(dung), null, Luc));
         }
 
         [Fact]
@@ -479,14 +472,14 @@ namespace Crowd.Project.Tests
         {
             LabelingProject p = DuAnMau.DangChay(null, null);
             ProjectMember chu = ProjectMember.TaoChuSoHuu(p.Id, p.OwnerId, Luc);
-            Assert.Equal("khong_phai_labeler", LyDo(p, CollectionRound.Mo(p.Id, 5, 2, Luc), chu, null, Luc));
+            Assert.Equal("khong_phai_labeler", LyDo(p, CollectionRound.Mo(p.Id, Luc), chu, null, Luc));
         }
 
         [Fact]
         public void Moi_ly_do_tu_choi_co_cau_giai_thich_rieng()
         {
             LabelingProject p = DuAnMau.DangChay(3, 70);
-            CollectionRound d = CollectionRound.Mo(p.Id, 5, 2, Luc);
+            CollectionRound d = CollectionRound.Mo(p.Id, Luc);
 
             Assert.Contains("thành viên", EligibilityPolicy.GiaiThich(LyDo(p, d, null, null, Luc)!, p, NguoiMoi));
             Assert.Contains("hạn chót", EligibilityPolicy.GiaiThich(LyDo(p, d, Labeler(p), null, Luc.AddDays(11))!, p, NguoiMoi));
@@ -497,7 +490,7 @@ namespace Crowd.Project.Tests
             dung.TamDung(Luc.AddMinutes(1));
             Assert.Equal("Dự án đang tạm dừng.", EligibilityPolicy.GiaiThich("du_an_khong_chay", dung, NguoiMoi));
 
-            d.DongThuBai("du_suat");
+            d.DongThuBai("ket_thuc_som");
             Assert.Contains("ngừng nhận bài", EligibilityPolicy.GiaiThich(LyDo(p, d, Labeler(p), null, Luc)!, p, NguoiMoi));
         }
     }

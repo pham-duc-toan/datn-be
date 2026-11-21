@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Loi bo goi y (kien truc 3.39): logic THUAN — so thich, dieu kien, dac trung, mo hinh, cham diem, xep lai, ghep
+       trang. Khong biet DB / Redis / HTTP nen test duoc het bang unit test. -->
+
+</Project>

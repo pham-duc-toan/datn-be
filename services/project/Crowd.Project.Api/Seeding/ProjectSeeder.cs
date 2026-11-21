@@ -221,8 +221,7 @@ namespace Crowd.Project.Api.Seeding
             // ---- 6. Dot thu bai + bai lam + nhan ----
             if (sp.DaChay)
             {
-                CollectionRound dot = CollectionRound.Mo(
-                    sp.Id, sp.Slots, _settings.SoNguyen(SettingKeys.ProjectParticipantMultiplier), sp.LucDuyet(bayGio));
+                CollectionRound dot = CollectionRound.Mo(sp.Id, sp.LucDuyet(bayGio));
                 _db.CollectionRounds.Add(dot);
                 TaoBaiLam(sp, dot, sp.Deadline(bayGio), bayGio);
             }
@@ -312,7 +311,7 @@ namespace Crowd.Project.Api.Seeding
             if (sp.Stage == SeedStage.Completed)
             {
                 DateTimeOffset lucXong = bayGio - sp.CompletedAgo!.Value;
-                dot.DongThuBai("du_suat");
+                dot.DongThuBai("ket_thuc_som");
                 dot.GhiDaCham(lucCham!.Value, lucXong - lucCham.Value);
                 dot.Chot(SeedEvents.SoNguoiDat(sp), lucXong);
             }

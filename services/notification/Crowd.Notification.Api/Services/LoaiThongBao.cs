@@ -174,7 +174,7 @@ namespace Crowd.Notification.Api.Services
 
         // ---- ket qua cham ca du an (docs 3.18) ----
 
-        /// <param name="duocThuong">Trong n suat thuong (n bai dat nop som nhat). false = dat nhung het suat.</param>
+        /// <param name="duocThuong">Trong n suat thuong (n bai dat giong da so nhat — 3.38). false = dat nhung ngoai suat.</param>
         public static NoiDung BaiDat(Guid attemptId, int phanTram, int nguong, bool dungDaSo, bool duocThuong)
         {
             string ly = dungDaSo
@@ -186,11 +186,11 @@ namespace Crowd.Notification.Api.Services
             if (!duocThuong)
             {
                 return new NoiDung(
-                        "Bài làm đạt nhưng đã hết suất thưởng",
-                        ly + " Dự án chỉ thưởng cho số bài đạt nộp sớm nhất bằng số suất — các suất đã được trao cho bài nộp trước bạn. Kết quả của bạn vẫn được tính vào uy tín.",
+                        "Bài làm đạt nhưng chưa lọt vào suất thưởng",
+                        ly + " Dự án chỉ thưởng cho số bài đạt giống đa số nhất bằng số suất — các suất đã được trao cho bài giống đa số hơn bạn. Kết quả của bạn vẫn được tính vào uy tín.",
                         "/attempts/" + attemptId)
-                    .En("Passed, but all reward slots were taken",
-                        lyEn + " The project rewards only the earliest passing submissions, one per slot — all slots went to earlier submissions. Your result still counts toward your reputation.");
+                    .En("Passed, but not within the reward slots",
+                        lyEn + " The project rewards only the passing submissions that best match the majority, one per slot — all slots went to closer matches. Your result still counts toward your reputation.");
             }
 
             return new NoiDung("Bài làm đã đạt", ly + " Tiền thưởng của dự án đã được trả vào ví.", "/attempts/" + attemptId)
@@ -234,7 +234,7 @@ namespace Crowd.Notification.Api.Services
             string chu = string.IsNullOrWhiteSpace(ghiChu) ? string.Empty : " Ghi chú: " + ghiChu + ".";
             if (chapNhan && !duocThuong)
             {
-                return new NoiDung("Khiếu nại được chấp nhận", "Bài làm được tính là đạt, nhưng dự án đã hết suất thưởng nên không có tiền thưởng." + chu, "/attempts/" + attemptId)
+                return new NoiDung("Khiếu nại được chấp nhận", "Bài làm được tính là đạt, nhưng các suất thưởng đã được trao hết nên không có tiền thưởng." + chu, "/attempts/" + attemptId)
                     .En("Appeal accepted", "Your attempt now counts as passed, but all reward slots were already taken, so no reward is paid." + chu);
             }
 
@@ -248,10 +248,10 @@ namespace Crowd.Notification.Api.Services
         public static NoiDung DuAnDaCham(Guid projectId, int soDat, int soThuong, int soBai)
         {
             return new NoiDung("Dự án đã chấm xong",
-                soDat + "/" + soBai + " bài đạt, " + soThuong + " bài nộp sớm nhất được trả thưởng. Kết quả gán nhãn đã sẵn sàng; phần ký quỹ còn dư hoàn về ví khi hết hạn khiếu nại.",
+                soDat + "/" + soBai + " bài đạt, " + soThuong + " bài giống đa số nhất được trả thưởng. Kết quả gán nhãn đã sẵn sàng; phần ký quỹ còn dư hoàn về ví khi hết hạn khiếu nại.",
                 "/projects/" + projectId)
                 .En("Project graded",
-                    soDat + "/" + soBai + " attempts passed; the " + soThuong + " earliest were paid. Results are ready; unused escrow returns to your wallet after the appeal window.");
+                    soDat + "/" + soBai + " attempts passed; the " + soThuong + " closest to the majority were paid. Results are ready; unused escrow returns to your wallet after the appeal window.");
         }
 
         /// <summary>soKhoan &gt; 1: da gop nhieu khoan treo (vnd la tong).</summary>

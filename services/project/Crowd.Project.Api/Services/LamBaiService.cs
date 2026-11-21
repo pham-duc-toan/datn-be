@@ -196,20 +196,9 @@ namespace Crowd.Project.Api.Services
                     }
                 }
 
-                // KHONG dem bai cua chinh nguoi nay: hai request "bat dau" cung luc cua MOT labeler (FE goi trung)
-                // — request sau thay bai request truoc vua tao, dem thanh du suat → bao "het suat" sai. Bo qua bai
-                // cua minh thi request sau di tiep toi UNIQUE (project, labeler) ben duoi va tra lai chinh bai do.
-                int dangGiu = await _db.Attempts.CountAsync(
-                    a => a.ProjectId == projectId && a.LabelerId != labelerId
-                         && (a.State == AttemptState.Submitted || (a.State == AttemptState.InProgress && a.ExpiresAt > bayGio)),
-                    ct);
-
-                // Tran NGUOI LAM (so suat thuong x he so, chup luc duyet) — khong phai so suat thuong: cho nhieu
-                // nguoi lam hon de da so chac hon; n suat thuong trao cho n bai dat nop som nhat khi cham.
-                if (dangGiu >= dot!.MaxParticipants)
-                {
-                    throw new RuleViolationException("het_suat", "Dự án đã đủ " + dot.MaxParticipants + " người làm bài.");
-                }
+                // KHONG gioi han nguoi lam (kien truc 3.38): ai du dieu kien cung bat dau duoc toi khi het han chot
+                // hoac chu du an ket thuc som. Hai request "bat dau" cung luc cua MOT labeler di toi UNIQUE
+                // (project, labeler) ben duoi va nhan lai chinh bai do.
 
                 // 3. DE: moi mau THAT (khong phai cau vang, chua bi loai) + cau vang kiem tra — xao rieng cho bai nay.
                 List<Guid> cauThat = await _db.Samples.AsNoTracking()
@@ -232,6 +221,14 @@ namespace Crowd.Project.Api.Services
 
                 Attempt moi = Attempt.BatDau(projectId, labelerId, de, bayGio, hetHan);
                 _db.Attempts.Add(moi);
+                // Hanh vi "bat dau" cho bo goi y (3.39) — cung transaction voi bai moi.
+                _events.Phat(caller, new AttemptStarted
+                {
+                    AttemptId = moi.Id,
+                    ProjectId = projectId,
+                    LabelerId = labelerId,
+                    StartedAt = bayGio,
+                });
 
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
@@ -431,14 +428,7 @@ namespace Crowd.Project.Api.Services
 
                 await _db.SaveChangesAsync(ct);
 
-                int daNop = await _db.Attempts.CountAsync(x => x.ProjectId == a.ProjectId && x.State == AttemptState.Submitted, ct);
-                bool vuaDong = false;
-                if (daNop >= dot.MaxParticipants)
-                {
-                    vuaDong = await _thuBai.DongThuBaiAsync(dot, "du_suat", bayGio, caller, ct);
-                    await _db.SaveChangesAsync(ct);
-                }
-
+                // Khong con "du suat thi dong thu bai" (3.38) — nop bai khong bao gio dong thu bai.
                 await tx.CommitAsync(ct);
 
                 return new SubmitAttemptResponse
@@ -447,7 +437,7 @@ namespace Crowd.Project.Api.Services
                     SubmittedAt = bayGio,
                     QuestionCount = a.QuestionOrder.Count,
                     AnsweredCount = traLoi.Count,
-                    CollectionFinished = vuaDong,
+                    CollectionFinished = false,
                 };
             }
             finally
@@ -456,7 +446,7 @@ namespace Crowd.Project.Api.Services
             }
         }
 
-        /// <summary>Labeler tu bo bai: mat suat, nguoi khac vao lam. Lam lai duoc neu du an con suat.</summary>
+        /// <summary>Labeler tu bo bai (bi huy). Lam lai duoc khi du an con nhan bai.</summary>
         public async Task BoBaiAsync(Guid attemptId, Caller caller, CancellationToken ct)
         {
             Guid labelerId = caller.LayUserId();
@@ -475,7 +465,19 @@ namespace Crowd.Project.Api.Services
                     throw new RuleViolationException("bai_da_nop", "Bài đã nộp, không bỏ được.");
                 }
 
-                a.Huy(_clock.GetUtcNow());
+                DateTimeOffset luc = _clock.GetUtcNow();
+                if (a.Huy(luc))
+                {
+                    _events.Phat(caller, new AttemptAbandoned
+                    {
+                        AttemptId = a.Id,
+                        ProjectId = a.ProjectId,
+                        LabelerId = a.LabelerId,
+                        Reason = "tu_bo",
+                        EndedAt = luc,
+                    });
+                }
+
                 await _db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
             }
@@ -630,7 +632,7 @@ namespace Crowd.Project.Api.Services
             return await TomTatNhieuAsync(ds, ct);
         }
 
-        /// <summary>GET /tasks/projects/{id}/slots — ai xem du an deu xem duoc (cho du an "con x suat").</summary>
+        /// <summary>GET /tasks/projects/{id}/slots — ai xem du an deu xem duoc. Khong lo so nguoi lam (3.38).</summary>
         public async Task<SlotsResponse> SuatAsync(Guid projectId, Caller caller, CancellationToken ct)
         {
             DateTimeOffset bayGio = _clock.GetUtcNow();
@@ -640,9 +642,6 @@ namespace Crowd.Project.Api.Services
             {
                 throw new NotFoundException("Dự án chưa chạy.");
             }
-
-            int dangLam = await _db.Attempts.CountAsync(a => a.ProjectId == projectId && a.State == AttemptState.InProgress && a.ExpiresAt > bayGio, ct);
-            int daNop = await _db.Attempts.CountAsync(a => a.ProjectId == projectId && a.State == AttemptState.Submitted, ct);
 
             AttemptSummary? cuaToi = null;
             if (caller.UserId != null)
@@ -662,10 +661,6 @@ namespace Crowd.Project.Api.Services
             {
                 ProjectId = projectId,
                 Slots = duAn.Slots,
-                MaxParticipants = dot.MaxParticipants,
-                InProgress = dangLam,
-                Submitted = daNop,
-                Available = Math.Max(0, dot.MaxParticipants - dangLam - daNop),
                 QuestionCount = duAn.QuestionCount,
                 RewardVnd = duAn.RewardVnd,
                 PassThresholdPercent = duAn.PassThresholdPercent,
@@ -727,7 +722,6 @@ namespace Crowd.Project.Api.Services
                 throw new ArgumentNullException(nameof(dot));
             }
 
-            DateTimeOffset bayGio = _clock.GetUtcNow();
             Guid id = duAn.Id;
             var dem = await _db.Attempts.AsNoTracking()
                 .Where(a => a.ProjectId == id)
@@ -749,16 +743,12 @@ namespace Crowd.Project.Api.Services
             }
 
             int daNop = So(AttemptState.Submitted);
-            DateTimeOffset tu = bayGio - TimeSpan.FromHours(24);
-            int nop24h = await _db.Attempts.AsNoTracking().CountAsync(
-                a => a.ProjectId == id && a.State == AttemptState.Submitted && a.SubmittedAt >= tu, ct);
             int khieuNai = await _db.Attempts.AsNoTracking().CountAsync(a => a.ProjectId == id && a.AppealState == AppealState.Open, ct);
 
             return new ProgressResponse
             {
                 ProjectId = id,
                 Slots = duAn.Slots,
-                MaxParticipants = dot.MaxParticipants,
                 QuestionCount = duAn.QuestionCount,
                 InProgress = So(AttemptState.InProgress),
                 Submitted = daNop,
@@ -773,24 +763,8 @@ namespace Crowd.Project.Api.Services
                 SettledAt = dot.SettledAt,
                 PassedCount = dot.PassedCount,
                 OpenAppeals = khieuNai,
-                EstimatedCompletionAt = dot.DaDongThuBai ? duAn.GradingStartedAt : UocTinhXong(dot.MaxParticipants - daNop, nop24h, bayGio),
+                EstimatedCompletionAt = dot.DaDongThuBai ? duAn.GradingStartedAt : duAn.Deadline,
             };
-        }
-
-        /// <summary>Con <paramref name="conLai"/> bai, toc do <paramref name="nop24h"/> bai / 24 gio → luc du suat.</summary>
-        public static DateTimeOffset? UocTinhXong(int conLai, int nop24h, DateTimeOffset bayGio)
-        {
-            if (conLai <= 0)
-            {
-                return bayGio;
-            }
-
-            if (nop24h <= 0)
-            {
-                return null;
-            }
-
-            return bayGio + TimeSpan.FromHours(24.0 * conLai / nop24h);
         }
 
         // =====================================================================
@@ -813,7 +787,7 @@ namespace Crowd.Project.Api.Services
         /// Body nop bai → {sampleId: json cau tra loi}. Cau data null / thieu = bo trong (khong tinh). Hai dong cung
         /// mot cau hoac data khong phai object → 400.
         /// </summary>
-        private static Dictionary<Guid, string> DocCauTraLoi(SubmitAttemptRequest? body)
+        internal static Dictionary<Guid, string> DocCauTraLoi(SubmitAttemptRequest? body)
         {
             Dictionary<Guid, string> kq = new Dictionary<Guid, string>();
             if (body == null || body.Answers == null)

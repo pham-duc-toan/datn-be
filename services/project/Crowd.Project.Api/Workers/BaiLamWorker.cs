@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
 using Crowd.BuildingBlocks.Settings;
+using Crowd.Contracts.Tasking;
 using Crowd.Project.Api.Services;
 using Crowd.Project.Domain.Attempts;
 using Crowd.Project.Domain.Collections;
@@ -123,14 +124,27 @@ namespace Crowd.Project.Api.Workers
             using (IServiceScope scope = _scopeFactory.CreateScope())
             {
                 ProjectDbContext db = scope.ServiceProvider.GetRequiredService<ProjectDbContext>();
+                ProjectEventPublisher events = scope.ServiceProvider.GetRequiredService<ProjectEventPublisher>();
                 var tx = await db.Database.BeginTransactionAsync(ct);
                 try
                 {
                     DateTimeOffset bayGio = _clock.GetUtcNow();
+                    Caller heThong = Caller.HeThong(Guid.CreateVersion7(), null);
                     List<Attempt> quaHan = await LamBaiQueries.KhoaBaiQuaHanAsync(db, bayGio, coLo, ct);
                     foreach (Attempt a in quaHan)
                     {
-                        a.HetHan(bayGio);
+                        if (a.HetHan(bayGio))
+                        {
+                            // Het gio lam bai ma chua nop: hanh vi "bo do" cho bo goi y (3.39), cung transaction.
+                            events.Phat(heThong, new AttemptAbandoned
+                            {
+                                AttemptId = a.Id,
+                                ProjectId = a.ProjectId,
+                                LabelerId = a.LabelerId,
+                                Reason = "het_gio",
+                                EndedAt = bayGio,
+                            });
+                        }
                     }
 
                     await db.SaveChangesAsync(ct);

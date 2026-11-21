@@ -32,7 +32,7 @@ namespace Crowd.Contracts.Quality
         public required bool Passed { get; init; }
 
         /// <summary>
-        /// Duoc tra thuong (10/2026): trong n suat cua du an — n bai Passed NOP SOM NHAT. Passed ma het suat thi
+        /// Duoc tra thuong (10/2026): trong n suat cua du an — n bai Passed GIONG DA SO NHAT (cung % thi nop som hon — 3.38). Passed ma het suat thi
         /// false (nhan van vao ket qua, khong co tien). ledger chi tra bai Rewarded.
         /// </summary>
         public required bool Rewarded { get; init; }

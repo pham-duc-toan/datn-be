@@ -419,7 +419,7 @@ namespace Crowd.Ledger.Api.Services
         // =====================================================================
 
         /// <summary>
-        /// project.graded: moi bai DUOC THUONG (Rewarded — n bai dat nop som nhat, quality-svc chon) nhan thuong cua
+        /// project.graded: moi bai DUOC THUONG (Rewarded — n bai dat giong da so nhat, quality-svc chon) nhan thuong cua
         /// mot suat — ky quy −(thuong + phi) → labeler +thuong (treo ledger.reward_hold), nen tang +phi; phat
         /// funds.held. Bai truot, va bai dat nhung het suat, khong nhan gi.
         ///

@@ -125,8 +125,8 @@ Nháp → Chờ duyệt → Đang chạy → Tạm dừng → Hoàn thành
 
 | Mã    | Chức năng                                                 |
 | ----- | --------------------------------------------------------- |
-| FL-01 | Khai báo hồ sơ kỹ năng: lĩnh vực, ngôn ngữ, loại bài toán |
-| FL-02 | Tìm kiếm và lọc dự án; gợi ý dự án phù hợp năng lực       |
+| FL-01 | Chọn sở thích lúc đăng ký (lĩnh vực, ngôn ngữ, loại dữ liệu); sau đó hệ thống tự học từ hành vi |
+| FL-02 | Chợ dự án dạng feed lướt, gợi ý riêng từng người theo khả năng kiếm tiền (thưởng, suất, thời gian, khả năng đạt, sở thích học từ hành vi), mỗi dự án một màn kiểu TikTok kèm 1 mẫu xem trước hệ thống tự lấy (doanh nghiệp bật / tắt) và toàn bộ câu hỏi, công cụ; tab "Mới nhất" cùng cách trình bày, chỉ khác thứ tự |
 | FL-03 | Xem hướng dẫn, làm bài test đầu vào                       |
 | FL-04 | Workspace gán nhãn riêng theo từng loại bài toán          |
 | FL-05 | Phím tắt bàn phím đầy đủ, lưu nháp, nút bỏ qua            |

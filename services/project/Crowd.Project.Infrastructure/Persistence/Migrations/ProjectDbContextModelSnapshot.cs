@@ -362,10 +362,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("graded_at");
 
-                    b.Property<int>("MaxParticipants")
-                        .HasColumnType("integer")
-                        .HasColumnName("max_participants");
-
                     b.Property<int?>("PassedCount")
                         .HasColumnType("integer")
                         .HasColumnName("passed_count");
@@ -1197,6 +1193,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("text[]")
                         .HasColumnName("languages")
                         .HasDefaultValueSql("'{}'::text[]");
+
+                    b.Property<bool>("PreviewEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("preview_enabled");
 
                     b.HasKey("Id");
 

@@ -116,7 +116,7 @@ namespace Crowd.Project.Api.Dtos
 
         public required int AnsweredCount { get; init; }
 
-        /// <summary>Bai nop nay lam du an du suat → dong thu bai, cham ngay.</summary>
+        /// <summary>Luon false tu 3.38 (khong con "du suat thi dong thu bai"); giu truong cho client cu.</summary>
         public required bool CollectionFinished { get; init; }
     }
 
@@ -165,7 +165,7 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>Ket qua cuoi (sau khieu nai).</summary>
         public bool? FinalPassed { get; init; }
 
-        /// <summary>Duoc tra thuong (trong n suat — n bai dat nop som nhat). Dat ma false = het suat thuong. null = chua cham.</summary>
+        /// <summary>Duoc tra thuong (trong n suat — n bai dat giong da so nhat). Dat ma false = ngoai suat thuong. null = chua cham.</summary>
         public bool? Rewarded { get; init; }
 
         public DateTimeOffset? GradedAt { get; init; }
@@ -200,23 +200,16 @@ namespace Crowd.Project.Api.Dtos
         public string? Note { get; init; }
     }
 
-    /// <summary>Tinh trang suat va thu bai cua du an — ai xem du an duoc deu thay (cho du an "con x suat").</summary>
+    /// <summary>
+    /// Suat thuong va giai doan thu bai cua du an — ai xem du an duoc deu thay. KHONG co so nguoi dang lam / da nop
+    /// (kien truc 3.38: labeler chi can biet so suat thuong va han chot; chu du an xem so lieu o API tien do).
+    /// </summary>
     public sealed class SlotsResponse
     {
         public required Guid ProjectId { get; init; }
 
-        /// <summary>So suat THUONG: so nguoi duoc thuong (n bai dat nop som nhat).</summary>
+        /// <summary>So suat THUONG: so bai dat giong da so nhat duoc thuong.</summary>
         public required int Slots { get; init; }
-
-        /// <summary>Tran so nguoi lam bai (dang lam + da nop) = Slots x he so luc publish.</summary>
-        public required int MaxParticipants { get; init; }
-
-        public required int InProgress { get; init; }
-
-        public required int Submitted { get; init; }
-
-        /// <summary>MaxParticipants − InProgress − Submitted: con bao nhieu cho LAM BAI.</summary>
-        public required int Available { get; init; }
 
         public required int QuestionCount { get; init; }
 
@@ -247,9 +240,6 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>So suat THUONG.</summary>
         public required int Slots { get; init; }
 
-        /// <summary>Tran so nguoi lam bai — du tran thi dong thu bai. Ban chup cu (truoc 10/2026) khong co → 0.</summary>
-        public int MaxParticipants { get; init; }
-
         public required int QuestionCount { get; init; }
 
         public required int InProgress { get; init; }
@@ -279,7 +269,7 @@ namespace Crowd.Project.Api.Dtos
 
         public required int OpenAppeals { get; init; }
 
-        /// <summary>Uoc tinh luc du suat theo toc do nop 24 gio gan nhat (null = chua co du lieu).</summary>
+        /// <summary>Luc du kien dong thu bai: da dong → luc dong; dang mo → han chot (khong con "du suat" — 3.38).</summary>
         public DateTimeOffset? EstimatedCompletionAt { get; init; }
 
         /// <summary>Ban chup tien do cuoi cua du an da dong va da don du lieu van hanh.</summary>

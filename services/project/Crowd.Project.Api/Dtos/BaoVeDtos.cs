@@ -85,42 +85,6 @@ namespace Crowd.Project.Api.Dtos
         public IReadOnlyList<string>? Languages { get; init; }
     }
 
-    public sealed class RecommendedProjectResponse
-    {
-        public required Guid Id { get; init; }
-
-        public required string Name { get; init; }
-
-        public required string Modality { get; init; }
-
-        public required ProjectVisibility Visibility { get; init; }
-
-        /// <summary>Thuong cho mot nguoi lam dat ca du an.</summary>
-        public required long RewardVnd { get; init; }
-
-        public required int QuestionCount { get; init; }
-
-        public required IReadOnlyList<string> ToolKinds { get; init; }
-
-        public DateTimeOffset? Deadline { get; init; }
-
-        public required bool RequireEntranceTest { get; init; }
-
-        public required bool SensitiveContent { get; init; }
-
-        public required bool ConsentRequired { get; init; }
-
-        public required IReadOnlyList<string> Domains { get; init; }
-
-        public required IReadOnlyList<string> Languages { get; init; }
-
-        /// <summary>Diem phu hop: loai du lieu +3, moi linh vuc trung +2, moi ngon ngu trung +2.</summary>
-        public required int Score { get; init; }
-
-        /// <summary>Ly do goi y: modality | domain:{x} | language:{x}.</summary>
-        public required IReadOnlyList<string> Reasons { get; init; }
-    }
-
     // ---- Loi moi cho ----
 
     public sealed class InvitationResponse

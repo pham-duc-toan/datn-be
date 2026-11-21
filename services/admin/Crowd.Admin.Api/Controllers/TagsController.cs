@@ -77,10 +77,13 @@ namespace Crowd.Admin.Api.Controllers
         }
     }
 
-    /// <summary>Danh muc the cho MOI nguoi dang nhap — o chon linh vuc / ngon ngu cua ho so va du an.</summary>
+    /// <summary>
+    /// Danh muc the CONG KHAI — o chon so thich luc dang ky (chua dang nhap, kien truc 3.38) va linh vuc / ngon ngu cua
+    /// du an. Khong chua du lieu nguoi dung nen khong can dang nhap.
+    /// </summary>
     [ApiController]
     [Route("tags")]
-    [Authorize]
+    [AllowAnonymous]
     public sealed class TagsController : ControllerBase
     {
         private readonly TheChuDeService _the;

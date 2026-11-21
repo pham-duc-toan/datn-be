@@ -12,7 +12,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `user.registered` | (admin ghi audit) | notification KHONG nghe nua (3.32): dia chi lien lac + vai tro doc view `v_contacts` cua identity luc gui. (ledger / project KHONG con nghe: trang thai xac thuc email di theo claim `email_verified` cua access token; link hoi `POST /internal/users/lookup` lay `registeredAt` luc nhan ma gioi thieu) |
+| `user.registered` **v2** | reco, (admin ghi audit) | **v2 (3.39):** them `Domains`, `Languages`, `Modalities` — the so thich labeler chon MOT LAN luc dang ky (da chuan hoa); reco-svc dung lam so khoi dau bo dem so thich (a 2, b 0). notification KHONG nghe nua (3.32): dia chi lien lac + vai tro doc view `v_contacts` cua identity luc gui. (ledger / project KHONG con nghe: trang thai xac thuc email di theo claim `email_verified` cua access token; link hoi `POST /internal/users/lookup` lay `registeredAt` luc nhan ma gioi thieu) |
 | `user.email_verification_requested` | notification | FC-01: gui email chua link `{frontend_url}/xac-thuc-email?token=...` (email giao dich, khong qua tuy chon) |
 | `user.password_reset_requested` | notification | FC-03: gui link `{frontend_url}/dat-lai-mat-khau?token=...` |
 | `user.email_verified` | — | FC-01. Khong con consumer: ledger (rut tien) va project (publish) doc claim `email_verified` trong access token; client lam moi token sau khi xac thuc. Event van phat de audit |
@@ -34,16 +34,17 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | Event | Consumer | Muc dich |
 |---|---|---|
 | `project.publish_requested` | ledger, admin | **Saga buoc 1** — yeu cau ky quy (2.11). `projectName`: admin dat lam tieu de muc cho duyet; ledger KHONG chep nua (3.24) — hoi ten qua gRPC `LedgerData` luc xuat hoa don. admin: muc `project` trang thai `waiting` (cho ky quy) |
-| `project.published` **v2** | ledger, notification, ml | Du an lam trung tam (kien truc 3.18): `RewardVnd` / `PlatformFeeVnd` MOI SUAT, `Slots`, `PassThresholdPercent` (t), `FillSlotsMinPercent` (lap suat trong, khong bat buoc), `QuestionCount`, kenh, `GateUnitPriceVnd` / `GatePlatformFeeVnd` / `GateBudgetVnd` (cong link). project-svc mo dot thu bai ngay trong transaction duyet (khong qua event); ledger: chot dieu khoan tra thuong (chan vuot so suat). gate KHONG nghe nua (3.32): doc view `v_gate_projects`. quality KHONG nghe nua (3.22): tap nhan / nguong doc qua gRPC `QualityData.GetProject` luc cham |
+| `project.published` **v2** | ledger, notification, ml, reco | Du an lam trung tam (kien truc 3.18): `RewardVnd` / `PlatformFeeVnd` MOI SUAT, `Slots`, `PassThresholdPercent` (t), `FillSlotsMinPercent` (lap suat trong, khong bat buoc), `QuestionCount`, kenh, `GateUnitPriceVnd` / `GatePlatformFeeVnd` / `GateBudgetVnd` (cong link). project-svc mo dot thu bai ngay trong transaction duyet (khong qua event); ledger: chot dieu khoan tra thuong (chan vuot so suat). gate KHONG nghe nua (3.32): doc view `v_gate_projects`. quality KHONG nghe nua (3.22): tap nhan / nguong doc qua gRPC `QualityData.GetProject` luc cham |
 | ~~`project.finish_requested`~~ | — | **DA BO (gop service)**: ket thuc som dong thu bai ngay trong project-svc, phat thang `project.collection_finished` (`ket_thuc_som`) |
-| `project.paused` / `project.resumed` | (admin ghi audit) | gate KHONG nghe nua (3.32): trang thai doc qua view `v_gate_projects`. Phan lam bai ghi ngay trong project-svc (`project_collections.paused_at`, chay tiep thi cong bu thoi gian cho bai dang lam) |
+| `project.paused` / `project.resumed` | (admin ghi audit), reco | gate KHONG nghe nua (3.32): trang thai doc qua view `v_gate_projects`. Phan lam bai ghi ngay trong project-svc (`project_collections.paused_at`, chay tiep thi cong bu thoi gian cho bai dang lam) |
 | `project.cancelled` **v2** | ledger, quality, notification | Chi khi CHUA co bai nop (khong con `ApprovedAnnotationCount`) — huy bai dang lam + hoan TOAN BO ky quy; bao doanh nghiep neu da ky quy. quality: moc bat dau dem `project.closed_data_retention` (don du lieu van hanh). gate tu bo du an khoi bo nho khi view khong con tra ve |
 | `project.grading_applied` | identity | 3.24: project-svc DA GHI ket qua cham (`project.graded`) vao bai lam — `ApprovedLabelerIds` = labeler co bai dat. identity xep vao hang cho `level_dirty`, worker doc so cau qua gRPC roi tinh cap. Tach khoi `project.graded` vi luc quality phat event do project-svc co the chua ghi, tong doc ve se thieu du an vua cham |
 | `project.completed` **v2** | ledger, quality, notification | `PassedAttemptCount` = so bai dat cuoi cung: ledger tra du so bai do roi hoan phan con lai (con thieu → `Closing`, NC-B-01). quality: moc bat dau dem `project.closed_data_retention`. gate tu bo du an khoi bo nho khi view khong con tra ve |
 | `samples.ingested` v2 | media | media cat san HLS tung doan mau cua video (chi phat cho video; moi event la MOT file + cac doan cat cua no; `watermarkText` = chu dung chung in phan giua, 3.37) (ghi MinIO). gate KHONG nghe: doc mau + cau vang qua view `v_gate_samples` / `v_gate_gold` cua project (3.32) |
 | ~~`gold_set.updated`~~ | — | **DA BO (3.23)**: chi gate nghe; gate keo cau vang qua gRPC luc publish (cau vang khoa tu luc roi Draft) |
 | `video.prepared` (media phat) | project | media-svc cat xong HLS moi doan mau cua mot FILE video (`succeeded`, `error`). project ghi `samples.media_state`; con video dang chuan bi thi chua publish / duyet |
-| `member.added` / `member.blocked` / `member.unblocked` / `member.removed` | admin (audit) | Phan lam bai / nhan doc thang `project_members` (cung database) nen khong con ban sao `*_members_cache`; event van phat de audit |
+| `member.added` / `member.blocked` / `member.unblocked` / `member.removed` | admin (audit), reco | Phan lam bai / nhan doc thang `project_members` (cung database) nen khong con ban sao `*_members_cache`; event van phat de audit. reco-svc (3.39): cap nhat tap loai tru / du an rieng tu duoc thay cua labeler trong Redis |
+| `owner_blocklist.changed` | reco | 3.39: doanh nghiep chan / bo chan labeler O CAP DOANH NGHIEP (ap ca du an labeler chua tham gia nen khong co `member.blocked`) → reco an / hien moi du an cua doanh nghiep do voi labeler |
 | `member.added` (them `via`, `projectName`, khong bat buoc) | notification | `via = owner_invite`: bao nguoi duoc chu du an moi. Cac duong khac (`invite_code`, `join`, `entrance_test`, `join_request`) khong bao — nguoi do tu bam, don duoc duyet bao qua `join_request.decided`. Ban tin cu khong co `via` → khong bao |
 | `project.invitation_created` | notification | Loi moi vao du an: `userId` co → thong bao + email theo tuy chon; `userId` null (email chua co tai khoan) → email giao dich kem link dang ky `…/dang-ky?email=&invitation=` |
 | `join_request.decided` (`reason = "het_han"`) | notification | Don xin tham gia qua `project.join_request_ttl` tu het han — bao labeler "don da het han" |
@@ -55,8 +56,10 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `attempt.submitted` **v2** | quality | 3.18: labeler nop CA BAI; nhan `submitted` da ghi cung transaction trong project-svc. **v2 (3.22): chi la TIN HIEU** — bo `Answers` (cau tra loi + noi dung mau), them `AnsweredCount`; cau vang chi mang `GoldCorrect` / `GoldTotal`. quality: xep bai vao `pending_attempts`, worker doc bai + nhan qua gRPC de chong gian lan (FM-07: giay / cau, chuoi cung lop, chung IP / thiet bi) va nhung cau tra loi mo; danh dau du an can tinh lai DS |
-| `project.collection_finished` | quality | 3.18: dong thu bai (`du_suat` / `het_han` / `ket_thuc_som`), danh sach bai phai cham + cau bi loai (bao loi duoc chap nhan). Running → Grading cung transaction. quality (3.22): ghi yeu cau cham roi doc de bai / bai nop / nhan qua gRPC — moi bai da commit truoc event nay; project-svc khong tra loi thi worker cham lai |
+| `attempt.started` | reco | 3.39: labeler BAT DAU mot bai moi (mo lai bai dang lam khong phat). reco: hanh vi "bat dau" (a + 0,2) + nhan "co bat dau" cho mo hinh P(bat dau \| thay the) |
+| `attempt.abandoned` | reco | 3.39: bai dang lam ket thuc khong nop do CHINH labeler — `tu_bo` hoac `het_gio` (bai huy vi du an dong / bi chan KHONG phat). reco: b + 0,5 |
+| `attempt.submitted` **v2** | quality, reco | 3.18: labeler nop CA BAI; nhan `submitted` da ghi cung transaction trong project-svc. **v2 (3.22): chi la TIN HIEU** — bo `Answers` (cau tra loi + noi dung mau), them `AnsweredCount`; cau vang chi mang `GoldCorrect` / `GoldTotal`. quality: xep bai vao `pending_attempts`, worker doc bai + nhan qua gRPC de chong gian lan (FM-07: giay / cau, chuoi cung lop, chung IP / thiet bi) va nhung cau tra loi mo; danh dau du an can tinh lai DS. reco (3.39): loai du an khoi feed cua nguoi nop + hanh vi "nop" (a + 0,5) |
+| `project.collection_finished` | quality, reco | 3.18: dong thu bai (`het_han` / `ket_thuc_som`; `du_suat` da bo — 3.38), danh sach bai phai cham + cau bi loai (bao loi duoc chap nhan). Running → Grading cung transaction. quality (3.22): ghi yeu cau cham roi doc de bai / bai nop / nhan qua gRPC — moi bai da commit truoc event nay; project-svc khong tra loi thi worker cham lai |
 | `attempt.appeal_opened` | admin | 3.18: labeler truot khieu nai CA BAI (admin ghi audit; phan xu o `GET /tasks/admin/appeals` — 3.33) |
 | `attempt.appeal_resolved` | ledger, identity, notification, admin | Admin phan xu. `Accepted`: nhan cua bai vao ket qua (ngay trong project-svc), tra thuong, cong cap do (`AnsweredCount`); dong muc hang doi |
 | ~~`project.settled`~~ | — | **DA BO (gop service)**: het han khieu nai → project-svc chot va chuyen Completed cung transaction, phat thang `project.completed` |
@@ -72,7 +75,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 
 | Event | Consumer | Muc dich |
 |---|---|---|
-| `project.graded` **v2** | project, ledger, notification | 3.18: cham MOT lan ca du an. v2 them `OwnerId` (notification bao chu du an ma khong can ban sao). Moi bai: `ComparableCount`, `MatchedCount`, `AgreementPercent`, cau vang, `Passed` (= % >= t VA dung het cau vang), `AnsweredCount`; `MajorityUsed = false` khi < 3 bai (chi xet cau vang). ledger: tra thuong bai dat; project: ghi ket qua bai + nhan Accepted / Excluded |
+| `project.graded` **v2** | project, ledger, notification, reco | 3.18: cham MOT lan ca du an. v2 them `OwnerId` (notification bao chu du an ma khong can ban sao). Moi bai: `ComparableCount`, `MatchedCount`, `AgreementPercent`, cau vang, `Passed` (= % >= t VA dung het cau vang), `AnsweredCount`; `MajorityUsed = false` khi < 3 bai (chi xet cau vang). ledger: tra thuong bai dat; project: ghi ket qua bai + nhan Accepted / Excluded. reco (3.39): dat / truot cong vao so thich + bo dem dat theo cong cu (nhan P(dat) cho mo hinh) |
 | ~~`consensus.reached`~~, ~~`redundancy.increase_requested`~~ | — | **DA BO (3.18)**: khong con dong thuan theo task / redundancy thich ung |
 | `reputation.changed` | identity | Uy tin 0-100 = cau vang + ti le cau giong da so (cong don qua cac bai da cham) / do tin cay Dawid-Skene. Tu 3.32 identity chi dung lam TIN HIEU tinh lai cap — diem doc view `v_reputations` cua quality |
 | `dispute.detected` | project, admin | *(chua lam)* Day len reviewer cap cao |
@@ -93,6 +96,14 @@ project phuc vu [project/v1/labeler_stats.proto](../grpc/project/v1/labeler_stat
 bang xep hang) va [project/v1/ledger_data.proto](../grpc/project/v1/ledger_data.proto) (ledger: ten du an in hoa don);
 quality phuc vu [quality/v1/label_aggregation.proto](../grpc/quality/v1/label_aggregation.proto) (project: gop nhan giao
 doanh nghiep — thuat toan gop chi con o quality). Stub Python sinh san o `services/quality/app/grpc_gen` (`sinh_grpc.py`), C# sinh luc build.
+
+## reco-svc  *(goi y du an — kien truc 3.39)*
+
+reco-svc KHONG phat event. Nghe: `user.registered` v2, `attempt.started` / `attempt.submitted` / `attempt.abandoned`, `project.graded`,
+`member.*`, `owner_blocklist.changed`, va `project.published` / `project.paused` / `project.resumed` / `project.cancelled` /
+`project.collection_finished` (chi de nap lai bo nho du an NGAY, khong doi chu ky 30 giay). Hanh vi frontend (hien the / mo / khong
+quan tam) di qua `POST /reco/events` → Redis Stream noi bo, khong qua RabbitMQ. Ket qua hoc may (ml-svc) di qua file + manifest tren
+MinIO, khong phai event.
 
 ## ml-svc  *(Python)*
 

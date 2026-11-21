@@ -31,6 +31,39 @@ namespace Crowd.BuildingBlocks.Auth.Jwt
         public const string IdentityVerified = "identity_verified";
         public const string Adult = "adult";
 
+        /// <summary>
+        /// Cap do (identity) va diem uy tin 0-100 (quality, identity doc view v_reputations) TAI LUC PHAT token — kien
+        /// truc 3.39. Chi dung de GOI Y (reco-svc loc du an chua du dieu kien ma khong hoi identity moi request); co the
+        /// cu toi het doi token. Noi QUYET DINH (bat dau lam bai) van hoi identity, khong tin claim nay.
+        /// Khong co claim reputation = chua co diem.
+        /// </summary>
+        public const string Level = "level";
+        public const string Reputation = "reputation";
+
+        /// <summary>Cap do trong token; token cu khong co claim → 1.</summary>
+        public static int CapDo(ClaimsPrincipal user)
+        {
+            if (user == null)
+            {
+                throw new ArgumentNullException(nameof(user));
+            }
+
+            int cap;
+            return int.TryParse(user.FindFirstValue(Level), out cap) ? cap : 1;
+        }
+
+        /// <summary>Diem uy tin trong token; null = chua co diem.</summary>
+        public static int? UyTin(ClaimsPrincipal user)
+        {
+            if (user == null)
+            {
+                throw new ArgumentNullException(nameof(user));
+            }
+
+            int diem;
+            return int.TryParse(user.FindFirstValue(Reputation), out diem) ? diem : null;
+        }
+
         public static bool DaXacThucEmail(ClaimsPrincipal user)
         {
             return LaTrue(user, EmailVerified);

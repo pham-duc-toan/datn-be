@@ -3,6 +3,8 @@
 # Mo hinh tai SAN luc build vao /models: container chay khong can Internet, khoi dong chi mat thoi gian nap.
 FROM python:3.12-slim
 WORKDIR /srv/services/ml
+# LightGBM can thu vien OpenMP (libgomp) luc chay.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
 COPY services/ml/requirements.txt .
 RUN --mount=type=cache,id=pip,target=/root/.cache/pip pip install -r requirements.txt
 ARG ML_MODEL_NAME=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2

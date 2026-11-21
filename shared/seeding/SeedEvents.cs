@@ -138,7 +138,8 @@ namespace Crowd.Seeding
             return new ProjectCollectionFinished
             {
                 ProjectId = p.Id,
-                Reason = ds.Count >= p.Slots ? "du_suat" : "het_han",
+                // Han chot cua du an seed con o tuong lai → da dong thu bai nghia la chu du an ket thuc som (3.38).
+                Reason = "ket_thuc_som",
                 Attempts = ds,
                 ExcludedSampleIds = Array.Empty<Guid>(),
                 FinishedAt = bayGio - p.GradedAgo.Value,

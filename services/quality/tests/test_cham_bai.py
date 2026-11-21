@@ -1,4 +1,6 @@
-"""So suat = so nguoi duoc thuong: n bai DAT nop som nhat (danh sach bai da xep theo luc nop)."""
+"""So suat = so nguoi duoc thuong: n bai DAT giong da so nhat, cung % thi nop som hon (kien truc 3.38).
+
+Danh sach bai truyen vao da xep theo luc nop (som truoc)."""
 
 from app import cham
 
@@ -7,9 +9,16 @@ def _bai(ma: str, dat: bool) -> cham.KetQuaBai:
     return cham.KetQuaBai(ma, "l-" + ma, 10, 9 if dat else 3, 90 if dat else 30, 0, 0, dat, 10)
 
 
-def test_n_bai_dat_nop_som_nhat_duoc_thuong():
+def test_cung_phan_tram_thi_bai_nop_som_hon_duoc_thuong():
     bai = [_bai("a", True), _bai("b", False), _bai("c", True), _bai("d", True), _bai("e", True)]
     assert cham.chon_duoc_thuong(bai, 3) == {"a", "c", "d"}
+
+
+def test_bai_nop_muon_nhung_giong_da_so_hon_van_duoc_thuong():
+    # Khong gioi han nguoi lam: e nop cuoi nhung 100% → lay suat cua bai dat thap nhat (b 80%).
+    bai = [_bai_pt("a", 90, dat=True), _bai_pt("b", 80, dat=True), _bai_pt("c", 95, dat=True), _bai_pt("d", 40),
+           _bai_pt("e", 100, dat=True)]
+    assert cham.chon_duoc_thuong(bai, 3) == {"e", "c", "a"}
 
 
 def test_it_bai_dat_hon_so_suat_thi_moi_bai_dat_deu_duoc_thuong():

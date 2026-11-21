@@ -17,7 +17,8 @@ namespace Crowd.Identity.Api.Entities
         /// </summary>
         private List<string> _roles;
 
-        // Ho so ky nang (FL-01) — private, chi doi qua CapNhatKyNang (co kiem gioi han).
+        // So thich (FL-01, kien truc 3.38) — chon MOT LAN luc dang ky qua CapNhatKyNang (co kiem gioi han), sau do
+        // khong sua qua API; goi y hoc tu hanh vi. Admin gop the van doi ma (DoiMaThe).
         private List<string> _domains;
         private List<string> _languages;
         private List<string> _modalities;

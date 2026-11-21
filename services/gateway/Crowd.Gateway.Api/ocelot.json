@@ -37,6 +37,26 @@
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {
+      // reco-svc (kien truc 3.39): feed cho du an ca nhan hoa. Priority cao hon /projects/{everything} (project-svc).
+      // reco-svc sap thi frontend tu chuyen sang GET /projects/market cua project-svc.
+      "UpstreamPathTemplate": "/projects/feed",
+      "UpstreamHttpMethod": ["Get"],
+      "DownstreamPathTemplate": "/projects/feed",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8112 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] },
+      "Priority": 2
+    },
+    {
+      // reco-svc: frontend gui theo lo luot hien the / mo / "khong quan tam".
+      "UpstreamPathTemplate": "/reco/{everything}",
+      "UpstreamHttpMethod": ["Get", "Post"],
+      "DownstreamPathTemplate": "/reco/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8112 }],
+      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+    },
+    {
       "UpstreamPathTemplate": "/projects/{everything}",
       // Patch: PATCH /projects/{id} — sua cau hinh du an theo nhom.
       "UpstreamHttpMethod": ["Get", "Post", "Put", "Patch", "Delete"],
@@ -141,13 +161,13 @@
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {
-      // admin-svc: danh mục thẻ lĩnh vực / ngôn ngữ — ô chọn của hồ sơ kỹ năng và dự án.
+      // admin-svc: danh mục thẻ lĩnh vực / ngôn ngữ — ô chọn sở thích lúc đăng ký (chưa đăng nhập, 3.38) và của dự án.
+      // Không cần đăng nhập: danh mục công khai, không chứa dữ liệu người dùng.
       "UpstreamPathTemplate": "/tags",
       "UpstreamHttpMethod": ["Get"],
       "DownstreamPathTemplate": "/tags",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8111 }],
-      "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8111 }]
     },
     {
       "UpstreamPathTemplate": "/templates/{everything}",

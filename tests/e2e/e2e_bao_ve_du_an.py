@@ -48,7 +48,7 @@ try:
     r = requests.post(G + "/projects", headers=biz["h"], json={"name": f"[e2e] gia {TAG}", "description": "x", "modality": "text", "visibility": "public"})
     p0 = r.json()["id"]
     gia = lambda thuong: requests.patch(G + f"/projects/{p0}", headers=biz["h"], json={"pricing": {
-        "rewardVnd": thuong, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}})
+        "rewardVnd": thuong, "slots": 3, "passThresholdPercent": 60, "deadline": HAN_CHOT}})
     r = gia(15000)
     kiem("thuong 15.000 < toi thieu 20.000 → bi chan (luu hoac checklist)",
          (r.status_code == 400 and "thuong" in r.text) or "thuong_duoi_toi_thieu" in requests.get(G + f"/projects/{p0}/readiness", headers=biz["h"]).json()["missing"], r.text)
@@ -160,7 +160,9 @@ try:
     kiem("l2 vao du an KHAC cua doanh nghiep → 409 bi_chan_boi_doanh_nghiep", r.status_code == 409 and "bi_chan_boi_doanh_nghiep" in r.text, r.text)
     r = requests.post(G + f"/projects/{R}/members/batch", headers=biz["h"], json={"role": "labeler", "userIds": [l2["id"]]})
     kiem("moi l2 → bi_chan_boi_doanh_nghiep", r.json()["results"][0]["status"] == "bi_chan_boi_doanh_nghiep", r.text)
-    kiem("goi y khong co du an cua doanh nghiep da chan", all(x["id"] not in (Q, R) for x in requests.get(G + "/projects/recommended?limit=50", headers=l2["h"]).json()))
+    nap_lai_goi_y()
+    kiem("goi y (feed) khong co du an cua doanh nghiep da chan",
+         cho(lambda: not ({Q, R} & goi_y(l2)), 20), goi_y(l2) & {Q, R})
     r = requests.put(G + f"/projects/labeler-lists/{l2['id']}", headers=biz["h"], json={"kind": "preferred"})
     kiem("doi sang uu tien → mo lai o Q", r.json()["affectedProjects"] == 1 and thanh_vien(biz, Q)[l2["id"]]["state"] == "active", r.text)
 
@@ -188,13 +190,15 @@ try:
 
     # =================================================================================
     print("\n[7] FL-02 goi y du an")
-    ky = dang_ky(["labeler"], "bv-ky")
-    requests.put(G + "/me/skills", headers=ky["h"], json={"domains": ["Y te"], "languages": ["vi"], "modalities": ["text"]}).raise_for_status()
+    # 3.38: so thich chon luc dang ky (khong con PUT /me/skills).
+    ky = dang_ky(["labeler"], "bv-ky", so_thich={"domains": ["Y te"], "languages": ["vi"], "modalities": ["text"]})
     requests.patch(G + f"/projects/{R}", headers=biz["h"], json={"tags": {"domains": ["y te", "giao thong"], "languages": ["vi"]}}).raise_for_status()
-    g = requests.get(G + "/projects/recommended?limit=50", headers=ky["h"]).json()
+    nap_lai_goi_y()  # the linh vuc vua doi — khong doi chu ky 30 giay
+    g = feed(ky)[0]
     rr = [x for x in g if x["id"] == R]
-    kiem("du an R duoc goi y voi diem 7 (text +3, y te +2, vi +2)", rr and rr[0]["score"] == 7 and "domain:y-te" in rr[0]["reasons"], rr)
-    kiem("du an diem cao xep truoc", g and g[0]["score"] >= (rr[0]["score"] if rr else 0), [x["score"] for x in g][:5])
+    kiem("du an R duoc goi y, ly do hop so thich (the chon luc dang ky: y te, vi, text)",
+         rr and "hop_so_thich" in rr[0]["reasons"], rr and rr[0]["reasons"])
+    kiem("the feed khong lo so nguoi lam", rr and not {"submitted", "inProgress", "submittedCount", "participants"} & set(rr[0]), rr and list(rr[0]))
     kiem("du an nhay cam KHONG goi y cho nguoi chua xac minh", all(x["id"] != P for x in g))
 
     # =================================================================================

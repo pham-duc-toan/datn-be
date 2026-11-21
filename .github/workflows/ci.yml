@@ -36,6 +36,7 @@ jobs:
           cache-dependency-path: |
             services/quality/requirements.txt
             services/media/requirements.txt
+            services/ml/requirements.txt
 
       - name: Unit test quality-svc (Python)
         working-directory: services/quality
@@ -45,6 +46,12 @@ jobs:
 
       - name: Unit test media-svc (Python)
         working-directory: services/media
+        run: |
+          pip install -r requirements.txt
+          python -m pytest -q
+
+      - name: Unit test ml-svc (Python) — nhung cau + hoc mo hinh goi y (logistic / LightGBM, kien truc 3.39)
+        working-directory: services/ml
         run: |
           pip install -r requirements.txt
           python -m pytest -q

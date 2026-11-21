@@ -74,7 +74,7 @@ namespace Crowd.Project.Api.Services
         /// project.collection_finished kem danh sach bai DA NOP va mau bi loai giua chung. Da dong roi → false.
         /// </summary>
         /// <param name="dot">Dot thu bai DA KHOA FOR UPDATE.</param>
-        /// <param name="lyDo">du_suat | het_han | ket_thuc_som</param>
+        /// <param name="lyDo">het_han | ket_thuc_som</param>
         public async Task<bool> DongThuBaiAsync(CollectionRound dot, string lyDo, DateTimeOffset luc, Caller caller, CancellationToken ct)
         {
             if (dot == null)

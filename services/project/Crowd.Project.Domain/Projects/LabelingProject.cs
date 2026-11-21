@@ -39,6 +39,7 @@ namespace Crowd.Project.Domain.Projects
             Description = string.Empty;
             _domains = new List<string>();
             _languages = new List<string>();
+            PreviewEnabled = true;
         }
 
         public Guid Id { get; private set; }
@@ -181,6 +182,66 @@ namespace Crowd.Project.Domain.Projects
         public IReadOnlyList<string> Languages
         {
             get { return _languages; }
+        }
+
+        // ---- Mau xem truoc tren cho du an (P1, kien truc 3.39) ----
+
+        /// <summary>
+        /// Doanh nghiep CHO PHEP hien mau xem truoc tren the cho du an (mac dinh bat). He thong tu lay MOT mau that (khong
+        /// phai cau vang) — khong chon tay. Du an NDA / noi dung nhay cam / rieng tu KHONG BAO GIO hien mau du co nay bat
+        /// (view v_reco_preview_samples loc lai lan nua). Cau hoi + cong cu luon hien (trang chi tiet du an da cong khai).
+        /// </summary>
+        public bool PreviewEnabled { get; private set; }
+
+        /// <summary>Du an co duoc phep hien mau xem truoc khong (null = duoc; khac null = ma ly do).</summary>
+        public string? LyDoKhongChoXemTruoc()
+        {
+            if (NdaRequired)
+            {
+                return "xem_truoc_khi_co_nda";
+            }
+
+            if (SensitiveContent)
+            {
+                return "xem_truoc_noi_dung_nhay_cam";
+            }
+
+            if (Visibility == ProjectVisibility.Private)
+            {
+                return "xem_truoc_du_an_rieng_tu";
+            }
+
+            return null;
+        }
+
+        /// <summary>Mau xem truoc THAT SU hien tren the cho: doanh nghiep bat va du an duoc phep.</summary>
+        public bool HienMauXemTruoc()
+        {
+            return PreviewEnabled && LyDoKhongChoXemTruoc() == null;
+        }
+
+        /// <summary>
+        /// Bat / tat mau xem truoc — doi duoc bat cu luc nao truoc khi du an ket thuc (khong phai luat cua labeler nen khong
+        /// bi khoa sau publish). Bat khi du an co NDA / nhay cam / rieng tu → loi kem ly do.
+        /// </summary>
+        public void DatXemTruoc(bool bat, DateTimeOffset luc)
+        {
+            if (Status == ProjectStatus.Completed || Status == ProjectStatus.Cancelled)
+            {
+                throw new RuleViolationException("du_an_da_ket_thuc", "Dự án đã kết thúc, không đổi xem trước được nữa.");
+            }
+
+            if (bat)
+            {
+                string? lyDo = LyDoKhongChoXemTruoc();
+                if (lyDo != null)
+                {
+                    throw new InvalidValueException(lyDo, "Dự án có NDA, nội dung nhạy cảm hoặc riêng tư không cho xem trước mẫu.");
+                }
+            }
+
+            PreviewEnabled = bat;
+            UpdatedAt = luc;
         }
 
         // ---- Dau vet vong doi ----
@@ -348,6 +409,13 @@ namespace Crowd.Project.Domain.Projects
             if (deadline <= luc)
             {
                 throw new InvalidValueException("deadline_da_qua", "Hạn chót phải ở tương lai.");
+            }
+
+            if (HanChotQuaXa(deadline, luc, quyDinh))
+            {
+                throw new InvalidValueException(
+                    "han_chot_qua_xa",
+                    "Hạn chót tối đa " + quyDinh.HanChotToiDaNgay + " ngày kể từ hôm nay.");
             }
 
             RewardVnd = rewardVnd;
@@ -792,6 +860,12 @@ namespace Crowd.Project.Domain.Projects
                 if (Deadline.Value <= luc)
                 {
                     thieu.Add("deadline_da_qua");
+                }
+
+                // Han dat luc nhap da kiem, nhung publish co the muon hon nhieu ngay → kiem lai tu luc publish.
+                if (HanChotQuaXa(Deadline.Value, luc, quyDinh))
+                {
+                    thieu.Add("han_chot_qua_xa");
                 }
 
                 // Admin doi gioi han sau khi doanh nghiep cau hinh → chan publish, doanh nghiep sua lai.
@@ -1254,6 +1328,12 @@ namespace Crowd.Project.Domain.Projects
         private void ChiKhiNhap(string hanhDong)
         {
             ChiKhi(ProjectStatus.Draft, hanhDong);
+        }
+
+        /// <summary>Han chot vuot tran project.max_duration_days tinh tu <paramref name="luc"/> (0 = khong gioi han).</summary>
+        private static bool HanChotQuaXa(DateTimeOffset deadline, DateTimeOffset luc, QuyDinhDuAn quyDinh)
+        {
+            return quyDinh.HanChotToiDaNgay > 0 && deadline > luc.AddDays(quyDinh.HanChotToiDaNgay);
         }
 
         private void ChiKhi(ProjectStatus canCo, string hanhDong)

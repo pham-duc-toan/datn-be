@@ -43,6 +43,15 @@ async def mo_hinh(request: Request, x_internal_key: str | None = Header(default=
     return {"model": mh.ten, "ready": mh.san_sang()}
 
 
+@router.post("/internal/reco/train")
+async def hoc_goi_y(x_internal_key: str | None = Header(default=None)):
+    """Chay NGAY mot lan hoc mo hinh goi y (doi ky thuat, E2E) — binh thuong worker chay moi dem."""
+    if not _dung_khoa(x_internal_key):
+        return _loi(404, "khong_tim_thay", "Not Found")
+    from app import reco_job
+    return await asyncio.to_thread(reco_job.chay_mot_lan, settings())
+
+
 @router.post("/internal/embeddings")
 async def nhung(body: YeuCauNhung, request: Request, x_internal_key: str | None = Header(default=None)):
     if not _dung_khoa(x_internal_key):

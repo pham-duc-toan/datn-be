@@ -85,7 +85,8 @@ Mục lục:
 
 ```http
 POST /auth/register
-{ "email": "a@b.com", "password": "toi-thieu-8-ky-tu", "displayName": "Nguyen Van A", "roles": ["labeler"] }
+{ "email": "a@b.com", "password": "toi-thieu-8-ky-tu", "displayName": "Nguyen Van A", "roles": ["labeler"],
+  "skills": { "domains": ["y-te"], "languages": ["vi"], "modalities": ["image"] } }   // skills: tuỳ chọn, chỉ labeler, ≤ 5 lĩnh vực / 3 ngôn ngữ
 → 201 { "userId": "..." }
 → 409 email_da_ton_tai
 → 400 ValidationProblemDetails (code du_lieu_khong_hop_le)
@@ -195,7 +196,7 @@ Lưu ý: mốc thu hồi tính theo **giây** — token cấp trong cùng giây 
 | Vai trò | Màn hình | API chính |
 |---|---|---|
 | Mọi vai trò | Xác thực email, quên / đổi mật khẩu, đăng xuất mọi nơi | `POST /auth/verify-email`, `POST /me/verify-email/resend`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `POST /me/password`, `POST /me/logout-all` (mục 2.4–2.6) |
-| | Hồ sơ, ảnh đại diện, kỹ năng | `GET/PUT /me/profile`, `POST /me/avatar/upload-url`, `PUT /me/avatar`, `PUT /me/skills`, `GET /users/public?ids=` (mục 15) |
+| | Hồ sơ, ảnh đại diện, kỹ năng | `GET/PUT /me/profile`, `POST /me/avatar/upload-url`, `PUT /me/avatar`, `GET /users/public?ids=` (sở thích chọn lúc đăng ký — `PUT /me/skills` đã bỏ, 3.38) (mục 15) |
 | | Chuông thông báo, tuỳ chọn email | `GET /notifications/me/unread-count`, `GET /notifications/me`, `POST /notifications/me/{id}/read`, `POST /notifications/me/read-all`, `GET/PUT /notifications/me/preferences` (mục 14) |
 | Doanh nghiệp | Hồ sơ doanh nghiệp (KYB) — **phải được duyệt mới publish được** | `GET/PUT /kyb/me`, `POST /kyb/me/license`, `POST /kyb/me/submit` (mục 13) |
 | | Ví, nạp tiền | `GET /ledger/me/balance`, `POST /payments/deposits`, `GET /payments/deposits/{id}` |
@@ -922,6 +923,26 @@ GET /ledger/disputes/mine?status=open|refundedBusiness|paidLabeler&page=1&pageSi
 ## 5. Labeler: nhận việc, gán nhãn, nhận tiền
 
 ### 5.1 Chợ dự án và tham gia
+
+**Feed "Dành cho bạn" (reco-svc, kiến trúc 3.39).**
+
+```http
+GET  /projects/feed?pageSize=10            lượt lướt MỚI (xếp lại từ đầu)
+GET  /projects/feed?pageSize=10&cursor=…   trang tiếp theo của cùng lượt
+GET  /projects/feed?order=newest&…         tab "Mới nhất": CÙNG dạng thẻ, dự án làm được ngay, publish mới nhất trước
+→ 200 { items: FeedCard[], nextCursor: string|null, requestId, sessionId }
+POST /reco/events  { events: [{ kind: "impression"|"open"|"not_interested", projectId, position, requestId, sessionId }] }
+```
+
+- `FeedCard`: `name`, `description`, `modality`, `rewardVnd`, `slots`, `questionCount`, `estimatedMinutes`, `deadline`, `toolKinds`, `domains`, `languages`, cờ điều kiện, `isNew`, `explore` (thẻ khám phá 1 / 10), `position`, `reasons` (`kiem_tot | hop_so_thich | hay_dat | lam_nhanh | moi | kham_pha`), `tools` (TOÀN BỘ công cụ: `name`, `kind`, `question`, `classes`), `previews` (tối đa 1 mẫu hệ thống tự lấy: `fileUrl` qua media-svc có watermark, `content` / `snippet` văn bản; rỗng khi doanh nghiệp tắt / NDA / nhạy cảm / riêng tư). **Không có số người đang làm / đã nộp.**
+- Danh sách của một lượt không đổi; dự án vừa mở tự chen vào đầu trang KẾ TIẾP (không có thông báo "có dự án mới"). Thẻ đã hiện mà dự án vừa đóng thì vẫn hiện — bấm vào mới báo ngừng nhận bài. Frontend lọc trùng id lần cuối.
+- Lượt hiện: IntersectionObserver ≥ 60 %, một lần mỗi dự án mỗi phiên, gửi theo lô (20 lượt hoặc 3 giây, và khi rời trang). "Không quan tâm" gửi ngay; dự án biến khỏi các trang sau.
+- Bố cục F3 kiểu TikTok, CẢ HAI tab: mỗi dự án một màn (scroll-snap dọc, phím ↑ ↓ / J K). Khung sáng chứa 1 mẫu + toàn bộ câu hỏi, công cụ; khung hẹp thêm hàng nút dọc (Bỏ qua, Chi tiết) và thông tin gọn, khung rộng hiện toàn bộ thông tin bên phải.
+- "Dành cho bạn" lỗi (5xx / 503 khi reco đang nạp) → mời chuyển tab "Mới nhất"; "Mới nhất" lỗi → dự phòng `GET /projects/market` (project-svc) hiện cùng kiểu thẻ nhưng không có mẫu / câu hỏi.
+
+**Xem như labeler (doanh nghiệp, 3.39).** Mẫu xem trước: hệ thống tự lấy 1 mẫu, doanh nghiệp chỉ gạt công tắc trong thẻ "Bảo vệ nội dung & NDA" → `PUT /projects/{id}/preview` `{ enabled }` → `{ enabled, blockedReason, showing }` (lưu ngay, đổi được khi đang chạy; bật khi có NDA / nhạy cảm / riêng tư → 400 `xem_truoc_khi_co_nda` / `xem_truoc_noi_dung_nhay_cam` / `xem_truoc_du_an_rieng_tu`). `Project` có `previewEnabled`, `previewBlockedReason`. `GET /projects/{id}/trial` → bài xem thử (mẫu thật + câu kiểm tra, định dạng như `Attempt.questions`, `previewSampleId` = mẫu hiện trên thẻ chợ), `POST /projects/{id}/trial/check` `{ answers }` → `{ goldTotal, goldCorrect, invalidAnswers, gold[{ sampleId, correct, expected }], wouldFailGold }`. Không ghi gì.
+
+**Danh sách và chi tiết.**
 
 ```http
 GET  /projects?status=running&page=1&pageSize=20   dự án công khai đang chạy + dự án mình đã tham gia
@@ -2486,14 +2507,12 @@ PUT /notifications/me/preferences   { "items": [ { "type": "du_an", "emailEnable
 ```http
 GET /me/profile
 → { "userId", "email", "emailVerified": true, "displayName": "Nguyen Van A", "bio": null,
-    "avatarUrl": "http://.../avatars/...?X-Amz-...", "roles": ["labeler"],
-    "skills": { "domains": ["Y te"], "languages": ["vi", "en"], "modalities": ["image", "text"] }, "createdAt" }
+    "avatarUrl": "http://.../avatars/...?X-Amz-...", "roles": ["labeler"], "createdAt" }
 PUT /me/profile   { "displayName": "...", "bio": "..." }      → hồ sơ sau khi lưu (ghi đè cả hai: luôn gửi displayName; bio null = xoá)
-PUT /me/skills    { "domains": [...], "languages": [...], "modalities": [...] }   → hồ sơ sau khi lưu (ghi đè cả ba)
 ```
 
 - `avatarUrl` là link ký **có hạn** — đừng lưu lại lâu, lấy lại khi tải trang.
-- Kỹ năng (FL-01): `modalities` ∈ `image`, `text`, `audio`, `video`, `pair`, `list`; `domains` / `languages` là chữ tự do (trùng nhau không phân biệt hoa thường thì gộp). Đổi tên hiển thị có hiệu lực trong token **từ lần đăng nhập / refresh sau**.
+- Sở thích (FL-01, 3.38): chọn **một lần** lúc đăng ký (`POST /auth/register` trường `skills`), hồ sơ không trả lại và không sửa được — gợi ý học từ hành vi. `modalities` ∈ `image`, `text`, `audio`, `video`, `pair`, `list`; `domains` / `languages` là mã thẻ (trùng nhau thì gộp). Đổi tên hiển thị có hiệu lực trong token **từ lần đăng nhập / refresh sau**.
 
 **Ảnh đại diện** — tải thẳng lên kho file như KYB:
 
@@ -2853,7 +2872,7 @@ PATCH /projects/{id}
 | Chất lượng | `GET /quality/projects/{id}/summary` → `attemptsSubmitted`, `attemptsGraded`, `attemptsPassed`, `attemptsFailed`, `collectionReason`, `gradedAt`, `majorityUsed`, `samplesEvaluated`, `agreed`, `disputed`, `notApplicable`, `goldAnswers`, `goldAccuracyPercent`, `tools[]`; `GET /quality/projects/{id}/labelers` → mỗi **bài**: `attemptId`, `labelCount` (đã trả lời) / `questionCount`, `agreementPercent`, `agreementSampleCount`, `matchedCount`, `passed`, câu vàng, DS / STAPLE, uy tín |
 | Chi phí | `GET /ledger/projects/{id}/cost` → `reservedVnd`, `balanceVnd`, `spentRewardsVnd`, `spentGateVnd`, `returnedVnd`, `slots`, `rewardPerAttemptVnd`, `platformFeePerAttemptVnd`, `paidAttempts`, `heldVnd`, `escrowState` (`active` / `closing` / `closed`) |
 
-`phase`: `open` (đang nhận bài) → `finished` (đóng thu bài, đang chấm) → `graded` (đã chấm, trong hạn khiếu nại) → `settled` (đã chốt). `finishReason`: `du_suat`, `het_han`, `ket_thuc_som`.
+`phase`: `open` (đang nhận bài) → `finished` (đóng thu bài, đang chấm) → `graded` (đã chấm, trong hạn khiếu nại) → `settled` (đã chốt). `finishReason`: `het_han`, `ket_thuc_som` (`du_suat` đã bỏ — 3.38).
 
 ### 18.3 Labeler: làm bài như bài kiểm tra
 
@@ -2910,7 +2929,7 @@ Công cụ `freeText` (payload `{"text": "..."}`) giờ được **chấm**: lú
 
 **Username.** `POST /auth/register` bắt buộc `username` (3–30 ký tự `a-z 0-9 . _`, không bắt đầu / kết thúc bằng `.` `_`, không trùng → 409 `username_da_ton_tai`). `POST /auth/login` nhận email **hoặc** username trong trường `email` (có `@` ở giữa = email). `GET/PUT /me/profile` có `username` (đổi được). `GET /users/public` và `/users/admin` trả `username`. Mời thành viên: `POST /projects/{id}/members/batch { role, usernames: ["@an", "binh"], emails }` (`userIds` vẫn nhận); kết quả có `username`. Tài khoản cũ được tự sinh username từ phần trước `@` của email.
 
-**Suất thưởng = số người được thưởng.** `slots` là số suất thưởng; tối đa `slots × participantMultiplier` người được làm (`readiness.limits.participantMultiplier`, setting `project.participant_multiplier`, mặc định 2; chụp vào dự án lúc publish). `GET /tasks/projects/{id}/slots` thêm `maxParticipants`, `available` = chỗ làm còn trống; `progress` thêm `maxParticipants`. Khi chấm, n bài **đạt** nộp sớm nhất được thưởng: `AttemptSummary.rewarded` (đạt mà `false` = hết suất thưởng), báo cáo chất lượng có `rewarded` từng bài và `attemptsRewarded`. Khiếu nại được chấp nhận chỉ có tiền khi còn suất.
+**Suất thưởng = số người được thưởng.** `slots` là số suất thưởng. **Từ 3.38 không giới hạn người làm**: thu bài đóng khi hết hạn chót (bắt buộc, tối đa `readiness.limits.maxDurationDays` ngày — setting `project.max_duration_days`; quá → 400 `han_chot_qua_xa`) hoặc chủ dự án kết thúc sớm. `GET /tasks/projects/{id}/slots` **không** có số người làm (đã bỏ `maxParticipants`, `inProgress`, `submitted`, `available`); `progress` (chủ dự án) bỏ `maxParticipants`, `estimatedCompletionAt` = hạn chót. Khi chấm, n bài **đạt giống đa số nhất** được thưởng (bằng nhau thì nộp sớm hơn): `AttemptSummary.rewarded` (đạt mà `false` = không lọt suất), báo cáo chất lượng có `rewarded` từng bài và `attemptsRewarded`. Khiếu nại được chấp nhận chỉ có tiền khi còn suất.
 
 **Mã mời + điều khoản.** `POST /projects/join-by-code/preview { code }` → `{ projectId, projectName, terms }` (không tốn lượt). Dự án có cảnh báo / NDA mà chưa đồng ý: gửi `POST /projects/join-by-code { code, consent: { acceptContentWarning, acceptNda, fullName } }` — đồng ý và vào trong một lần. Lời mời theo email vào dự án riêng tư: đọc `GET /projects/{id}/terms` (người được mời đọc được), `POST /projects/{id}/consent`, rồi `accept`.
 
@@ -2952,7 +2971,7 @@ PATCH /projects/{id}
 
 ## 22. Câu hỏi theo công cụ thay hướng dẫn (kiến trúc 3.34, 3.35)
 
-Mỗi công cụ labeler thấy đều có **câu hỏi**: dùng công cụ này để trả lời gì. Hướng dẫn Markdown của dự án (`guideline`, ví dụ đúng / sai) **đã bỏ**; câu hỏi chung của cả tập nhãn (`labelSchema.question`) và dòng nhắc (`tools[].hint`) cũng **đã bỏ** từ 3.35. Cách dùng công cụ do màn luyện tập dạy.
+Mỗi công cụ labeler thấy đều có **câu hỏi**: dùng công cụ này để trả lời gì. Hướng dẫn Markdown của dự án (`guideline`, ví dụ đúng / sai) **đã bỏ**; câu hỏi chung của cả tập nhãn (`labelSchema.question`) và dòng nhắc (`tools[].hint`) cũng **đã bỏ** từ 3.35. Cách dùng công cụ do tour trang làm bài giới thiệu (màn luyện tập trên câu ví dụ đã bỏ 11/2026).
 
 | Ở đâu | Trường | Luật |
 |---|---|---|
@@ -2972,4 +2991,4 @@ PUT   /projects/{id}/samples/{sampleId}/question   { "question": "Có bao nhiêu
 - Đã có câu vàng vẫn sửa được `tools[].question`; đổi công cụ / lớp thì vẫn `409 da_co_cau_hoi_vang`.
 - Câu hỏi của công cụ đi theo `labelSchema` (bài làm, bài test đầu vào, phiên cổng vượt link, mẫu bài toán). Ngữ cảnh riêng của mẫu: `questions[].question` của bài làm / bài test / phiên cổng, `sampleQuestion` của nhãn / kết quả gộp — **không** còn gộp với câu chung. Frontend hiện ngữ cảnh mẫu ở đầu câu (nếu có) và câu hỏi ngay trên từng công cụ.
 
-**Hướng dẫn kiểu game cho người tạo dự án** (tab Cấu hình): tour làm nổi từng vùng (tự mở lần đầu, nút "Xem lại hướng dẫn"), biểu tượng ⓘ cạnh mỗi thông số ("Tác dụng với dự án" / "Labeler thấy ở đâu"), nút "Xem như labeler" dựng thẻ dự án ở chợ + một câu trong bài từ cấu hình đang soạn. Labeler: màn luyện tập có thêm bước "đọc câu hỏi"; tour trang làm bài có điểm dừng "Câu hỏi của câu".
+**Hướng dẫn kiểu game cho người tạo dự án** (tab Cấu hình): tour làm nổi từng vùng (tự mở lần đầu, nút "Xem lại hướng dẫn"), biểu tượng ⓘ cạnh mỗi thông số ("Tác dụng với dự án" / "Labeler thấy ở đâu"), nút "Xem như labeler" dựng thẻ dự án ở chợ + một câu trong bài từ cấu hình đang soạn. Labeler: tour trang làm bài (tự mở lần đầu, nút "Xem lại hướng dẫn") có điểm dừng "Câu hỏi của câu"; màn luyện tập trên câu ví dụ đã bỏ (11/2026).

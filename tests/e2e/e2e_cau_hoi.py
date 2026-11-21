@@ -15,6 +15,7 @@ import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tro_giup import G, KQ, TAG, admin, bat_dau, cho, dang_ky, kiem, nap_mau, publish_va_duyet, sql, tham_gia, vi  # noqa: E402
+from tro_giup import HAN_CHOT  # noqa: E402
 
 CAU = "Cau nay mang sac thai gi?"
 
@@ -48,7 +49,7 @@ try:
     r = requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"labelSchema": {"modality": "text", "tools": [dict(TOOL, question=CAU), TOOL2]}})
     kiem("luu nhap duoc khi con cong cu chua co cau hoi", r.status_code == 200, r.text)
     requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
-                                                                      "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
+                                                                      "deadline": HAN_CHOT}}).raise_for_status()
     rdy = requests.get(G + f"/projects/{P}/readiness", headers=biz["h"]).json()
     kiem("cong cu thieu cau hoi → readiness bao chua_co_cau_hoi", "chua_co_cau_hoi" in rdy["missing"] and not rdy["ready"], rdy["missing"])
     kiem("readiness neu ten cong cu thieu cau hoi", rdy.get("toolsMissingQuestion") == ["y_kien"], rdy.get("toolsMissingQuestion"))

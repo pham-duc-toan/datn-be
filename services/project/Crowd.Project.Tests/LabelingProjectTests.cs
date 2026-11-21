@@ -177,6 +177,63 @@ namespace Crowd.Project.Tests
         }
 
         [Fact]
+        public void Han_chot_toi_da_kiem_luc_dat_gia_va_luc_publish()
+        {
+            // Mac dinh project.max_duration_days = 30 (khong gioi han nguoi lam nen thu bai chi dong khi het han — 3.38).
+            LabelingProject p = DuAnMoi();
+            InvalidValueException xa = Assert.Throws<InvalidValueException>(() =>
+                p.DatCauHinhGia(100000, 5, 80, Luc.AddDays(31), Luc, QuyDinhMau.DuAn));
+            Assert.Equal("han_chot_qua_xa", xa.Code);
+
+            // Dat dung 30 ngay roi de nhap 10 ngay moi publish: con 20 ngay nen van qua; han tinh lai tu luc publish.
+            LabelingProject sanSang = DuAnSanSang();
+            Assert.DoesNotContain("han_chot_qua_xa", sanSang.NhungGiConThieu(100, 0, false, QuyDinhMau.DuAn, null, Luc.AddDays(10)));
+
+            QuyDinhDuAn hep = new QuyDinhDuAn
+            {
+                DoDaiTenToiDa = 200,
+                DoDaiMoTaToiDa = 5000,
+                NguongDatToiThieu = 60,
+                NguongDatToiDa = 95,
+                SoCauToiDa = 500,
+                SoSuatToiThieu = 3,
+                SoSuatToiDa = 50,
+                SoCauTestMacDinh = 10,
+                NguongDauMacDinh = 80,
+                SoCauTestToiDa = 500,
+                HanChotToiDaNgay = 7,
+            };
+            Assert.Contains("han_chot_qua_xa", sanSang.NhungGiConThieu(100, 0, false, hep, null, Luc));
+        }
+
+        [Fact]
+        public void Xem_truoc_mac_dinh_bat_va_khong_hien_khi_nda_hoac_rieng_tu()
+        {
+            // P1 (kien truc 3.39): mac dinh bat; he thong tu lay mau. NDA / nhay cam / rieng tu thi khong hien du co bat.
+            LabelingProject p = DuAnSanSang();
+            Assert.True(p.PreviewEnabled);
+            Assert.True(p.HienMauXemTruoc());
+
+            p.DatXemTruoc(false, Luc);
+            Assert.False(p.HienMauXemTruoc());
+            p.DatXemTruoc(true, Luc);
+            Assert.True(p.HienMauXemTruoc());
+
+            // Bat NDA → khong hien nua (co van giu), bat lai khi con NDA → loi; tat thi luon duoc.
+            p.DatBaoVe(false, null, true, "Khong tiet lo du lieu.", false, Luc);
+            Assert.True(p.PreviewEnabled);
+            Assert.False(p.HienMauXemTruoc());
+            Assert.Equal("xem_truoc_khi_co_nda", Assert.Throws<InvalidValueException>(() => p.DatXemTruoc(true, Luc)).Code);
+            p.DatXemTruoc(false, Luc);
+            Assert.False(p.PreviewEnabled);
+
+            LabelingProject rieng = DuAnSanSang();
+            rieng.CapNhatThongTin("Rieng", "mo ta", ProjectVisibility.Private, Luc, QuyDinhMau.DuAn);
+            Assert.False(rieng.HienMauXemTruoc());
+            Assert.Equal("xem_truoc_du_an_rieng_tu", rieng.LyDoKhongChoXemTruoc());
+        }
+
+        [Fact]
         public void So_suat_va_thuong_toi_thieu()
         {
             LabelingProject p = DuAnMoi();

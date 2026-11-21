@@ -2,6 +2,13 @@
 # Cập nhật: UPDATE_CONTRACT_SNAPSHOT=1 dotnet test shared/test/contracts-tests
 # Mọi thay đổi trong file này là BREAKING CHANGE — xem VD-D-12.
 
+attempt.abandoned v1  (AttemptAbandoned)
+    AttemptId                Guid                 required
+    EndedAt                  DateTimeOffset       required
+    LabelerId                Guid                 required
+    ProjectId                Guid                 required
+    Reason                   String               required
+
 attempt.appeal_opened v1  (AttemptAppealOpened)
     AgreementPercent         Int32                required
     AttemptId                Guid                 required
@@ -18,6 +25,12 @@ attempt.appeal_resolved v1  (AttemptAppealResolved)
     Note                     String?              nullable
     ProjectId                Guid                 required
     Rewarded                 Boolean              required
+
+attempt.started v1  (AttemptStarted)
+    AttemptId                Guid                 required
+    LabelerId                Guid                 required
+    ProjectId                Guid                 required
+    StartedAt                DateTimeOffset       required
 
 attempt.submitted v2  (AttemptSubmitted)
     AnsweredCount            Int32                required
@@ -188,6 +201,11 @@ ops.dlq_alert v1  (OpsDlqAlert)
     Depth                    Int64                required
     Queue                    String               required
     Threshold                Int32                required
+
+owner_blocklist.changed v1  (OwnerBlocklistChanged)
+    Blocked                  Boolean              required
+    LabelerId                Guid                 required
+    OwnerId                  Guid                 required
 
 payout.completed v2  (PayoutCompleted)
     LabelerId                Guid                 required
@@ -370,9 +388,12 @@ user.password_reset_requested v1  (PasswordResetRequested)
     ResetUrl                 String               required
     UserId                   Guid                 required
 
-user.registered v1  (UserRegistered)
+user.registered v2  (UserRegistered)
     DisplayName              String               required
+    Domains                  IReadOnlyList<String>? nullable
     Email                    String               required
+    Languages                IReadOnlyList<String>? nullable
+    Modalities               IReadOnlyList<String>? nullable
     Roles                    IReadOnlyList<String> required
     UserId                   Guid                 required
 

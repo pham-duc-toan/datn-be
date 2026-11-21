@@ -77,6 +77,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.Property<List<string>>("_domains").HasColumnName("domains").IsRequired().HasDefaultValueSql("'{}'::text[]");
             builder.Property<List<string>>("_languages").HasColumnName("languages").IsRequired().HasDefaultValueSql("'{}'::text[]");
 
+            // Mau xem truoc tren cho du an (P1, 3.39): domain dat true khi tao. KHONG dung default DB cho bool — false la
+            // gia tri "chua dat" cua EF nen se bi bo qua khi insert.
+            builder.Property(x => x.PreviewEnabled).HasColumnName("preview_enabled").IsRequired();
+
             builder.Property(x => x.StatusReason).HasColumnName("status_reason").HasMaxLength(1000);
             builder.Property(x => x.WasEscrowed).HasColumnName("was_escrowed").IsRequired();
             builder.Property(x => x.PlatformFeePercent).HasColumnName("platform_fee_percent").IsRequired();

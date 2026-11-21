@@ -55,7 +55,7 @@ namespace Crowd.BuildingBlocks.Settings
             { "project.max_questions", "Số câu tối đa mỗi dự án" },
             { "project.min_slots", "Số suất thưởng tối thiểu" },
             { "project.max_slots", "Số suất thưởng tối đa" },
-            { "project.participant_multiplier", "Hệ số trần người làm bài" },
+            { "project.max_duration_days", "Hạn chót tối đa" },
             { "project.min_reward_vnd", "Tiền thưởng tối thiểu mỗi suất" },
             { "project.closed_data_retention", "Giữ dữ liệu vận hành dự án đã đóng" },
             { "project.entrance_question_default", "Số câu bài test mặc định" },
@@ -196,6 +196,18 @@ namespace Crowd.BuildingBlocks.Settings
             { "link.referral_burst_per_hour", "Giới thiệu tối đa mỗi giờ" },
             { "link.referral_min_earnings_vnd", "Thu nhập tối thiểu để trả hoa hồng" },
             { "link.referral_claim_window", "Hạn nhập mã giới thiệu" },
+            { "reco.cache_refresh_interval", "Chu kỳ nạp lại danh sách dự án cho gợi ý" },
+            { "reco.feed_snapshot_ttl", "Thời gian giữ danh sách gợi ý một lượt lướt" },
+            { "reco.affinity_cache_ttl", "Thời gian giữ sở thích trong bộ nhớ nhanh" },
+            { "reco.affinity_half_life_days", "Chu kỳ quên sở thích" },
+            { "reco.new_project_exposure", "Số người thấy dự án mới trước khi hết ưu tiên" },
+            { "reco.explore_every", "Mật độ thẻ khám phá" },
+            { "reco.max_per_business_top", "Số dự án cùng doanh nghiệp trong 10 thẻ" },
+            { "reco.new_inserts_per_page", "Dự án mới chen vào mỗi trang" },
+            { "reco.ab_treatment_percent", "Tỉ lệ labeler dùng thử gợi ý mới" },
+            { "reco.event_flush_interval", "Chu kỳ ghi lượt xem thẻ chợ" },
+            { "reco.event_batch_size", "Số lượt xem thẻ chợ mỗi lô" },
+            { "reco.model_check_interval", "Chu kỳ kiểm tra cách gợi ý mới" },
         };
 
         /// <summary>Ten hien thi; chua khai thi tra lai khoa.</summary>

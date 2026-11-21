@@ -48,6 +48,12 @@
     <Project Path="services/project/Crowd.Project.Infrastructure/Crowd.Project.Infrastructure.csproj" />
     <Project Path="services/project/Crowd.Project.Tests/Crowd.Project.Tests.csproj" />
   </Folder>
+  <Folder Name="/services/reco/">
+    <Project Path="services/reco/Crowd.Reco.Api/Crowd.Reco.Api.csproj" />
+    <Project Path="services/reco/Crowd.Reco.Domain/Crowd.Reco.Domain.csproj" />
+    <Project Path="services/reco/Crowd.Reco.Infrastructure/Crowd.Reco.Infrastructure.csproj" />
+    <Project Path="services/reco/Crowd.Reco.Tests/Crowd.Reco.Tests.csproj" />
+  </Folder>
   <Folder Name="/services/web-bff/">
     <Project Path="services/web-bff/Crowd.WebBff.Api/Crowd.WebBff.Api.csproj" />
     <Project Path="services/web-bff/Crowd.WebBff.Tests/Crowd.WebBff.Tests.csproj" />

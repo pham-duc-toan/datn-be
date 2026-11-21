@@ -81,6 +81,8 @@ ok &= chay("grpc_phu_thuoc", "e2e_grpc_phu_thuoc.py")
 ok &= chay("cho_du_an", "e2e_cho_du_an.py")
 # Cau hoi cua mau thay huong dan (11/2026): cau hoi chung bat buoc, cau rieng tung mau, chong trung (noi dung, cau hoi).
 ok &= chay("cau_hoi", "e2e_cau_hoi.py")
+# Goi y du an (3.39): feed reco-svc, du an moi chen trang ke, khong quan tam, mau xem truoc, bai xem thu, mo hinh hoc may.
+ok &= chay("goi_y", "e2e_goi_y.py")
 
 dat("ledger.gate_batch_interval", 2)
 dat("ledger.gate_payout_mode", "batched")
@@ -97,7 +99,7 @@ dlq = [(x["name"], x.get("messages", 0)) for x in q if x["name"].endswith(".dlq"
 print(f"  DLQ co tin: {dlq if dlq else 'khong (0 / ' + str(sum(1 for x in q if x['name'].endswith('.dlq'))) + ' hang DLQ)'}")
 ok &= not dlq
 ton = {}
-for db in ("identity", "project", "ledger", "payment", "link", "gate", "quality", "admin", "notification"):
+for db in ("identity", "project", "ledger", "payment", "link", "gate", "quality", "admin", "notification", "reco"):
     r = subprocess.run(["docker", "exec", sql_container(db), "psql", "-U", f"{db}_user", "-d", f"{db}_db", "-tAc",
                         "select count(*) from outbox where published_at is null"], capture_output=True, text=True)
     ton[db] = (r.stdout.strip() or r.stderr.strip()[:60])

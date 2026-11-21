@@ -96,7 +96,7 @@ namespace Crowd.Project.Domain.Eligibility
                 case "du_an_chua_san_sang":
                     return "Dự án chưa mở nhận bài.";
                 case "du_an_da_dong_thu_bai":
-                    return "Dự án đã ngừng nhận bài (đủ người làm, hết hạn chót hoặc doanh nghiệp đã kết thúc).";
+                    return "Dự án đã ngừng nhận bài (hết hạn chót hoặc doanh nghiệp đã kết thúc).";
                 case "du_an_khong_chay":
                     return duAn.Status == ProjectStatus.Paused ? "Dự án đang tạm dừng." : "Dự án không còn nhận bài.";
                 case "da_qua_deadline":

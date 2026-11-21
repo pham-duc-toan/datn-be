@@ -1,7 +1,7 @@
 # E2E CHO DU AN (GET /projects/market) — chi hien du an labeler LAM DUOC NGAY:
-#   chua du cap do / uy tin → an; da nop → an (van hien cho nguoi khac); du nguoi lam → an voi nguoi ngoai, van hien
-#   voi nguoi dang giu bai; qua han chot → an ngay (khong cho worker dong du an).
-#   Goi y (recommended) cung bo loc. Mo bai bi tu choi → cau bao loi noi ro ly do (khong con cau chung chung).
+#   chua du cap do / uy tin → an; da nop → an (van hien cho nguoi khac); khong gioi han nguoi lam (3.38) → nguoi thu 4
+#   van thay du an; qua han chot → an ngay (khong cho worker dong du an).
+#   Goi y (feed cua reco-svc, 3.39) cung bo loc. Mo bai bi tu choi → cau bao loi noi ro ly do (khong con cau chung chung).
 # Chay: python e2e_cho_du_an.py   (stack demo: E2E_PROFILE=demo)
 import os, sys
 import requests
@@ -15,10 +15,6 @@ def cho_du_an(u):
     r = requests.get(G + "/projects/market", headers=u["h"], params={"pageSize": 100})
     assert r.status_code == 200, r.text
     return {p["id"] for p in r.json()["items"]}
-
-
-def goi_y(u):
-    return {p["id"] for p in requests.get(G + "/projects/recommended", headers=u["h"], params={"limit": 50}).json()}
 
 
 try:
@@ -45,6 +41,7 @@ try:
     kiem("an du an can uy tin 50 (chua co diem)", P_UT not in c0)
     cu = {p["id"] for p in requests.get(G + "/projects", headers=L[0]["h"], params={"status": "running", "pageSize": 100}).json()["items"]}
     kiem("GET /projects van liet ke ca du an khong du dieu kien (danh sach xem duoc, khong phai cho)", P_CAP in cu)
+    nap_lai_goi_y()
     g0 = goi_y(L[0])
     kiem("goi y cung khong co du an khong du dieu kien", P_CAP not in g0 and P_UT not in g0, g0)
 
@@ -62,11 +59,11 @@ try:
     kiem("nguoi chua lam van thay", P_OK in cho_du_an(L[1]))
 
     # =================================================================================
-    print("\n[4] Du nguoi lam (3 bai dang giu) → an voi nguoi ngoai, nguoi dang giu van lam tiep duoc")
+    print("\n[4] Khong gioi han nguoi lam (3.38): 3 bai dang giu, nguoi thu 4 van thay du an")
     for u in L[:3]:
         tham_gia(u, P_DAY)
         kiem(f"{u['email'].split('-')[-1].split('@')[0]} giu mot bai", isinstance(bat_dau(u, P_DAY), dict))
-    kiem("nguoi thu 4 khong thay du an da du nguoi", P_DAY not in cho_du_an(L[3]))
+    kiem("nguoi thu 4 van thay du an (khong con 'du nguoi')", P_DAY in cho_du_an(L[3]))
     kiem("nguoi dang giu bai van thay (lam tiep)", P_DAY in cho_du_an(L[1]))
 
     # =================================================================================
@@ -75,6 +72,8 @@ try:
     kiem("truoc han: thanh vien thay du an", P_HAN in cho_du_an(L[1]))
     sql("project", f"update projects set deadline = now() - interval '1 minute' where id = '{P_HAN}'")
     kiem("du an qua han chot khong con trong cho", P_HAN not in cho_du_an(L[1]))
+    # Thay doi bang SQL khong phat event — goi reco nap lai ngay (binh thuong toi da reco.cache_refresh_interval).
+    nap_lai_goi_y()
     kiem("goi y cung an", P_HAN not in goi_y(L[2]))
     r =requests.post(G + f"/tasks/projects/{P_HAN}/attempt", headers=L[1]["h"])
     kiem("mo bai du an qua han → cau bao ve han chot / ngung nhan bai (khong chung chung)",

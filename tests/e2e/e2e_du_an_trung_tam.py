@@ -17,6 +17,7 @@ from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
 from tro_giup import (  # noqa: E402
     G, GOC, KQ, TAG, admin, cho, dang_ky, dat, dat_va_cho, kiem, nap_mau, sql, tham_gia, vi,
 )
+from tro_giup import HAN_CHOT  # noqa: E402
 import tro_giup  # noqa: E402
 
 LOP = ("a", "b")
@@ -40,7 +41,7 @@ def tao_du_an(chu, ten, mau, thuong, suat, nguong, vang=()):
         {"name": "nhan", "kind": "classification", "classes": list(LOP)}]}}).raise_for_status()
     dat_cau_hoi_cong_cu(chu["h"], pid)
     r = requests.patch(G + f"/projects/{pid}", headers=chu["h"], json={"pricing": {
-        "rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": "2027-12-31T00:00:00Z"}})
+        "rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": HAN_CHOT}})
     assert r.status_code == 200, r.text
     nap_mau(pid, chu["h"], [{"text": v, "name": k} for k, v in mau.items()])
     ids = {m["originalName"]: m["id"] for m in requests.get(G + f"/projects/{pid}/samples?pageSize=200", headers=chu["h"]).json()["items"]}
@@ -122,17 +123,17 @@ try:
     A, mau_a = tao_du_an(biz, "Chinh", MAU, 50000, 4, 80, vang=[("g1", "a"), ("g2", "b")])
 
     r = requests.patch(G + f"/projects/{A}", headers=biz["h"], json={"pricing": {"rewardVnd": 50000, "slots": 4, "passThresholdPercent": 99,
-                                                                          "deadline": "2027-12-31T00:00:00Z"}})
+                                                                          "deadline": HAN_CHOT}})
     rdy = requests.get(G + f"/projects/{A}/readiness", headers=biz["h"]).json()
     kiem("t = 99 ngoai [60, 95] → bi chan (400 ngay khi luu, hoac readiness bao thieu)",
          (r.status_code == 400 and "nguong" in r.text) or "nguong_dat_ngoai_khoang" in str(rdy["missing"]), (r.status_code, r.text, rdy))
     r = requests.patch(G + f"/projects/{A}", headers=biz["h"], json={"pricing": {"rewardVnd": 5000, "slots": 4, "passThresholdPercent": 80,
-                                                                          "deadline": "2027-12-31T00:00:00Z"}})
+                                                                          "deadline": HAN_CHOT}})
     rdy = requests.get(G + f"/projects/{A}/readiness", headers=biz["h"]).json()
     kiem("thuong 5.000 < toi thieu 10.000 → bi chan",
          (r.status_code == 400) or "thuong_duoi_toi_thieu" in str(rdy["missing"]), (r.status_code, r.text, rdy))
     requests.patch(G + f"/projects/{A}", headers=biz["h"], json={"pricing": {"rewardVnd": 50000, "slots": 4, "passThresholdPercent": 80,
-                                                                      "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
+                                                                      "deadline": HAN_CHOT}}).raise_for_status()
     rdy = requests.get(G + f"/projects/{A}/readiness", headers=biz["h"]).json()
     phi = rdy["platformFeePerPassVnd"]
     kiem("readiness: 5 cau that, gioi han x/y tu setting", rdy["questionCount"] == 5 and rdy["limits"]["passThresholdMin"] == 60
@@ -191,7 +192,8 @@ try:
     kiem("l3 nop khi con bo trong 1 cau (bo trong tinh la khong giong)", r.status_code == 200 and r.json()["answeredCount"] == 6, r.text)
 
     sl = requests.get(G + f"/tasks/projects/{A}/slots", headers=lab["l4"]["h"]).json()
-    kiem("suat: 4 suat, 3 da nop, con 1", sl["slots"] == 4 and sl["submitted"] == 3 and sl["available"] == 1, sl)
+    kiem("suat: labeler chi thay 4 suat thuong, khong thay so nguoi lam (3.38)",
+         sl["slots"] == 4 and not {"submitted", "inProgress", "available", "maxParticipants"} & set(sl), sl)
     tien_do = requests.get(G + f"/tasks/projects/{A}/progress", headers=biz["h"]).json()
     kiem("tien do cho chu du an: 3 bai da nop", tien_do["submitted"] == 3 and tien_do["phase"] == "open", tien_do)
 

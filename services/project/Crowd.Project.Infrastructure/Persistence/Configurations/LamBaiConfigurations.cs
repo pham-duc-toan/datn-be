@@ -30,7 +30,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
             builder.ToTable("project_collections");
             builder.Property(x => x.ProjectId).HasColumnName("project_id").ValueGeneratedNever();
             builder.HasKey(x => x.ProjectId);
-            builder.Property(x => x.MaxParticipants).HasColumnName("max_participants").IsRequired();
             builder.Property(x => x.PausedAt).HasColumnName("paused_at");
             builder.Property(x => x.FinishReason).HasColumnName("finish_reason").HasMaxLength(20);
             builder.Property(x => x.GradedAt).HasColumnName("graded_at");

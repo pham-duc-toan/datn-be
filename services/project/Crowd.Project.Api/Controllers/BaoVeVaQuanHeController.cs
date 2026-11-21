@@ -72,21 +72,14 @@ namespace Crowd.Project.Api.Controllers
 
         /// <summary>
         /// GET /projects/market?modality=&amp;page=&amp;pageSize= — cho du an cua labeler: CHI du an minh lam duoc ngay
-        /// (con nhan bai, chua qua han, con cho, chua nop, du cap do / uy tin / xac minh).
+        /// (con nhan bai, chua qua han, chua nop, du cap do / uy tin / xac minh), moi nhat truoc. Tu 3.39 la danh sach DU
+        /// PHONG: feed ca nhan hoa o reco-svc (GET /projects/feed); reco-svc sap thi frontend dung danh sach nay.
         /// </summary>
         [HttpGet("market")]
         [Authorize(Roles = CrowdRoles.Labeler)]
         public async Task<IActionResult> Cho([FromQuery] string? modality, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken ct)
         {
             return Ok(await _goiY.ChoAsync(modality, page, pageSize, Caller.TuHttp(HttpContext, ActorRole.Labeler), ct));
-        }
-
-        /// <summary>GET /projects/recommended?limit=10 — goi y du an hop ho so ky nang (FL-02).</summary>
-        [HttpGet("recommended")]
-        [Authorize(Roles = CrowdRoles.Labeler)]
-        public async Task<IActionResult> GoiY([FromQuery] int limit, CancellationToken ct)
-        {
-            return Ok(await _goiY.GoiYAsync(limit, Caller.TuHttp(HttpContext, ActorRole.Labeler), ct));
         }
 
         // ---------------- Loi moi cho ----------------

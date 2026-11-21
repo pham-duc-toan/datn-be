@@ -1359,11 +1359,11 @@ Các event mở / đóng đơn (`business.kyb_submitted`, `withdrawal.review_req
 
 **Đã có câu vàng** vẫn sửa được câu hỏi chung / dòng nhắc (so tập nhãn sau khi bỏ `question` và `hint`); đổi công cụ / lớp thì vẫn `409 da_co_cau_hoi_vang` như trước.
 
-**Hướng dẫn cho người tạo dự án (frontend, người dùng chọn "tour + ⓘ + xem trước").** Tour làm nổi từng vùng ở tab Cấu hình (tự mở lần đầu, nút "Xem lại hướng dẫn"; trạng thái nhớ trên trình duyệt như tour của labeler); biểu tượng ⓘ cạnh mỗi thông số giải thích *tác dụng với dự án* và *labeler thấy ở đâu*; nút "Xem như labeler" dựng thẻ dự án ở chợ + một câu trong bài (câu ví dụ, gán thử được) từ cấu hình đang soạn. Màn luyện tập của labeler thêm bước "đọc câu hỏi"; tour trang làm bài thay điểm dừng "Hướng dẫn của dự án" bằng "Câu hỏi của câu".
+**Hướng dẫn cho người tạo dự án (frontend, người dùng chọn "tour + ⓘ + xem trước").** Tour làm nổi từng vùng ở tab Cấu hình (tự mở lần đầu, nút "Xem lại hướng dẫn"; trạng thái nhớ trên trình duyệt như tour của labeler); biểu tượng ⓘ cạnh mỗi thông số giải thích *tác dụng với dự án* và *labeler thấy ở đâu*; nút "Xem như labeler" dựng thẻ dự án ở chợ + một câu trong bài (câu ví dụ, gán thử được) từ cấu hình đang soạn. Màn luyện tập của labeler thêm bước "đọc câu hỏi"; tour trang làm bài thay điểm dừng "Hướng dẫn của dự án" bằng "Câu hỏi của câu". *(11/2026: bỏ màn luyện tập — labeler chỉ còn tour trang làm bài, tự mở lần đầu, nút "Xem lại hướng dẫn" mở lại.)*
 
 **Thay đổi CSDL.** Migration project `CauHoiThayHuongDan` (DROP `projects.guideline`; ADD `samples.question`; đổi chỉ mục chống trùng; `CREATE OR REPLACE VIEW v_gate_samples` thêm cột `question` ở cuối). Migration admin `BoHuongDanMauBaiToan` (DROP `workspace_templates.guideline_markdown`). Dữ liệu seed: tập nhãn của mọi dự án / mẫu bài toán seed có `question`; mẫu cặp seed chuyển `prompt` sang `question` — demo phải seed lại (`down -v`).
 
-**Đánh đổi.** Mất chỗ viết luật dài và ví dụ đúng / sai theo dự án: luật ngắn đưa vào câu hỏi / dòng nhắc, cách dùng công cụ do màn luyện tập dạy. Đổi câu hỏi chỉ được khi còn nháp (như tập nhãn) — trước đây hướng dẫn sửa được cả khi tạm dừng.
+**Đánh đổi.** Mất chỗ viết luật dài và ví dụ đúng / sai theo dự án: luật ngắn đưa vào câu hỏi / dòng nhắc, cách dùng công cụ do tour trang làm bài giới thiệu (màn luyện tập đã bỏ 11/2026). Đổi câu hỏi chỉ được khi còn nháp (như tập nhãn) — trước đây hướng dẫn sửa được cả khi tạm dừng.
 
 ### 3.35. Câu hỏi theo từng công cụ thay câu hỏi chung (11/2026)
 
@@ -1443,6 +1443,100 @@ Admin không còn giải mã ảnh / video (đọc mã trên hình); `POST /medi
 
 **Video nạp trước bản này** (chưa có HLS): lần mở đầu tiên media cắt tại chỗ đoạn đó (`hls.dam_bao_doan`, chữ dùng chung lấy từ token `ws`). Dữ liệu demo là seed nên reseed là đủ.
 
+### 3.38. Không giới hạn người làm, giấu số người làm, suất thưởng theo độ giống đa số; sở thích chọn lúc đăng ký (11/2026)
+
+Kế hoạch đầy đủ (gồm phần feed và gợi ý làm sau): [ke-hoach-cho-du-an-va-goi-y.md](ke-hoach-cho-du-an-va-goi-y.md). Mục này ghi phần **đã làm**: giai đoạn 1 và 2.1 của kế hoạch.
+
+**Vấn đề.**
+- Labeler thấy "còn x / y chỗ, z đã nộp" nên thấy đông người là bỏ, không cố nữa.
+- Trần người làm (`slots × project.participant_multiplier`) cắt bớt người làm, nhưng chính trần này lại làm đa số kém chắc.
+- Đủ trần thì dự án tự đóng thu bài, và suất thưởng trao cho **bài đạt nộp sớm nhất** — khuyến khích làm nhanh, ẩu.
+
+**Quyết định (người dùng chốt theo khuyến nghị).**
+
+| # | Câu hỏi | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| U1 | Trần người làm | **Không giới hạn.** Bỏ cột `project_collections.max_participants`, setting `project.participant_multiplier`, lý do đóng `du_suat`, điều kiện "còn chỗ" khi bắt đầu bài và ở chợ. Thu bài chỉ đóng khi **hết hạn chót** hoặc **doanh nghiệp kết thúc sớm** | Càng nhiều người làm thì đa số càng chắc. Ký quỹ vẫn = suất × (thưởng + phí), người làm thêm không tốn thêm tiền |
+| U2 | Ai nhận suất thưởng | **R2:** n bài ĐẠT có `agreement_percent` **cao nhất**; bằng nhau thì bài nộp sớm hơn (`cham.chon_duoc_thuong`). "Lấp suất trống" giữ nguyên thứ tự này | Mọi bài đều chấm cùng lúc khi đóng thu bài nên "nộp sớm" không giúp gì cho doanh nghiệp. Người đến muộn vẫn có cơ hội nếu làm tốt hơn. Luật cũ khi số người bị giấu thì người đến muộn làm không công mà không biết |
+| U3 | Hạn chót | **Bắt buộc** (đã bắt buộc từ trước), thêm trần **`project.max_duration_days`** (mặc định 30, 0 = không giới hạn). Kiểm lúc đặt giá (`han_chot_qua_xa` 400) và lại lúc publish (checklist `han_chot_qua_xa`) | Không giới hạn người làm thì hạn chót là điều kiện đóng duy nhất ngoài kết thúc sớm, không có trần thì dự án treo mãi |
+| U4 | Labeler thấy gì | **Số suất thưởng, tiền thưởng, hạn chót.** `GET /tasks/projects/{id}/slots` bỏ `maxParticipants`, `inProgress`, `submitted`, `available`. Trang chợ bỏ dòng "Chỗ làm bài", bỏ nút "Đã đủ người làm" | Doanh nghiệp vẫn xem đủ số liệu qua `GET /tasks/projects/{id}/progress`; `estimatedCompletionAt` giờ là hạn chót (đã đóng thì là lúc đóng). Thanh tiến độ ở tab Tổng quan đổi sang "% thời gian thu bài đã trôi" |
+| U5 | Sở thích labeler | **Chọn MỘT LẦN lúc đăng ký** (`RegisterRequest.skills`: tối đa 5 lĩnh vực, 3 ngôn ngữ, loại dữ liệu tuỳ ý; chỉ khi có vai trò labeler). Bỏ `PUT /me/skills`, bỏ `skills` khỏi `GET /me/profile`, bỏ mục "Hồ sơ kỹ năng" ở frontend | Gợi ý sẽ học từ hành vi (kế hoạch giai đoạn 2–3). Cột `users.skill_*` chỉ ghi lúc đăng ký và vẫn dùng cho gợi ý hiện tại (`GoiYService`) tới khi có `reco-svc` |
+| U6 | Danh mục thẻ khi chưa đăng nhập | `GET /tags` **công khai** (`[AllowAnonymous]`, route gateway bỏ `AuthenticationOptions`) | Ô chọn sở thích ở trang đăng ký cần danh mục; danh mục không chứa dữ liệu người dùng |
+
+**Thay đổi CSDL / hợp đồng.**
+- Migration project `BoTranNguoiLam` (xoá cột `max_participants`). Dữ liệu chỉ là seed nên xoá DB rồi seed lại; dự án seed đã chấm có lý do đóng `ket_thuc_som` (hạn chót của seed còn ở tương lai).
+- `project.collection_finished.Reason` chỉ còn `het_han | ket_thuc_som`. Payload không đổi nên không tăng version.
+- `SubmitAttemptResponse.collectionFinished` luôn `false`, giữ trường cho client cũ.
+- Setting: bỏ `project.participant_multiplier`, thêm `project.max_duration_days`. `catalog.json` sinh lại; admin tự xoá khoá không còn trong catalog.
+- Câu chữ thông báo đổi theo luật mới: "Bài làm đạt nhưng chưa lọt vào suất thưởng", "… bài giống đa số nhất được trả thưởng".
+
+**E2E.** Các bộ viết trước 3.38 theo kịch bản "số bài nộp = số suất thì đóng thu bài". `tro_giup.py` bọc `requests.post` để **mô phỏng** kịch bản đó: nhớ token chủ dự án lúc publish; nộp bài xong mà số bài đã nộp ≥ số suất thì chủ dự án gọi `POST /projects/{id}/finish` (API thật, server không có đường tắt nào). Bộ kiểm hành vi mới gọi `khong_tu_dong(pid)`. Hạn chót mặc định của E2E là `HAN_CHOT` (hôm nay + 20 ngày).
+
+[e2e_suat_thuong.py](../tests/e2e/e2e_suat_thuong.py) viết lại, kiểm:
+- hạn chót quá xa → 400;
+- labeler không thấy số người làm;
+- 5 bài vào dự án 3 suất vẫn mở;
+- bài nộp cuối nhưng giống đa số 100 % được thưởng, bài nộp sớm hơn mà chỉ 80 % thì không.
+
+**Rủi ro còn lại** (ghi ở `van-de-can-giai-quyet.md`, Q-11):
+- Bỏ trần làm dễ dồn nhiều tài khoản vào kéo đa số. Đang có tín hiệu chung IP / thiết bị; về sau cân nhắc tính đa số có trọng số theo uy tín (Dawid–Skene đã có).
+- Nhiều người làm mà không lọt suất thì không được trả tiền, nhưng vẫn được cộng uy tín.
+
+### 3.39. reco-svc: feed chợ dự án cá nhân hoá theo khả năng kiếm tiền, mẫu xem trước, "xem như labeler" bằng dữ liệu thật, học máy cho gợi ý (11/2026)
+
+Kế hoạch và các quyết định đã chốt: [ke-hoach-cho-du-an-va-goi-y.md](ke-hoach-cho-du-an-va-goi-y.md), giai đoạn 2–6. Mục này ghi phần **đã làm**.
+
+**Vấn đề.**
+- Gợi ý cũ (`GoiYService.GoiYAsync`) chạy một câu SQL nặng cho **mỗi** lượt mở chợ và hỏi identity qua gRPC mỗi request. Tải lên project_db tăng theo số người lướt.
+- Điểm gợi ý chỉ là "thẻ trùng + đơn giá", không theo khả năng kiếm tiền, không học từ hành vi.
+- Chợ là lưới thẻ ít thông tin. "Xem như labeler" chỉ là mẫu minh hoạ.
+
+**Kiến trúc.**
+
+```
+gateway ── GET /projects/feed, /reco/* ──► reco-svc (C#, nhiều instance, không trạng thái riêng)
+   project_db ── v_reco_projects / v_reco_exclusions / v_reco_owner_blocks / v_reco_preview_samples
+                 (role reco_reader, pool ≤ 3) ──► RAM mỗi instance (30 s + ngay khi có event mở / đóng dự án)
+   RabbitMQ   ── user.registered v2, attempt.started / submitted / abandoned, project.graded, member.*,
+                 owner_blocklist.changed, project.published / paused / resumed / cancelled / collection_finished
+   reco_db    ── labeler_affinity (bảng gốc sở thích), hidden_projects ("không quan tâm"), model_versions
+   Redis-reco ── aff:{u}, ex:{u}, feed:{u}:{phiên}, served:{u}:{phiên}, seen:{p} (HLL), stream reco:events
+   ClickHouse ── database reco (user reco_user): reco_events, feed_served (kèm vector đặc trưng), reco_daily
+   MinIO      ── ml-models/reco/manifest.json + file mô hình (ml-svc ghi, reco-svc đọc)
+ml-svc (mỗi đêm) ── ClickHouse reco (user ml_reader, chỉ SELECT) ──► học ──► MinIO
+```
+
+**Quyết định.**
+
+| # | Câu hỏi | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| R1 | Gợi ý đặt ở đâu | **`reco-svc` riêng** (`services/reco`, DDD: Domain thuần / Infrastructure / Api). project-svc bỏ `GET /projects/recommended`; `GET /projects/market` giữ làm danh sách **dự phòng** (frontend chuyển sang khi feed lỗi) | Tải lên project_db không tăng theo số lượt xem (1 truy vấn / 30 s / instance). Cô lập CPU / pool: feed đông không làm chậm nộp bài, chấm, tiền |
+| R2 | Dữ liệu dự án | **View của chủ** (3.32), không bản sao. Số bài nộp / đang làm / đã bắt đầu, trung vị giây mỗi câu tính sẵn trong view, **chỉ dùng trong server**, không bao giờ trả cho labeler | Luật lọc (NDA, nhạy cảm, câu vàng) nằm ở phía project; reco chỉ SELECT |
+| R3 | Điều kiện của labeler trên đường nóng | Claim **`level`, `reputation`** thêm vào access token (identity tính lúc phát token). Xác minh / đủ tuổi đã có trong token | Không hỏi identity mỗi request. Claim có thể cũ tối đa một đời token — **chỉ để lọc gợi ý**; bắt đầu làm bài vẫn hỏi identity (3.24) |
+| R4 | Tập loại trừ (đã nộp, bị chặn, không quan tâm, thành viên dự án riêng tư, doanh nghiệp chặn) | Redis `ex:{u}` cập nhật bằng event (đặt / xoá chỉ khi đã nạp — idempotent); thiếu thì dựng lại MỘT lần từ view + `hidden_projects`. Thêm event **`owner_blocklist.changed`** (chặn cấp doanh nghiệp áp cả dự án labeler chưa tham gia) | Không truy vấn DB theo từng người trên đường nóng |
+| R5 | Sở thích | Bộ đếm Beta (a, b) theo thẻ (lĩnh vực, ngôn ngữ, loại dữ liệu, loại công cụ) + bộ đếm đạt / trượt theo công cụ. Quên dần `a·0,5^(ngày/90) + w` **trong SQL** (một câu `INSERT … ON CONFLICT` cho cả lô). Thẻ chọn lúc đăng ký = a 2, b 0 (mức hợp 0,75, có tiên nghiệm Beta(1, 1)). Redis `aff:{u}` chỉ là cache (xoá sau mỗi lần cộng, sống 30 phút) | Nhiều instance cùng cộng không mất lần nào. Lịch sử dài ra không làm request chậm: mỗi người chỉ ~20–30 cặp số |
+| R6 | Hành vi | Event backend (bắt đầu / nộp / đạt / trượt / bỏ dở) cộng bộ đếm **trong transaction của consumer**. Frontend gửi theo lô lượt hiện (IntersectionObserver ≥ 60 %, một lần mỗi dự án mỗi phiên), mở, "không quan tâm" → Redis Stream → relay cộng bộ đếm theo lô + ghi ClickHouse | Đường request không ghi Postgres (trừ "không quan tâm" — ít, cần bền) |
+| R7 | Điểm | `điểm = P(bắt đầu) × thưởng × P(đạt) × P(lọt suất) / phút ước tính × hệ số mới`. P(lọt suất) = min(1, suất / (1 + đối thủ × 0,6)); phút = số câu × trung vị giây mỗi câu (thiếu thì trung vị theo loại công cụ, rồi 20 s); hệ số mới 1,5 khi dự án chưa đủ `reco.new_project_exposure` người **thật sự thấy** (HyperLogLog), sau đó theo tỉ lệ "thấy → bắt đầu" so với trung bình chợ, chặn [0,6; 1,4] | "Khả năng kiếm tiền" là phép ghép, không phải đầu ra mô hình |
+| R8 | Xếp lại | Tối đa `reco.max_per_business_top` dự án cùng doanh nghiệp mỗi khung 10 thẻ; không 3 thẻ liền cùng loại dữ liệu; cứ `reco.explore_every` thẻ có 1 **thẻ khám phá** (dự án mới hoặc loại việc chưa từng làm, chọn ngẫu nhiên có trọng số, hạt cố định theo phiên) | Dự án mới không bị chìm; người dùng được thử loại việc mới |
+| R9 | Phiên lướt | Trang đầu: lọc → chấm → xếp → lưu **200 id + điểm** (nhị phân, `feed:{u}:{phiên}`, 15 phút). **Danh sách không bao giờ sửa**, con trỏ chỉ đi tới, `served:{u}:{phiên}` chặn trùng. Dự án **mở sau** lúc tạo danh sách được trộn lúc ghép trang: tối đa `reco.new_inserts_per_page` dự án lên đầu trang kế tiếp; thẻ bị đẩy ra hiện ở trang sau. Không có thông báo "có dự án mới" ở đầu trang (người dùng chốt: tự nhiên như TikTok). Thẻ đã hiện mà dự án vừa đóng: giữ nguyên, bấm vào mới báo đã ngừng nhận bài; thẻ chưa trả thì lọc bỏ lúc ghép trang | Không lặp, không mất thẻ kể cả khi có dự án chen vào |
+| R10 | Học máy | **Hai câu hỏi:** P(bắt đầu \| thấy thẻ), P(đạt \| đã bắt đầu). **Chọn theo lượng dữ liệu:** hồi quy logistic khi < 200.000 lượt hiện hoặc < 5.000 lượt bắt đầu; trên ngưỡng học thêm LightGBM, lấy bản tốt hơn trên 20 % dữ liệu kiểm (chia theo thời gian). Bỏ mạng nơ-ron. File mô hình là **JSON** (trọng số logistic, hoặc cây `dump_model()` của LightGBM) — C# tự duyệt cây, **không dùng ONNX** (khỏi thư viện native trong container) | Đặc trưng ghi **lúc trả feed** vào `feed_served` (cùng thứ tự `DacTrung.Ten` ở C# và `DAC_TRUNG` ở Python); vị trí thẻ là đặc trưng lúc học, lúc xếp đặt 0 |
+| R11 | Đưa mô hình vào chạy | Bản mới phải hơn bản đang chạy trên dữ liệu kiểm (AUC + 0,005) mới thành **candidate** (manifest). A/B: `băm(userId) % 100 < reco.ab_treatment_percent` dùng candidate. Mỗi đêm ml-svc so tỉ lệ "thấy → bắt đầu trong 24 giờ" hai nhóm (kiểm định hai tỉ lệ): thắng có ý nghĩa sau ≥ 14 ngày → **production**; thua có ý nghĩa → bỏ ngay; quá 28 ngày không phân thắng thua → bỏ. Không thay candidate đang chạy thử | Không bật cách gợi ý mới cho mọi người chỉ vì nó đẹp trên dữ liệu cũ |
+| R12 | Mẫu xem trước (P1) + câu hỏi trên thẻ | Hệ thống **tự lấy 1 mẫu** mỗi dự án (mẫu thật đã nạp xong, không phải câu vàng, tạo sớm nhất — `v_reco_preview_samples` dùng `DISTINCT ON`); doanh nghiệp chỉ **bật / tắt** `projects.preview_enabled` (mặc định bật, `PUT /projects/{id}/preview`, đổi được cả khi đang chạy). Không hiện khi NDA / nhạy cảm / riêng tư (domain chặn bật, view lọc lại). Thẻ luôn có **toàn bộ câu hỏi + công cụ + lớp** (`v_reco_projects.tools` = `label_schema.tools`) vì trang chi tiết dự án vốn công khai. Link file reco tự ký (`MediaLinks`, watermark mang mã người xem) | Labeler biết việc trước khi bấm vào; doanh nghiệp không phải chọn mẫu tay |
+| R13 | Xem như labeler (Q2) | `GET /projects/{id}/trial` dựng bài xem thử từ **mẫu thật** (≤ 5 câu thật + ≤ 2 câu kiểm tra, xáo), `POST /projects/{id}/trial/check` chấm ngay câu kiểm tra **cùng luật nộp bài thật**. Không ghi DB, không tính người làm. Chỉ chủ dự án / admin | Doanh nghiệp thấy đúng bài labeler nhận, kể cả lúc còn nháp |
+
+**Hợp đồng mới.**
+- `user.registered` **v2**: thêm `domains`, `languages`, `modalities` (đã chuẩn hoá). Người nghe mới: reco-svc.
+- `attempt.started` v1, `attempt.abandoned` v1 (`tu_bo` | `het_gio`; bài huỷ vì dự án đóng / bị chặn không phát).
+- `owner_blocklist.changed` v1.
+- API: `GET /projects/feed` (`order=newest` = tab "Mới nhất": cùng dạng thẻ, dự án làm được ngay theo publish mới nhất, con trỏ (publish, id), không ghi dữ liệu học, hành vi gắn phiên bản `moi_nhat` nên không tính vào A/B), `POST /reco/events`, `PUT /projects/{id}/preview` `{ enabled }`, `GET /projects/{id}/trial`, `POST /projects/{id}/trial/check`, nội bộ `GET /reco/internal/catalog`, `POST /reco/internal/refresh`, ml-svc `POST /internal/reco/train`. Bỏ `GET /projects/recommended`.
+- Setting mới (nhóm "Gợi ý dự án" + "Kỹ thuật"): `reco.cache_refresh_interval`, `reco.feed_snapshot_ttl`, `reco.affinity_cache_ttl`, `reco.affinity_half_life_days`, `reco.new_project_exposure`, `reco.explore_every`, `reco.max_per_business_top`, `reco.new_inserts_per_page`, `reco.ab_treatment_percent`, `reco.event_flush_interval`, `reco.event_batch_size`, `reco.model_check_interval`.
+
+**Hạ tầng.** Compose demo / dev thêm `reco`, `db-reco`, `redis-reco` (`allkeys-lru`), `ch-init` (tạo database `reco`, user `reco_user` và `ml_reader` trên ClickHouse của gate — chạy lại mỗi lần `up`). `.env` thêm `DB_RECO_PASSWORD`, `DB_READER_RECO_PASSWORD`, `CH_RECO_PASSWORD`, `CH_ML_READER_PASSWORD`. Seed: hạn chót seed 20 ngày (≤ `project.max_duration_days` tính từ lúc tạo — có test chặn).
+
+**Kiểm thử.** Unit: reco 24 test (bộ đếm, điều kiện, điểm, xếp lại, khám phá, ghép trang không lặp / không mất, mô hình JSON logistic + cây, A/B, con trỏ); ml 9 test (chọn mô hình, cây xuất ra khớp LightGBM, A/B); project thêm luật mẫu xem trước. E2E [e2e_goi_y.py](../tests/e2e/e2e_goi_y.py).
+
+**Còn lại.** Chart Helm + HPA cho reco-svc làm cùng nhánh DevOps (NC-A) khi dựng K8s cho cả hệ thống. Load test k6 đo p95 `/projects/feed` và bộ nhớ thật (mục 5.5 kế hoạch) làm cùng A-12.
+
 ## 4. Dữ liệu chéo — ba luật cứng
 
 Đây là chỗ dự án microservice hay vỡ nhất.
@@ -1456,13 +1550,15 @@ Admin không còn giải mã ảnh / video (đọc mã trên hình); `POST /medi
                       ledger v_gate_budgets, link v_gate_links            (bộ nhớ, đường nóng mục 3.6)
        mọi service  ← admin v_settings                                    (bộ nhớ)
        notification ← identity v_contacts;  identity ← quality v_reputations;  ledger ← link v_referrals
+       reco         ← project v_reco_projects / v_reco_exclusions / v_reco_owner_blocks /
+                      v_reco_preview_samples                              (bộ nhớ + Redis, mục 3.39)
        (labeler_cache đã bỏ — mở bài hỏi identity qua gRPC, mục 3.24; thành viên cùng project_db — 3.21)
 3. Màn hình gộp nhiều nguồn → web-bff, không nhồi vào service nghiệp vụ.
 ```
 
 Nhờ luật 2, đường nóng của gate (traffic gấp ~100 lần) chỉ đọc bộ nhớ — không gọi service nào, không chạm DB — và vẫn chạy khi project-svc hay DB của nó tắt (giữ ảnh chụp đã nạp). Chỗ đọc không nằm ở đường nóng thì hỏi thẳng chủ dữ liệu qua gRPC, đọc nhiều thì thêm cache trong bộ nhớ (mục 3.22–3.24).
 
-**Khi nào KHÔNG cần bản sao.** Bản sao tốn một bảng + consumer ở mỗi service cần nó. Nếu điều cần biết là sự thật **một chiều về chính người đang gọi** (email đã xác thực, doanh nghiệp đã được duyệt KYB) thì đưa vào **claim của access token** (`email_verified`, `kyb_verified`): service đọc thẳng từ token, không bảng, không event. Điều kiện: không bao giờ đảo chiều (token cũ mang `true` không được phép sai), và client làm mới token khi trạng thái đổi. Thứ có thể đảo chiều (bị khoá, bị chặn khỏi dự án) hoặc cấp độ / uy tín thì hỏi chủ dữ liệu lúc cần (mục 3.24).
+**Khi nào KHÔNG cần bản sao.** Bản sao tốn một bảng + consumer ở mỗi service cần nó. Nếu điều cần biết là sự thật **một chiều về chính người đang gọi** (email đã xác thực, doanh nghiệp đã được duyệt KYB) thì đưa vào **claim của access token** (`email_verified`, `kyb_verified`): service đọc thẳng từ token, không bảng, không event. Điều kiện: không bao giờ đảo chiều (token cũ mang `true` không được phép sai), và client làm mới token khi trạng thái đổi. Thứ có thể đảo chiều (bị khoá, bị chặn khỏi dự án) hoặc cấp độ / uy tín thì hỏi chủ dữ liệu lúc cần (mục 3.24). Ngoại lệ có chủ đích: claim `level` / `reputation` (3.39) chỉ để **lọc gợi ý** — cũ tối đa một đời token thì chỉ gợi ý lệch, nơi quyết định (bắt đầu làm bài) vẫn hỏi identity.
 
 **Ví dụ luật 3 — dashboard labeler** cần profile + lịch sử + tỉ lệ duyệt + ví:
 

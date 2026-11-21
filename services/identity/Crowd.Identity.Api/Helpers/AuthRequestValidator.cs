@@ -3,6 +3,7 @@ using System.Net.Mail;
 using Crowd.BuildingBlocks.Auth.Jwt;
 using Crowd.BuildingBlocks.Settings;
 using Crowd.Identity.Api.Dtos;
+using Crowd.Identity.Api.Entities;
 using Crowd.Identity.Api.Services;
 
 namespace Crowd.Identity.Api.Helpers
@@ -86,6 +87,28 @@ namespace Crowd.Identity.Api.Helpers
                         };
                         break;
                     }
+                }
+            }
+
+            // So thich chon luc dang ky (3.38): chi nguoi gan nhan, toi da 5 linh vuc / 3 ngon ngu. Kiem dinh dang tung
+            // the (do dai, loai du lieu hop le) do KyNang lam khi tao tai khoan.
+            if (body.Skills != null)
+            {
+                bool laLabeler = body.Roles != null && body.Roles.Contains(CrowdRoles.Labeler);
+                int soLinhVuc = body.Skills.Domains == null ? 0 : body.Skills.Domains.Count;
+                int soNgonNgu = body.Skills.Languages == null ? 0 : body.Skills.Languages.Count;
+                int soLoai = body.Skills.Modalities == null ? 0 : body.Skills.Modalities.Count;
+                if (!laLabeler && soLinhVuc + soNgonNgu + soLoai > 0)
+                {
+                    loi["skills"] = new string[] { "Chỉ người gán nhãn mới chọn sở thích." };
+                }
+                else if (soLinhVuc > KyNang.LinhVucDangKyToiDa)
+                {
+                    loi["skills.domains"] = new string[] { "Chọn tối đa " + KyNang.LinhVucDangKyToiDa + " lĩnh vực." };
+                }
+                else if (soNgonNgu > KyNang.NgonNguDangKyToiDa)
+                {
+                    loi["skills.languages"] = new string[] { "Chọn tối đa " + KyNang.NgonNguDangKyToiDa + " ngôn ngữ." };
                 }
             }
 

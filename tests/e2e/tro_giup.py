@@ -77,11 +77,15 @@ def hdr(tok):
     return {"Authorization": "Bearer " + tok}
 
 
-def dang_ky(vai, ten, xac_minh=True, xac_thuc=True):
+def dang_ky(vai, ten, xac_minh=True, xac_thuc=True, so_thich=None):
     """Tao tai khoan moi. Mac dinh bam link xac thuc email (chua xac thuc thi chua rut tien / publish
-    duoc); doanh nghiep: tu lam KYB + admin duyet. xac_minh / xac_thuc = False de test chinh cac luong do."""
+    duoc); doanh nghiep: tu lam KYB + admin duyet. xac_minh / xac_thuc = False de test chinh cac luong do.
+    so_thich: {domains, languages, modalities} chon MOT LAN luc dang ky (labeler, kien truc 3.38)."""
     email = f"e2e-{TAG}-{ten}@crowd.local"
-    r = requests.post(G + "/auth/register", json={"email": email, "username": "u" + hashlib.sha1((email).encode()).hexdigest()[:20], "password": PW, "displayName": ten, "roles": vai})
+    body = {"email": email, "username": "u" + hashlib.sha1((email).encode()).hexdigest()[:20], "password": PW, "displayName": ten, "roles": vai}
+    if so_thich is not None:
+        body["skills"] = so_thich
+    r = requests.post(G + "/auth/register", json=body)
     assert r.status_code in (200, 201), r.text
     if xac_thuc:
         xac_thuc_email(email)
@@ -142,13 +146,55 @@ def dat_va_cho(key, value, dbs):
     cho_moi_noi_doc_lai_setting(G, admin)
 
 
-# He so tran nguoi lam (10/2026) = 1 cho cac bo E2E: chung viet theo "so suat = so nguoi lam, du suat thi dong thu
-# bai". Bo e2e_suat_thuong.py dat E2E_HE_SO_NGUOI_LAM=giu va tu dat he so de kiem cach tinh moi.
-if os.environ.get("E2E_HE_SO_NGUOI_LAM") != "giu":
-    _he_so = requests.get(G + "/admin/settings/project.participant_multiplier", headers=admin).json()["value"]
-    GOC.setdefault("project.participant_multiplier", _he_so)
-    if _he_so != 1:
-        dat_va_cho("project.participant_multiplier", 1, ["project"])
+# ---- Mo phong "du suat thi dong thu bai" CHO CAC BO E2E CU (kien truc 3.38) ----
+# He thong da bo tran nguoi lam: thu bai chi dong khi het han chot hoac chu du an ket thuc som. Cac bo E2E viet truoc
+# 3.38 deu theo kich ban "so bai nop = so suat thi dong thu bai roi cham". De khong viet lai tung bo, lop nay boc
+# requests.post: nho token chu du an luc publish; nop bai xong ma so bai da nop >= so suat thi CHU DU AN bam "ket thuc
+# som" (dung API that, khong co duong tat nao o server). Bo nao kiem hanh vi moi (khong gioi han nguoi lam) goi
+# khong_tu_dong(pid) truoc khi nop.
+import re as _re  # noqa: E402
+
+_post_goc = requests.post
+CHU_DU_AN = {}          # pid -> headers cua chu du an (ghi luc publish)
+_TAT_TU_DONG = set()    # pid khong mo phong (bo test hanh vi moi)
+_RE_PUBLISH = _re.compile(r"/projects/([0-9a-f-]{36})/publish$")
+_RE_NOP = _re.compile(r"/tasks/attempts/([0-9a-f-]{36})/submit$")
+
+
+def khong_tu_dong(pid):
+    """Tat mo phong cho du an nay: nop bao nhieu bai thi thu bai van mo toi han chot / ket thuc som."""
+    _TAT_TU_DONG.add(pid)
+
+
+def _dong_neu_du_suat(aid, headers):
+    b = requests.get(G + f"/tasks/attempts/{aid}", headers=headers)
+    if b.status_code != 200:
+        return
+    pid = b.json()["projectId"]
+    chu = CHU_DU_AN.get(pid)
+    if chu is None or pid in _TAT_TU_DONG:
+        return
+    td = requests.get(G + f"/tasks/projects/{pid}/progress", headers=chu)
+    if td.status_code == 200 and td.json()["phase"] == "open" and td.json()["submitted"] >= td.json()["slots"]:
+        _post_goc(G + f"/projects/{pid}/finish", headers=chu)
+
+
+def _post_mo_phong(url, *args, **kwargs):
+    r = _post_goc(url, *args, **kwargs)
+    duong = url.split("?", 1)[0]
+    m = _RE_PUBLISH.search(duong)
+    if m and r.status_code == 200 and kwargs.get("headers"):
+        CHU_DU_AN[m.group(1)] = kwargs["headers"]
+    m = _RE_NOP.search(duong)
+    if m and r.status_code == 200 and kwargs.get("headers"):
+        _dong_neu_du_suat(m.group(1), kwargs["headers"])
+    return r
+
+
+requests.post = _post_mo_phong
+
+# Han chot mac dinh cua cac bo E2E: trong gioi han project.max_duration_days (mac dinh 30 ngay — 3.38).
+HAN_CHOT = time.strftime("%Y-%m-%dT00:00:00Z", time.gmtime(time.time() + 20 * 86400))
 
 
 def vi(u):
@@ -181,9 +227,9 @@ def tao_du_an(chu, ten, mau, red=None, tran=None, gia=None, gold_pct=0, dieu_kie
     return pid, ids
 
 
-def dat_gia(chu, pid, thuong, suat, nguong=60, deadline="2027-12-31T00:00:00Z"):
+def dat_gia(chu, pid, thuong, suat, nguong=60, deadline=None):
     r = requests.patch(G + f"/projects/{pid}", headers=chu["h"],
-                     json={"pricing": {"rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": deadline}})
+                     json={"pricing": {"rewardVnd": thuong, "slots": suat, "passThresholdPercent": nguong, "deadline": deadline or HAN_CHOT}})
     assert r.status_code == 200, r.text
     return r
 
@@ -310,7 +356,7 @@ def nhan_task(u, pid, giay=15):
     if st is None or st.get("nop"):
         b = bat_dau(u, pid, giay)
         if not isinstance(b, dict):
-            if b.status_code == 409 or "da_nop_bai" in b.text or "het_suat" in b.text or "dong_thu_bai" in b.text:
+            if b.status_code == 409 or "da_nop_bai" in b.text or "dong_thu_bai" in b.text:
                 return None
             raise AssertionError(f"bat dau bai {b.status_code} {b.text}")
         st = {"bai": b, "xong": {q["sampleId"] for q in b["questions"] if q.get("answer")}, "nop": False}
@@ -355,3 +401,39 @@ def ds_nhan(chu, pid, status=None):
     return requests.get(G + f"/annotations/projects/{pid}{q}", headers=chu["h"]).json()["items"]
 
 
+
+
+# ---- Goi y du an (reco-svc, kien truc 3.39) ----
+from moi_truong import INTERNAL_KEY  # noqa: E402
+
+
+def nap_lai_goi_y():
+    """reco-svc nap lai bo nho NGAY (binh thuong 30 giay / khi co event mo dong du an). Khoa noi bo + token bat ky."""
+    r = requests.post(G + "/reco/internal/refresh", headers=dict(admin, **{"X-Internal-Key": INTERNAL_KEY}))
+    r.raise_for_status()
+    return r.json()
+
+
+def feed(u, page_size=30, toi_da_trang=10, cursor=None, order=None):
+    """Doc feed tu dau (luot moi) toi het: (danh sach the, cac trang). order="newest" = tab Moi nhat."""
+    the, trang = [], []
+    for _ in range(toi_da_trang):
+        q = {"pageSize": page_size}
+        if order:
+            q["order"] = order
+        if cursor:
+            q["cursor"] = cursor
+        r = requests.get(G + "/projects/feed", headers=u["h"], params=q)
+        assert r.status_code == 200, r.text
+        j = r.json()
+        trang.append(j)
+        the.extend(j["items"])
+        cursor = j.get("nextCursor")
+        if not cursor or not j["items"]:
+            break
+    return the, trang
+
+
+def goi_y(u):
+    """Id moi du an feed goi y cho u (thay cho GET /projects/recommended da bo)."""
+    return {x["id"] for x in feed(u)[0]}

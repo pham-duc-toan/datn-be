@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import dat_cau_hoi_cong_cu  # noqa: E402
 from moi_truong import G, GOC_REPO, RABBIT_MGMT, TIEN_TO_CONTAINER, URL_GATE, URL_LINK, cho_moi_noi_doc_lai_setting, rabbit_container, sql_container  # noqa: E402,F401
 from tro_giup import nap_mau  # noqa: E402
+from tro_giup import HAN_CHOT  # noqa: E402
 SO_KHOA = len(json.load(open(os.path.join(GOC_REPO, "shared", "settings", "catalog.json"), encoding="utf-8")))
 
 PW = "Matkhau@123"
@@ -94,7 +95,7 @@ try:
         {"name": "cam_xuc", "kind": "classification", "classes": ["tich_cuc", "tieu_cuc"]}]}}).raise_for_status()
     dat_cau_hoi_cong_cu(biz, pid)
     requests.patch(G + f"/projects/{pid}", headers=biz, json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
-                                                                    "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
+                                                                    "deadline": HAN_CHOT}}).raise_for_status()
     rows = [{"text": "Hang dep, giao nhanh", "name": "a"}, {"text": "Chat luong te", "name": "b"}]
     nap_mau(pid, biz, rows)
     rd = requests.get(G + f"/projects/{pid}/readiness", headers=biz).json()
@@ -104,12 +105,12 @@ try:
     print("\n[3] Tu duyet du an (project.auto_approve) + nguong dat x / y (project.pass_threshold_min / max)")
     dat_va_cho("project.pass_threshold_min", 70)
     r = requests.patch(G + f"/projects/{pid}", headers=biz, json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
-                                                                      "deadline": "2027-12-31T00:00:00Z"}})
+                                                                      "deadline": HAN_CHOT}})
     rd = requests.get(G + f"/projects/{pid}/readiness", headers=biz).json()
     kiem("x nang len 70% → t = 60% bi chan (luu hoac checklist)", r.status_code == 400 or "nguong_dat_ngoai_khoang" in rd["missing"], (r.status_code, rd))
     kiem("readiness tra gioi han x = 70 moi", rd["limits"]["passThresholdMin"] == 70, rd["limits"])
     requests.patch(G + f"/projects/{pid}", headers=biz, json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 75,
-                                                                  "deadline": "2027-12-31T00:00:00Z"}}).raise_for_status()
+                                                                  "deadline": HAN_CHOT}}).raise_for_status()
     dat_va_cho("project.auto_approve", True)
     dat_va_cho("ledger.reward_hold", 0, ("ledger",))
     requests.post(G + f"/projects/{pid}/publish", headers=biz).raise_for_status()

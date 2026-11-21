@@ -127,6 +127,37 @@ services:
     volumes: [ch-gate-data:/var/lib/clickhouse]
     healthcheck: { test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"], interval: 10s, timeout: 5s, retries: 30 }
 
+  # Goi y du an (kien truc 3.39): Redis RIENG cua reco-svc. Moi khoa deu dung lai duoc tu nguon goc (reco_db, view
+  # project, ClickHouse) nen het bo nho thi xoa bot khoa it dung (allkeys-lru), khong can appendonly.
+  redis-reco:
+    image: redis:7-alpine
+    container_name: datn-demo-redis-reco
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 20 }
+
+  # Database ClickHouse "reco" DO reco-svc SO HUU, dung chung server ch-gate (muc 9 ke hoach): user reco_user chi co
+  # quyen tren reco.*, ml_reader chi SELECT reco.* (ml-svc huan luyen). Chay lai moi lan up (IF NOT EXISTS + ALTER).
+  ch-init:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: datn-demo-ch-init
+    depends_on: { ch-gate: { condition: service_healthy } }
+    environment:
+      CH_ADMIN_PASSWORD: ${DB_GATE_PASSWORD:?chay python deploy/tao_env.py}
+      CH_RECO_PASSWORD: ${CH_RECO_PASSWORD:?chay python deploy/tao_env.py}
+      CH_ML_READER_PASSWORD: ${CH_ML_READER_PASSWORD:?chay python deploy/tao_env.py}
+    entrypoint: >
+      /bin/sh -c "
+      clickhouse-client --host ch-gate --user gate_user --password $${CH_ADMIN_PASSWORD} --multiquery --query \"
+      CREATE DATABASE IF NOT EXISTS reco;
+      CREATE USER IF NOT EXISTS reco_user IDENTIFIED WITH sha256_password BY '$${CH_RECO_PASSWORD}';
+      ALTER USER reco_user IDENTIFIED WITH sha256_password BY '$${CH_RECO_PASSWORD}';
+      GRANT ALL ON reco.* TO reco_user;
+      CREATE USER IF NOT EXISTS ml_reader IDENTIFIED WITH sha256_password BY '$${CH_ML_READER_PASSWORD}';
+      ALTER USER ml_reader IDENTIFIED WITH sha256_password BY '$${CH_ML_READER_PASSWORD}';
+      GRANT SELECT ON reco.* TO ml_reader;
+      \"
+      "
+
   db-identity:
     <<: *postgres
     container_name: datn-demo-db-identity
@@ -184,6 +215,13 @@ services:
     environment: { POSTGRES_USER: ml_user, POSTGRES_PASSWORD: "${DB_ML_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: ml_db }
     volumes: [pgdata-ml:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U ml_user -d ml_db"], interval: 5s, timeout: 3s, retries: 30 }
+
+  db-reco:
+    <<: *postgres
+    container_name: datn-demo-db-reco
+    environment: { POSTGRES_USER: reco_user, POSTGRES_PASSWORD: "${DB_RECO_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: reco_db }
+    volumes: [pgdata-reco:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U reco_user -d reco_db"], interval: 5s, timeout: 3s, retries: 30 }
 
   db-admin:
     <<: *postgres
@@ -288,6 +326,8 @@ services:
       ConnectionStrings__ProjectDb: Host=db-project;Port=5432;Database=project_db;Username=project_user;Password=${DB_PROJECT_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
       # Role chi doc view cho gate (kien truc 3.32): service chu bat LOGIN + dat mat khau luc khoi dong.
       ReadAccess__Readers__gate_reader: ${DB_READER_GATE_PASSWORD:?chay python deploy/tao_env.py}
+      # Role chi doc view v_reco_* cho bo goi y (kien truc 3.39).
+      ReadAccess__Readers__reco_reader: ${DB_READER_RECO_PASSWORD:?chay python deploy/tao_env.py}
       # FB-11: cho thu nhap tu S3 bang chinh MinIO cua stack (moi dia chi noi bo khac van bi chan — SSRF).
       DatasetImport__AllowedPrivateHosts__0: minio
       # gRPC noi bo ben goi (3.24): identity (tra cuu nguoi dung, dieu kien mo bai), quality (gop nhan cho
@@ -394,6 +434,32 @@ services:
       # Ten doanh nghiep cho watermark noi cua anh khach vuot link: hoi identity qua gRPC luc nap bo nho.
       InternalApi__IdentityGrpcUrl: http://identity:9101
 
+  reco:
+    # Goi y du an (kien truc 3.39): feed cho du an ca nhan hoa. Gateway chuyen GET /projects/feed, /reco/* toi day.
+    <<: *dotnet-service
+    image: datn/reco:demo
+    container_name: datn-demo-reco
+    build: { context: ., dockerfile: deploy/docker/dotnet.Dockerfile, args: { APP: Crowd.Reco.Api } }
+    depends_on:
+      db-admin: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+      db-reco: { condition: service_healthy }
+      # Nap bo nho du an tu view cua project-svc luc khoi dong (warm-up, 3.32).
+      db-project: { condition: service_healthy }
+      redis-reco: { condition: service_healthy }
+      ch-init: { condition: service_completed_successfully }
+    environment:
+      <<: *dotnet-env
+      ASPNETCORE_URLS: http://+:8112
+      ConnectionStrings__RecoDb: Host=db-reco;Port=5432;Database=reco_db;Username=reco_user;Password=${DB_RECO_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=10
+      ConnectionStrings__ProjectRead: Host=db-project;Port=5432;Database=project_db;Username=reco_reader;Password=${DB_READER_RECO_PASSWORD:?chay python deploy/tao_env.py};Maximum Pool Size=3
+      Reco__Redis: redis-reco:6379
+      Reco__ClickHouse: Host=ch-gate;Port=8123;Username=reco_user;Password=${CH_RECO_PASSWORD:?chay python deploy/tao_env.py};Database=reco
+      # File mo hinh ml-svc hoc moi dem (bucket ml-models, tien to reco/).
+      ObjectStorage__Bucket: ml-models
+      InternalApi__IdentityGrpcUrl: http://identity:9101
+
   quality:
     image: datn/quality:demo
     container_name: datn-demo-quality
@@ -430,9 +496,19 @@ services:
     build: { context: ., dockerfile: deploy/docker/ml.Dockerfile }
     depends_on:
       db-ml: { condition: service_healthy }
+      ch-init: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
     environment:
       ML_DATABASE_URL: postgresql+asyncpg://ml_user:${DB_ML_PASSWORD:?chay python deploy/tao_env.py}@db-ml:5432/ml_db
       ML_INTERNAL_API_KEY: ${INTERNAL_API_KEY:?chay python deploy/tao_env.py}
+      # Hoc mo hinh goi y moi dem (kien truc 3.39 muc 8): doc ClickHouse database reco bang user CHI DOC, ghi file mo hinh
+      # + manifest vao MinIO (bucket ml-models, tien to reco/) — reco-svc tu doc, ml-svc khong nam tren duong request.
+      ML_RECO_CLICKHOUSE_URL: http://ch-gate:8123
+      ML_RECO_CLICKHOUSE_USER: ml_reader
+      ML_RECO_CLICKHOUSE_PASSWORD: ${CH_ML_READER_PASSWORD:?chay python deploy/tao_env.py}
+      ML_MINIO_ENDPOINT: minio:9000
+      ML_MINIO_ACCESS_KEY: datn
+      ML_MINIO_SECRET_KEY: ${MINIO_PASSWORD:?chay python deploy/tao_env.py}
       LOG_FORMAT: json
 
   media:
@@ -488,6 +564,7 @@ services:
       DownstreamHosts__8111: admin
       DownstreamHosts__8201: quality
       DownstreamHosts__8109: media
+      DownstreamHosts__8112: reco
       Cors__AllowedOrigins__0: http://localhost:3000
       Cors__AllowedOrigins__1: http://localhost:5173
 
@@ -554,6 +631,7 @@ volumes:
   pgdata-gate:
   pgdata-quality:
   pgdata-ml:
+  pgdata-reco:
   media-cache:
   pgdata-admin:
   pgdata-notification:

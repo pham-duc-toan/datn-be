@@ -8,6 +8,10 @@ asyncpg>=0.29
 numpy>=1.26
 # Mo hinh nhung cau chay ONNX tren CPU (khong can torch / GPU — VD-A-05)
 fastembed>=0.4
+# Hoc mo hinh goi y moi dem (kien truc 3.39): logistic khi it du lieu, LightGBM khi du; file mo hinh len MinIO.
+scikit-learn>=1.5
+lightgbm>=4.5
+minio>=7.2
 
 # test
 pytest>=8

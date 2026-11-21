@@ -6,7 +6,7 @@ namespace Crowd.Contracts.Identity
 {
     /// <summary>
     /// Mot tai khoan vua duoc tao. Nguoi nghe: notification-svc (gui email
-    /// xac thuc, FC-01).
+    /// xac thuc, FC-01); reco-svc (so khoi dau bo dem so thich tu the chon luc dang ky — kien truc 3.39).
     /// Nguon: contracts/events/CATALOG.md, muc identity-svc.
     ///
     /// KHONG chua mat khau, ke ca ban da bam. Event di qua bus, nam trong queue,
@@ -21,7 +21,7 @@ namespace Crowd.Contracts.Identity
 
         public static int Version
         {
-            get { return 1; }
+            get { return 2; }
         }
 
         public required Guid UserId { get; init; }
@@ -33,5 +33,15 @@ namespace Crowd.Contracts.Identity
 
         /// <summary>Vai tro nguoi dung tu chon luc dang ky: business, labeler (tai khoan cu co the con "sharer").</summary>
         public required IReadOnlyList<string> Roles { get; init; }
+
+        /// <summary>
+        /// v2: the so thich labeler chon luc dang ky (ma linh vuc / ngon ngu trong danh muc admin, loai du lieu) — da
+        /// chuan hoa. Rong = khong chon / khong phai labeler. Ban tin v1 khong co truong nay.
+        /// </summary>
+        public IReadOnlyList<string>? Domains { get; init; }
+
+        public IReadOnlyList<string>? Languages { get; init; }
+
+        public IReadOnlyList<string>? Modalities { get; init; }
     }
 }

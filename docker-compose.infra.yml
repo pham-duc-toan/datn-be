@@ -370,6 +370,50 @@ services:
       timeout: 3s
       retries: 20
 
+  # ================= GOI Y DU AN (reco-svc, kien truc 3.39) =================
+  redis-reco:
+    image: redis:7-alpine
+    container_name: datn-redis-reco
+    profiles: ["all", "p7"]
+    # so thich, tap loai tru, danh sach feed — dung lai duoc tu nguon goc nen allkeys-lru
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports: ["127.0.0.1:6383:6379"]
+    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 20 }
+
+  db-reco:
+    image: postgres:16-alpine
+    container_name: datn-db-reco
+    profiles: ["all", "p7"]
+    command: ["postgres","-c","max_connections=30","-c","shared_buffers=32MB"]
+    environment:
+      POSTGRES_USER: reco_user
+      POSTGRES_PASSWORD: dev_reco_pw
+      POSTGRES_DB: reco_db
+    ports: ["127.0.0.1:5412:5432"]
+    volumes: [pgdata-reco:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U reco_user -d reco_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Database ClickHouse "reco" tren ch-gate: user reco_user (reco-svc ghi) + ml_reader (ml-svc chi doc).
+  ch-init:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: datn-ch-init
+    profiles: ["all", "p7"]
+    depends_on: { ch-gate: { condition: service_healthy } }
+    entrypoint: >
+      /bin/sh -c "
+      clickhouse-client --host ch-gate --user gate_user --password dev_gate_pw --multiquery --query \"
+      CREATE DATABASE IF NOT EXISTS reco;
+      CREATE USER IF NOT EXISTS reco_user IDENTIFIED WITH sha256_password BY 'dev_ch_reco_pw';
+      GRANT ALL ON reco.* TO reco_user;
+      CREATE USER IF NOT EXISTS ml_reader IDENTIFIED WITH sha256_password BY 'dev_ch_ml_reader_pw';
+      GRANT SELECT ON reco.* TO ml_reader;
+      \"
+      "
+
 volumes:
   rabbitdata:
   miniodata:
@@ -390,3 +434,4 @@ volumes:
   pgdata-media:
   pgdata-notification:
   pgdata-admin:
+  pgdata-reco:

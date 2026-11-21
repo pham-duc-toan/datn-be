@@ -68,7 +68,7 @@ namespace Crowd.BuildingBlocks.Settings
         public const string ProjectMaxQuestions = "project.max_questions";
         public const string ProjectMinSlots = "project.min_slots";
         public const string ProjectMaxSlots = "project.max_slots";
-        public const string ProjectParticipantMultiplier = "project.participant_multiplier";
+        public const string ProjectMaxDurationDays = "project.max_duration_days";
         public const string ProjectMinRewardVnd = "project.min_reward_vnd";
         public const string TaskAttemptDuration = "task.attempt_duration";
         public const string TaskAttemptMaxBytes = "task.attempt_max_bytes";
@@ -205,6 +205,20 @@ namespace Crowd.BuildingBlocks.Settings
         public const string LinkReferralMaxPerIp = "link.referral_max_per_ip";
         public const string LinkReferralBurstPerHour = "link.referral_burst_per_hour";
 
+        // ---- Goi y du an (reco-svc, kien truc 3.39) ----
+        public const string RecoCacheRefreshInterval = "reco.cache_refresh_interval";
+        public const string RecoFeedSnapshotTtl = "reco.feed_snapshot_ttl";
+        public const string RecoAffinityCacheTtl = "reco.affinity_cache_ttl";
+        public const string RecoAffinityHalfLifeDays = "reco.affinity_half_life_days";
+        public const string RecoNewProjectExposure = "reco.new_project_exposure";
+        public const string RecoExploreEvery = "reco.explore_every";
+        public const string RecoMaxPerBusinessTop = "reco.max_per_business_top";
+        public const string RecoNewInsertsPerPage = "reco.new_inserts_per_page";
+        public const string RecoAbTreatmentPercent = "reco.ab_treatment_percent";
+        public const string RecoEventFlushInterval = "reco.event_flush_interval";
+        public const string RecoEventBatchSize = "reco.event_batch_size";
+        public const string RecoModelCheckInterval = "reco.model_check_interval";
+
         // ---- Ky thuat ----
         public const string OutboxPollInterval = "outbox.poll_interval";
         public const string OutboxBatchSize = "outbox.batch_size";
@@ -243,6 +257,7 @@ namespace Crowd.BuildingBlocks.Settings
         private const string NhomTaiKhoan = "Tài khoản";
         private const string NhomThongBao = "Thông báo";
         private const string NhomCongLink = "Cổng link";
+        private const string NhomGoiY = "Gợi ý dự án";
 
 
         private static readonly string[] CheDoChiCongLink = new string[] { "perClick", "batched" };
@@ -418,8 +433,8 @@ namespace Crowd.BuildingBlocks.Settings
                 "Số suất thưởng (số người được thưởng) tối thiểu doanh nghiệp được đặt cho một dự án. Cần ≥ 3 để “đa số” có nghĩa."));
             ds.Add(Int(SettingKeys.ProjectMaxSlots, NhomDuAn, 50, 1, 1000, "người",
                 "Số suất thưởng tối đa doanh nghiệp được đặt cho một dự án."));
-            ds.Add(Int(SettingKeys.ProjectParticipantMultiplier, NhomDuAn, 2, 1, 20, "lần",
-                "Trần số người làm bài = số suất thưởng × hệ số này. Cho nhiều người làm hơn số suất để “đa số” chắc hơn; khi chấm, n suất thưởng trao cho n bài ĐẠT nộp sớm nhất, bài đạt sau đó không có tiền. Đủ trần thì dự án đóng thu bài. Chụp vào dự án lúc publish."));
+            ds.Add(Int(SettingKeys.ProjectMaxDurationDays, NhomDuAn, 30, 0, 365, "ngày",
+                "Hạn chót xa nhất doanh nghiệp được đặt, tính từ lúc cấu hình giá và kiểm lại lúc gửi duyệt. Số người làm không giới hạn nên dự án chỉ đóng thu bài khi hết hạn chót hoặc doanh nghiệp kết thúc sớm; giới hạn này giữ cho dự án không treo mãi. Khi chấm, n suất thưởng trao cho n bài ĐẠT giống đa số nhất. 0 = không giới hạn."));
             ds.Add(Long(SettingKeys.ProjectMinRewardVnd, NhomDuAn, 10000, 0, 1e10, "đồng",
                 "Tiền thưởng tối thiểu cho MỘT người làm đạt cả dự án. 0 = không giới hạn."));
             ds.Add(Seconds(SettingKeys.ProjectClosedDataRetention, NhomDuAn, 90 * Ngay, 0, 3650 * Ngay,
@@ -706,6 +721,30 @@ namespace Crowd.BuildingBlocks.Settings
                 "Gate chuyển lượt vượt từ Redis Stream sang outbox + ClickHouse sau mỗi khoảng này."));
             ds.Add(Int(SettingKeys.GateEventBatchSize, NhomKyThuat, 200, 1, 5000, "lượt",
                 "Số lượt vượt gate chuyển mỗi lô."));
+            ds.Add(Seconds(SettingKeys.RecoCacheRefreshInterval, NhomKyThuat, 30, 5, 3600,
+                "Bộ gợi ý đọc lại danh sách dự án đang nhận bài (thưởng, số suất, số bài đã nộp) sau mỗi khoảng này. Dự án mở hay đóng thì có hiệu lực ngay, không phải đợi."));
+            ds.Add(Seconds(SettingKeys.RecoFeedSnapshotTtl, NhomKyThuat, 900, 60, 7200,
+                "Danh sách dự án đã xếp cho một lượt lướt chợ được giữ bao lâu. Hết hạn hoặc labeler làm mới thì xếp lại."));
+            ds.Add(Seconds(SettingKeys.RecoAffinityCacheTtl, NhomKyThuat, 1800, 60, 7 * Ngay,
+                "Sở thích của labeler được giữ trong bộ nhớ nhanh bao lâu trước khi đọc lại từ kho chính."));
+            ds.Add(Int(SettingKeys.RecoAffinityHalfLifeDays, NhomGoiY, 90, 7, 365, "ngày",
+                "Sở thích cũ của labeler giảm còn một nửa sau bấy nhiêu ngày, để gợi ý theo kịp thói quen mới."));
+            ds.Add(Int(SettingKeys.RecoNewProjectExposure, NhomGoiY, 200, 0, 100000, "người",
+                "Dự án mới được ưu tiên hiện ở chợ cho tới khi bấy nhiêu labeler phù hợp đã thật sự thấy thẻ. Sau đó dự án xếp theo mức được bấm vào thật."));
+            ds.Add(Int(SettingKeys.RecoExploreEvery, NhomGoiY, 10, 0, 100, "thẻ",
+                "Cứ bấy nhiêu thẻ thì có một thẻ “khám phá”: dự án mới hoặc loại việc labeler chưa từng làm, để thử sở thích. 0 = tắt."));
+            ds.Add(Int(SettingKeys.RecoMaxPerBusinessTop, NhomGoiY, 2, 1, 10, "dự án",
+                "Trong mỗi 10 thẻ, tối đa bấy nhiêu dự án của cùng một doanh nghiệp."));
+            ds.Add(Int(SettingKeys.RecoNewInsertsPerPage, NhomGoiY, 2, 0, 10, "dự án",
+                "Dự án vừa mở trong lúc labeler đang lướt: chen tối đa bấy nhiêu dự án vào mỗi trang kế tiếp. 0 = chỉ thấy khi làm mới chợ."));
+            ds.Add(Int(SettingKeys.RecoAbTreatmentPercent, NhomGoiY, 50, 0, 100, "%",
+                "Khi có cách gợi ý mới đang chạy thử, bấy nhiêu phần trăm labeler dùng cách mới (mỗi người luôn ở cùng một nhóm), số còn lại dùng cách đang chạy."));
+            ds.Add(Seconds(SettingKeys.RecoEventFlushInterval, NhomKyThuat, 2, 0.2, 60,
+                "Bộ gợi ý ghi lượt xem / bấm thẻ chợ vào kho thống kê sau mỗi khoảng này."));
+            ds.Add(Int(SettingKeys.RecoEventBatchSize, NhomKyThuat, 500, 1, 10000, "lượt",
+                "Số lượt xem / bấm thẻ chợ ghi mỗi lô."));
+            ds.Add(Seconds(SettingKeys.RecoModelCheckInterval, NhomKyThuat, 3600, 60, Ngay,
+                "Bộ gợi ý kiểm tra có cách gợi ý mới (học từ hành vi mỗi đêm) sau mỗi khoảng này."));
             ds.Add(Int(SettingKeys.LinkCodeLength, NhomCongLink, 7, 5, 12, "ký tự",
                 "Độ dài mã link ngẫu nhiên."));
             ds.Add(Int(SettingKeys.LinkBulkMax, NhomCongLink, 100, 1, 1000, "link",

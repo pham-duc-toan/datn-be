@@ -19,7 +19,8 @@ Tài liệu này **trích từ code** (model snapshot EF Core, migration SQL c�
 | notification | 8110 | C# | Postgres `db-notification` | |
 | admin | 8111 | C# | Postgres `db-admin` | Chủ của setting |
 | quality | 8201 | Python (FastAPI) | Postgres `db-quality` | Migration SQL tay `001` (gộp). Đọc đề bài / bài nộp / nhãn của project qua **gRPC** (`project:9102`) |
-| ml | 8202 | Python (FastAPI) | Postgres `db-ml` + **pgvector** | Chỉ 1 bảng |
+| ml | 8202 | Python (FastAPI) | Postgres `db-ml` + **pgvector** | Chỉ 1 bảng. Mỗi đêm học mô hình gợi ý: đọc ClickHouse `reco` (user chỉ đọc `ml_reader`), ghi file mô hình lên MinIO `ml-models/reco/` |
+| reco | 8112 | C# | Postgres `db-reco` + Redis `redis-reco` + database **ClickHouse** `reco` (trên `ch-gate`, user `reco_user`) | Feed chợ dự án cá nhân hoá (3.39). Dự án đọc view `v_reco_*` của project (role `reco_reader`) vào RAM |
 | (hạ tầng) | | | RabbitMQ, MinIO (bucket `datasets, media, exports, kyb-docs, avatars, ml-models`), Mailpit | |
 
 `web-bff` có thư mục mã nguồn nhưng **không** nằm trong compose demo và `ocelot.json` không trỏ tới nó.
@@ -95,7 +96,7 @@ Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm 
 
 | Bảng | Cột chính | Ý nghĩa |
 |---|---|---|
-| `project_collections` | `project_id` PK (FK `projects`); `max_participants`; `paused_at?`; `finish_reason?` (`du_suat, het_han, ket_thuc_som`); `graded_at?`, `appeal_deadline?`, `settled_at?`, `passed_count?`; `final_progress?` jsonb (ảnh chụp tiến độ lúc đóng); `data_purged_at?`; `created_at` | **Đợt thu bài** của dự án, mở lúc admin duyệt. Mọi thao tác đổi trạng thái thu bài (nộp, tạm dừng, kết thúc sớm, huỷ) khoá dòng này trước (`FOR UPDATE`) — thứ tự khoá cố định `project_collections → attempts → samples` |
+| `project_collections` | `project_id` PK (FK `projects`); `paused_at?`; `finish_reason?` (`het_han, ket_thuc_som` — không giới hạn người làm, 3.38); `graded_at?`, `appeal_deadline?`, `settled_at?`, `passed_count?`; `final_progress?` jsonb (ảnh chụp tiến độ lúc đóng); `data_purged_at?`; `created_at` | **Đợt thu bài** của dự án, mở lúc admin duyệt. Mọi thao tác đổi trạng thái thu bài (nộp, tạm dừng, kết thúc sớm, huỷ) khoá dòng này trước (`FOR UPDATE`) — thứ tự khoá cố định `project_collections → attempts → samples` |
 | `attempts` | `id` PK; `project_id`; `labeler_id`; `state` (`InProgress, Submitted, Expired, Cancelled`); `started_at`, `expires_at` (hạn làm = min(+48h, hạn chót dự án)), `submitted_at?`, `ended_at?`; `question_order` uuid[] (thứ tự câu đã trộn); `answered_count?`; `gold_total`, `gold_correct`, `gold_answers?` jsonb (câu trả lời câu vàng, chấm lúc nộp); `client_ip?`, `device_id?`; `comparable_count?`, `matched_count?`, `agreement_percent?`, `passed?`, `rewarded?`, `graded_at?` (kết quả chấm do quality trả về); `appeal_state` (`None, Open, Accepted, Rejected`), `appealed_at?`, `appeal_message?`, `appeal_note?`, `appeal_resolved_at?`, `appeal_resolved_by?` | Một bài = mọi câu của dự án. UNIQUE có điều kiện `ux_attempts_project_labeler_active` (`state IN ('InProgress','Submitted')`): mỗi người một bài đang làm hoặc đã nộp mỗi dự án. `xmin` khoá lạc quan |
 | `annotations` | `(project_id, attempt_id, sample_id)` PK; `labeler_id?` (null = khách cổng link); `source` (`Professional`, `LinkGateway`, `Collaborative`); `payload` jsonb (nén **lz4**, không GIN) — **chỉ 6 cột** | Câu trả lời đã nộp: người nào (`labeler_id`, bài `attempt_id`) chọn gì (`payload`) cho câu nào (`sample_id`) — **bảng lớn nhất** về lâu dài. **Phân vùng HASH(`project_id`) 64 phần**. Không lưu những gì suy ra được: `status` (Submitted / Accepted / Excluded) tính từ `attempts.graded_at`, `passed`, `appeal_state` (cổng link luôn Accepted); thời điểm nộp / chốt lấy từ `attempts`; `task_type` = `projects.modality`, `schema_version` = 1. Chấm bài và phân xử khiếu nại chỉ sửa **một dòng `attempts`**, không UPDATE nhãn. Nhãn chỉ INSERT lúc nộp / `gate.solved` |
 | `sample_results` | `(project_id, sample_id)` PK; `tools` jsonb (kết quả gộp từng công cụ: `method, final, agrees, disputed…`); `fingerprint` (băm đầu vào); `computed_at` | **Bộ nhớ đệm** kết quả gộp. `fingerprint` đổi thì mới tính lại — mẫu cần tính được gửi sang quality-svc gộp qua gRPC `LabelAggregation` (kiến trúc 3.24, thuật toán gộp chỉ còn ở Python) |
@@ -189,6 +190,21 @@ Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm 
 | `workspace_templates` | `id`; `code`, `name`, `description`; `modality`; `label_schema` jsonb (kèm câu hỏi chung); `suggested_redundancy?`, `suggested_unit_price_vnd?`; `active`; `version`; `updated_by`, `updated_at` | Mẫu bài toán dựng sẵn để doanh nghiệp tạo dự án nhanh |
 | `tags` | `id`; `code`, `name`; `kind` (lĩnh vực hoặc ngôn ngữ); `hidden`; `merged_into?` | Danh mục thẻ. Gộp thẻ thì phát `tag.merged` |
 
+### 2.14 reco (Postgres `reco_db` + Redis `redis-reco` + ClickHouse database `reco`) — kiến trúc 3.39
+
+| Kho | Đối tượng | Ý nghĩa |
+|---|---|---|
+| Postgres | `labeler_affinity` (`user_id`, `tag_kind` domain\|language\|modality\|tool\|pass_tool, `tag_code`, `a`, `b`, `updated_at`; PK 3 cột đầu) | Bảng GỐC bộ đếm sở thích. a, b là số thô đã quên tới `updated_at`; cộng mới = `a·0,5^(ngày / reco.affinity_half_life_days) + w` trong một câu SQL |
+| Postgres | `hidden_projects` (`user_id`, `project_id`, `created_at`) | Labeler bấm "Không quan tâm" |
+| Postgres | `model_versions` (`version`, `slot` production\|candidate, `kind`, `file_key`, `loaded_at`) | Lịch sử mô hình reco-svc đã nạp |
+| Postgres | `outbox`, `processed_events` | Chống trùng consumer |
+| Redis | `aff:{u}` (cache sở thích, 30 phút), `ex:{u}` (tập loại trừ / thành viên / doanh nghiệp chặn, 7 ngày), `feed:{u}:{phiên}` (200 id + điểm, nhị phân, 15 phút, không bao giờ sửa), `served:{u}:{phiên}`, `seen:{p}` (HyperLogLog người đã thấy), stream `reco:events` | `allkeys-lru` — mọi khoá dựng lại được từ nguồn gốc |
+| ClickHouse | `reco_events` (`event_id`, `event_time`, `user_id`, `project_id`, `kind` impression\|open\|not_interested\|start\|submit\|pass\|fail\|abandon, `position`, `session_id`, `request_id`, `model_version`, `ab_group`; ReplacingMergeTree, TTL 90 ngày) | Hành vi |
+| ClickHouse | `feed_served` (thẻ đã trả + `features` Array(Float64) theo `DacTrung.Ten`, `score`, `p_start`, `p_pass`, `explore`; TTL 90 ngày) | Dữ liệu học của ml-svc |
+| ClickHouse | `reco_daily` (SummingMergeTree, materialized view từ `reco_events`) | Gộp theo ngày / nhóm A/B / mô hình |
+
+View của project cho reco (role `reco_reader`, chỉ SELECT): `v_reco_projects` (dự án đã publish + đặc trưng: số bài nộp / đang làm / đã bắt đầu, trung vị giây mỗi câu, `accepting`, `tools` = công cụ của tập nhãn kèm câu hỏi / lớp), `v_reco_exclusions` (đã nộp / bị chặn / thành viên), `v_reco_owner_blocks`, `v_reco_preview_samples` (MỘT mẫu mỗi dự án, hệ thống tự lấy: mẫu thật tạo sớm nhất, chỉ dự án đang chạy có `preview_enabled`, không NDA / nhạy cảm / riêng tư, không câu vàng). Bảng `projects` thêm cột `preview_enabled boolean` (mặc định bật).
+
 ### 2.12 ml (`ml_db`, pgvector)
 
 | Bảng | Cột | Ý nghĩa |
@@ -212,6 +228,8 @@ Mọi API client đi qua **gateway** (`:8080`, ở demo là `:18080`). Gateway k
 |---|---|---|
 | `/auth/*` | identity | không |
 | `/me`, `/me/*`, `/kyb/*`, `/users/*` | identity | Bearer |
+| `/projects/feed` (Priority 2) | **reco** | Bearer |
+| `/reco/*` | reco | Bearer |
 | `/projects`, `/projects/*` | project | Bearer |
 | `/tasks/*` | project (phần làm bài) | Bearer |
 | `/annotations/*` | project (phần nhãn) | Bearer |
@@ -232,9 +250,9 @@ Mọi API client đi qua **gateway** (`:8080`, ở demo là `:18080`). Gateway k
 
 ### 3.2 API theo service (đường dẫn trên gateway)
 
-**identity** — đăng ký và phiên: `POST /auth/register`, `/auth/login`, `/auth/2fa/verify`, `/auth/refresh`, `/auth/logout`, `/auth/verify-email`, `/auth/forgot-password`, `/auth/reset-password`. Cá nhân: `GET /me`, `GET|PUT /me/profile`, `PUT /me/skills`, `POST /me/avatar/upload-url`, `PUT /me/avatar`, `POST /me/password`, `POST /me/logout-all`, `GET /me/level`, `GET|POST /me/2fa/*`, `GET|PUT /me/identity-verification` (+ `/upload-url`, `/submit`). KYB: `GET|PUT /kyb/me`, `POST /kyb/me/license`, `POST /kyb/me/submit`; admin `GET /kyb/admin`, `POST /kyb/admin/{id}/approve|reject`. Người dùng: `GET /users/public`, `/users/suggest`, `/users/leaderboard`; admin `GET /users/admin`, `POST /users/admin/{id}/block|unblock`, `/2fa/reset`, duyệt `/identity-verifications/{id}/approve|reject`. Nội bộ: `GET /internal/session-revocations`, `POST /internal/users/lookup`, `GET /internal/businesses/{id}`. Khác: `GET /.well-known/openid-configuration`, `GET /.well-known/jwks.json`.
+**identity** — đăng ký và phiên: `POST /auth/register`, `/auth/login`, `/auth/2fa/verify`, `/auth/refresh`, `/auth/logout`, `/auth/verify-email`, `/auth/forgot-password`, `/auth/reset-password`. Cá nhân: `GET /me`, `GET|PUT /me/profile` (`PUT /me/skills` đã bỏ — sở thích chọn lúc đăng ký, 3.38), `POST /me/avatar/upload-url`, `PUT /me/avatar`, `POST /me/password`, `POST /me/logout-all`, `GET /me/level`, `GET|POST /me/2fa/*`, `GET|PUT /me/identity-verification` (+ `/upload-url`, `/submit`). KYB: `GET|PUT /kyb/me`, `POST /kyb/me/license`, `POST /kyb/me/submit`; admin `GET /kyb/admin`, `POST /kyb/admin/{id}/approve|reject`. Người dùng: `GET /users/public`, `/users/suggest`, `/users/leaderboard`; admin `GET /users/admin`, `POST /users/admin/{id}/block|unblock`, `/2fa/reset`, duyệt `/identity-verifications/{id}/approve|reject`. Nội bộ: `GET /internal/session-revocations`, `POST /internal/users/lookup`, `GET /internal/businesses/{id}`. Khác: `GET /.well-known/openid-configuration`, `GET /.well-known/jwks.json`.
 
-**project** — vòng đời: `POST /projects`, `GET /projects`, `GET /projects/{id}`, `GET /projects/{id}/readiness`, `PATCH /projects/{id}` (sửa cấu hình theo nhóm `info|labelSchema|pricing|channels|eligibility|protection|tags|retention`; câu hỏi chung nằm trong `labelSchema.question`), `POST .../publish|pause|resume|finish|cancel`; admin `GET /projects/pending-approval`, `POST /projects/{id}/approve|reject`. Dữ liệu: `POST .../uploads` (xin link upload thẳng MinIO), `POST .../samples` (dòng JSON / file đã upload), `POST .../samples/zip` (ZIP ảnh), `POST .../samples/import` (nguồn ngoài), `GET .../samples` (+ `?trangThai=dang_xu_ly|loi|san_sang`, `?ids=`), `GET .../samples/status`, `PUT .../samples/{sampleId}/question` (câu hỏi riêng của mẫu, chỉ khi nháp), `DELETE .../samples/failed`, `GET|POST|DELETE .../gold-items`. Thành viên: `GET|POST .../members`, `.../members/batch`, `POST .../members/{u}/block|unblock`, `DELETE .../members/{u}`, `POST .../join`, `.../leave`; mã mời: `POST|GET|DELETE .../invite-codes`, `POST /projects/join-by-code` (+ `/preview`); xin vào: `POST .../join-requests`, `GET .../join-requests`, `POST .../join-requests/{r}/approve|reject`; lời mời: `GET /projects/invitations/mine`, `POST .../invitations/{i}/accept|decline`; test đầu vào: `POST .../entrance-test/attempts` (+ `/{a}/submit`); NDA: `GET .../terms`, `POST .../consent`; danh sách riêng: `GET|PUT|DELETE /projects/labeler-lists/*`; đánh giá: `PUT .../ratings/{labelerId}`; chợ dự án của labeler: `GET /projects/market` (chỉ dự án làm được ngay: còn nhận bài, chưa quá hạn chót, còn chỗ, chưa nộp, không bị chặn, đủ cấp độ / uy tín / xác minh); gợi ý: `GET /projects/recommended` (cùng bộ lọc, chỉ dự án chưa tham gia). Nội bộ: gRPC `QualityData` ở cổng 9102 cho quality (mục 4.1).
+**project** — vòng đời: `POST /projects`, `GET /projects`, `GET /projects/{id}`, `GET /projects/{id}/readiness`, `PATCH /projects/{id}` (sửa cấu hình theo nhóm `info|labelSchema|pricing|channels|eligibility|protection|tags|retention`; câu hỏi chung nằm trong `labelSchema.question`), `POST .../publish|pause|resume|finish|cancel`; admin `GET /projects/pending-approval`, `POST /projects/{id}/approve|reject`. Dữ liệu: `POST .../uploads` (xin link upload thẳng MinIO), `POST .../samples` (dòng JSON / file đã upload), `POST .../samples/zip` (ZIP ảnh), `POST .../samples/import` (nguồn ngoài), `GET .../samples` (+ `?trangThai=dang_xu_ly|loi|san_sang`, `?ids=`), `GET .../samples/status`, `PUT .../samples/{sampleId}/question` (câu hỏi riêng của mẫu, chỉ khi nháp), `DELETE .../samples/failed`, `GET|POST|DELETE .../gold-items`. Thành viên: `GET|POST .../members`, `.../members/batch`, `POST .../members/{u}/block|unblock`, `DELETE .../members/{u}`, `POST .../join`, `.../leave`; mã mời: `POST|GET|DELETE .../invite-codes`, `POST /projects/join-by-code` (+ `/preview`); xin vào: `POST .../join-requests`, `GET .../join-requests`, `POST .../join-requests/{r}/approve|reject`; lời mời: `GET /projects/invitations/mine`, `POST .../invitations/{i}/accept|decline`; test đầu vào: `POST .../entrance-test/attempts` (+ `/{a}/submit`); NDA: `GET .../terms`, `POST .../consent`; danh sách riêng: `GET|PUT|DELETE /projects/labeler-lists/*`; đánh giá: `PUT .../ratings/{labelerId}`; chợ dự án DỰ PHÒNG của labeler: `GET /projects/market` (chỉ dự án làm được ngay: còn nhận bài, chưa quá hạn chót, chưa nộp, không bị chặn, đủ cấp độ / uy tín / xác minh; mới nhất trước — feed cá nhân hoá ở reco, `GET /projects/recommended` đã bỏ — 3.39). Xem như labeler (chủ dự án): bật / tắt mẫu xem trước `PUT /projects/{id}/preview` `{ enabled }` (hệ thống tự lấy 1 mẫu; `GET /projects/{id}` có `previewEnabled`, `previewBlockedReason`), bài xem thử `GET /projects/{id}/trial` (kèm `previewSampleId`), `POST /projects/{id}/trial/check`. Nội bộ: gRPC `QualityData` ở cổng 9102 cho quality (mục 4.1).
 
 **project — làm bài** (giữ tiền tố `/tasks` cũ) — `POST /tasks/projects/{p}/attempt` (bắt đầu bài), `GET /tasks/attempts/{a}`, `POST .../submit` (body `{answers:[{sampleId, data}]}` — cả bài một lần; **nháp nằm ở localStorage của frontend**, backend không lưu), `.../abandon`, `.../appeal`, `.../reports`; `GET /tasks/me/attempts`, `GET /tasks/projects/{p}/slots|progress|attempts|reports`, `POST /tasks/reports/{r}/resolve`. Admin: `GET /tasks/admin/appeals`, `POST /tasks/admin/attempts/{a}/appeal/resolve`, `POST /tasks/admin/projects/{p}/purge` (xoá báo lỗi). Không còn `/internal/projects/{id}/close-check` (đóng dự án kiểm tại chỗ, cùng transaction).
 
@@ -254,7 +272,9 @@ Mọi API client đi qua **gateway** (`:8080`, ở demo là `:18080`). Gateway k
 
 **admin** — setting `GET|PUT /admin/settings[/{key}]`, `/{key}/history`; thẻ `GET|POST|PUT /admin/tags`, `/hide|show|merge`, `GET /tags`; mẫu `GET|POST|PUT /admin/templates`, `/activate|deactivate`, `GET /templates[/{id}]`; việc cần xử lý tay `GET /admin/manual-actions`, `POST /admin/manual-actions/{id}/resolve` (hàng đợi duyệt chung đã bỏ — 3.33); vận hành `GET /admin/audit`, `/admin/stats/overview`, `GET /admin/system-health` (tình trạng hệ thống — số lỗi kỹ thuật trong DLQ), thông báo `POST|GET /admin/announcements`.
 
-**media** — `GET /media/v/{token}` (xem file đã watermark), `POST /media/admin/watermark/decode` (giải watermark), `GET /health`. **ml** (nội bộ) — `GET /internal/model`, `POST /internal/embeddings`.
+**reco** — `GET /projects/feed?cursor=&pageSize=&order=` (`for_you` mặc định = feed cá nhân hoá; `newest` = tab Mới nhất cùng dạng thẻ; không có số người làm), `POST /reco/events` (lượt hiện / mở / không quan tâm theo lô, ≤ 100). Nội bộ (`X-Internal-Key`): `GET /reco/internal/catalog`, `POST /reco/internal/refresh`.
+
+**media** — `GET /media/v/{token}` (xem file đã watermark), `POST /media/admin/watermark/decode` (giải watermark), `GET /health`. **ml** (nội bộ) — `GET /internal/model`, `POST /internal/embeddings`, `POST /internal/reco/train` (chạy ngay một lần học mô hình gợi ý; bình thường chạy mỗi đêm).
 
 ---
 
@@ -395,9 +415,8 @@ POST /tasks/attempts/{a}/submit {answers:[{sampleId, data}]}: một transaction 
      ├ chấm câu vàng ngay (gold_correct / gold_total, gold_answers)
      ├ INSERT annotations (project, bài, câu, labeler, source, payload) cho các câu thật
      ├ đánh dấu Submitted (xmin chống nộp đôi)
-     ├ đủ max_participants bài nộp → đóng thu bài ngay (du_suat)
      └ outbox: attempt.submitted (tín hiệu) ──► quality (pending_attempts → worker xét gian lận qua gRPC)
-POST /tasks/attempts/{a}/abandon: trả suất lại
+POST /tasks/attempts/{a}/abandon: huỷ bài (bắt đầu lại được khi dự án còn nhận bài)
 ```
 
 ### 5.5 Đóng thu bài, chấm, trả thưởng

@@ -55,7 +55,7 @@ message ProjectInfo {
   // Trang thai du an (Running, Paused, Grading, Completed, Cancelled...).
   string status = 9;
   google.protobuf.Timestamp published_at = 10;
-  // Dot thu bai: rong = con nhan bai; du_suat | het_han | ket_thuc_som.
+  // Dot thu bai: rong = con nhan bai; het_han | ket_thuc_som (du_suat da bo — kien truc 3.38).
   string finish_reason = 11;
   // Luc dong thu bai (chua dong → khong co).
   google.protobuf.Timestamp collection_finished_at = 12;

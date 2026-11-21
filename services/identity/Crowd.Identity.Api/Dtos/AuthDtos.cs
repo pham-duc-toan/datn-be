@@ -22,6 +22,13 @@ namespace Crowd.Identity.Api.Dtos
 
         /// <summary>Mot hoac nhieu trong: business, labeler.</summary>
         public IReadOnlyList<string>? Roles { get; init; }
+
+        /// <summary>
+        /// So thich chon MOT LAN luc dang ky (chi khi co vai tro labeler; bo trong duoc). Sau do khong xem / sua lai
+        /// duoc — he thong goi y hoc dan tu hanh vi (kien truc 3.38). Toi da KyNang.LinhVucDangKyToiDa linh vuc,
+        /// KyNang.NgonNguDangKyToiDa ngon ngu.
+        /// </summary>
+        public SkillsDto? Skills { get; init; }
     }
 
     public sealed class LoginRequest

@@ -94,6 +94,13 @@ namespace Crowd.Identity.Api.Services
         /// <param name="duTuoi">Da xac minh va du tuoi tinh toi luc phat token (claim adult).</param>
         public string TaoAccessToken(User user, bool kybDaDuyet, bool daXacMinhDanhTinh, bool duTuoi)
         {
+            return TaoAccessToken(user, kybDaDuyet, daXacMinhDanhTinh, duTuoi, 1, null);
+        }
+
+        /// <param name="capDo">Cap do labeler luc phat token (claim level — chi de goi y, 3.39).</param>
+        /// <param name="uyTin">Diem uy tin 0-100 luc phat token; null = chua co (khong ghi claim).</param>
+        public string TaoAccessToken(User user, bool kybDaDuyet, bool daXacMinhDanhTinh, bool duTuoi, int capDo, int? uyTin)
+        {
             if (user == null)
             {
                 throw new ArgumentNullException(nameof(user));
@@ -117,6 +124,11 @@ namespace Crowd.Identity.Api.Services
             claims.Add(new Claim(CrowdClaims.KybVerified, kybDaDuyet ? "true" : "false", ClaimValueTypes.Boolean));
             claims.Add(new Claim(CrowdClaims.IdentityVerified, daXacMinhDanhTinh ? "true" : "false", ClaimValueTypes.Boolean));
             claims.Add(new Claim(CrowdClaims.Adult, duTuoi ? "true" : "false", ClaimValueTypes.Boolean));
+            claims.Add(new Claim(CrowdClaims.Level, capDo.ToString(System.Globalization.CultureInfo.InvariantCulture), ClaimValueTypes.Integer32));
+            if (uyTin.HasValue)
+            {
+                claims.Add(new Claim(CrowdClaims.Reputation, uyTin.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), ClaimValueTypes.Integer32));
+            }
 
             // Ma dinh danh cua CHINH token nay — nen de sau nay lam danh sach
             // thu hoi (VD-S-11) ma khong phai thu hoi ca tai khoan.

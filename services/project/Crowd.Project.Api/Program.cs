@@ -124,6 +124,8 @@ builder.Services.AddHostedService<PendingApprovalTimeoutWorker>();
 builder.Services.AddScoped<BaiLamRevoker>();
 builder.Services.AddScoped<ThuBaiService>();
 builder.Services.AddScoped<LamBaiService>();
+// Chu du an xem du an qua mat labeler: mau xem truoc tren cho (P1), bai xem thu bang du lieu that (Q2) — 3.39.
+builder.Services.AddScoped<XemTruocService>();
 builder.Services.AddScoped<BaoLoiService>();
 builder.Services.AddScoped<DonDuAnDaDongService>();
 builder.Services.AddScoped<AnnotationService>();

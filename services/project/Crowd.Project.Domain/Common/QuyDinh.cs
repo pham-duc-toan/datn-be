@@ -34,6 +34,12 @@ namespace Crowd.Project.Domain.Common
 
         /// <summary>Thuong toi thieu cho mot nguoi dat (FM-04, project.min_reward_vnd). 0 = khong gioi han.</summary>
         public long ThuongToiThieu { get; init; }
+
+        /// <summary>
+        /// Han chot toi da tinh tu luc dat / luc publish (project.max_duration_days). Khong gioi han nguoi lam nen thu
+        /// bai chi dong khi het han hoac ket thuc som — can tran de du an khong treo mai (kien truc 3.38). 0 = khong gioi han.
+        /// </summary>
+        public int HanChotToiDaNgay { get; init; }
     }
 
     /// <summary>Quy dinh khi nap du lieu.</summary>

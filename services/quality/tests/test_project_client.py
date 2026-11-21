@@ -40,7 +40,7 @@ class GiaLap(pb_grpc.QualityDataServicer):
         r = pb.ProjectInfo(project_id=str(DU_AN), owner_id=str(CHU), modality="image",
                            label_schema_json='{"tools":[{"name":"loai","kind":"classification"}]}',
                            pass_threshold_percent=70, slots=3, question_count=5, status="Grading",
-                           published_at=_ts(LUC), finish_reason="du_suat", collection_finished_at=_ts(LUC + timedelta(hours=1)),
+                           published_at=_ts(LUC), finish_reason="het_han", collection_finished_at=_ts(LUC + timedelta(hours=1)),
                            excluded_sample_ids=[str(MAU)])
         return r
 
@@ -92,7 +92,7 @@ async def test_du_an_doi_kieu_va_gui_khoa_noi_bo(may_chu):
     d = await project_client.du_an(DU_AN)
     assert d.owner_id == CHU and d.label_schema["tools"][0]["kind"] == "classification"
     assert d.fill_slots_min_percent is None  # optional khong gui → None, khong phai 0
-    assert d.finish_reason == "du_suat" and d.collection_finished_at == LUC + timedelta(hours=1)
+    assert d.finish_reason == "het_han" and d.collection_finished_at == LUC + timedelta(hours=1)
     assert d.excluded_sample_ids == frozenset({str(MAU)})
     assert may_chu.khoa == ["khoa-test"]
 

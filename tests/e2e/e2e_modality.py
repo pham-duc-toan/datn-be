@@ -6,6 +6,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_GATE, URL_LINK, dat_cau_hoi_cong_cu, rabbit_container, sql_container  # noqa: E402,F401
 import tao_media  # noqa: E402
 
+# Han chot trong gioi han project.max_duration_days (mac dinh 30 ngay — kien truc 3.38).
+HAN_CHOT = time.strftime("%Y-%m-%dT00:00:00Z", time.gmtime(time.time() + 20 * 86400))
+
 M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "media")
 tao_media.dam_bao(M)
 PW = "Matkhau@123"
@@ -214,7 +217,7 @@ def mau(pid):
 
 def chay_du_an(pid, so_mau, ngan_sach=None, chon=None):
     r = requests.patch(G + "/projects/%s" % pid, headers=biz1,
-                     json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": "2027-12-31T00:00:00Z"}})
+                     json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60, "deadline": HAN_CHOT}})
     kiem("dat gia (ca du an)", r.status_code == 200, r.text)
     # Video vua nap: cho media-svc chuan hoa xong (video.prepared) moi publish duoc.
     cho(lambda: requests.get(G + "/projects/%s/readiness" % pid, headers=biz1).json().get("videoPreparingCount", 0) == 0, 300)

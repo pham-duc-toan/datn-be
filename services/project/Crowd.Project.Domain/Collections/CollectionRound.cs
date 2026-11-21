@@ -6,10 +6,13 @@ namespace Crowd.Project.Domain.Collections
 {
     /// <summary>
     /// DOT THU BAI cua mot du an da duyet (bang project_collections, 1-1 voi projects) — phan trang thai CHI
-    /// co tu luc labeler bat dau lam bai: tran nguoi lam, ly do dong thu bai, moc cham / khieu nai / chot.
+    /// co tu luc labeler bat dau lam bai: ly do dong thu bai, moc cham / khieu nai / chot.
     /// Cau hinh (tap nhan, thuong, so suat, han chot...) KHONG chep vao day — doc thang tu LabelingProject.
     ///
-    /// VI SAO TACH KHOI projects: bat dau / nop bai DEM SUAT duoi khoa dong. Khoa dong nay (FOR UPDATE) thay
+    /// KHONG GIOI HAN NGUOI LAM (kien truc 3.38): thu bai chi dong khi HET HAN CHOT hoac CHU DU AN KET THUC SOM.
+    /// So suat thuong chi quyet dinh bao nhieu bai duoc tra thuong luc cham.
+    ///
+    /// VI SAO TACH KHOI projects: bat dau / nop bai / dong thu bai xep hang duoi khoa dong nay (FOR UPDATE) thay
     /// vi khoa dong projects: luong labeler (hang tram lan bam / phut) khong xep hang chung voi thao tac cua
     /// chu du an, va dong thu bai khong lam doi xmin cua projects (chu du an khong gap 409 vo co).
     ///
@@ -23,16 +26,10 @@ namespace Crowd.Project.Domain.Collections
 
         public Guid ProjectId { get; private set; }
 
-        /// <summary>
-        /// Tran so nguoi lam bai (dang lam + da nop) = Slots x project.participant_multiplier, CHUP luc duyet
-        /// (admin doi setting giua chung khong lam lech du an dang chay). Du tran thi dong thu bai.
-        /// </summary>
-        public int MaxParticipants { get; private set; }
-
         /// <summary>Luc tam dung gan nhat (de cong bu thoi gian giu bai khi chay tiep). null = khong tam dung.</summary>
         public DateTimeOffset? PausedAt { get; private set; }
 
-        /// <summary>du_suat | het_han | ket_thuc_som. null = con nhan bai. Luc dong = projects.grading_started_at.</summary>
+        /// <summary>het_han | ket_thuc_som. null = con nhan bai. Luc dong = projects.grading_started_at.</summary>
         public string? FinishReason { get; private set; }
 
         /// <summary>Luc quality-svc cham xong (project.graded).</summary>
@@ -59,16 +56,15 @@ namespace Crowd.Project.Domain.Collections
         public DateTimeOffset CreatedAt { get; private set; }
 
         /// <summary>Admin duyet du an (Dang chay): mo dot thu bai.</summary>
-        public static CollectionRound Mo(Guid projectId, int slots, int heSoNguoiLam, DateTimeOffset luc)
+        public static CollectionRound Mo(Guid projectId, DateTimeOffset luc)
         {
-            if (slots < 1)
+            if (projectId == Guid.Empty)
             {
-                throw new ArgumentOutOfRangeException(nameof(slots));
+                throw new ArgumentException("Thieu du an.", nameof(projectId));
             }
 
             CollectionRound c = new CollectionRound();
             c.ProjectId = projectId;
-            c.MaxParticipants = Math.Max(slots, slots * Math.Max(1, heSoNguoiLam));
             c.CreatedAt = luc;
             return c;
         }

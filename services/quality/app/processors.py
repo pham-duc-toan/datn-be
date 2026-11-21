@@ -123,7 +123,7 @@ async def thu_cham(s: AsyncSession, project_id: uuid.UUID, env) -> None:
         [cham.Bai(str(b.attempt_id), str(b.labeler_id), b.sample_ids, b.gold_total, b.gold_correct) for b in bai],
         nhan, metadata, set(du_an.excluded_sample_ids), du_an.pass_threshold_percent, tham_so, mo or None)
 
-    # So suat = so nguoi DUOC THUONG: n bai dat nop som nhat (kq.bai giu thu tu luc nop cua `bai`); du an bat
+    # So suat = so nguoi DUOC THUONG: n bai dat giong da so nhat, cung % thi nop som hon (kq.bai giu thu tu luc nop cua `bai`); du an bat
     # lap suat trong thi suat con lai trao cho bai giong da so nhieu nhat.
     thuong = cham.chon_duoc_thuong(kq.bai, du_an.slots, du_an.fill_slots_min_percent)
 

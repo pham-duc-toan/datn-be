@@ -57,6 +57,60 @@ namespace Crowd.Contracts.Tasking
         public string? DeviceId { get; init; }
     }
 
+    /// <summary>
+    /// Labeler BAT DAU mot bai moi (kien truc 3.39). Nguoi nghe: reco-svc — hanh vi "bat dau" cong vao so thich
+    /// (w = 0,2), la nhan "co bat dau" cho mo hinh P(bat dau | thay the). Mo lai bai dang lam KHONG phat lai.
+    /// </summary>
+    public sealed record AttemptStarted : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "attempt.started"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid AttemptId { get; init; }
+
+        public required Guid ProjectId { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        public required DateTimeOffset StartedAt { get; init; }
+    }
+
+    /// <summary>
+    /// Bai dang lam KET THUC MA KHONG NOP do chinh labeler: tu bo (reason = tu_bo) hoac het gio lam bai
+    /// (reason = het_gio). Bai bi huy vi du an dong / bi chan KHONG phat — khong phai hanh vi cua labeler.
+    /// Nguoi nghe: reco-svc (cong vao b cua so thich, w = 0,5).
+    /// </summary>
+    public sealed record AttemptAbandoned : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "attempt.abandoned"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid AttemptId { get; init; }
+
+        public required Guid ProjectId { get; init; }
+
+        public required Guid LabelerId { get; init; }
+
+        /// <summary>tu_bo | het_gio</summary>
+        public required string Reason { get; init; }
+
+        public required DateTimeOffset EndedAt { get; init; }
+    }
+
     /// <summary>Mot bai da nop, liet ke trong project.collection_finished.</summary>
     public sealed record SubmittedAttemptRef
     {
@@ -88,7 +142,7 @@ namespace Crowd.Contracts.Tasking
 
         public required Guid ProjectId { get; init; }
 
-        /// <summary>du_suat | het_han | ket_thuc_som</summary>
+        /// <summary>het_han | ket_thuc_som (du_suat da bo — khong gioi han nguoi lam, kien truc 3.38)</summary>
         public required string Reason { get; init; }
 
         public required IReadOnlyList<SubmittedAttemptRef> Attempts { get; init; }

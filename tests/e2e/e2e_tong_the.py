@@ -73,10 +73,10 @@ try:
     kiem("labeler tao du an → 403", r.status_code == 403, r.text)
     A, mau_a = tao_du_an(biz, "Chinh", MAU_A, thuong=THUONG_A, suat=3, nguong=70)
     r = requests.patch(G + f"/projects/{A}", headers=biz["h"], json={"pricing": {"rewardVnd": 0, "slots": 3, "passThresholdPercent": 70,
-                                                                          "deadline": "2027-12-31T00:00:00Z"}})
+                                                                          "deadline": HAN_CHOT}})
     kiem("thuong 0 → 400 thuong_khong_hop_le", r.status_code == 400 and "thuong_khong_hop_le" in r.text, r.text)
     r = requests.patch(G + f"/projects/{A}", headers=biz["h"], json={"pricing": {"rewardVnd": THUONG_A, "slots": 1, "passThresholdPercent": 70,
-                                                                          "deadline": "2027-12-31T00:00:00Z"}})
+                                                                          "deadline": HAN_CHOT}})
     rdy = requests.get(G + f"/projects/{A}/readiness", headers=biz["h"]).json()
     kiem("1 suat < toi thieu 3 → bi chan (400 hoac readiness thieu)",
          r.status_code == 400 or (not rdy["ready"] and rdy["missing"]), (r.status_code, r.text, rdy))
@@ -195,9 +195,12 @@ try:
     kiem("lab2 nop", r.status_code == 200, r.text)
     b3, _ = lam_bai(l3, A, lambda _: "a", nop=False)
     sl = requests.get(G + f"/tasks/projects/{A}/slots", headers=l4["h"]).json()
-    kiem("suat: 3 suat, 2 da nop, 1 dang lam, het cho", sl["slots"] == 3 and sl["submitted"] == 2 and sl["available"] == 0, sl)
+    kiem("suat: labeler thay 3 suat thuong, KHONG thay so nguoi lam (3.38)",
+         sl["slots"] == 3 and not {"submitted", "inProgress", "available", "maxParticipants"} & set(sl), sl)
     r = requests.post(G + f"/tasks/projects/{A}/attempt", headers=l4["h"])
-    kiem("nguoi thu tu mo bai → 409 het_suat", r.status_code == 409 and "het_suat" in r.text, r.text)
+    kiem("nguoi thu tu van mo bai duoc (khong gioi han nguoi lam)", r.status_code in (200, 201), r.text)
+    if r.status_code in (200, 201):
+        requests.post(G + f"/tasks/attempts/{r.json()['attemptId']}/abandon", headers=l4["h"]).raise_for_status()
     t = requests.get(G + f"/tasks/projects/{A}/progress", headers=biz["h"]).json()
     kiem("tien do: 2 bai nop, 1 dang lam, dang mo", t["submitted"] == 2 and t["inProgress"] == 1 and t["phase"] == "open", t)
     kiem("labeler xem tien do → 404", requests.get(G + f"/tasks/projects/{A}/progress", headers=l1["h"]).status_code == 404)
@@ -299,7 +302,7 @@ try:
                                                    json={"value": 50, "reason": "x"}).status_code == 403)
     # T (cua biz2) van la nhap sau khi ky quy that bai.
     r = requests.patch(G + f"/projects/{T}", headers=biz2["h"], json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 50,
-                                                                           "deadline": "2027-12-31T00:00:00Z"}})
+                                                                           "deadline": HAN_CHOT}})
     rdy = requests.get(G + f"/projects/{T}/readiness", headers=biz2["h"]).json()
     kiem("doanh nghiep dat t = 50 < x = 60 → bi chan", r.status_code == 400 or not rdy["ready"], (r.status_code, r.text, rdy))
 

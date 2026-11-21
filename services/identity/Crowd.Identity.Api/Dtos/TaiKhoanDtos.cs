@@ -36,6 +36,7 @@ namespace Crowd.Identity.Api.Dtos
 
     // ---------------- ho so (FC-05, FL-01) ----------------
 
+    /// <summary>So thich chon luc dang ky (RegisterRequest.Skills). Khong tra lai trong ho so (3.38).</summary>
     public sealed class SkillsDto
     {
         public IReadOnlyList<string>? Domains { get; init; }
@@ -64,8 +65,6 @@ namespace Crowd.Identity.Api.Dtos
         public string? AvatarUrl { get; init; }
 
         public required IReadOnlyList<string> Roles { get; init; }
-
-        public required SkillsDto Skills { get; init; }
 
         public required DateTimeOffset CreatedAt { get; init; }
     }

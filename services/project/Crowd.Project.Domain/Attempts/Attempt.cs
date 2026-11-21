@@ -110,7 +110,7 @@ namespace Crowd.Project.Domain.Attempts
         public bool? Passed { get; private set; }
 
         /// <summary>
-        /// Duoc tra thuong (10/2026): so suat n = so nguoi DUOC THUONG — n bai DAT nop som nhat (quality-svc chon).
+        /// Duoc tra thuong (10/2026): so suat n = so nguoi DUOC THUONG — n bai DAT giong da so nhat (quality-svc chon, 3.38).
         /// Bai dat nop muon hon van "dat" (nhan vao ket qua) nhung het suat thuong. Du an bat lap suat trong thi
         /// bai CHUA dat cung co the duoc thuong (suat con trong, quality-svc chon). null = chua cham.
         /// </summary>

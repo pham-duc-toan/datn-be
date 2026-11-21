@@ -16,6 +16,7 @@ using Crowd.Identity.Api.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace Crowd.Identity.Api.Services
 {
@@ -39,6 +40,7 @@ namespace Crowd.Identity.Api.Services
         private readonly ILogger<AuthService> _logger;
         private readonly KhoaDuLieu _khoa;
         private readonly ISettings _settings;
+        private readonly NguonUyTin _uyTin;
 
         public AuthService(
             IdentityDbContext db,
@@ -49,8 +51,16 @@ namespace Crowd.Identity.Api.Services
             TimeProvider clock,
             ILogger<AuthService> logger,
             KhoaDuLieu khoa,
-            ISettings settings)
+            ISettings settings,
+            NguonUyTin uyTin)
         {
+            if (uyTin == null)
+            {
+                throw new ArgumentNullException(nameof(uyTin));
+            }
+
+            _uyTin = uyTin;
+
             if (khoa == null)
             {
                 throw new ArgumentNullException(nameof(khoa));
@@ -144,6 +154,16 @@ namespace Crowd.Identity.Api.Services
             User user = User.Tao(email, username, body.DisplayName!.Trim(), vaiTro, _clock.GetUtcNow());
             user.DatPasswordHash(_matKhau.Bam(user, body.Password!));
 
+            // So thich chon MOT LAN luc dang ky (3.38) — chi labeler (validator da chan vai tro khac). The sai dinh dang
+            // → InvalidValueException (400) truoc khi luu.
+            if (body.Skills != null && vaiTro.Contains(CrowdRoles.Labeler))
+            {
+                user.CapNhatKyNang(
+                    body.Skills.Domains ?? Array.Empty<string>(),
+                    body.Skills.Languages ?? Array.Empty<string>(),
+                    body.Skills.Modalities ?? Array.Empty<string>());
+            }
+
             _db.Users.Add(user);
 
             // Phat user.registered trong CUNG transaction voi viec tao tai khoan.
@@ -156,6 +176,10 @@ namespace Crowd.Identity.Api.Services
                 Email = user.Email,
                 DisplayName = user.DisplayName,
                 Roles = vaiTro,
+                // v2 (3.39): the so thich da chuan hoa — reco-svc khoi tao bo dem so thich, sau do tu hoc tu hanh vi.
+                Domains = user.Domains,
+                Languages = user.Languages,
+                Modalities = user.Modalities,
             };
 
             // actor = null: truoc khi dang ky thanh cong thi chua co danh tinh nao
@@ -493,9 +517,26 @@ namespace Crowd.Identity.Api.Services
             bool duTuoi = xacMinh != null
                 && xacMinh.DuTuoi(_settings.SoNguyen(SettingKeys.IdentityAdultAge), XacMinhDanhTinhService.HomNayVietNam(_clock.GetUtcNow()));
 
+            // Claim level / reputation (3.39): chi de reco-svc loc goi y khong hoi identity moi request. Doc uy tin loi
+            // (quality_db tam sap) thi van cap token, chi thieu claim — dang nhap khong phu thuoc quality.
+            ThongKeLabeler? thongKe = await _db.ThongKeLabelers.AsNoTracking().FirstOrDefaultAsync(t => t.UserId == user.Id, ct);
+            int capDo = thongKe == null ? 1 : thongKe.Level;
+            int? uyTin = null;
+            if (user.Roles.Contains(CrowdRoles.Labeler))
+            {
+                try
+                {
+                    uyTin = await _uyTin.CuaMotNguoiAsync(user.Id, ct);
+                }
+                catch (Exception ex) when (ex is NpgsqlException || ex is TimeoutException)
+                {
+                    _logger.LogWarning(ex, "Khong doc duoc uy tin khi phat token — bo claim reputation");
+                }
+            }
+
             return new TokenResponse
             {
-                AccessToken = _tokenIssuer.TaoAccessToken(user, kybDaDuyet, daXacMinh, duTuoi),
+                AccessToken = _tokenIssuer.TaoAccessToken(user, kybDaDuyet, daXacMinh, duTuoi, capDo, uyTin),
                 RefreshToken = refreshToken,
                 TokenType = "Bearer",
                 ExpiresIn = (int)_tokenIssuer.AccessTokenLifetime.TotalSeconds,

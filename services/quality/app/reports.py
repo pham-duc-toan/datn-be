@@ -47,7 +47,7 @@ async def tinh_tong_quan(s: AsyncSession, project_id: uuid.UUID) -> dict[str, An
         "attemptsSubmitted": len(bai),
         "attemptsGraded": len(da_cham),
         "attemptsPassed": dat,
-        # Bai duoc thuong (toi da so suat — n bai dat nop som nhat, lap suat trong, khieu nai duoc chap nhan).
+        # Bai duoc thuong (toi da so suat — n bai dat giong da so nhat, lap suat trong, khieu nai duoc chap nhan).
         "attemptsRewarded": sum(1 for b in da_cham if b.rewarded),
         "attemptsFailed": len(da_cham) - dat,
         "collectionReason": du_an.finish_reason,
@@ -109,7 +109,7 @@ async def tinh_labelers(s: AsyncSession, project_id: uuid.UUID) -> list[dict[str
             "agreementSampleCount": b.comparable_count if b.graded else None,
             "matchedCount": b.matched_count if b.graded else None,
             "passed": b.passed if b.graded else None,
-            # Trong n suat thuong (n bai dat nop som nhat). passed ma rewarded false = dat nhung het suat;
+            # Trong n suat thuong (n bai dat giong da so nhat). passed ma rewarded false = dat nhung het suat;
             # rewarded ma passed false = duoc lap suat trong / khieu nai duoc chap nhan.
             "rewarded": b.rewarded if b.graded else None,
             "goldAnswers": b.gold_total,

@@ -32,6 +32,21 @@ class Settings(BaseSettings):
     max_texts: int = 256
     max_chars: int = 5000
 
+    # ---- Hoc mo hinh goi y cho reco-svc (kien truc 3.39 muc 8) ----
+    # ClickHouse database reco, user CHI DOC. Trong = tat viec hoc (dev chua bat reco).
+    reco_clickhouse_url: str = ""
+    reco_clickhouse_user: str = "ml_reader"
+    reco_clickhouse_password: str = "dev_ch_ml_reader_pw"
+    # MinIO: ghi file mo hinh + manifest (bucket ml-models, tien to reco/) — reco-svc tu doc.
+    minio_endpoint: str = ""
+    minio_access_key: str = "datn"
+    minio_secret_key: str = "dev_minio_pw"
+    model_bucket: str = "ml-models"
+    # Gio UTC chay lan hoc moi dem (19 UTC = 2 gio sang Viet Nam). Am = khong tu chay (chi POST /internal/reco/train).
+    reco_train_hour_utc: int = 19
+    # Ep hoc ca LightGBM du chua toi nguong du lieu (demo / E2E).
+    reco_force_lightgbm: bool = False
+
 
 _KHOA_DEV = ("demo_internal_key",)
 

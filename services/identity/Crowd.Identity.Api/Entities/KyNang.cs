@@ -11,6 +11,11 @@ namespace Crowd.Identity.Api.Entities
         public const int SoMucToiDa = 20;
         public const int DoDaiToiDa = 50;
 
+        /// <summary>Gioi han so thich chon luc dang ky (kien truc 3.38) — chon it de goi y khoi dau co trong tam.</summary>
+        public const int LinhVucDangKyToiDa = 5;
+
+        public const int NgonNguDangKyToiDa = 3;
+
         /// <summary>Loai du lieu he thong ho tro — trung modality cua du an.</summary>
         public static readonly IReadOnlyList<string> LoaiDuLieu = new string[] { "image", "text", "audio", "video", "pair", "list" };
 

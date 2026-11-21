@@ -94,22 +94,6 @@ namespace Crowd.Identity.Api.Services
             return await TaoResponseAsync(u);
         }
 
-        public async Task<ProfileResponse> CapNhatKyNangAsync(Guid userId, SkillsDto body, CancellationToken ct)
-        {
-            if (body == null)
-            {
-                throw new ArgumentNullException(nameof(body));
-            }
-
-            User u = await LayAsync(userId, ct);
-            u.CapNhatKyNang(
-                body.Domains ?? Array.Empty<string>(),
-                body.Languages ?? Array.Empty<string>(),
-                body.Modalities ?? Array.Empty<string>());
-            await _db.SaveChangesAsync(ct);
-            return await TaoResponseAsync(u);
-        }
-
         /// <summary>Xin link PUT anh dai dien. Key nam duoi thu muc cua chinh nguoi dung.</summary>
         public async Task<AvatarUploadResponse> XinLinkAvatarAsync(Guid userId, AvatarUploadRequest body)
         {
@@ -302,7 +286,6 @@ namespace Crowd.Identity.Api.Services
                 Bio = u.Bio,
                 AvatarUrl = await LinkAvatarAsync(u.AvatarKey),
                 Roles = u.Roles,
-                Skills = new SkillsDto { Domains = u.Domains, Languages = u.Languages, Modalities = u.Modalities },
                 CreatedAt = u.CreatedAt,
             };
         }

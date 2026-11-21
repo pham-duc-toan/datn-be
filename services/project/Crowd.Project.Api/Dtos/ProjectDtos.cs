@@ -199,6 +199,12 @@ namespace Crowd.Project.Api.Dtos
         /// <summary>Phai tu dong y dieu khoan (POST /projects/{id}/consent) truoc khi vao.</summary>
         public bool ConsentRequired { get; init; }
 
+        /// <summary>Doanh nghiep bat mau xem truoc tren the cho du an (P1, 3.39 — he thong tu lay MOT mau).</summary>
+        public bool PreviewEnabled { get; init; }
+
+        /// <summary>Ma ly do du an KHONG duoc hien mau xem truoc (NDA / nhay cam / rieng tu); null = duoc.</summary>
+        public string? PreviewBlockedReason { get; init; }
+
         public IReadOnlyList<string> Domains { get; init; } = new List<string>();
 
         public IReadOnlyList<string> Languages { get; init; } = new List<string>();
@@ -342,8 +348,8 @@ namespace Crowd.Project.Api.Dtos
 
         public required int MaxSlots { get; init; }
 
-        /// <summary>He so tran nguoi lam: toi da Slots x he so nguoi lam bai (project.participant_multiplier).</summary>
-        public required int ParticipantMultiplier { get; init; }
+        /// <summary>Han chot toi da (ngay) tinh tu hom nay — project.max_duration_days; 0 = khong gioi han.</summary>
+        public required int MaxDurationDays { get; init; }
 
         public required int MaxQuestions { get; init; }
 

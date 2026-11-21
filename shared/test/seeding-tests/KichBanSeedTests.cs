@@ -82,6 +82,22 @@ namespace Crowd.Seeding.Tests
         }
 
         [Fact]
+        public void Han_chot_trong_gioi_han_mac_dinh_tinh_tu_luc_tao()
+        {
+            // project.max_duration_days mac dinh 30 (kien truc 3.38): domain kiem han chot tinh tu LUC TAO du an,
+            // ma du an seed tao lui vai ngay — vuot thi project-svc nem loi ngay luc seed.
+            const int HanToiDaNgay = 30;
+            DateTimeOffset bayGio = DateTimeOffset.UtcNow;
+
+            foreach (SeedProject p in KichBanSeed.Projects)
+            {
+                DateTimeOffset lucTao = bayGio - p.CreatedAgo;
+                Assert.True(p.Deadline(bayGio) <= lucTao.AddDays(HanToiDaNgay), p.Key + ": han chot qua " + HanToiDaNgay + " ngay tu luc tao");
+                Assert.True(p.Deadline(bayGio) > bayGio, p.Key + ": han chot da qua");
+            }
+        }
+
+        [Fact]
         public void Moc_thoi_gian_vong_doi_dung_thu_tu()
         {
             DateTimeOffset bayGio = DateTimeOffset.UtcNow;

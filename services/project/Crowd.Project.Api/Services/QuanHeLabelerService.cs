@@ -213,6 +213,7 @@ namespace Crowd.Project.Api.Services
 
         private async Task<int> ChanOMoiDuAnAsync(Guid ownerId, Guid labelerId, Caller caller, DateTimeOffset luc, CancellationToken ct)
         {
+            _events.Phat(caller, new OwnerBlocklistChanged { OwnerId = ownerId, LabelerId = labelerId, Blocked = true });
             List<ProjectMember> ds = await (from m in _db.ProjectMembers
                                             join p in _db.Projects on m.ProjectId equals p.Id
                                             where p.OwnerId == ownerId && m.UserId == labelerId
@@ -234,6 +235,7 @@ namespace Crowd.Project.Api.Services
 
         private async Task<int> MoOMoiDuAnAsync(Guid ownerId, Guid labelerId, Caller caller, DateTimeOffset luc, CancellationToken ct)
         {
+            _events.Phat(caller, new OwnerBlocklistChanged { OwnerId = ownerId, LabelerId = labelerId, Blocked = false });
             List<ProjectMember> ds = await (from m in _db.ProjectMembers
                                             join p in _db.Projects on m.ProjectId equals p.Id
                                             where p.OwnerId == ownerId && m.UserId == labelerId && m.BlockedByOwnerList
