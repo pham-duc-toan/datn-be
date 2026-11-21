@@ -44,8 +44,10 @@ x-dotnet-env: &dotnet-env
 x-log-labels: &log-labels
   co.elastic.logs/enabled: "true"
 
+# restart "no" cho MOI container: bat may / mo Docker KHONG tu chay stack (do nang may). Chi chay khi go
+#   docker compose -f docker-compose.demo.yml up -d      — tat: ... stop (giu du lieu)
 x-dotnet-service: &dotnet-service
-  restart: unless-stopped
+  restart: "no"
   labels: *log-labels
   depends_on:
     rabbitmq: { condition: service_healthy }
@@ -53,7 +55,7 @@ x-dotnet-service: &dotnet-service
 
 x-postgres: &postgres
   image: postgres:16-alpine
-  restart: unless-stopped
+  restart: "no"
 
 networks:
   default:
@@ -210,7 +212,7 @@ services:
   db-ml:
     # pgvector: bo dem vector nhung cau cua ml-svc (kien truc 3.19).
     image: pgvector/pgvector:pg16
-    restart: unless-stopped
+    restart: "no"
     container_name: datn-demo-db-ml
     environment: { POSTGRES_USER: ml_user, POSTGRES_PASSWORD: "${DB_ML_PASSWORD:?chay python deploy/tao_env.py}", POSTGRES_DB: ml_db }
     volumes: [pgdata-ml:/var/lib/postgresql/data]
@@ -463,7 +465,7 @@ services:
   quality:
     image: datn/quality:demo
     container_name: datn-demo-quality
-    restart: unless-stopped
+    restart: "no"
     labels: *log-labels
     build: { context: ., dockerfile: deploy/docker/quality.Dockerfile }
     depends_on:
@@ -491,7 +493,7 @@ services:
     # AI ho tro (3.19): nhung cau tra loi mo cho quality-svc. Chi trong mang noi bo, khong qua gateway.
     image: datn/ml:demo
     container_name: datn-demo-ml
-    restart: unless-stopped
+    restart: "no"
     labels: *log-labels
     build: { context: ., dockerfile: deploy/docker/ml.Dockerfile }
     depends_on:
@@ -516,7 +518,7 @@ services:
     # doan mau); am thanh: watermark chim nhung thang nguoi nghe. Khong co DB.
     image: datn/media:demo
     container_name: datn-demo-media
-    restart: unless-stopped
+    restart: "no"
     labels: *log-labels
     build: { context: ., dockerfile: deploy/docker/media.Dockerfile }
     depends_on:
@@ -574,7 +576,7 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
     container_name: datn-demo-elasticsearch
-    restart: unless-stopped
+    restart: "no"
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
@@ -587,7 +589,7 @@ services:
   kibana:
     image: docker.elastic.co/kibana/kibana:8.15.3
     container_name: datn-demo-kibana
-    restart: unless-stopped
+    restart: "no"
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
     ports: ["15601:5601"]
@@ -606,7 +608,7 @@ services:
   filebeat:
     image: docker.elastic.co/beats/filebeat:8.15.3
     container_name: datn-demo-filebeat
-    restart: unless-stopped
+    restart: "no"
     user: root
     command: ["filebeat", "-e", "--strict.perms=false"]
     volumes:

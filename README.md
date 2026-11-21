@@ -18,6 +18,20 @@ Gateway ở `http://localhost:18080`, email thông báo xem ở Mailpit `http://
 E2E_PROFILE=demo python tests/e2e/chay_hoi_quy.py
 ```
 
+### Bật / tắt hằng ngày (sau khi khởi động lại máy)
+
+Container **không tự chạy** khi bật máy hay mở Docker (`restart: "no"`) — chỉ chạy khi bạn ra lệnh. Mở Docker Desktop, rồi:
+
+```bash
+# 1. Backend (thư mục repo này) — không cần --build nếu code không đổi
+docker compose -f docker-compose.demo.yml up -d
+
+# 2. Frontend (repo fe-datn, cổng 5173)
+npm run dev
+```
+
+Xong việc: `docker compose -f docker-compose.demo.yml stop` (giữ nguyên dữ liệu). **Không** dùng `down -v` trừ khi muốn xoá hết dữ liệu để seed lại.
+
 ## Tài liệu
 
 | Tài liệu | Nội dung |
