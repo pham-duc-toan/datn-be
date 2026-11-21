@@ -432,7 +432,7 @@ namespace Crowd.BuildingBlocks.Settings
                 "Số câu (mẫu dữ liệu, không tính câu vàng) tối đa của một dự án — mỗi labeler làm HẾT các câu trong một bài. Dữ liệu lớn hơn thì tách thành nhiều dự án."));
             ds.Add(Int(SettingKeys.ProjectMinSlots, NhomDuAn, 3, 1, 100, "người",
                 "Số suất thưởng (số người được thưởng) tối thiểu doanh nghiệp được đặt cho một dự án. Cần ≥ 3 để “đa số” có nghĩa."));
-            ds.Add(Int(SettingKeys.ProjectMaxSlots, NhomDuAn, 50, 1, 1000, "người",
+            ds.Add(Int(SettingKeys.ProjectMaxSlots, NhomDuAn, 50, 1, 1000000, "người",
                 "Số suất thưởng tối đa doanh nghiệp được đặt cho một dự án."));
             ds.Add(Int(SettingKeys.ProjectMaxDurationDays, NhomDuAn, 30, 0, 365, "ngày",
                 "Hạn chót xa nhất doanh nghiệp được đặt, tính từ lúc cấu hình giá và kiểm lại lúc gửi duyệt. Số người làm không giới hạn nên dự án chỉ đóng thu bài khi hết hạn chót hoặc doanh nghiệp kết thúc sớm; giới hạn này giữ cho dự án không treo mãi. Khi chấm, n suất thưởng trao cho n bài ĐẠT giống đa số nhất. 0 = không giới hạn."));

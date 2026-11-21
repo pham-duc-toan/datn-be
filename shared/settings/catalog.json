@@ -545,7 +545,7 @@
     "type": "int",
     "default": 50,
     "min": 1,
-    "max": 1000,
+    "max": 1000000,
     "unit": "người",
     "effect": "newOperations",
     "description": "Số suất thưởng tối đa doanh nghiệp được đặt cho một dự án."
