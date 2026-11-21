@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Crowd.Reco.Domain;
 using System.Threading;
@@ -199,6 +200,31 @@ namespace Crowd.Reco.Infrastructure.Source
                     while (await r.ReadAsync(ct))
                     {
                         kq.DoanhNghiepChan.Add(r.GetGuid(0));
+                    }
+                }
+            }
+
+            return kq;
+        }
+
+        /// <summary>Cap (labeler, du an) DA NOP bai trong cac du an cho — worker nhac du an da thich bo qua nguoi da nop (3.40).</summary>
+        public async Task<HashSet<KeyValuePair<Guid, Guid>>> DocDaNopAsync(IReadOnlyCollection<Guid> projectIds, CancellationToken ct)
+        {
+            HashSet<KeyValuePair<Guid, Guid>> kq = new HashSet<KeyValuePair<Guid, Guid>>();
+            if (projectIds == null || projectIds.Count == 0)
+            {
+                return kq;
+            }
+
+            await using (NpgsqlCommand cmd = _project.CreateCommand(
+                "SELECT user_id, project_id FROM v_reco_exclusions WHERE kind = 'submitted' AND project_id = ANY($1)"))
+            {
+                cmd.Parameters.Add(new NpgsqlParameter { Value = projectIds.ToArray() });
+                await using (NpgsqlDataReader r = await cmd.ExecuteReaderAsync(ct))
+                {
+                    while (await r.ReadAsync(ct))
+                    {
+                        kq.Add(new KeyValuePair<Guid, Guid>(r.GetGuid(0), r.GetGuid(1)));
                     }
                 }
             }

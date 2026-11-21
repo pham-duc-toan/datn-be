@@ -44,6 +44,11 @@ namespace Crowd.Reco.Api.Controllers
                 return Ok(await _feed.LayMoiNhatAsync(User, cursor, pageSize, ct));
             }
 
+            if (string.Equals(order, "liked", StringComparison.Ordinal))
+            {
+                return Ok(await _feed.LayDaThichAsync(User, cursor, pageSize, ct));
+            }
+
             return Ok(await _feed.LayAsync(User, cursor, pageSize, ct));
         }
     }
@@ -70,6 +75,39 @@ namespace Crowd.Reco.Api.Controllers
         {
             int n = await _hanhVi.GhiTuFrontendAsync(CrowdClaims.GetUserId(User), body, ct);
             return Ok(new RecoEventsResponse { Accepted = n });
+        }
+    }
+
+    /// <summary>Thich / bo thich du an de lam sau (kien truc 3.40). Danh sach: GET /projects/feed?order=liked.</summary>
+    [ApiController]
+    [Authorize(Roles = CrowdRoles.Labeler)]
+    public sealed class LikesController : ControllerBase
+    {
+        private readonly HanhViService _hanhVi;
+
+        public LikesController(HanhViService hanhVi)
+        {
+            if (hanhVi == null)
+            {
+                throw new ArgumentNullException(nameof(hanhVi));
+            }
+
+            _hanhVi = hanhVi;
+        }
+
+        /// <summary>PUT /reco/likes/{projectId}?sessionId= — sessionId (tuy chon) de biet bam tim o feed nao.</summary>
+        [HttpPut("reco/likes/{projectId:guid}")]
+        public async Task<IActionResult> Thich(Guid projectId, [FromQuery] string? sessionId, CancellationToken ct)
+        {
+            await _hanhVi.ThichAsync(CrowdClaims.GetUserId(User), projectId, sessionId, ct);
+            return Ok(new LikeResponse { ProjectId = projectId, Liked = true });
+        }
+
+        [HttpDelete("reco/likes/{projectId:guid}")]
+        public async Task<IActionResult> BoThich(Guid projectId, [FromQuery] string? sessionId, CancellationToken ct)
+        {
+            await _hanhVi.BoThichAsync(CrowdClaims.GetUserId(User), projectId, sessionId, ct);
+            return Ok(new LikeResponse { ProjectId = projectId, Liked = false });
         }
     }
 
@@ -159,6 +197,31 @@ namespace Crowd.Reco.Api.Controllers
             int so = await _catalog.NapAsync(false, ct);
             await _moHinh.KiemTraAsync(ct);
             return Ok(new { openProjects = so, productionModel = _moHinh.Production.PhienBan });
+        }
+    }
+
+    /// <summary>POST /reco/internal/remind-liked — chay ngay mot vong nhac du an da thich (E2E / doi ky thuat). Khoa noi bo.</summary>
+    [ApiController]
+    [AllowAnonymous]
+    [InternalApi]
+    public sealed class InternalNhacController : ControllerBase
+    {
+        private readonly NhacDaThichService _nhac;
+
+        public InternalNhacController(NhacDaThichService nhac)
+        {
+            if (nhac == null)
+            {
+                throw new ArgumentNullException(nameof(nhac));
+            }
+
+            _nhac = nhac;
+        }
+
+        [HttpPost("reco/internal/remind-liked")]
+        public async Task<IActionResult> Nhac(CancellationToken ct)
+        {
+            return Ok(new { reminded = await _nhac.QuetAsync(ct) });
         }
     }
 }

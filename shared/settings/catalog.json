@@ -2249,6 +2249,18 @@
     "description": "Dự án vừa mở trong lúc labeler đang lướt: chen tối đa bấy nhiêu dự án vào mỗi trang kế tiếp. 0 = chỉ thấy khi làm mới chợ."
   },
   {
+    "key": "reco.liked_reminder_hours",
+    "name": "Nhắc dự án đã thích trước hạn chót",
+    "group": "Gợi ý dự án",
+    "type": "int",
+    "default": 24,
+    "min": 1,
+    "max": 168,
+    "unit": "giờ",
+    "effect": "newOperations",
+    "description": "Nhắc labeler dự án đã thích sắp hết hạn chót khi còn bấy nhiêu giờ (mỗi dự án nhắc một lần, chỉ khi chưa nộp bài)."
+  },
+  {
     "key": "reco.ab_treatment_percent",
     "name": "Tỉ lệ labeler dùng thử gợi ý mới",
     "group": "Gợi ý dự án",

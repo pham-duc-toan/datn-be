@@ -80,3 +80,11 @@ def test_token_kieu_cu_khong_co_truong_moi():
     khoa = doc_khoa(KHOA_VECTOR)
     q = giai_ma(khoa, _ma_hoa(khoa, _noi_dung_goc()))
     assert q.chu_ca_nhan is None and q.chu_chung is None and q.bat_dau is None and q.ket_thuc is None
+
+
+def test_co_xem_truoc_dung_chung():
+    khoa = doc_khoa(KHOA_VECTOR)
+    nd = _noi_dung_goc() | {"u": None, "r": "preview", "xt": 1, "ws": "nguồn: Công ty A - gannhan.vn"}
+    q = giai_ma(khoa, _ma_hoa(khoa, nd))
+    assert q.xem_truoc and q.user_id is None and q.chu_chung == "nguồn: Công ty A - gannhan.vn"
+    assert not giai_ma(khoa, _ma_hoa(khoa, _noi_dung_goc())).xem_truoc

@@ -204,6 +204,7 @@ namespace Crowd.BuildingBlocks.Settings
             { "reco.explore_every", "Mật độ thẻ khám phá" },
             { "reco.max_per_business_top", "Số dự án cùng doanh nghiệp trong 10 thẻ" },
             { "reco.new_inserts_per_page", "Dự án mới chen vào mỗi trang" },
+            { "reco.liked_reminder_hours", "Nhắc dự án đã thích trước hạn chót" },
             { "reco.ab_treatment_percent", "Tỉ lệ labeler dùng thử gợi ý mới" },
             { "reco.event_flush_interval", "Chu kỳ ghi lượt xem thẻ chợ" },
             { "reco.event_batch_size", "Số lượt xem thẻ chợ mỗi lô" },

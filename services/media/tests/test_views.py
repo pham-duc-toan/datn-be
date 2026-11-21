@@ -69,3 +69,15 @@ def test_chu_cua_nguoi_xem():
     assert chu_cua(q) == "nguồn: x - Công ty A - gannhan.vn"
     q = giai_ma(doc_khoa(settings().grant_key), _token())
     assert chu_cua(q) == f"nguồn: {q.user_id}"
+
+
+def test_token_xem_truoc_khong_dung_duoc_o_link_xem_mau():
+    # Ban xem truoc dung chung khong gan nguoi xem — dung o /media/v thi se lay duoc file khong mang ma ai.
+    from app.views import doc_quyen
+
+    with pytest.raises(LoiApi) as e:
+        doc_quyen(_token(xt=1, u=None, r="preview"))
+    assert e.value.status == 403
+    with pytest.raises(LoiApi):
+        _quyen_hls(_token(xt=1), cho_gia_han=False)
+    assert doc_quyen(_token()).xem_truoc is False

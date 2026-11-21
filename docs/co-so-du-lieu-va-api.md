@@ -197,8 +197,9 @@ Bài làm, nhãn và mẫu có **cùng vòng đời với dự án** nên nằm 
 | Postgres | `labeler_affinity` (`user_id`, `tag_kind` domain\|language\|modality\|tool\|pass_tool, `tag_code`, `a`, `b`, `updated_at`; PK 3 cột đầu) | Bảng GỐC bộ đếm sở thích. a, b là số thô đã quên tới `updated_at`; cộng mới = `a·0,5^(ngày / reco.affinity_half_life_days) + w` trong một câu SQL |
 | Postgres | `hidden_projects` (`user_id`, `project_id`, `created_at`) | Labeler bấm "Không quan tâm" |
 | Postgres | `model_versions` (`version`, `slot` production\|candidate, `kind`, `file_key`, `loaded_at`) | Lịch sử mô hình reco-svc đã nạp |
+| Postgres | `liked_projects` (`user_id`, `project_id`, `created_at`, `reminded_at`; PK 2 cột đầu, index lọc `reminded_at IS NULL`) | Dự án labeler đã thích (3.40), tối đa 200 / người; `reminded_at` = đã nhắc sắp hết hạn |
 | Postgres | `outbox`, `processed_events` | Chống trùng consumer |
-| Redis | `aff:{u}` (cache sở thích, 30 phút), `ex:{u}` (tập loại trừ / thành viên / doanh nghiệp chặn, 7 ngày), `feed:{u}:{phiên}` (200 id + điểm, nhị phân, 15 phút, không bao giờ sửa), `served:{u}:{phiên}`, `seen:{p}` (HyperLogLog người đã thấy), stream `reco:events` | `allkeys-lru` — mọi khoá dựng lại được từ nguồn gốc |
+| Redis | `aff:{u}` (cache sở thích, 30 phút), `ex:{u}` (tập loại trừ / thành viên / doanh nghiệp chặn, 7 ngày), `feed:{u}:{phiên}` (200 id + điểm, nhị phân, 15 phút, không bao giờ sửa), `served:{u}:{phiên}`, `seen:{p}` (HyperLogLog người đã thấy), `skip:{u}` (dự án đã lướt qua → "số lần:giây", 3 ngày — 3.40), `evd:{eventId}` (hành vi frontend đã nhận, 2 ngày), stream `reco:events`; `ex:{u}` thêm `l:{pid}` đã thích | `allkeys-lru` — mọi khoá dựng lại được từ nguồn gốc |
 | ClickHouse | `reco_events` (`event_id`, `event_time`, `user_id`, `project_id`, `kind` impression\|open\|not_interested\|start\|submit\|pass\|fail\|abandon, `position`, `session_id`, `request_id`, `model_version`, `ab_group`; ReplacingMergeTree, TTL 90 ngày) | Hành vi |
 | ClickHouse | `feed_served` (thẻ đã trả + `features` Array(Float64) theo `DacTrung.Ten`, `score`, `p_start`, `p_pass`, `explore`; TTL 90 ngày) | Dữ liệu học của ml-svc |
 | ClickHouse | `reco_daily` (SummingMergeTree, materialized view từ `reco_events`) | Gộp theo ngày / nhóm A/B / mô hình |
@@ -272,9 +273,9 @@ Mọi API client đi qua **gateway** (`:8080`, ở demo là `:18080`). Gateway k
 
 **admin** — setting `GET|PUT /admin/settings[/{key}]`, `/{key}/history`; thẻ `GET|POST|PUT /admin/tags`, `/hide|show|merge`, `GET /tags`; mẫu `GET|POST|PUT /admin/templates`, `/activate|deactivate`, `GET /templates[/{id}]`; việc cần xử lý tay `GET /admin/manual-actions`, `POST /admin/manual-actions/{id}/resolve` (hàng đợi duyệt chung đã bỏ — 3.33); vận hành `GET /admin/audit`, `/admin/stats/overview`, `GET /admin/system-health` (tình trạng hệ thống — số lỗi kỹ thuật trong DLQ), thông báo `POST|GET /admin/announcements`.
 
-**reco** — `GET /projects/feed?cursor=&pageSize=&order=` (`for_you` mặc định = feed cá nhân hoá; `newest` = tab Mới nhất cùng dạng thẻ; không có số người làm), `POST /reco/events` (lượt hiện / mở / không quan tâm theo lô, ≤ 100). Nội bộ (`X-Internal-Key`): `GET /reco/internal/catalog`, `POST /reco/internal/refresh`.
+**reco** — `GET /projects/feed?cursor=&pageSize=&order=` (`for_you` mặc định = feed cá nhân hoá; `newest` = tab Mới nhất cùng dạng thẻ; `liked` = dự án đã thích, sắp hết hạn trước; không có số người làm), `PUT|DELETE /reco/likes/{projectId}` (thích / bỏ thích, 3.40), nội bộ `POST /reco/internal/remind-liked` (chạy ngay một vòng nhắc), `POST /reco/events` (lượt hiện / mở / không quan tâm theo lô, ≤ 100). Nội bộ (`X-Internal-Key`): `GET /reco/internal/catalog`, `POST /reco/internal/refresh`.
 
-**media** — `GET /media/v/{token}` (xem file đã watermark), `POST /media/admin/watermark/decode` (giải watermark), `GET /health`. **ml** (nội bộ) — `GET /internal/model`, `POST /internal/embeddings`, `POST /internal/reco/train` (chạy ngay một lần học mô hình gợi ý; bình thường chạy mỗi đêm).
+**media** — `GET /media/xt/{token}` (bản xem trước DÙNG CHUNG trên thẻ chợ — ảnh 1080 / clip 15 giây, `Cache-Control: public`, 3.40), `GET /media/v/{token}` (xem file đã watermark), `POST /media/admin/watermark/decode` (giải watermark), `GET /health`. **ml** (nội bộ) — `GET /internal/model`, `POST /internal/embeddings`, `POST /internal/reco/train` (chạy ngay một lần học mô hình gợi ý; bình thường chạy mỗi đêm).
 
 ---
 

@@ -517,5 +517,54 @@ namespace Crowd.Reco.Tests
             Assert.Empty(ds[1].Classes);
             Assert.Empty(NguonDuAn.DocCongCu("khong phai json"));
         }
+
+        [Fact]
+        public void Phat_luot_qua_mem_va_hoi_phuc_sau_ba_ngay()
+        {
+            LuotQua mot = new LuotQua { SoLan = 1, LanCuoi = Mau.BayGio };
+            LuotQua hai = new LuotQua { SoLan = 3, LanCuoi = Mau.BayGio };
+            Assert.Equal(1, PhatLuotQua.HeSo(null, Mau.BayGio, 3));
+            Assert.Equal(0.5, PhatLuotQua.HeSo(mot, Mau.BayGio, 3), 6);
+            Assert.Equal(0.25, PhatLuotQua.HeSo(hai, Mau.BayGio, 3), 6);
+            // Hoi phuc tuyen tinh: sau 1,5 ngay giua chung; sau 3 ngay het phat.
+            Assert.Equal(0.75, PhatLuotQua.HeSo(mot, Mau.BayGio.AddDays(1.5), 3), 6);
+            Assert.Equal(1, PhatLuotQua.HeSo(hai, Mau.BayGio.AddDays(4), 3), 6);
+        }
+
+        [Fact]
+        public void Du_an_da_luot_qua_bi_day_xuong_nhung_khong_bi_an()
+        {
+            DuAnGoiY p = Mau.DuAn();
+            LabelerGoiY goc = Mau.Nguoi();
+            LabelerGoiY daLuot = new LabelerGoiY
+            {
+                UserId = goc.UserId,
+                Level = goc.Level,
+                Reputation = goc.Reputation,
+                IdentityVerified = goc.IdentityVerified,
+                Adult = goc.Adult,
+                SoThich = goc.SoThich,
+                LoaiTru = goc.LoaiTru,
+                ThanhVien = goc.ThanhVien,
+                DoanhNghiepChan = goc.DoanhNghiepChan,
+                DaLuotQua = new Dictionary<Guid, LuotQua> { { p.Id, new LuotQua { SoLan = 1, LanCuoi = Mau.BayGio } } },
+            };
+            double diemGoc = Mau.Cham(p, goc).Diem;
+            Assert.Equal(diemGoc * 0.5, Mau.Cham(p, daLuot).Diem, 6);
+            Assert.True(DieuKienGoiY.LamDuoc(p, daLuot));
+        }
+
+        [Fact]
+        public void Thich_cong_a_bo_thich_cong_b_va_chi_feed_goi_y_tinh_luot_qua()
+        {
+            DuAnGoiY p = Mau.DuAn();
+            Assert.All(HanhVi.ThayDoi(HanhVi.Thich, p), x => Assert.Equal(0.3, x.WA, 6));
+            Assert.All(HanhVi.ThayDoi(HanhVi.BoThich, p), x => Assert.Equal(0.3, x.WB, 6));
+            Assert.True(FeedService.TinhLuotQua("0193abc"));
+            Assert.False(FeedService.TinhLuotQua("moi_0193abc"));
+            Assert.False(FeedService.TinhLuotQua("thich_0193abc"));
+            Assert.False(FeedService.TinhLuotQua(null));
+            Assert.Contains(HanhVi.Thich, HanhVi.XoaLuotQua);
+        }
     }
 }

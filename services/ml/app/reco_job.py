@@ -26,7 +26,8 @@ log = logging.getLogger("ml-svc.reco")
 
 MANIFEST = "reco/manifest.json"
 
-# Hanh vi + dac trung trong 90 ngay (TTL cua bang). Nhan "bat dau" = co attempt.started trong 24 gio sau luot tra the.
+# Hanh vi + dac trung trong 90 ngay (TTL cua bang). Nhan "quan tam" = BAT DAU lam hoac THICH (luu lam sau, 3.40)
+# trong 24 gio sau luot tra the — ca hai deu la tin hieu nguoi dung muon lam du an nay.
 SQL_BAT_DAU = """
 SELECT s.features AS f, max(st.t > s.event_time AND st.t < s.event_time + INTERVAL 1 DAY) AS y,
        toUnixTimestamp(s.event_time) AS t
@@ -36,7 +37,7 @@ INNER JOIN (SELECT user_id, project_id, request_id FROM reco_events
             GROUP BY user_id, project_id, request_id) AS imp
     ON imp.user_id = s.user_id AND imp.project_id = s.project_id AND imp.request_id = s.request_id
 LEFT JOIN (SELECT user_id, project_id, min(event_time) AS t FROM reco_events
-           WHERE kind = 'start' AND event_date >= today() - 91 GROUP BY user_id, project_id) AS st
+           WHERE kind IN ('start', 'like') AND event_date >= today() - 91 GROUP BY user_id, project_id) AS st
     ON st.user_id = s.user_id AND st.project_id = s.project_id
 WHERE s.event_date >= today() - 90
 GROUP BY s.event_id, s.features, s.event_time

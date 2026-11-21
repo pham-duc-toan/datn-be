@@ -157,6 +157,33 @@ namespace Crowd.Reco.Infrastructure.Persistence.Migrations
                     b.ToTable("labeler_affinity", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Reco.Infrastructure.Persistence.LikedProject", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("RemindedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reminded_at");
+
+                    b.HasKey("UserId", "ProjectId");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_liked_projects_chua_nhac")
+                        .HasFilter("reminded_at IS NULL");
+
+                    b.ToTable("liked_projects", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Reco.Infrastructure.Persistence.ModelVersion", b =>
                 {
                     b.Property<string>("Version")

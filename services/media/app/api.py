@@ -4,6 +4,7 @@
   GET  /media/v/{token}/index.m3u8     — video co watermark: danh sach phat HLS cua doan mau
   GET  /media/v/{token}/c/{so}.ts      — mang giua dung chung
   GET  /media/v/{token}/p/{ten}.ts     — mang dau / cuoi rieng nguoi xem (dau | cuoi | ca)
+  GET  /media/xt/{token}               — ban xem truoc DUNG CHUNG tren the cho du an (3.40): anh nho / clip 15 giay, cache cong khai
   POST /media/admin/watermark/decode   — am thanh nghi ro ri → giai ma watermark chim → ai da nghe (admin).
                                          Anh / video mang chu NOI (doc thang tren hinh) — khong can giai ma.
 """
@@ -19,7 +20,7 @@ from fastapi.responses import Response
 from app import watermark, watermark_av
 from app.auth import NguoiGoi, can_vai_tro
 from app.errors import LoiApi
-from app.views import khoa_watermark, phuc_vu, phuc_vu_danh_sach, phuc_vu_mang_chung, phuc_vu_mang_rieng
+from app.views import khoa_watermark, phuc_vu, phuc_vu_danh_sach, phuc_vu_mang_chung, phuc_vu_mang_rieng, phuc_vu_xem_truoc
 
 router = APIRouter(prefix="/media")
 
@@ -49,6 +50,11 @@ async def mang_rieng(token: str, ten: str, request: Request) -> Response:
     if ten not in MANG_RIENG:
         raise LoiApi(404, "khong_co_doan", "Không có đoạn này.")
     return await phuc_vu_mang_rieng(token, ten, request)
+
+
+@router.get("/xt/{token}")
+async def xem_truoc(token: str, request: Request) -> Response:
+    return await phuc_vu_xem_truoc(token, request)
 
 
 @router.post("/admin/watermark/decode")

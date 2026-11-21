@@ -37,6 +37,13 @@ namespace Crowd.Reco.Api.Services
     {
         public const int ToiDaMoiLo = 100;
 
+        /// <summary>Thoi diem frontend gui: nhan neu trong [24 gio truoc, 2 phut sau] gio server, ngoai ra dung gio server.</summary>
+        private static readonly TimeSpan LechTruoc = TimeSpan.FromHours(24);
+        private static readonly TimeSpan LechSau = TimeSpan.FromMinutes(2);
+
+        /// <summary>Nho ma hanh vi da nhan bay lau (frontend gui lai lo cu sau khi mo lai trang).</summary>
+        private static readonly TimeSpan NhoMaHanhVi = TimeSpan.FromDays(2);
+
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
         private readonly RecoRedis _redis;
@@ -136,10 +143,18 @@ namespace Crowd.Reco.Api.Services
                     continue;
                 }
 
+                Guid maHanhVi = e.EventId.HasValue && e.EventId.Value != Guid.Empty ? e.EventId.Value : Guid.CreateVersion7();
+                if (e.EventId.HasValue && !await _redis.NhanLanDauAsync(maHanhVi, NhoMaHanhVi))
+                {
+                    // Lo cu frontend gui lai (localStorage) — da nhan roi.
+                    continue;
+                }
+
+                DateTimeOffset luc = e.At.HasValue && e.At.Value >= bayGio - LechTruoc && e.At.Value <= bayGio + LechSau ? e.At.Value : bayGio;
                 DongHanhVi dong = new DongHanhVi
                 {
-                    EventId = Guid.CreateVersion7(),
-                    At = bayGio,
+                    EventId = maHanhVi,
+                    At = luc,
                     UserId = userId,
                     ProjectId = e.ProjectId,
                     Kind = e.Kind,
@@ -147,7 +162,7 @@ namespace Crowd.Reco.Api.Services
                     SessionId = CatChuoi(e.SessionId, 64),
                     RequestId = CatChuoi(e.RequestId, 64),
                     // Tab "Moi nhat" khong do mo hinh xep → khong tinh vao A/B (ml-svc chi lay dung phien ban mo hinh).
-                    ModelVersion = FeedService.LaPhienMoiNhat(e.SessionId) ? FeedService.PhienBanMoiNhat : chon.MoHinh.PhienBan,
+                    ModelVersion = PhienBanCho(e.SessionId, chon),
                     AbGroup = chon.Nhom,
                 };
 
@@ -166,6 +181,99 @@ namespace Crowd.Reco.Api.Services
             }
 
             return nhan;
+        }
+
+        /// <summary>Tab Moi nhat / trang Da thich khong do mo hinh xep → gan phien ban rieng, ml-svc khong tinh vao A/B.</summary>
+        private static string PhienBanCho(string? sessionId, MoHinhDaChon chon)
+        {
+            if (FeedService.LaPhienMoiNhat(sessionId))
+            {
+                return FeedService.PhienBanMoiNhat;
+            }
+
+            if (FeedService.LaPhienDaThich(sessionId))
+            {
+                return FeedService.PhienBanDaThich;
+            }
+
+            return chon.MoHinh.PhienBan;
+        }
+
+        /// <summary>
+        /// PUT /reco/likes/{projectId} — thich du an de lam sau (3.40). Ghi ben (reco_db) + danh dau trong Redis (the hien tim
+        /// do ngay) + hanh vi "like" vao stream (relay cong so thich, xoa phat da luot qua, ghi ClickHouse cho ml-svc).
+        /// Thich lai du an da thich: khong doi gi.
+        /// </summary>
+        public async Task ThichAsync(Guid userId, Guid projectId, string? sessionId, CancellationToken ct)
+        {
+            DuAnGoiY? p = await TimDuAnAsync(projectId, ct);
+            if (p == null)
+            {
+                throw new RecoException(404, "khong_tim_thay_du_an", "Không tìm thấy dự án.");
+            }
+
+            bool daCo = await _db.LikedProjects.AnyAsync(x => x.UserId == userId && x.ProjectId == projectId, ct);
+            if (daCo)
+            {
+                return;
+            }
+
+            int soDaThich = await _db.LikedProjects.CountAsync(x => x.UserId == userId, ct);
+            if (soDaThich >= FeedService.ThichToiDa)
+            {
+                throw new RecoException(400, "qua_nhieu_du_an_da_thich",
+                    "Bạn đã thích " + FeedService.ThichToiDa + " dự án. Bỏ thích bớt dự án cũ trước khi thích thêm.");
+            }
+
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            _db.LikedProjects.Add(new LikedProject { UserId = userId, ProjectId = projectId, CreatedAt = bayGio });
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                // Bam hai lan cung luc — dong kia da ghi.
+                _db.ChangeTracker.Clear();
+                return;
+            }
+
+            await _redis.DatLoaiTruAsync(userId, RecoRedis.TruongDaThich(projectId));
+            await GhiHanhViMayChuAsync(userId, projectId, HanhVi.Thich, sessionId, bayGio);
+        }
+
+        /// <summary>DELETE /reco/likes/{projectId} — bo thich (khong co thi thoi).</summary>
+        public async Task BoThichAsync(Guid userId, Guid projectId, string? sessionId, CancellationToken ct)
+        {
+            int xoa = await _db.LikedProjects.Where(x => x.UserId == userId && x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+            await _redis.XoaLoaiTruAsync(userId, RecoRedis.TruongDaThich(projectId));
+            if (xoa > 0)
+            {
+                await GhiHanhViMayChuAsync(userId, projectId, HanhVi.BoThich, sessionId, _clock.GetUtcNow());
+            }
+        }
+
+        /// <summary>Hanh vi do server ghi thay frontend (thich / bo thich) — relay cong bo dem nhu hanh vi frontend.</summary>
+        private async Task GhiHanhViMayChuAsync(Guid userId, Guid projectId, string kind, string? sessionId, DateTimeOffset luc)
+        {
+            MoHinhDaChon chon = _moHinh.Chon(userId, _settings.SoNguyen(SettingKeys.RecoAbTreatmentPercent));
+            await _redis.GhiHanhViAsync(MaHoa(new MucHangDoi
+            {
+                Ev = new DongHanhVi
+                {
+                    EventId = Guid.CreateVersion7(),
+                    At = luc,
+                    UserId = userId,
+                    ProjectId = projectId,
+                    Kind = kind,
+                    Position = -1,
+                    SessionId = CatChuoi(sessionId, 64),
+                    RequestId = string.Empty,
+                    ModelVersion = PhienBanCho(sessionId, chon),
+                    AbGroup = chon.Nhom,
+                },
+                TuFrontend = true,
+            }));
         }
 
         /// <summary>"Khong quan tam": ghi ben (reco_db) + them vao tap loai tru ngay — the bien mat tu trang sau.</summary>

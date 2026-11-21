@@ -38,6 +38,42 @@ namespace Crowd.Contracts.Project
     }
 
     /// <summary>
+    /// project-svc → media-svc (kien truc 3.40): tao SAN ban xem truoc DUNG CHUNG cua the cho du an luc du an bat dau chay
+    /// (duyet / tu duyet) va luc doanh nghiep bat lai xem truoc. Mau = mau he thong tu lay (mau that nap som nhat, khong
+    /// phai cau vang). Anh: thu nho canh dai 1080 px; video / am thanh: clip 15 giay dau doan mau. Chu in vao = chu DUNG
+    /// CHUNG (khong co nguoi xem) — frontend ve them chu cua nguoi xem de len. Chi gui voi mau co file (anh / video / am thanh).
+    /// </summary>
+    public sealed record ProjectPreviewRequested : IEventPayload
+    {
+        public static string EventType
+        {
+            get { return "project.preview_requested"; }
+        }
+
+        public static int Version
+        {
+            get { return 1; }
+        }
+
+        public required Guid ProjectId { get; init; }
+
+        public required Guid SampleId { get; init; }
+
+        public required string Modality { get; init; }
+
+        public required string StorageKey { get; init; }
+
+        /// <summary>Video / am thanh cat doan: mili-giay bat dau cua mau trong file (null = 0).</summary>
+        public long? SegmentStartMs { get; init; }
+
+        /// <summary>Mili-giay ket thuc cua mau trong file (null = het file).</summary>
+        public long? SegmentEndMs { get; init; }
+
+        /// <summary>"nguồn: &lt;doanh nghiep&gt; - &lt;domain&gt;" (ChuWatermark.DungChung); null = admin tat watermark.</summary>
+        public string? WatermarkText { get; init; }
+    }
+
+    /// <summary>
     /// Mot mau trong event. Mang du thong tin de service nghe phat viec ma khong phai
     /// hoi lai project-svc: file (khoa MinIO) hoac noi dung (text), va metadata
     /// de kiem nhan (kich thuoc anh, thoi luong, do dai van ban).

@@ -90,6 +90,7 @@ builder.Services.AddMediaLinks(builder.Configuration);
 builder.Services.Configure<ProjectSagaOptions>(builder.Configuration.GetSection(ProjectSagaOptions.SectionName));
 builder.Services.AddScoped<ProjectAccessService>();
 builder.Services.AddScoped<ProjectEventPublisher>();
+builder.Services.AddScoped<YeuCauXemTruoc>();
 builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<MemberService>();
 builder.Services.AddScoped<InviteCodeService>();

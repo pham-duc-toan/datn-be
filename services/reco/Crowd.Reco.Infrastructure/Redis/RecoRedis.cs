@@ -15,13 +15,18 @@ namespace Crowd.Reco.Infrastructure.Redis
         public required HashSet<Guid> ThanhVien { get; init; }
 
         public required HashSet<Guid> DoanhNghiepChan { get; init; }
+
+        /// <summary>Du an da thich (l:{pid}, 3.40) — KHONG loai tru, chi de the hien tim do.</summary>
+        public HashSet<Guid> DaThich { get; init; } = new HashSet<Guid>();
     }
 
     /// <summary>
     /// Redis RIENG cua reco-svc (redis-reco, allkeys-lru — moi khoa deu dung lai duoc tu nguon goc):
     ///   aff:{userId}            Hash  "loai|ma" → "a,b,unixGiay"      ban doc nhanh cua labeler_affinity
     ///   ex:{userId}             Hash  s:{pid} da nop · b:{pid} bi chan · h:{pid} khong quan tam · m:{pid} thanh vien
-    ///                                 · o:{ownerId} doanh nghiep chan · "_" da nap        (dung lai tu view + reco_db)
+    ///                                 · o:{ownerId} doanh nghiep chan · l:{pid} da thich · "_" da nap (dung lai tu view + reco_db)
+    ///   skip:{userId}           Hash  {pid} → "soLan:unixGiay" du an da LUOT QUA (3.40), het han sau vai ngay
+    ///   evd:{eventId}           String hanh vi frontend da nhan (bo trung khi frontend gui lai lo cu), song 2 ngay
     ///   feed:{userId}:{phien}   String nhi phan — danh sach 200 the da xep, KHONG SUA
     ///   served:{userId}:{phien} Set   id da tra trong phien
     ///   seen:{projectId}        HyperLogLog — so labeler da that su thay the
@@ -157,6 +162,10 @@ namespace Crowd.Reco.Infrastructure.Redis
                 {
                     t.DoanhNghiepChan.Add(id);
                 }
+                else if (loai == 'l')
+                {
+                    t.DaThich.Add(id);
+                }
             }
 
             return t;
@@ -214,6 +223,75 @@ namespace Crowd.Reco.Infrastructure.Redis
         public static string TruongDoanhNghiepChan(Guid ownerId)
         {
             return "o:" + ownerId.ToString("N");
+        }
+
+        public static string TruongDaThich(Guid projectId)
+        {
+            return "l:" + projectId.ToString("N");
+        }
+
+        // ---------------------------------------------------------------- du an da luot qua (3.40)
+
+        // Tang so lan + ghi lan cuoi; gia han ca khoa (mot nguoi mot khoa).
+        private const string LuaLuotQua =
+            "local v = redis.call('HGET', KEYS[1], ARGV[1]) local n = 0 "
+            + "if v then n = tonumber(string.match(v, '^(%d+)')) or 0 end "
+            + "redis.call('HSET', KEYS[1], ARGV[1], (n + 1) .. ':' .. ARGV[2]) redis.call('EXPIRE', KEYS[1], ARGV[3]) return n + 1";
+
+        private static string KhoaLuotQua(Guid userId)
+        {
+            return "skip:" + userId.ToString("N");
+        }
+
+        public async Task<Dictionary<Guid, LuotQua>> DocLuotQuaAsync(Guid userId)
+        {
+            Dictionary<Guid, LuotQua> kq = new Dictionary<Guid, LuotQua>();
+            foreach (HashEntry h in await Db.HashGetAllAsync(KhoaLuotQua(userId)))
+            {
+                Guid id;
+                string[] phan = h.Value.ToString().Split(':');
+                long giay;
+                int n;
+                if (Guid.TryParse(h.Name.ToString(), out id) && phan.Length == 2
+                    && int.TryParse(phan[0], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out n)
+                    && long.TryParse(phan[1], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out giay))
+                {
+                    kq[id] = new LuotQua { SoLan = n, LanCuoi = DateTimeOffset.FromUnixTimeSeconds(giay) };
+                }
+            }
+
+            return kq;
+        }
+
+        public async Task GhiLuotQuaAsync(IReadOnlyCollection<KeyValuePair<Guid, Guid>> nguoiVaDuAn, DateTimeOffset luc, TimeSpan han)
+        {
+            List<Task> viec = new List<Task>();
+            foreach (KeyValuePair<Guid, Guid> x in nguoiVaDuAn)
+            {
+                viec.Add(Db.ScriptEvaluateAsync(LuaLuotQua, new RedisKey[] { KhoaLuotQua(x.Key) }, new RedisValue[]
+                {
+                    x.Value.ToString("N"), luc.ToUnixTimeSeconds(), (long)Math.Ceiling(han.TotalSeconds),
+                }));
+            }
+
+            await Task.WhenAll(viec);
+        }
+
+        public async Task XoaLuotQuaAsync(IReadOnlyCollection<KeyValuePair<Guid, Guid>> nguoiVaDuAn)
+        {
+            List<Task> viec = new List<Task>();
+            foreach (KeyValuePair<Guid, Guid> x in nguoiVaDuAn)
+            {
+                viec.Add(Db.HashDeleteAsync(KhoaLuotQua(x.Key), x.Value.ToString("N")));
+            }
+
+            await Task.WhenAll(viec);
+        }
+
+        /// <summary>Danh dau hanh vi frontend da nhan. false = da nhan truoc do (frontend gui lai lo cu) → bo qua.</summary>
+        public async Task<bool> NhanLanDauAsync(Guid eventId, TimeSpan han)
+        {
+            return await Db.StringSetAsync("evd:" + eventId.ToString("N"), "1", han, When.NotExists);
         }
 
         // ---------------------------------------------------------------- phien luot

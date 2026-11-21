@@ -31,7 +31,7 @@ import numpy as np
 from fastapi import Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
-from app import chu_noi, hls, settings_store, watermark, watermark_av
+from app import chu_noi, hls, settings_store, watermark, watermark_av, xem_truoc
 from app.bo_dem import BoDem
 from app.config import settings
 from app.errors import LoiApi
@@ -59,11 +59,19 @@ def khoa_watermark() -> bytes:
     return doc_khoa(settings().watermark_key)
 
 
-def doc_quyen(token: str) -> QuyenXem:
+def _giai(token: str) -> QuyenXem:
     try:
         return giai_ma(khoa_grant(), token)
     except TokenKhongHopLe as ex:
         raise LoiApi(403, "link_khong_hop_le", "Link xem không hợp lệ.") from ex
+
+
+def doc_quyen(token: str) -> QuyenXem:
+    """Token xem mau (/media/v). Token ban xem truoc dung chung KHONG dung duoc o day — no khong gan nguoi xem."""
+    q = _giai(token)
+    if q.xem_truoc:
+        raise LoiApi(403, "link_khong_hop_le", "Link xem không hợp lệ.")
+    return q
 
 
 def nguoi_xem(q: QuyenXem) -> watermark.NguoiXem:
@@ -293,8 +301,8 @@ def _phat_tep(duong_dan: Path, loai: str, request: Request) -> Response:
     return StreamingResponse(doc(), status_code=206, media_type=loai, headers=headers)
 
 
-async def _phat_goc(khoa: str, request: Request) -> Response:
-    """Phat nguyen file, ho tro 'Range: bytes=a-b' (trinh duyet tua am thanh / video)."""
+async def _phat_goc(khoa: str, request: Request, header_goc: dict[str, str] | None = None) -> Response:
+    """Phat nguyen file, ho tro 'Range: bytes=a-b' (trinh duyet tua am thanh / video). header_goc mac dinh: chong luu."""
     try:
         tt = await asyncio.to_thread(kho().thong_tin, khoa)
     except KhongCoFile as ex:
@@ -303,7 +311,7 @@ async def _phat_goc(khoa: str, request: Request) -> Response:
     loai = tt.content_type or _loai_noi_dung(khoa)
     if loai == "application/octet-stream":
         loai = _loai_noi_dung(khoa)
-    headers = dict(HEADER_CHONG_LUU)
+    headers = dict(HEADER_CHONG_LUU if header_goc is None else header_goc)
     headers["Accept-Ranges"] = "bytes"
 
     if tt.size == 0:
@@ -338,3 +346,30 @@ def _doc_range(gia_tri: str | None, kich_thuoc: int) -> tuple[int, int] | None:
     if dau > cuoi or dau >= kich_thuoc:
         return None
     return dau, min(cuoi, kich_thuoc - 1)
+
+
+# =====================================================================
+# Ban xem truoc DUNG CHUNG tren the cho du an (kien truc 3.40)
+# =====================================================================
+
+# Link doi moi ngay (token song tron ngay UTC) → cho trinh duyet / CDN giu 1 ngay; noi dung khong gan nguoi xem.
+HEADER_XEM_TRUOC = {"Cache-Control": "public, max-age=86400, immutable"}
+
+
+async def phuc_vu_xem_truoc(token: str, request: Request) -> Response:
+    """Phat ban xem truoc da tao san (MinIO); chua co (du an chay tu truoc, event chua toi) thi tao tai cho mot lan."""
+    q = _giai(token)
+    if not q.xem_truoc or q.modality not in xem_truoc.TEN_FILE:
+        raise LoiApi(403, "link_khong_hop_le", "Link xem không hợp lệ.")
+    if q.het_han(datetime.now(timezone.utc)):
+        raise LoiApi(410, "link_het_han", "Link xem đã hết hạn — tải lại trang để lấy link mới.")
+    chu = q.chu_chung if settings_store.dung_sai(settings_store.WATERMARK_ENABLED) else None
+    try:
+        key = await xem_truoc.dam_bao(q.project_id, q.sample_id, q.modality, q.storage_key,
+                                      q.bat_dau, q.ket_thuc, chu, khoa_watermark())
+    except KhongCoFile as ex:
+        raise LoiApi(404, "khong_co_file", "File mẫu không còn.") from ex
+    except watermark_av.LoiMedia as ex:
+        log.warning("Khong tao duoc ban xem truoc %s: %s", q.sample_id, ex)
+        raise LoiApi(409, "media_hong", "File hỏng, không phát được.") from ex
+    return await _phat_goc(key, request, HEADER_XEM_TRUOC)

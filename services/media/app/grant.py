@@ -45,6 +45,8 @@ class QuyenXem:
     # Video: doan cua mau trong file (giay) — danh sach phat HLS chi gom doan nay.
     bat_dau: float | None = None
     ket_thuc: float | None = None
+    # Ban xem truoc DUNG CHUNG tren the cho du an (3.40, "xt": 1): chi phat o /media/xt, tu choi o /media/v.
+    xem_truoc: bool = False
 
     def het_han(self, luc: datetime) -> bool:
         return luc >= self.expires_at
@@ -107,6 +109,7 @@ def giai_ma(khoa: bytes, token: str) -> QuyenXem:
             chu_chung=_chuoi_hoac_none(d.get("ws")),
             bat_dau=None if d.get("a") is None else float(d["a"]),
             ket_thuc=None if d.get("b") is None else float(d["b"]),
+            xem_truoc=d.get("xt") == 1,
         )
     except (KeyError, ValueError, TypeError) as ex:
         raise TokenKhongHopLe("noi dung token sai dinh dang") from ex

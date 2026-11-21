@@ -47,3 +47,21 @@ class VideoPrepared(Payload):
     storage_key: str
     succeeded: bool
     error: str | None
+
+
+# =====================================================================
+# XEM TRUOC tren the cho du an (project-svc, kien truc 3.40) — xem_truoc.py
+# =====================================================================
+
+
+class ProjectPreviewRequested(Payload):
+    EVENT_TYPE = "project.preview_requested"
+
+    project_id: uuid.UUID
+    sample_id: uuid.UUID
+    modality: str
+    storage_key: str
+    segment_start_ms: int | None
+    segment_end_ms: int | None
+    # Chu DUNG CHUNG "nguồn: <doanh nghiep> - <domain>"; None = admin tat watermark.
+    watermark_text: str | None

@@ -90,6 +90,9 @@ namespace Crowd.Reco.Api.Dtos
         /// <summary>kiem_tot | hop_so_thich | hay_dat | lam_nhanh | moi | kham_pha — frontend doi ra chu.</summary>
         public required IReadOnlyList<string> Reasons { get; init; }
 
+        /// <summary>Nguoi xem da THICH du an nay (3.40).</summary>
+        public required bool Liked { get; init; }
+
         /// <summary>TOAN BO cong cu + cau hoi (luon co — trang chi tiet du an da cong khai).</summary>
         public required IReadOnlyList<FeedTool> Tools { get; init; }
 
@@ -97,7 +100,7 @@ namespace Crowd.Reco.Api.Dtos
         public required IReadOnlyList<FeedPreview> Previews { get; init; }
     }
 
-    /// <summary>GET /projects/feed?cursor=&amp;pageSize=&amp;order=for_you|newest</summary>
+    /// <summary>GET /projects/feed?cursor=&amp;pageSize=&amp;order=for_you|newest|liked</summary>
     public sealed class FeedResponse
     {
         public required IReadOnlyList<FeedCard> Items { get; init; }
@@ -111,9 +114,16 @@ namespace Crowd.Reco.Api.Dtos
         public required string SessionId { get; init; }
     }
 
-    /// <summary>Mot luot hanh vi frontend gui (theo lo).</summary>
+    /// <summary>
+    /// Mot luot hanh vi frontend gui (theo lo). Frontend giu hang doi trong localStorage, gui moi phut (3.40): EventId do
+    /// frontend sinh (gui lai lo cu khong bi dem doi), At = luc xay ra hanh vi (server chi nhan trong [24 gio truoc, 2 phut sau]).
+    /// </summary>
     public sealed class RecoEventItem
     {
+        public Guid? EventId { get; init; }
+
+        public DateTimeOffset? At { get; init; }
+
         /// <summary>impression | open | not_interested</summary>
         public string? Kind { get; init; }
 
@@ -135,6 +145,14 @@ namespace Crowd.Reco.Api.Dtos
     public sealed class RecoEventsResponse
     {
         public required int Accepted { get; init; }
+    }
+
+    /// <summary>PUT / DELETE /reco/likes/{projectId}.</summary>
+    public sealed class LikeResponse
+    {
+        public required Guid ProjectId { get; init; }
+
+        public required bool Liked { get; init; }
     }
 
     /// <summary>GET /reco/internal/catalog — tom tat bo nho (doi ky thuat, E2E). Khoa noi bo.</summary>

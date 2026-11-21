@@ -242,7 +242,7 @@ namespace Crowd.Notification.Tests
         {
             Assert.True(LoaiThongBao.Tim(LoaiThongBao.KetQuaBai)!.GuiEmail(null));
             Assert.False(LoaiThongBao.Tim(LoaiThongBao.CapDo)!.GuiEmail(null));
-            Assert.Equal(14, LoaiThongBao.TatCa.Count);
+            Assert.Equal(15, LoaiThongBao.TatCa.Count);
         }
 
         [Fact]
@@ -276,7 +276,7 @@ namespace Crowd.Notification.Tests
                 NoiDungThongBao.RutThanhCong(1), NoiDungThongBao.RutThatBai("x"), NoiDungThongBao.RutBiTuChoi(1, "x"),
                 NoiDungThongBao.KetQuaKhieuNai(p, true, true, "x"), NoiDungThongBao.KetQuaKhieuNai(p, true, false, "x"), NoiDungThongBao.DuAnDaCham(p, 1, 1, 2), NoiDungThongBao.CapDoMoi(2),
                 NoiDungThongBao.HuyHieuMoi("x"), NoiDungThongBao.DuocThemVaoDuAn(p, "x"), NoiDungThongBao.DonThamGiaMoi(p, "x", null),
-                NoiDungThongBao.KetQuaDonThamGia(p, "x", false, "het_han"), NoiDungThongBao.LoiMoiDuAn(p, "x", true, DateTimeOffset.UnixEpoch),
+                NoiDungThongBao.KetQuaDonThamGia(p, "x", false, "het_han"), NoiDungThongBao.LoiMoiDuAn(p, "x", true, DateTimeOffset.UnixEpoch), NoiDungThongBao.DuAnDaThichSapHetHan(p, "x", DateTimeOffset.UnixEpoch),
                 NoiDungThongBao.EmailLoiMoiNguoiMoi("x", "http://l", DateTimeOffset.UnixEpoch), NoiDungThongBao.HaiLopThayDoi(false, "disabled"),
                 NoiDungThongBao.XacMinhDanhTinhDaNop(), NoiDungThongBao.XacMinhDanhTinhDuyet(), NoiDungThongBao.XacMinhDanhTinhTuChoi("x"),
                 NoiDungThongBao.ThuXacThuc("A", "http://l", DateTimeOffset.UnixEpoch), NoiDungThongBao.ThuDatLaiMatKhau("A", "http://l", DateTimeOffset.UnixEpoch),

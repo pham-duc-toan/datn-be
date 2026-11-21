@@ -35,6 +35,21 @@ namespace Crowd.Reco.Infrastructure.Persistence
         public DateTimeOffset CreatedAt { get; set; }
     }
 
+    /// <summary>
+    /// Labeler THICH (tim) du an de lam sau (kien truc 3.40). reminded_at: da nhac "sap het han" (moi cap MOT lan); bo
+    /// thich roi thich lai = dong moi nen co the nhac lai.
+    /// </summary>
+    public sealed class LikedProject
+    {
+        public Guid UserId { get; set; }
+
+        public Guid ProjectId { get; set; }
+
+        public DateTimeOffset CreatedAt { get; set; }
+
+        public DateTimeOffset? RemindedAt { get; set; }
+    }
+
     /// <summary>Lich su mo hinh reco-svc da nap (production / candidate) — doi chieu A/B, truy vet.</summary>
     public sealed class ModelVersion
     {
@@ -68,6 +83,8 @@ namespace Crowd.Reco.Infrastructure.Persistence
 
         public DbSet<ModelVersion> ModelVersions => Set<ModelVersion>();
 
+        public DbSet<LikedProject> LikedProjects => Set<LikedProject>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -100,6 +117,19 @@ namespace Crowd.Reco.Infrastructure.Persistence
                 b.Property(x => x.UserId).HasColumnName("user_id");
                 b.Property(x => x.ProjectId).HasColumnName("project_id");
                 b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            });
+
+            modelBuilder.Entity<LikedProject>(b =>
+            {
+                b.ToTable("liked_projects");
+                b.HasKey(x => new { x.UserId, x.ProjectId });
+                b.Property(x => x.UserId).HasColumnName("user_id");
+                b.Property(x => x.ProjectId).HasColumnName("project_id");
+                b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+                b.Property(x => x.RemindedAt).HasColumnName("reminded_at");
+
+                // Worker nhac han quet cac dong CHUA nhac.
+                b.HasIndex(x => x.ProjectId).HasDatabaseName("ix_liked_projects_chua_nhac").HasFilter("reminded_at IS NULL");
             });
 
             modelBuilder.Entity<ModelVersion>(b =>

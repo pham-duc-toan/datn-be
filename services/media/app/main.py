@@ -14,6 +14,7 @@ from fastapi import FastAPI
 
 from app import settings_store, settings_sync
 from app.ban_chuan import ChuanHoaSan
+from app.xem_truoc import XemTruocSan
 from app.api import router
 from app.config import settings
 from app.errors import LoiApi, xu_ly_loi_api
@@ -50,6 +51,8 @@ async def lifespan(app: FastAPI):
     ket_noi = await noi_rabbitmq(cfg)
     # Video vua nap: cat san HLS tung doan mau (hls.py), xong phat video.prepared cho project-svc.
     await ChuanHoaSan().bat_dau(ket_noi)
+    # Du an bat dau chay: tao san ban xem truoc dung chung cho the cho du an (xem_truoc.py, kien truc 3.40).
+    await XemTruocSan().bat_dau(ket_noi)
     log.info("media-svc san sang tren cong %s", cfg.port)
     try:
         yield

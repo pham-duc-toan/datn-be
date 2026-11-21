@@ -19,6 +19,9 @@ namespace Crowd.Reco.Domain
         public int ChenMoiMoiTrang { get; init; } = 2;
 
         public int KichThuocDanhSach { get; init; } = 200;
+
+        /// <summary>Phat "da luot qua" het han sau bay nhieu ngay (3.40).</summary>
+        public double NgayHoiPhucLuotQua { get; init; } = 3;
     }
 
     /// <summary>Mot du an da cham diem cho mot labeler.</summary>
@@ -110,6 +113,11 @@ namespace Crowd.Reco.Domain
             }
 
             double diem = pBatDau * tienMoiPhut * heSo;
+            LuotQua? luot;
+            if (nguoi != null && nguoi.DaLuotQua.TryGetValue(p.Id, out luot))
+            {
+                diem *= PhatLuotQua.HeSo(luot, luc, thongSo.NgayHoiPhucLuotQua);
+            }
 
             List<string> lyDo = new List<string>();
             if (tienMoiPhut >= 1000)

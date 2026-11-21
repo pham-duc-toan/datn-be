@@ -5,6 +5,7 @@ using Crowd.BuildingBlocks.Settings;
 using Crowd.Contracts.Admin;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Project;
+using Crowd.Contracts.Reco;
 using Crowd.Notification.Api.Persistence;
 using Crowd.Notification.Api.Services;
 
@@ -129,6 +130,20 @@ namespace Crowd.Notification.Api.Consumers
             }
 
             return Writer.GhiEmailGiaoDichAsync(null, toi, "Đội kỹ thuật", NoiDungThongBao.EmailCanhBaoDlq(p.Queue, p.Depth, p.Threshold), ct);
+        }
+    }
+
+    /// <summary>liked_project.deadline_soon (reco-svc, 3.40) → nhac labeler du an da thich sap het han.</summary>
+    public sealed class LikedProjectDeadlineSoonProcessor : ThongBaoProcessor<LikedProjectDeadlineSoon>
+    {
+        public LikedProjectDeadlineSoonProcessor(ThongBaoWriter writer, NotificationDbContext db)
+            : base(writer, db)
+        {
+        }
+
+        protected override Task XuLyPayloadAsync(LikedProjectDeadlineSoon p, CancellationToken ct)
+        {
+            return Writer.GhiAsync(p.UserId, LoaiThongBao.DuAnDaThich, NoiDungThongBao.DuAnDaThichSapHetHan(p.ProjectId, p.ProjectName, p.Deadline), ct);
         }
     }
 }

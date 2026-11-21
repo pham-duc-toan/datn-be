@@ -10,6 +10,7 @@ using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
 using Crowd.Contracts.Payment;
 using Crowd.Contracts.Project;
+using Crowd.Contracts.Reco;
 using Crowd.Notification.Api.Consumers;
 using Crowd.Notification.Api.Exceptions;
 using Crowd.Notification.Api.Persistence;
@@ -56,6 +57,7 @@ builder.Services.AddEventConsumer<NotificationDbContext, RefundIssued, RefundIss
 
 // ---- Labeler: nhan, tien ----
 builder.Services.AddEventConsumer<NotificationDbContext, ProjectGraded, ProjectGradedProcessor>(cfg, "notification-svc.project-graded");
+builder.Services.AddEventConsumer<NotificationDbContext, LikedProjectDeadlineSoon, LikedProjectDeadlineSoonProcessor>(cfg, "notification-svc.liked-project-deadline-soon");
 builder.Services.AddEventConsumer<NotificationDbContext, AttemptAppealResolved, AttemptAppealResolvedProcessor>(cfg, "notification-svc.attempt-appeal-resolved");
 builder.Services.AddEventConsumer<NotificationDbContext, HoldExpired, HoldExpiredProcessor>(cfg, "notification-svc.hold-expired");
 builder.Services.AddEventConsumer<NotificationDbContext, PayoutCompleted, PayoutCompletedProcessor>(cfg, "notification-svc.payout-completed");

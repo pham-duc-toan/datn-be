@@ -84,11 +84,14 @@ builder.Services.AddSingleton<CatalogGoiY>();
 builder.Services.AddSingleton<MoHinhDangChay>();
 builder.Services.AddScoped<HanhViService>();
 builder.Services.AddScoped<FeedService>();
+builder.Services.AddScoped<NhacDaThichService>();
+builder.Services.AddSingleton<LinkXemTruoc>();
 
 builder.Services.AddHostedService<CatalogWarmup>();
 builder.Services.AddHostedService<CatalogRefreshWorker>();
 builder.Services.AddHostedService<EventRelayWorker>();
 builder.Services.AddHostedService<ModelReloadWorker>();
+builder.Services.AddHostedService<NhacDaThichWorker>();
 
 // ---- Hanh vi (bo dem so thich) + tap loai tru ----
 builder.Services.AddEventConsumer<RecoDbContext, UserRegistered, UserRegisteredProcessor>(cfg, "reco-svc.user-registered");

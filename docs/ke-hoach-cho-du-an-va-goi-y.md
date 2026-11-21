@@ -83,6 +83,8 @@ Làm trước vì đổi luật chấm và luồng tiền; các phần sau dựa
 
 ---
 
+> **Bổ sung 21/11/2026 — kiến trúc 3.40:** bản xem trước dùng chung watermark (tạo lúc duyệt dự án, cache công khai), thích dự án + mục "Dự án đã thích" + nhắc trước hạn chót 24 giờ, phạt mềm dự án đã lướt qua (× 0,5 / × 0,25, hết sau 3 ngày), hàng đợi hành vi lưu localStorage gửi mỗi 1 phút (bỏ trùng theo mã sự kiện).
+
 ## 4. Giai đoạn 2 — Ghi hành vi và học sở thích (nền cho gợi ý)
 
 > **Đã làm (21/11/2026)** — `kien-truc-backend.md` mục 3.39. Khác kế hoạch: Redis `aff:{u}` là **cache sống 30 phút, bị xoá sau mỗi lần cộng** (bản gốc luôn là Postgres, cộng bằng SQL) thay vì bản ghi chính sống 7 ngày — nhiều instance cùng cộng không lệch. Thêm event `attempt.started`, `attempt.abandoned`, `owner_blocklist.changed`.

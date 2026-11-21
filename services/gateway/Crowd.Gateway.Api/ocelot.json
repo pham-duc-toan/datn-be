@@ -48,9 +48,9 @@
       "Priority": 2
     },
     {
-      // reco-svc: frontend gui theo lo luot hien the / mo / "khong quan tam".
+      // reco-svc: frontend gui theo lo luot hien the / mo / "khong quan tam"; thich / bo thich du an (PUT / DELETE, 3.40).
       "UpstreamPathTemplate": "/reco/{everything}",
-      "UpstreamHttpMethod": ["Get", "Post"],
+      "UpstreamHttpMethod": ["Get", "Post", "Put", "Delete"],
       "DownstreamPathTemplate": "/reco/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8112 }],
@@ -122,6 +122,17 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8109 }],
       "Timeout": 600,
+      "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
+    },
+    {
+      // media-svc: bản xem trước DÙNG CHUNG trên thẻ chợ dự án (3.40) — token không gắn người xem, sống tròn ngày,
+      // trình duyệt / CDN được giữ (Cache-Control public). Lần đầu chưa có thì media-svc tạo tại chỗ (clip 15 giây).
+      "UpstreamPathTemplate": "/media/xt/{everything}",
+      "UpstreamHttpMethod": ["Get"],
+      "DownstreamPathTemplate": "/media/xt/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8109 }],
+      "Timeout": 120,
       "UpstreamHeaderTransform": { "X-Forwarded-For": "{RemoteIpAddress}" }
     },
     {

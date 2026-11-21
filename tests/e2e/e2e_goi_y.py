@@ -7,6 +7,10 @@
 #   [6] mau xem truoc (P1): he thong tu lay 1 mau, doanh nghiep bat / tat; the co toan bo cau hoi + cong cu; NDA khong bat duoc
 #   [6b] tab Moi nhat (order=newest): cung dang the, publish moi nhat truoc, khong lap, khong tinh A/B
 #   [7] bai xem thu (Q2): du lieu that, khong ghi gi, cham ngay cau kiem tra; labeler khong goi duoc
+#   [7b] ban xem truoc DUNG CHUNG (3.40): tao luc duyet du an, link /media/xt cache cong khai, giu nguyen trong ngay, khong
+#        dung duoc o /media/v; khong ve them chu cua nguoi xem
+#   [7c] thich / bo thich: the co tim, danh sach order=liked, so thich + ClickHouse; [7d] nhac du an da thich sap het han
+#   [7e] hanh vi gui lai (ma su kien frontend) khong dem doi; luot qua → phat mem trong Redis, mo the → xoa phat
 #   [8] mo hinh hoc may: ml-svc chay lan hoc (chua du du lieu → giu ban dang chay); reco nap mo hinh logistic tu MinIO
 #   [9] cho du phong GET /projects/market van chay
 # Chay: python e2e_goi_y.py   (stack demo: E2E_PROFILE=demo)
@@ -16,6 +20,8 @@ import os
 import subprocess
 import sys
 import time
+import uuid
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -40,6 +46,16 @@ def mc(lenh, stdin=None):
     goc = f"mc alias set l http://localhost:9000 datn {MINIO_PW} >/dev/null && " + lenh
     return subprocess.run(["docker", "exec", "-i", f"{TIEN_TO_CONTAINER}minio", "sh", "-c", goc],
                           input=stdin, capture_output=True, text=True)
+
+
+def redis_reco(*lenh):
+    return subprocess.run(["docker", "exec", f"{TIEN_TO_CONTAINER}redis-reco", "redis-cli", *lenh],
+                          capture_output=True, text=True).stdout.strip()
+
+
+def qua_gateway(url):
+    """Link media tra ve theo PublicUrl (localhost) — goi lai qua dia chi gateway E2E dang dung."""
+    return G + url[url.index("/media/"):]
 
 
 def claim(u):
@@ -75,7 +91,8 @@ try:
         publish_va_duyet(biz, pid)
         duan.append(pid)
     nap_lai_goi_y()
-    the_all, trang = feed(lab, page_size=2)
+    # Doc HET feed (stack chay nhieu lan co the co hang chuc du an dang mo).
+    the_all, trang = feed(lab, page_size=2, toi_da_trang=500)
     ids = [x["id"] for x in the_all]
     kiem("5 du an moi deu co trong feed", set(duan) <= set(ids), set(duan) - set(ids))
     kiem("doc het cac trang: khong the nao lap", len(ids) == len(set(ids)), ids)
@@ -192,6 +209,90 @@ try:
     r = requests.post(G + f"/projects/{Q}/trial/check", headers=biz["h"], json={"answers": [{"sampleId": ids["q1"], "data": {"nhan": {"labelIds": ["zz"]}}}]})
     kiem("cau sai dinh dang → liet ke nhu nop bai that", r.status_code == 200 and r.json()["invalidAnswers"], r.text)
     kiem("labeler khong goi duoc bai xem thu", requests.get(G + f"/projects/{Q}/trial", headers=lab["h"]).status_code == 403)
+
+    # =================================================================================
+    print("\n[7b] Ban xem truoc DUNG CHUNG (tao luc duyet, cache cong khai)")
+    anh = [h.anh_mau(f"gy_xt_{TAG}_{k}.png", mau, 2000, 1500) for k, mau in enumerate(("red", "blue"))]
+    A, _, mau_anh = h.du_an(biz, f"GY-ANH {TAG}", "image",
+                            {"modality": "image", "tools": [{"name": "nhan", "kind": "classification", "classes": ["a", "b"]}]},
+                            files=anh, suat=3)
+    publish_va_duyet(biz, A)
+    kiem("media-svc tao san ban xem truoc ngay khi du an chay (project.preview_requested)",
+         cho(lambda: "anh.jpg" in mc(f"mc ls --recursive l/datasets/{A}/_preview/v1/").stdout, 90),
+         mc(f"mc ls --recursive l/datasets/{A}/_preview/v1/").stdout)
+    nap_lai_goi_y()
+    ta = next((x for x in feed(lab)[0] if x["id"] == A), None)
+    xt = ta and ta["previews"] and ta["previews"][0]
+    kiem("the anh: link ban xem truoc dung chung /media/xt, khong ve them chu nguoi xem (chu chung in san trong anh)",
+         xt and "/media/xt/" in xt["fileUrl"] and xt["watermarkText"] is None, xt)
+    if xt:
+        r = requests.get(qua_gateway(xt["fileUrl"]))
+        kiem("ban xem truoc: JPEG, cache CONG KHAI (trinh duyet / CDN giu duoc)",
+             r.status_code == 200 and r.headers.get("content-type") == "image/jpeg" and "public" in r.headers.get("cache-control", ""),
+             (r.status_code, dict(r.headers)))
+        kiem("anh xem truoc nho hon anh goc (thu nho canh dai 1080)", 0 < len(r.content) < os.path.getsize(anh[0]) * 4, len(r.content))
+        ta2 = next((x for x in feed(lab)[0] if x["id"] == A), None)
+        kiem("luot moi van CUNG link (trinh duyet dung lai duoc)", ta2 and ta2["previews"][0]["fileUrl"] == xt["fileUrl"])
+        token = xt["fileUrl"].split("/media/xt/")[1]
+        kiem("token xem truoc khong dung duoc o /media/v (khong gan nguoi xem)",
+             requests.get(G + "/media/v/" + token).status_code == 403)
+
+    # =================================================================================
+    print("\n[7c] Thich / bo thich")
+    P = duan[1]
+    a_truoc = float(sql("reco", f"select a from labeler_affinity where user_id='{lab['id']}' and tag_kind='modality' and tag_code='text'") or 0)
+    r = requests.put(G + f"/reco/likes/{P}", headers=lab["h"])
+    kiem("thich du an", r.status_code == 200 and r.json()["liked"] is True, r.text)
+    kiem("thich lai khong loi (khong doi gi)", requests.put(G + f"/reco/likes/{P}", headers=lab["h"]).status_code == 200)
+    tp = next((x for x in feed(lab)[0] if x["id"] == P), None)
+    kiem("the feed co tim do", tp and tp["liked"] is True, tp and tp.get("liked"))
+    ds_thich, trang_thich = feed(lab, order="liked")
+    kiem("danh sach du an da thich (order=liked) co du an, phien rieng 'thich_'",
+         [x["id"] for x in ds_thich] == [P] and trang_thich[0]["sessionId"].startswith("thich_"), [x["id"] for x in ds_thich])
+    r = requests.put(G + f"/reco/likes/{uuid.uuid4()}", headers=lab["h"])
+    kiem("thich du an khong ton tai → 404", r.status_code == 404 and r.json().get("code") == "khong_tim_thay_du_an", r.text)
+    kiem("thich cong so thich (a + 0,3)",
+         cho(lambda: float(sql("reco", f"select a from labeler_affinity where user_id='{lab['id']}' and tag_kind='modality' and tag_code='text'") or 0) >= a_truoc + 0.25, 30))
+    kiem("hanh vi 'like' vao ClickHouse cho ml-svc",
+         cho(lambda: ch(f"SELECT count() FROM reco_events WHERE user_id = '{lab['id']}' AND kind = 'like'") == "1", 30))
+    r = requests.delete(G + f"/reco/likes/{P}", headers=lab["h"])
+    kiem("bo thich", r.status_code == 200 and r.json()["liked"] is False, r.text)
+    kiem("bo thich → het khoi danh sach + the het tim",
+         feed(lab, order="liked")[0] == [] and next(x for x in feed(lab)[0] if x["id"] == P)["liked"] is False)
+
+    # =================================================================================
+    print("\n[7d] Nhac du an da thich sap het han")
+    R, _ = tao_du_an(biz, "GY-HAN", {"r1": f"han 1 {TAG}", "r2": f"han 2 {TAG}"}, suat=3, thuong=20000)
+    dat_gia(biz, R, 20000, 3, deadline=(datetime.now(timezone.utc) + timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    publish_va_duyet(biz, R)
+    nap_lai_goi_y()
+    requests.put(G + f"/reco/likes/{R}", headers=lab["h"]).raise_for_status()
+    nhac = lambda: requests.post(G + "/reco/internal/remind-liked", headers=dict(admin, **{"X-Internal-Key": INTERNAL_KEY})).json()["reminded"]
+    kiem("quet: du an da thich con < 24 gio → nhac", nhac() >= 1)
+    tb = lambda: [x for x in requests.get(G + "/notifications/me?pageSize=100", headers=lab["h"]).json()["items"] if x["type"] == "du_an_da_thich"]
+    kiem("labeler nhan thong bao, bam vao mo dung du an", cho(lambda: len(tb()) == 1 and tb()[0]["link"] == f"/cho/{R}", 30), tb())
+    nhac()
+    time.sleep(3)
+    kiem("moi du an chi nhac MOT lan", len(tb()) == 1, len(tb()))
+
+    # =================================================================================
+    print("\n[7e] Hanh vi gui lai khong dem doi; luot qua → phat mem")
+    t = requests.get(G + "/projects/feed", headers=lab["h"], params={"pageSize": 5}).json()
+    top = t["items"][0]["id"]
+    ev = {"eventId": str(uuid.uuid4()), "at": datetime.now(timezone.utc).isoformat(), "kind": "impression", "projectId": top,
+          "position": 0, "requestId": t["requestId"], "sessionId": t["sessionId"]}
+    r1 = requests.post(G + "/reco/events", headers=lab["h"], json={"events": [ev]}).json()["accepted"]
+    r2 = requests.post(G + "/reco/events", headers=lab["h"], json={"events": [ev]}).json()["accepted"]
+    kiem("cung ma su kien gui hai lan → chi nhan mot", (r1, r2) == (1, 0), (r1, r2))
+    khoa_skip = "skip:" + lab["id"].replace("-", "")
+    kiem("luot qua du an o feed 'Danh cho ban' → phat mem (Redis skip)",
+         cho(lambda: redis_reco("HGET", khoa_skip, top.replace("-", "")).startswith("1:"), 30), redis_reco("HGETALL", khoa_skip))
+    t_moi = requests.get(G + "/projects/feed", headers=lab["h"], params={"order": "newest", "pageSize": 5}).json()
+    requests.post(G + "/reco/events", headers=lab["h"], json={"events": [dict(ev, eventId=str(uuid.uuid4()), sessionId=t_moi["sessionId"])]})
+    time.sleep(4)
+    kiem("luot hien o tab Moi nhat KHONG tinh luot qua", redis_reco("HGET", khoa_skip, top.replace("-", "")).startswith("1:"))
+    requests.post(G + "/reco/events", headers=lab["h"], json={"events": [dict(ev, eventId=str(uuid.uuid4()), kind="open")]})
+    kiem("mo the → xoa phat", cho(lambda: redis_reco("HGET", khoa_skip, top.replace("-", "")) == "", 30))
 
     # =================================================================================
     print("\n[8] Mo hinh hoc may")

@@ -311,8 +311,43 @@ namespace Crowd.Reco.Api.Workers
 
             await _click.GhiHanhViAsync(hanhVi, ct);
             await _click.GhiDaTraAsync(daTra, ct);
+            await CapNhatLuotQuaAsync(hanhVi);
             await _redis.XacNhanAsync(ids);
             return lo.Length;
+        }
+
+        /// <summary>
+        /// Phat mem "da luot qua" (3.40): luot hien o feed "Danh cho ban" → +1; mo / thich / bat dau / nop → xoa. Trong cung
+        /// lo, hanh vi SAU CUNG cua moi (nguoi, du an) quyet dinh.
+        /// </summary>
+        private async Task CapNhatLuotQuaAsync(List<DongHanhVi> hanhVi)
+        {
+            Dictionary<KeyValuePair<Guid, Guid>, bool> cuoi = new Dictionary<KeyValuePair<Guid, Guid>, bool>();
+            foreach (DongHanhVi h in hanhVi.OrderBy(x => x.At))
+            {
+                KeyValuePair<Guid, Guid> k = new KeyValuePair<Guid, Guid>(h.UserId, h.ProjectId);
+                if (h.Kind == HanhVi.HienThe && FeedService.TinhLuotQua(h.SessionId))
+                {
+                    cuoi[k] = true;
+                }
+                else if (HanhVi.XoaLuotQua.Contains(h.Kind))
+                {
+                    cuoi[k] = false;
+                }
+            }
+
+            List<KeyValuePair<Guid, Guid>> ghi = cuoi.Where(x => x.Value).Select(x => x.Key).ToList();
+            List<KeyValuePair<Guid, Guid>> xoa = cuoi.Where(x => !x.Value).Select(x => x.Key).ToList();
+            TimeSpan han = TimeSpan.FromDays(new ThongSoGoiY().NgayHoiPhucLuotQua);
+            if (ghi.Count > 0)
+            {
+                await _redis.GhiLuotQuaAsync(ghi, _clock.GetUtcNow(), han);
+            }
+
+            if (xoa.Count > 0)
+            {
+                await _redis.XoaLuotQuaAsync(xoa);
+            }
         }
     }
 
@@ -428,6 +463,72 @@ namespace Crowd.Reco.Api.Workers
                 }
 
                 await db.SaveChangesAsync(ct);
+            }
+        }
+    }
+
+    /// <summary>Quet du an da thich sap het han moi 15 phut (NhacDaThichService) — loi thi thu lai vong sau.</summary>
+    public sealed class NhacDaThichWorker : BackgroundService
+    {
+        private static readonly TimeSpan ChuKy = TimeSpan.FromMinutes(15);
+
+        private readonly IServiceScopeFactory _scopeFactory;
+        private readonly CatalogGoiY _catalog;
+        private readonly ILogger<NhacDaThichWorker> _logger;
+
+        public NhacDaThichWorker(IServiceScopeFactory scopeFactory, CatalogGoiY catalog, ILogger<NhacDaThichWorker> logger)
+        {
+            if (scopeFactory == null)
+            {
+                throw new ArgumentNullException(nameof(scopeFactory));
+            }
+
+            if (catalog == null)
+            {
+                throw new ArgumentNullException(nameof(catalog));
+            }
+
+            if (logger == null)
+            {
+                throw new ArgumentNullException(nameof(logger));
+            }
+
+            _scopeFactory = scopeFactory;
+            _catalog = catalog;
+            _logger = logger;
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    if (_catalog.DaNap)
+                    {
+                        using (IServiceScope scope = _scopeFactory.CreateScope())
+                        {
+                            await scope.ServiceProvider.GetRequiredService<NhacDaThichService>().QuetAsync(stoppingToken);
+                        }
+                    }
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Quet nhac du an da thich loi — thu lai vong sau");
+                }
+
+                try
+                {
+                    await Task.Delay(ChuKy, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }
     }

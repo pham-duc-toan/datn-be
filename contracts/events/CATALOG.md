@@ -59,6 +59,7 @@ Quy uoc: `<aggregate>.<qua_khu>`. Tat ca boc trong `envelope.schema.json`.
 | `attempt.started` | reco | 3.39: labeler BAT DAU mot bai moi (mo lai bai dang lam khong phat). reco: hanh vi "bat dau" (a + 0,2) + nhan "co bat dau" cho mo hinh P(bat dau \| thay the) |
 | `attempt.abandoned` | reco | 3.39: bai dang lam ket thuc khong nop do CHINH labeler — `tu_bo` hoac `het_gio` (bai huy vi du an dong / bi chan KHONG phat). reco: b + 0,5 |
 | `attempt.submitted` **v2** | quality, reco | 3.18: labeler nop CA BAI; nhan `submitted` da ghi cung transaction trong project-svc. **v2 (3.22): chi la TIN HIEU** — bo `Answers` (cau tra loi + noi dung mau), them `AnsweredCount`; cau vang chi mang `GoldCorrect` / `GoldTotal`. quality: xep bai vao `pending_attempts`, worker doc bai + nhan qua gRPC de chong gian lan (FM-07: giay / cau, chuoi cung lop, chung IP / thiet bi) va nhung cau tra loi mo; danh dau du an can tinh lai DS. reco (3.39): loai du an khoi feed cua nguoi nop + hanh vi "nop" (a + 0,5) |
+| `project.preview_requested` | media | 3.40: du an bat dau chay (duyet / tu duyet) hoac doanh nghiep bat lai xem truoc → media-svc tao SAN ban xem truoc DUNG CHUNG (anh 1080 / clip 15 giay, chu "nguồn: <doanh nghiep> - <domain>") luu MinIO `_preview/v1/`. Chi mau co file |
 | `project.collection_finished` | quality, reco | 3.18: dong thu bai (`het_han` / `ket_thuc_som`; `du_suat` da bo — 3.38), danh sach bai phai cham + cau bi loai (bao loi duoc chap nhan). Running → Grading cung transaction. quality (3.22): ghi yeu cau cham roi doc de bai / bai nop / nhan qua gRPC — moi bai da commit truoc event nay; project-svc khong tra loi thi worker cham lai |
 | `attempt.appeal_opened` | admin | 3.18: labeler truot khieu nai CA BAI (admin ghi audit; phan xu o `GET /tasks/admin/appeals` — 3.33) |
 | `attempt.appeal_resolved` | ledger, identity, notification, admin | Admin phan xu. `Accepted`: nhan cua bai vao ket qua (ngay trong project-svc), tra thuong, cong cap do (`AnsweredCount`); dong muc hang doi |
@@ -99,7 +100,11 @@ doanh nghiep — thuat toan gop chi con o quality). Stub Python sinh san o `serv
 
 ## reco-svc  *(goi y du an — kien truc 3.39)*
 
-reco-svc KHONG phat event. Nghe: `user.registered` v2, `attempt.started` / `attempt.submitted` / `attempt.abandoned`, `project.graded`,
+| Event | Nguoi nghe | Ghi chu |
+|---|---|---|
+| `liked_project.deadline_soon` | notification | 3.40: du an labeler da THICH con < `reco.liked_reminder_hours` toi han chot ma chua nop → thong bao loai `du_an_da_thich` (link `/cho/{id}`). Moi (labeler, du an) MOT lan |
+
+Ngoai event tren, reco-svc khong phat event nao. Nghe: `user.registered` v2, `attempt.started` / `attempt.submitted` / `attempt.abandoned`, `project.graded`,
 `member.*`, `owner_blocklist.changed`, va `project.published` / `project.paused` / `project.resumed` / `project.cancelled` /
 `project.collection_finished` (chi de nap lai bo nho du an NGAY, khong doi chu ky 30 giay). Hanh vi frontend (hien the / mo / khong
 quan tam) di qua `POST /reco/events` → Redis Stream noi bo, khong qua RabbitMQ. Ket qua hoc may (ml-svc) di qua file + manifest tren

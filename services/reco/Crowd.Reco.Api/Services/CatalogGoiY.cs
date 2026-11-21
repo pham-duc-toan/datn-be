@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Crowd.Labeling;
 using Crowd.Reco.Api.Helpers;
 using Crowd.Reco.Domain;
 using Crowd.Reco.Infrastructure.Redis;
@@ -28,6 +29,11 @@ namespace Crowd.Reco.Api.Services
         public required string MetadataJson { get; init; }
 
         public string? Question { get; init; }
+
+        /// <summary>Video / am thanh: giay bat dau / ket thuc cua mau trong file (metadata segmentStart / segmentEnd).</summary>
+        public double? BatDau { get; init; }
+
+        public double? KetThuc { get; init; }
     }
 
     /// <summary>Mot ban chup bo nho — KHONG DOI sau khi tao; lan nap moi dung ban moi roi doi con tro mot lan.</summary>
@@ -157,6 +163,31 @@ namespace Crowd.Reco.Api.Services
             await _coYeuCau.WaitAsync(toiDa, ct);
         }
 
+        private static MauXemTruocRam TaoMau(DongMauXemTruoc x)
+        {
+            double? batDau = null;
+            double? ketThuc = null;
+            if (x.Modality == Modalities.Video || x.Modality == Modalities.Audio)
+            {
+                SampleMetadata md = SampleMetadata.Tu(RawJson.Tu(string.IsNullOrWhiteSpace(x.MetadataJson) ? "{}" : x.MetadataJson));
+                batDau = md.SegmentStart ?? 0;
+                ketThuc = md.SegmentEnd ?? md.DurationSec;
+            }
+
+            return new MauXemTruocRam
+            {
+                SampleId = x.SampleId,
+                ProjectId = x.ProjectId,
+                Modality = x.Modality,
+                StorageKey = x.StorageKey,
+                ContentJson = x.ContentJson,
+                MetadataJson = x.MetadataJson,
+                Question = x.Question,
+                BatDau = batDau,
+                KetThuc = ketThuc,
+            };
+        }
+
         /// <summary>Nap ban chup moi tu view cua project-svc. Loi → nem ra, giu ban cu.</summary>
         public async Task<int> NapAsync(bool laKhoiDong, CancellationToken ct)
         {
@@ -254,16 +285,7 @@ namespace Crowd.Reco.Api.Services
 
                     List<MauXemTruocRam> ds = nhom
                         .Take(1)
-                        .Select(x => new MauXemTruocRam
-                        {
-                            SampleId = x.SampleId,
-                            ProjectId = x.ProjectId,
-                            Modality = x.Modality,
-                            StorageKey = x.StorageKey,
-                            ContentJson = x.ContentJson,
-                            MetadataJson = x.MetadataJson,
-                            Question = x.Question,
-                        })
+                        .Select(TaoMau)
                         .ToList();
                     xemTruoc[nhom.Key] = ds;
                 }

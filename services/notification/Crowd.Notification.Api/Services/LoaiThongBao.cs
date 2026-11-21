@@ -26,6 +26,7 @@ namespace Crowd.Notification.Api.Services
         public const string BaoMat = "bao_mat";
         public const string XacMinhDanhTinh = "xac_minh_danh_tinh";
         public const string LoiMoi = "loi_moi_du_an";
+        public const string DuAnDaThich = "du_an_da_thich";
 
         public static readonly IReadOnlyList<LoaiThongBao> TatCa = new List<LoaiThongBao>
         {
@@ -43,6 +44,7 @@ namespace Crowd.Notification.Api.Services
             new LoaiThongBao(BaoMat, "Bảo mật tài khoản (bật / tắt xác thực hai lớp)", true, true, false),
             new LoaiThongBao(XacMinhDanhTinh, "Kết quả xác minh danh tính", false, true, false),
             new LoaiThongBao(LoiMoi, "Lời mời tham gia dự án", false, true, false),
+            new LoaiThongBao(DuAnDaThich, "Dự án đã thích sắp hết hạn", false, false, false),
         };
 
         private LoaiThongBao(string ma, string ten, bool batBuoc, bool macDinhEmail, bool gop)
@@ -352,6 +354,16 @@ namespace Crowd.Notification.Api.Services
                 "/projects/invitations")
                 .En("Project invitation",
                     "You are invited to join " + TenDuAnEn(tenDuAn) + ". The invitation expires at " + GioUtc(hetHan) + "." + dongYEn);
+        }
+
+        /// <summary>Du an labeler da thich sap het han chot ma chua nop bai (reco-svc, kien truc 3.40).</summary>
+        public static NoiDung DuAnDaThichSapHetHan(Guid projectId, string tenDuAn, DateTimeOffset hanChot)
+        {
+            return new NoiDung("Dự án bạn đã thích sắp hết hạn",
+                TenDuAn(tenDuAn) + " nhận bài tới " + GioVietNam(hanChot) + ". Làm ngay để kịp nhận thưởng.",
+                "/cho/" + projectId)
+                .En("A project you liked closes soon",
+                    TenDuAnEn(tenDuAn) + " accepts submissions until " + GioUtc(hanChot) + ". Start now to be in time for the reward.");
         }
 
         /// <summary>Email moi NGUOI CHUA CO tai khoan: dang ky bang dung email nay thi loi moi tu gan vao tai khoan.</summary>

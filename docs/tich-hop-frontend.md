@@ -930,13 +930,16 @@ GET /ledger/disputes/mine?status=open|refundedBusiness|paidLabeler&page=1&pageSi
 GET  /projects/feed?pageSize=10            lượt lướt MỚI (xếp lại từ đầu)
 GET  /projects/feed?pageSize=10&cursor=…   trang tiếp theo của cùng lượt
 GET  /projects/feed?order=newest&…         tab "Mới nhất": CÙNG dạng thẻ, dự án làm được ngay, publish mới nhất trước
+GET  /projects/feed?order=liked&…          trang "Dự án đã thích": cùng dạng thẻ, sắp hết hạn trước (3.40)
+PUT|DELETE /reco/likes/{projectId}?sessionId=   thích / bỏ thích → { projectId, liked }
 → 200 { items: FeedCard[], nextCursor: string|null, requestId, sessionId }
-POST /reco/events  { events: [{ kind: "impression"|"open"|"not_interested", projectId, position, requestId, sessionId }] }
+POST /reco/events  { events: [{ eventId, at, kind: "impression"|"open"|"not_interested", projectId, position, requestId, sessionId }] }
 ```
 
 - `FeedCard`: `name`, `description`, `modality`, `rewardVnd`, `slots`, `questionCount`, `estimatedMinutes`, `deadline`, `toolKinds`, `domains`, `languages`, cờ điều kiện, `isNew`, `explore` (thẻ khám phá 1 / 10), `position`, `reasons` (`kiem_tot | hop_so_thich | hay_dat | lam_nhanh | moi | kham_pha`), `tools` (TOÀN BỘ công cụ: `name`, `kind`, `question`, `classes`), `previews` (tối đa 1 mẫu hệ thống tự lấy: `fileUrl` qua media-svc có watermark, `content` / `snippet` văn bản; rỗng khi doanh nghiệp tắt / NDA / nhạy cảm / riêng tư). **Không có số người đang làm / đã nộp.**
 - Danh sách của một lượt không đổi; dự án vừa mở tự chen vào đầu trang KẾ TIẾP (không có thông báo "có dự án mới"). Thẻ đã hiện mà dự án vừa đóng thì vẫn hiện — bấm vào mới báo ngừng nhận bài. Frontend lọc trùng id lần cuối.
-- Lượt hiện: IntersectionObserver ≥ 60 %, một lần mỗi dự án mỗi phiên, gửi theo lô (20 lượt hoặc 3 giây, và khi rời trang). "Không quan tâm" gửi ngay; dự án biến khỏi các trang sau.
+- Lượt hiện: IntersectionObserver ≥ 60 %, một lần mỗi dự án mỗi phiên. Hàng đợi lưu localStorage (mỗi tài khoản một khoá) kèm `eventId` (UUID) + `at`; gửi **mỗi 1 phút** (≤ 100 lượt / request), khi đủ 100, khi rời trang (fetch keepalive), trước khi tải trang đầu của lượt lướt mới (bộ gợi ý biết dự án vừa lướt qua — phạt mềm, 3.40). Server bỏ trùng theo `eventId`. "Không quan tâm" gửi ngay; dự án biến khỏi các trang sau.
+- `FeedCard.liked`: tim đỏ. Bản xem trước ảnh / video là bản DÙNG CHUNG (`fileUrl` `/media/xt/…`, trình duyệt cache được), chữ "nguồn: doanh nghiệp - domain" in sẵn trong file; `watermarkText` = null (không vẽ đè).
 - Bố cục F3 kiểu TikTok, CẢ HAI tab: mỗi dự án một màn (scroll-snap dọc, phím ↑ ↓ / J K). Khung sáng chứa 1 mẫu + toàn bộ câu hỏi, công cụ; khung hẹp thêm hàng nút dọc (Bỏ qua, Chi tiết) và thông tin gọn, khung rộng hiện toàn bộ thông tin bên phải.
 - "Dành cho bạn" lỗi (5xx / 503 khi reco đang nạp) → mời chuyển tab "Mới nhất"; "Mới nhất" lỗi → dự phòng `GET /projects/market` (project-svc) hiện cùng kiểu thẻ nhưng không có mẫu / câu hỏi.
 

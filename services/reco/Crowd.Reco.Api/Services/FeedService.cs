@@ -39,6 +39,14 @@ namespace Crowd.Reco.Api.Services
         /// <summary>Tien to ma phien cua tab Moi nhat (frontend gui lai kem luot hien / mo).</summary>
         private const string TienToPhienMoiNhat = "moi_";
 
+        /// <summary>Phien ban "mo hinh" gan cho hanh vi o trang Du an da thich (3.40) — khong tinh A/B.</summary>
+        public const string PhienBanDaThich = "da_thich";
+
+        private const string TienToPhienDaThich = "thich_";
+
+        /// <summary>Toi da so du an mot nguoi duoc thich (danh sach "lam sau" — khong phai kho luu tru).</summary>
+        public const int ThichToiDa = 200;
+
         private const int TrangMacDinh = 10;
         private const int TrangToiDa = 30;
         private const int NoiDungToiDa = 4096;
@@ -49,10 +57,10 @@ namespace Crowd.Reco.Api.Services
         private readonly RecoRedis _redis;
         private readonly NguonDuAn _nguon;
         private readonly RecoDbContext _db;
-        private readonly IMediaLinks _media;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
         private readonly ILogger<FeedService> _logger;
+        private readonly LinkXemTruoc _linkXemTruoc;
 
         public FeedService(
             CatalogGoiY catalog,
@@ -60,11 +68,18 @@ namespace Crowd.Reco.Api.Services
             RecoRedis redis,
             NguonDuAn nguon,
             RecoDbContext db,
-            IMediaLinks media,
             ISettings settings,
             TimeProvider clock,
-            ILogger<FeedService> logger)
+            ILogger<FeedService> logger,
+            LinkXemTruoc linkXemTruoc)
         {
+            if (linkXemTruoc == null)
+            {
+                throw new ArgumentNullException(nameof(linkXemTruoc));
+            }
+
+            _linkXemTruoc = linkXemTruoc;
+
             if (catalog == null)
             {
                 throw new ArgumentNullException(nameof(catalog));
@@ -90,11 +105,6 @@ namespace Crowd.Reco.Api.Services
                 throw new ArgumentNullException(nameof(db));
             }
 
-            if (media == null)
-            {
-                throw new ArgumentNullException(nameof(media));
-            }
-
             if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
@@ -115,7 +125,6 @@ namespace Crowd.Reco.Api.Services
             _redis = redis;
             _nguon = nguon;
             _db = db;
-            _media = media;
             _settings = settings;
             _clock = clock;
             _logger = logger;
@@ -134,7 +143,8 @@ namespace Crowd.Reco.Api.Services
             ThongSoGoiY thongSo = ThongSo();
             TimeSpan hanPhien = _settings.ThoiGian(SettingKeys.RecoFeedSnapshotTtl);
 
-            LabelerGoiY nguoi = await XayNguoiAsync(userId, user, ct);
+            // Chi feed "Danh cho ban" phat du an da luot qua (3.40).
+            LabelerGoiY nguoi = await XayNguoiAsync(userId, user, true, ct);
             MoHinhDaChon chon = _moHinh.Chon(userId, _settings.SoNguyen(SettingKeys.RecoAbTreatmentPercent));
             AnhCatalog anh = _catalog.Anh;
 
@@ -222,7 +232,7 @@ namespace Crowd.Reco.Api.Services
             foreach (TheTrongTrang x in the)
             {
                 DuAnDaCham daCham = ChamDiem.Cham(x.DuAn, nguoi, chon.MoHinh, anh.ThongKe, thongSo, bayGio);
-                the2.Add(TaoThe(x.DuAn, x.ViTri, x.KhamPha, daCham, anh, userId));
+                the2.Add(TaoThe(x.DuAn, x.ViTri, x.KhamPha, daCham, anh, nguoi));
                 // Du lieu hoc: dac trung LUC TRA + vi tri the (vi tri chi la dac trung luc hoc, luc xep = 0).
                 double[] dacTrung = (double[])daCham.DacTrung.Clone();
                 dacTrung[DacTrung.Position] = x.ViTri;
@@ -266,6 +276,82 @@ namespace Crowd.Reco.Api.Services
             return sessionId != null && sessionId.StartsWith(TienToPhienMoiNhat, StringComparison.Ordinal);
         }
 
+        /// <summary>Ma phien thuoc trang Du an da thich.</summary>
+        public static bool LaPhienDaThich(string? sessionId)
+        {
+            return sessionId != null && sessionId.StartsWith(TienToPhienDaThich, StringComparison.Ordinal);
+        }
+
+        /// <summary>Luot hien o phien nay co tinh "da luot qua" khong: chi feed "Danh cho ban" (co ma phien, khong phai Moi nhat / Da thich).</summary>
+        public static bool TinhLuotQua(string? sessionId)
+        {
+            return !string.IsNullOrEmpty(sessionId) && !LaPhienMoiNhat(sessionId) && !LaPhienDaThich(sessionId);
+        }
+
+        /// <summary>
+        /// GET /projects/feed?order=liked — du an da THICH ma nguoi nay con lam duoc (3.40), sap het han truoc (khong han chot
+        /// xep cuoi), cung han thi thich gan day truoc. Du an da dong / da nop tam an khoi danh sach (mo lai thi hien lai).
+        /// Con tro = vi tri trong danh sach (danh sach nho, toi da ThichToiDa).
+        /// </summary>
+        public async Task<FeedResponse> LayDaThichAsync(ClaimsPrincipal user, string? cursor, int pageSize, CancellationToken ct)
+        {
+            if (user == null)
+            {
+                throw new ArgumentNullException(nameof(user));
+            }
+
+            Guid userId = CrowdClaims.GetUserId(user);
+            int n = pageSize < 1 ? TrangMacDinh : Math.Min(pageSize, TrangToiDa);
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            ThongSoGoiY thongSo = ThongSo();
+            LabelerGoiY nguoi = await XayNguoiAsync(userId, user, false, ct);
+            MoHinhDaChon chon = _moHinh.Chon(userId, _settings.SoNguyen(SettingKeys.RecoAbTreatmentPercent));
+            AnhCatalog anh = _catalog.Anh;
+
+            int tu = 0;
+            Guid phien = Guid.CreateVersion7();
+            ConTro? c = ConTro.Doc(cursor);
+            if (c != null)
+            {
+                tu = c.ViTri;
+                phien = c.Phien;
+            }
+
+            List<LikedProject> dong = await _db.LikedProjects.AsNoTracking().Where(x => x.UserId == userId).ToListAsync(ct);
+            List<KeyValuePair<DuAnGoiY, DateTimeOffset>> ds = new List<KeyValuePair<DuAnGoiY, DateTimeOffset>>();
+            foreach (LikedProject l in dong)
+            {
+                DuAnGoiY? p = TimDuAn(anh, l.ProjectId);
+                if (p != null && DieuKienGoiY.LamDuoc(p, nguoi))
+                {
+                    ds.Add(new KeyValuePair<DuAnGoiY, DateTimeOffset>(p, l.CreatedAt));
+                }
+            }
+
+            List<DuAnGoiY> xep = ds
+                .OrderBy(x => x.Key.Deadline.HasValue ? 0 : 1)
+                .ThenBy(x => x.Key.Deadline ?? DateTimeOffset.MaxValue)
+                .ThenByDescending(x => x.Value)
+                .Select(x => x.Key)
+                .ToList();
+
+            List<FeedCard> the = new List<FeedCard>();
+            for (int i = tu; i < xep.Count && the.Count < n; i++)
+            {
+                DuAnDaCham daCham = ChamDiem.Cham(xep[i], nguoi, chon.MoHinh, anh.ThongKe, thongSo, bayGio);
+                the.Add(TaoThe(xep[i], i, false, daCham, anh, nguoi));
+            }
+
+            int ke = tu + the.Count;
+            return new FeedResponse
+            {
+                Items = the,
+                NextCursor = ke < xep.Count ? new ConTro { Phien = phien, ViTri = ke, ViTriThe = ke }.Viet() : null,
+                RequestId = Guid.CreateVersion7().ToString("N"),
+                SessionId = TienToPhienDaThich + phien.ToString("N"),
+            };
+        }
+
         /// <summary>
         /// GET /projects/feed?order=newest — du an DANG NHAN BAI ma nguoi nay lam duoc ngay, publish moi nhat truoc. Con tro =
         /// (luc publish, id) cua the cuoi: trang sau chi lay du an CU HON nen khong lap; du an mo sau khi bat dau luot hien o
@@ -282,7 +368,7 @@ namespace Crowd.Reco.Api.Services
             int n = pageSize < 1 ? TrangMacDinh : Math.Min(pageSize, TrangToiDa);
             DateTimeOffset bayGio = _clock.GetUtcNow();
             ThongSoGoiY thongSo = ThongSo();
-            LabelerGoiY nguoi = await XayNguoiAsync(userId, user, ct);
+            LabelerGoiY nguoi = await XayNguoiAsync(userId, user, false, ct);
             MoHinhDaChon chon = _moHinh.Chon(userId, _settings.SoNguyen(SettingKeys.RecoAbTreatmentPercent));
             AnhCatalog anh = _catalog.Anh;
 
@@ -308,7 +394,7 @@ namespace Crowd.Reco.Api.Services
             {
                 DuAnGoiY x = trang[i];
                 DuAnDaCham daCham = ChamDiem.Cham(x, nguoi, chon.MoHinh, anh.ThongKe, thongSo, bayGio);
-                the.Add(TaoThe(x, viTriDau + i, false, daCham, anh, userId));
+                the.Add(TaoThe(x, viTriDau + i, false, daCham, anh, nguoi));
             }
 
             string? tiep = null;
@@ -364,7 +450,7 @@ namespace Crowd.Reco.Api.Services
         /// Thong tin labeler: claim token (cap do, uy tin, xac minh, du tuoi) + Redis (so thich, tap loai tru). Redis thieu
         /// thi nap tu nguon goc MOT lan roi ghi lai; nguon goc loi thi dung tap rong (khong luu) — feed van tra duoc.
         /// </summary>
-        private async Task<LabelerGoiY> XayNguoiAsync(Guid userId, ClaimsPrincipal user, CancellationToken ct)
+        private async Task<LabelerGoiY> XayNguoiAsync(Guid userId, ClaimsPrincipal user, bool napLuotQua, CancellationToken ct)
         {
             SoThich? st = await _redis.DocSoThichAsync(userId);
             if (st == null)
@@ -380,18 +466,20 @@ namespace Crowd.Reco.Api.Services
                 {
                     LoaiTruCuaNguoi goc = await _nguon.DocLoaiTruAsync(userId, ct);
                     List<Guid> an = await _db.HiddenProjects.AsNoTracking().Where(x => x.UserId == userId).Select(x => x.ProjectId).ToListAsync(ct);
+                    List<Guid> thich = await _db.LikedProjects.AsNoTracking().Where(x => x.UserId == userId).Select(x => x.ProjectId).ToListAsync(ct);
                     List<string> truong = new List<string>();
                     truong.AddRange(goc.DaNop.Select(RecoRedis.TruongDaNop));
                     truong.AddRange(goc.BiChan.Select(RecoRedis.TruongBiChan));
                     truong.AddRange(goc.ThanhVien.Select(RecoRedis.TruongThanhVien));
                     truong.AddRange(goc.DoanhNghiepChan.Select(RecoRedis.TruongDoanhNghiepChan));
                     truong.AddRange(an.Select(RecoRedis.TruongKhongQuanTam));
+                    truong.AddRange(thich.Select(RecoRedis.TruongDaThich));
                     await _redis.GhiLoaiTruAsync(userId, truong, TimeSpan.FromDays(7));
 
                     HashSet<Guid> loaiTru = new HashSet<Guid>(goc.DaNop);
                     loaiTru.UnionWith(goc.BiChan);
                     loaiTru.UnionWith(an);
-                    ex = new TapLoaiTru { LoaiTru = loaiTru, ThanhVien = goc.ThanhVien, DoanhNghiepChan = goc.DoanhNghiepChan };
+                    ex = new TapLoaiTru { LoaiTru = loaiTru, ThanhVien = goc.ThanhVien, DoanhNghiepChan = goc.DoanhNghiepChan, DaThich = new HashSet<Guid>(thich) };
                 }
                 catch (Exception e) when (e is Npgsql.NpgsqlException || e is TimeoutException)
                 {
@@ -411,10 +499,12 @@ namespace Crowd.Reco.Api.Services
                 LoaiTru = ex.LoaiTru,
                 ThanhVien = ex.ThanhVien,
                 DoanhNghiepChan = ex.DoanhNghiepChan,
+                DaThich = ex.DaThich,
+                DaLuotQua = napLuotQua ? await _redis.DocLuotQuaAsync(userId) : new Dictionary<Guid, LuotQua>(),
             };
         }
 
-        private FeedCard TaoThe(DuAnGoiY p, int viTri, bool khamPha, DuAnDaCham daCham, AnhCatalog anh, Guid userId)
+        private FeedCard TaoThe(DuAnGoiY p, int viTri, bool khamPha, DuAnDaCham daCham, AnhCatalog anh, LabelerGoiY nguoi)
         {
             List<string> lyDo = new List<string>(daCham.LyDo);
             if (khamPha && !lyDo.Contains(ChamDiem.LyDoKhamPha))
@@ -446,11 +536,16 @@ namespace Crowd.Reco.Api.Services
                 Position = viTri,
                 Reasons = lyDo,
                 Tools = p.Tools.Select(t => new FeedTool { Name = t.Name, Kind = t.Kind, Question = t.Question, Classes = t.Classes }).ToList(),
-                Previews = XemTruoc(p, anh, userId),
+                Liked = nguoi.DaThich.Contains(p.Id),
+                Previews = XemTruoc(p, anh, nguoi.UserId),
             };
         }
 
-        /// <summary>Mau xem truoc (P1, toi da MOT mau): file ky link qua media-svc (watermark mang ma nguoi xem), van ban tra noi dung.</summary>
+        /// <summary>
+        /// Mau xem truoc (P1, toi da MOT mau). File: link ban xem truoc DUNG CHUNG (media-svc tao san luc du an chay, chu
+        /// "nguồn: doanh nghiep - domain" in san trong file, cache cong khai — kien truc 3.40). Khong ve them chu cua nguoi
+        /// xem: mau xem truoc von cong khai cho moi labeler. Van ban: tra noi dung.
+        /// </summary>
         private List<FeedPreview> XemTruoc(DuAnGoiY p, AnhCatalog anh, Guid userId)
         {
             List<FeedPreview> ds = new List<FeedPreview>();
@@ -462,35 +557,13 @@ namespace Crowd.Reco.Api.Services
 
             string? tenDn;
             anh.TenDoanhNghiep.TryGetValue(p.OwnerId, out tenDn);
-            NguoiXem nguoi = NguoiXem.Labeler(userId);
             foreach (MauXemTruocRam m in mau)
             {
                 string? fileUrl = null;
-                string? chuNoi = null;
                 RawJson metadata = RawJson.Tu(string.IsNullOrWhiteSpace(m.MetadataJson) ? "{}" : m.MetadataJson);
                 if (m.StorageKey != null)
                 {
-                    double? batDau = null;
-                    double? ketThuc = null;
-                    if (m.Modality == Modalities.Video)
-                    {
-                        SampleMetadata md = SampleMetadata.Tu(metadata);
-                        batDau = md.SegmentStart ?? 0;
-                        ketThuc = md.SegmentEnd ?? md.DurationSec;
-                    }
-
-                    MauCanXem mx = new MauCanXem
-                    {
-                        SampleId = m.SampleId,
-                        ProjectId = m.ProjectId,
-                        StorageKey = m.StorageKey,
-                        Modality = m.Modality,
-                        TenDoanhNghiep = tenDn,
-                        BatDau = batDau,
-                        KetThuc = ketThuc,
-                    };
-                    fileUrl = _media.TaoLink(mx, nguoi, CheDoXem.Watermark);
-                    chuNoi = _media.ChuDeLenTrinhPhat(mx, nguoi, CheDoXem.Watermark);
+                    fileUrl = _linkXemTruoc.Lay(m, tenDn);
                 }
 
                 RawJson? noiDung = null;
@@ -510,7 +583,7 @@ namespace Crowd.Reco.Api.Services
                     SampleId = m.SampleId,
                     Modality = m.Modality,
                     FileUrl = fileUrl,
-                    WatermarkText = chuNoi,
+                    WatermarkText = null,
                     Content = noiDung,
                     Snippet = doanTrich,
                     Question = m.Question,

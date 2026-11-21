@@ -137,6 +137,12 @@ level.changed v1  (LevelChanged)
     Level                    Int32                required
     UserId                   Guid                 required
 
+liked_project.deadline_soon v1  (LikedProjectDeadlineSoon)
+    Deadline                 DateTimeOffset       required
+    ProjectId                Guid                 required
+    ProjectName              String               required
+    UserId                   Guid                 required
+
 link.activated v1  (LinkActivated)
     CampaignId               Guid?                nullable
     Code                     String               required
@@ -267,6 +273,15 @@ project.invitation_created v1  (ProjectInvitationCreated)
 
 project.paused v1  (ProjectPaused)
     ProjectId                Guid                 required
+
+project.preview_requested v1  (ProjectPreviewRequested)
+    Modality                 String               required
+    ProjectId                Guid                 required
+    SampleId                 Guid                 required
+    SegmentEndMs             Int64?               nullable
+    SegmentStartMs           Int64?               nullable
+    StorageKey               String               required
+    WatermarkText            String?              nullable
 
 project.publish_requested v1  (ProjectPublishRequested)
     EscrowAmountVnd          Int64                required

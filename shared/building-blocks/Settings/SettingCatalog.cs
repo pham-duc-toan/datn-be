@@ -218,6 +218,7 @@ namespace Crowd.BuildingBlocks.Settings
         public const string RecoEventFlushInterval = "reco.event_flush_interval";
         public const string RecoEventBatchSize = "reco.event_batch_size";
         public const string RecoModelCheckInterval = "reco.model_check_interval";
+        public const string RecoLikedReminderHours = "reco.liked_reminder_hours";
 
         // ---- Ky thuat ----
         public const string OutboxPollInterval = "outbox.poll_interval";
@@ -737,6 +738,8 @@ namespace Crowd.BuildingBlocks.Settings
                 "Trong mỗi 10 thẻ, tối đa bấy nhiêu dự án của cùng một doanh nghiệp."));
             ds.Add(Int(SettingKeys.RecoNewInsertsPerPage, NhomGoiY, 2, 0, 10, "dự án",
                 "Dự án vừa mở trong lúc labeler đang lướt: chen tối đa bấy nhiêu dự án vào mỗi trang kế tiếp. 0 = chỉ thấy khi làm mới chợ."));
+            ds.Add(Int(SettingKeys.RecoLikedReminderHours, NhomGoiY, 24, 1, 168, "giờ",
+                "Nhắc labeler dự án đã thích sắp hết hạn chót khi còn bấy nhiêu giờ (mỗi dự án nhắc một lần, chỉ khi chưa nộp bài)."));
             ds.Add(Int(SettingKeys.RecoAbTreatmentPercent, NhomGoiY, 50, 0, 100, "%",
                 "Khi có cách gợi ý mới đang chạy thử, bấy nhiêu phần trăm labeler dùng cách mới (mỗi người luôn ở cùng một nhóm), số còn lại dùng cách đang chạy."));
             ds.Add(Seconds(SettingKeys.RecoEventFlushInterval, NhomKyThuat, 2, 0.2, 60,

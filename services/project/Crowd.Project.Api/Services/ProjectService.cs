@@ -48,6 +48,7 @@ namespace Crowd.Project.Api.Services
         private readonly ISettings _settings;
         private readonly ThuBaiService _thuBai;
         private readonly BaiLamRevoker _revoker;
+        private readonly YeuCauXemTruoc _xemTruoc;
 
         private static readonly string[] LyDoDaCoBaiNop = { "da_co_bai_nop" };
 
@@ -60,8 +61,16 @@ namespace Crowd.Project.Api.Services
             ILogger<ProjectService> logger,
             ISettings settings,
             ThuBaiService thuBai,
-            BaiLamRevoker revoker)
+            BaiLamRevoker revoker,
+            YeuCauXemTruoc xemTruoc)
         {
+            if (xemTruoc == null)
+            {
+                throw new ArgumentNullException(nameof(xemTruoc));
+            }
+
+            _xemTruoc = xemTruoc;
+
             if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
@@ -691,6 +700,7 @@ namespace Crowd.Project.Api.Services
             MoDotThuBai(duAn);
             int soMau = await DemMauAsync(duAn.Id, ct);
             _events.Phat(caller, TaoProjectPublished(duAn, soMau));
+            await _xemTruoc.PhatAsync(duAn, caller, ct);
             _logger.LogInformation("Du an {ProjectId} tu duyet (project.auto_approve)", duAn.Id);
             return true;
         }
@@ -713,6 +723,7 @@ namespace Crowd.Project.Api.Services
 
             int soMau = await DemMauAsync(id, ct);
             _events.Phat(caller, TaoProjectPublished(duAn, soMau));
+            await _xemTruoc.PhatAsync(duAn, caller, ct);
 
             await _db.SaveChangesAsync(ct);
             return TaoResponse(duAn, caller);

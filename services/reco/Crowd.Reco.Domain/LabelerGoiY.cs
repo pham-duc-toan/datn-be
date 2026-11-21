@@ -30,6 +30,42 @@ namespace Crowd.Reco.Domain
 
         /// <summary>Doanh nghiep da chan nguoi nay (danh sach chan cap doanh nghiep).</summary>
         public required IReadOnlySet<Guid> DoanhNghiepChan { get; init; }
+
+        /// <summary>Du an nguoi nay da THICH (3.40) — the hien tim do, danh sach "Du an da thich".</summary>
+        public IReadOnlySet<Guid> DaThich { get; init; } = new HashSet<Guid>();
+
+        /// <summary>
+        /// Du an nguoi nay da LUOT QUA (thay ma khong mo / thich / lam) trong vai ngay gan day — chi feed "Danh cho ban" nap
+        /// (3.40, phat mem). Rong = khong phat.
+        /// </summary>
+        public IReadOnlyDictionary<Guid, LuotQua> DaLuotQua { get; init; } = new Dictionary<Guid, LuotQua>();
+    }
+
+    /// <summary>So lan luot qua mot du an + lan gan nhat.</summary>
+    public sealed class LuotQua
+    {
+        public required int SoLan { get; init; }
+
+        public required DateTimeOffset LanCuoi { get; init; }
+    }
+
+    /// <summary>
+    /// Phat MEM du an da luot qua (3.40): khong an, chi day xuong. Luot qua 1 lan → diem × 0,5; tu 2 lan → × 0,25; hoi phuc
+    /// tuyen tinh ve × 1 sau ThongSoGoiY.NgayHoiPhucLuotQua ngay ke tu lan cuoi. Het du an khac thi du an nay van hien.
+    /// </summary>
+    public static class PhatLuotQua
+    {
+        public static double HeSo(LuotQua? luot, DateTimeOffset bayGio, double ngayHoiPhuc)
+        {
+            if (luot == null || luot.SoLan <= 0 || ngayHoiPhuc <= 0)
+            {
+                return 1;
+            }
+
+            double goc = luot.SoLan >= 2 ? 0.25 : 0.5;
+            double troi = Math.Clamp((bayGio - luot.LanCuoi).TotalDays / ngayHoiPhuc, 0, 1);
+            return goc + (1 - goc) * troi;
+        }
     }
 
     /// <summary>Loc "labeler nay lam duoc du an nay ngay khong" — CUNG luat voi chuong trinh cho du an cua project-svc.</summary>

@@ -155,6 +155,12 @@ namespace Crowd.BuildingBlocks.Storage
         {
             return new NguoiXem(null, guestSessionId, "guest");
         }
+
+        /// <summary>Ban xem truoc DUNG CHUNG tren the cho du an (3.40) — khong gan voi ai.</summary>
+        public static NguoiXem XemTruoc()
+        {
+            return new NguoiXem(null, null, "preview");
+        }
     }
 
     /// <summary>Tao link xem mau qua media-svc (thay link MinIO ky san — FP-03).</summary>
@@ -174,6 +180,13 @@ namespace Crowd.BuildingBlocks.Storage
 
         /// <summary>Chu in vao phan giua video luc nap (dung chung moi nguoi xem): "nguồn: &lt;doanh nghiep&gt; - &lt;domain&gt;".</summary>
         string ChuDungChung(string? tenDoanhNghiep);
+
+        /// <summary>
+        /// Link ban xem truoc DUNG CHUNG tren the cho du an (kien truc 3.40): "{PublicUrl}/media/xt/{token}". Token khong gan
+        /// nguoi xem, song tron ngay UTC (het han cuoi ngay mai) de trinh duyet / CDN giu lai duoc — noi goi nen GIU link theo
+        /// (mau, ngay) thay vi tao moi moi lan (nonce ngau nhien → moi lan mot link khac). null = mau khong co file.
+        /// </summary>
+        string? TaoLinkXemTruoc(MauCanXem mau);
     }
 
     /// <summary>
@@ -260,6 +273,30 @@ namespace Crowd.BuildingBlocks.Storage
             return ChuWatermark.DungChung(tenDoanhNghiep, Domain());
         }
 
+        public string? TaoLinkXemTruoc(MauCanXem mau)
+        {
+            if (mau == null)
+            {
+                throw new ArgumentNullException(nameof(mau));
+            }
+
+            if (mau.Modality != "image" && mau.Modality != "video" && mau.Modality != "audio")
+            {
+                return null;
+            }
+
+            DateTimeOffset bayGio = _clock.GetUtcNow();
+            DateTimeOffset dauNgay = new DateTimeOffset(bayGio.UtcDateTime.Date, TimeSpan.Zero);
+            string? chuChung = _settings.DungSai(SettingKeys.MediaWatermarkEnabled) && mau.Modality != "audio"
+                ? ChuDungChung(mau.TenDoanhNghiep)
+                : null;
+            byte[] noiDung = MediaGrant.TaoNoiDung(
+                mau, NguoiXem.XemTruoc(), CheDoXem.Watermark, Guid.NewGuid(), dauNgay, dauNgay.AddDays(2), null, chuChung, true);
+            string token = MediaGrant.MaHoa(_khoa, noiDung, RandomNumberGenerator.GetBytes(MediaGrant.DoDaiNonce));
+            return _options.PublicUrl.TrimEnd('/') + "/media/xt/" + token;
+        }
+
+
         /// <summary>
         /// Ban watermark khi: nguoi xem nhan ban watermark (khong phai chu / admin), loai co file (anh / am thanh / video)
         /// va admin chua tat (media.watermark_enabled). media-svc kiem lai setting voi anh / am thanh.
@@ -326,6 +363,14 @@ namespace Crowd.BuildingBlocks.Storage
         public static byte[] TaoNoiDung(
             MauCanXem mau, NguoiXem nguoi, CheDoXem cheDo, Guid grantId, DateTimeOffset luc, DateTimeOffset het, string? chuCaNhan, string? chuChung)
         {
+            return TaoNoiDung(mau, nguoi, cheDo, grantId, luc, het, chuCaNhan, chuChung, false);
+        }
+
+        /// <summary>xemTruoc ("xt": 1): token ban xem truoc dung chung — media-svc CHI nhan o /media/xt, tu choi o /media/v.</summary>
+        public static byte[] TaoNoiDung(
+            MauCanXem mau, NguoiXem nguoi, CheDoXem cheDo, Guid grantId, DateTimeOffset luc, DateTimeOffset het, string? chuCaNhan, string? chuChung,
+            bool xemTruoc)
+        {
             if (mau == null)
             {
                 throw new ArgumentNullException(nameof(mau));
@@ -367,6 +412,11 @@ namespace Crowd.BuildingBlocks.Storage
                     {
                         w.WriteNumber("a", Math.Round(mau.BatDau.Value, 3));
                         w.WriteNumber("b", Math.Round(mau.KetThuc.Value, 3));
+                    }
+
+                    if (xemTruoc)
+                    {
+                        w.WriteNumber("xt", 1);
                     }
 
                     w.WriteEndObject();

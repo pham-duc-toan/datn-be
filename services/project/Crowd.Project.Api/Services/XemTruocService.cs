@@ -38,6 +38,7 @@ namespace Crowd.Project.Api.Services
         private readonly TenDoanhNghiep _tenDoanhNghiep;
         private readonly ISettings _settings;
         private readonly TimeProvider _clock;
+        private readonly YeuCauXemTruoc _xemTruoc;
 
         public XemTruocService(
             ProjectDbContext db,
@@ -45,8 +46,16 @@ namespace Crowd.Project.Api.Services
             IMediaLinks media,
             TenDoanhNghiep tenDoanhNghiep,
             ISettings settings,
-            TimeProvider clock)
+            TimeProvider clock,
+            YeuCauXemTruoc xemTruoc)
         {
+            if (xemTruoc == null)
+            {
+                throw new ArgumentNullException(nameof(xemTruoc));
+            }
+
+            _xemTruoc = xemTruoc;
+
             if (db == null)
             {
                 throw new ArgumentNullException(nameof(db));
@@ -99,7 +108,14 @@ namespace Crowd.Project.Api.Services
 
             LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
             LabelingProject theoDoi = await _db.Projects.FirstAsync(p => p.Id == duAn.Id, ct);
+            bool truoc = theoDoi.HienMauXemTruoc();
             theoDoi.DatXemTruoc(body.Enabled, _clock.GetUtcNow());
+            if (!truoc && theoDoi.HienMauXemTruoc() && theoDoi.Status == ProjectStatus.Running)
+            {
+                // Bat lai luc dang chay: tao san ban xem truoc dung chung (3.40).
+                await _xemTruoc.PhatAsync(theoDoi, caller, ct);
+            }
+
             await _db.SaveChangesAsync(ct);
             return new PreviewSettingResponse
             {

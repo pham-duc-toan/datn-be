@@ -1537,6 +1537,39 @@ ml-svc (mỗi đêm) ── ClickHouse reco (user ml_reader, chỉ SELECT) ─�
 
 **Còn lại.** Chart Helm + HPA cho reco-svc làm cùng nhánh DevOps (NC-A) khi dựng K8s cho cả hệ thống. Load test k6 đo p95 `/projects/feed` và bộ nhớ thật (mục 5.5 kế hoạch) làm cùng A-12.
 
+### 3.40. Bản xem trước dùng chung, thích dự án + nhắc hạn, phạt mềm dự án đã lướt qua, hàng đợi hành vi ở trình duyệt (11/2026)
+
+**Vấn đề.**
+- Feed hiện mẫu xem trước cho rất nhiều người lướt, nhưng media-svc vẽ watermark riêng cho TỪNG lượt xem: ảnh giải mã + vẽ chữ + mã hoá lại mỗi lần (không cache), video mã hoá 2 mảnh riêng bằng PyAV (~1–2 giây CPU mỗi người mới), âm thanh nhúng watermark chìm riêng. Ước lượng 1000 người lướt (~250 thẻ/giây) cần hàng chục nhân CPU chỉ cho video.
+- Labeler không lưu được dự án để làm sau; dự án sắp hết hạn trôi mất.
+- Làm mới feed là thấy lại đúng những dự án vừa lướt qua (bộ gợi ý không nhớ dự án đã lướt).
+- Mỗi lần gửi hành vi là một request; tắt tab đột ngột thì mất lô đang chờ, gửi lại thì không chống được đếm đôi.
+
+**Quyết định (người dùng chốt 21/11).**
+
+| # | Câu hỏi | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| X1 | Watermark bản xem trước trên feed | **Một bản DÙNG CHUNG mỗi dự án**, tạo lúc dự án bắt đầu chạy (duyệt / tự duyệt) và lúc doanh nghiệp bật lại xem trước — project-svc phát `project.preview_requested`, media-svc tạo rồi lưu MinIO `<projectId>/_preview/v1/<sampleId>/…`. Chữ in vào: `nguồn: <doanh nghiệp> - <domain>`; **không** vẽ thêm chữ của người xem (người dùng chốt 21/11 — mẫu xem trước vốn công khai cho mọi labeler) | CPU không tăng theo số người lướt; link `/media/xt/{token}` không gắn người xem, sống tròn ngày UTC → `Cache-Control: public, max-age=86400` (trình duyệt / CDN giữ). Đánh đổi: bản xem trước (file hay chụp / quay màn hình) không truy được người xem, chỉ biết doanh nghiệp + domain; mẫu này vốn công khai cho mọi labeler, bài làm thật vẫn watermark riêng từng người (kể cả lớp chữ đè trên video) |
+| X2 | Nội dung bản xem trước | Ảnh thu nhỏ cạnh dài **1080 px**; video / âm thanh **clip 15 giây** đầu đoạn mẫu (video tối đa 720p, MP4 faststart; âm thanh FLAC, watermark chìm mang MÃ DỰ ÁN) | Feed không cần bản gốc; nhẹ băng thông |
+| X3 | Chưa có bản xem trước (dự án chạy trước bản này, event chưa tới) | media-svc **tạo tại chỗ** lần phát đầu, mỗi khoá một luồng tạo | Không cần backfill / event mới |
+| X4 | Thích dự án | Lưu ở **reco-svc** (`liked_projects`, tối đa 200 / người). `PUT` / `DELETE /reco/likes/{projectId}`; danh sách = `GET /projects/feed?order=liked` (cùng dạng thẻ, chỉ dự án còn làm được, **sắp hết hạn trước**). Frontend: mục menu **"Dự án đã thích"** lướt như feed, bỏ thích thì thẻ biến mất | Thích là hành vi gợi ý; reco đã có thẻ dự án trong RAM |
+| X5 | Nhắc hạn | Worker reco 15 phút / lần: dự án đã thích có hạn chót trong `reco.liked_reminder_hours` (mặc định **24**) mà labeler chưa nộp → `liked_project.deadline_soon` (outbox) → notification-svc loại `du_an_da_thich` (link `/cho/{id}`). **Mỗi (người, dự án) một lần**: `UPDATE … SET reminded_at WHERE reminded_at IS NULL` cùng transaction với outbox — nhiều instance cùng quét chỉ một thắng | Không nhắc trùng, không cần khoá phân tán |
+| X6 | Thích trong học máy | Hành vi `like` (a + 0,3), `unlike` (b + 0,3) vào ClickHouse; ml-svc tính nhãn "quan tâm" = **bắt đầu HOẶC thích** trong 24 giờ sau lượt trả thẻ | Tín hiệu quan tâm rõ, dày hơn "bắt đầu" |
+| X7 | Dự án đã lướt qua | **Phạt mềm** chỉ ở "Dành cho bạn": lướt qua 1 lần → điểm × 0,5, từ 2 lần → × 0,25, hồi phục tuyến tính, hết sau **3 ngày**. Mở / thích / bắt đầu / nộp → xoá phạt. Lượt hiện ở "Mới nhất" / "Đã thích" không tính. Redis `skip:{u}` (relay cập nhật, feed đọc một khoá) | Làm mới không thấy lại đúng top cũ; dự án không bị ẩn — hết dự án khác thì vẫn hiện |
+| X8 | Gửi hành vi | Frontend lưu hàng đợi trong **localStorage** (mỗi tài khoản một khoá), mỗi lượt kèm **mã sự kiện (UUID) + thời điểm**; gửi **mỗi 1 phút** (100 lượt / request), khi đủ 100 lượt, khi rời trang (fetch keepalive), trước khi xếp lượt lướt mới; "Không quan tâm" gửi ngay. Server: bỏ trùng theo mã (`evd:{id}` SET NX, 2 ngày), thời điểm client chỉ nhận trong [24 giờ trước, 2 phút sau]; chỉ đẩy vào Redis Stream rồi trả — relay ghi ClickHouse / cộng sở thích **bất đồng bộ** | ~1 request / người / phút; không mất lượt khi tắt tab; gửi lại không đếm đôi |
+
+```
+ duyệt / tự duyệt / bật lại xem trước ─► project: chọn mẫu (thật, nạp sớm nhất, không phải câu vàng)
+        ─► project.preview_requested {sampleId, storageKey, đoạn ms, chữ dùng chung} ─► media xem_truoc.py
+        ─► MinIO <projectId>/_preview/v1/<sampleId>/anh.jpg | video.mp4 | am.flac
+ feed (reco) ─► fileUrl = /media/xt/{token ngày} (giữ theo (mẫu, ngày)), watermarkText = null
+ trình duyệt ─► GET /media/xt/{token} ─► media: có sẵn → stream MinIO, Cache-Control public; chưa có → tạo tại chỗ
+```
+
+**Hợp đồng.** `project.preview_requested` v1 (project → media), `liked_project.deadline_soon` v1 (reco → notification). `RecoEventItem` thêm `eventId`, `at`. `FeedCard` thêm `liked`. Token media thêm cờ `xt` (chỉ nhận ở `/media/xt`, `/media/v` từ chối). Setting mới `reco.liked_reminder_hours`.
+
+**Kiểm thử.** Unit: reco +3 (phạt lướt qua, điểm bị đẩy xuống nhưng không ẩn, trọng số thích / phiên nào tính lướt qua); media +7 (ảnh 1080 + chữ, kích thước video, đoạn clip, khoá MinIO, token `xt`, `/media/v` từ chối token xem trước); notification thêm loại `du_an_da_thich`; project test xem trước. E2E [e2e_goi_y.py](../tests/e2e/e2e_goi_y.py) mục 7b–7e.
+
 ## 4. Dữ liệu chéo — ba luật cứng
 
 Đây là chỗ dự án microservice hay vỡ nhất.

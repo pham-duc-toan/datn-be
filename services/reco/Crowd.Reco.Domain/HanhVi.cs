@@ -31,6 +31,15 @@ namespace Crowd.Reco.Domain
         public const string Truot = "fail";
         public const string BoDo = "abandon";
 
+        /// <summary>Bam tim — luu de lam sau (3.40). Tin hieu quan tam ro: cong a + 0,3; ml-svc tinh nhu nhan "bat dau".</summary>
+        public const string Thich = "like";
+
+        /// <summary>Bo tim: b + 0,3 (nhe hon "khong quan tam").</summary>
+        public const string BoThich = "unlike";
+
+        /// <summary>Hanh vi XOA phat "da luot qua" cua du an (nguoi dung da quan tam that).</summary>
+        public static readonly IReadOnlyList<string> XoaLuotQua = new string[] { "open", "like", "start", "submit" };
+
         /// <summary>Hanh vi frontend duoc phep gui qua POST /reco/events.</summary>
         public static readonly IReadOnlyList<string> TuFrontend = new string[] { HienThe, MoThe, KhongQuanTam };
 
@@ -69,6 +78,12 @@ namespace Crowd.Reco.Domain
                     break;
                 case BoDo:
                     wB = 0.5;
+                    break;
+                case Thich:
+                    wA = 0.3;
+                    break;
+                case BoThich:
+                    wB = 0.3;
                     break;
                 default:
                     return new List<ThayDoiBoDem>();
