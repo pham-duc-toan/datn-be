@@ -215,7 +215,7 @@ try:
          kq["labelDistribution"].get("chu") == {"dong": 2} and "so_dong" not in kq["labelDistribution"] and "mo_ta" not in kq["labelDistribution"],
          kq["labelDistribution"])
 
-    r = requests.get(G + f"/annotations/projects/{P1}/export?format=coco", headers=biz["h"])
+    r = xuat_file(biz["h"], P1, "coco")
     coco = r.json() if r.status_code == 200 else {}
     kiem("COCO: 1 anh, 2 annotation (khung da gop + mat na), 2 danh muc",
          r.status_code == 200 and len(coco["images"]) == 1 and len(coco["annotations"]) == 2 and len(coco["categories"]) == 2, r.text[:400])
@@ -225,11 +225,11 @@ try:
              khung["bbox"] == [11, 10.5, 99, 20] and khung["support"] == 2 and khung["attributes"]["noi_dung"] == "CAM DO XE", khung)
         kiem("COCO mat na: segmentation RLE, area 15000, bbox nua trai anh",
              mat_na["segmentation"]["size"] == [150, 200] and mat_na["area"] == 15000 and mat_na["bbox"] == [0, 0, 100, 150], mat_na)
-    r = requests.get(G + f"/annotations/projects/{P1}/export?format=csv", headers=biz["h"])
+    r = xuat_file(biz["h"], P1, "csv")
     dong = r.content.decode("utf-8-sig").splitlines()
     kiem("CSV: cot tung cong cu; so ghi gia tri gop, chep chu ghi ban da chon",
          r.status_code == 200 and dong[0].endswith("chu,moc,vach,vung,so_dong,tieu_de,mo_ta") and ",1,Cam do xe," in dong[1], dong[:2])
-    r = requests.get(G + f"/annotations/projects/{P1}/export?format=yolo", headers=biz["h"])
+    r = xuat_file(biz["h"], P1, "yolo")
     z = zipfile.ZipFile(io.BytesIO(r.content)) if r.status_code == 200 else None
     nhan_yolo = z.read(f"labels/{s['sampleId']}.txt").decode() if z else ""
     kiem("YOLO: mot dong cho khung da gop", r.status_code == 200 and len(nhan_yolo.strip().splitlines()) == 1, nhan_yolo)
@@ -324,7 +324,7 @@ try:
     kiem("xep hang gop bang diem Borda", tl["xep"]["method"] == "borda" and tl["xep"]["final"] == {"order": [0, 1, 2, 3]}
          and tl["xep"]["scores"] == {"0": 8, "1": 7, "2": 2, "3": 1}, tl["xep"])
     kiem("thang diem gop bang trung vi", tl["diem"]["final"] == {"value": 4} and tl["diem"]["agrees"] == [True, True, True], tl["diem"])
-    r = requests.get(G + f"/annotations/projects/{P4}/export?format=csv", headers=biz["h"])
+    r = xuat_file(biz["h"], P4, "csv")
     kiem("CSV: thu tu xep hang va diem", r.status_code == 200 and r.content.decode("utf-8-sig").splitlines()[1].endswith(",0;1;2;3,4"), r.text[:300])
 
     # =================================================================================

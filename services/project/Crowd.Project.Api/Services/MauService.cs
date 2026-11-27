@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Crowd.BuildingBlocks.Auth.Http;
+using Crowd.BuildingBlocks.Persistence;
 using Crowd.BuildingBlocks.Settings;
 using Crowd.BuildingBlocks.Storage;
 using Crowd.Labeling;
@@ -15,9 +15,8 @@ using Crowd.Project.Api.Helpers;
 using Crowd.Project.Domain.Common;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Projects;
-using Crowd.Project.Infrastructure.Datasets;
-using Crowd.Project.Infrastructure.Media;
 using Crowd.Project.Infrastructure.Persistence;
+using Crowd.Project.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -27,7 +26,8 @@ namespace Crowd.Project.Api.Services
     /// Nap mau vao du an (FB-11) va xem mau. KHONG co bang "lo nap" — moi mau tu mang tien trinh cua no
     /// (Sample.IngestState: queued → processing → ready | failed):
     ///
-    ///   - ZIP anh        : doc + day anh len MinIO NGAY trong request → mau ready.
+    ///   - ZIP anh        : upload thang len MinIO, dang ky phieu giai nen (ZipImport) → ZipImporter giai nen nen,
+    ///                      moi anh hop le thanh mau ready (kien truc 3.41).
     ///   - Dong JSON      : text / pair / list → mau ready ngay; file (anh / am thanh / video da upload thang len
     ///                      MinIO bang link ky san) → mau "queued", SampleIngestor xu ly nen.
     ///   - Nguon ngoai    : liet ke nguon → moi file mot mau "queued" kem link tai, worker tai ve roi xu ly.
@@ -35,8 +35,7 @@ namespace Crowd.Project.Api.Services
     /// Cau hoi rieng cua mau (samples.question): dong JSON gui "question"; ZIP / nguon ngoai thi sua tung mau sau
     /// (PUT .../samples/{id}/question). Khong gui = mau khong co ngu canh rieng, chi co cau hoi cua tung cong cu.
     ///
-    /// Duong ZIP: thu tu doc ZIP → day tung anh len MinIO → ghi cac dong samples trong MOT SaveChanges. Anh len
-    /// MinIO TRUOC khi commit: neu commit hong thi don anh da day (khong de file mo coi).
+    /// Khong duong nap nao doc file nang trong request: file di thang len MinIO, viec doc / giai nen chay nen.
     /// </summary>
     public sealed class MauService
     {
@@ -104,11 +103,21 @@ namespace Crowd.Project.Api.Services
         }
 
         // =====================================================================
-        // ZIP anh — xu ly ngay trong request
+        // ZIP anh — dang ky phieu, worker giai nen nen (kien truc 3.41)
         // =====================================================================
 
-        public async Task<NapMauResponse> NapZipAsync(Guid projectId, Stream zip, Caller caller, CancellationToken ct)
+        /// <summary>
+        /// ZIP da PUT thang len kho bang link tu POST /uploads (khoa "{projectId}/zip/..."): tao phieu giai nen "queued"
+        /// roi tra ngay (202). ZipImporter giai nen, kiem tung anh, bo trung, ghi mau — thoi gian giai nen khong con nam
+        /// trong request. Gui lai cung key → tra lai phieu da co (khong giai nen hai lan).
+        /// </summary>
+        public async Task<ZipImportResponse> DangKyZipAsync(Guid projectId, DangKyZipRequest body, Caller caller, CancellationToken ct)
         {
+            if (body == null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
             LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
             duAn.KiemTraCoTheNapDuLieu();
 
@@ -119,81 +128,73 @@ namespace Crowd.Project.Api.Services
                     "Upload ZIP chỉ dành cho dự án ảnh. Dữ liệu " + duAn.Modality + " dùng upload thẳng.");
             }
 
-            DateTimeOffset bayGio = _clock.GetUtcNow();
-            QuyDinhDuLieu quyDinh = QuyDinhTuSetting.DuLieu(_settings);
-
-            // Dau van tay cac anh DA CO trong du an — bo qua anh trung ngay khi doc,
-            // khong day len MinIO lan nua. Anh trong ZIP chua co cau hoi rieng → trung khi cung anh, cung cau chung.
-            HashSet<string> daCo = await KhoaTrungDaCoAsync(projectId, ct);
-
-            List<Sample> mauMoi = new List<Sample>();
-            List<string> khoaDaDay = new List<string>();
-            int soTrung = 0;
-            int soBoQua = 0;
-
-            try
+            string khoa = body.Key == null ? string.Empty : body.Key.Trim();
+            if (khoa.Length == 0)
             {
-                soBoQua = await ZipImageReader.DuyetAsync(
-                    zip,
-                    QuyDinhTuSetting.Zip(_settings),
-                    async anh =>
-                    {
-                        if (!daCo.Add(DongNap.KhoaTrung(anh.Sha256, null)))
-                        {
-                            soTrung = soTrung + 1;
-                            return;
-                        }
+                throw new InvalidValueException("thieu_key", "Cần \"key\" của file ZIP (nhận được khi xin link ở POST /uploads).");
+            }
 
-                        // Kich thuoc anh — de kiem khung (bbox / polygon) nam trong anh.
-                        (int Width, int Height)? kichThuoc = ImageHeader.DocKichThuoc(anh.Content);
-                        SampleMetadata md = kichThuoc.HasValue
-                            ? new SampleMetadata { Width = kichThuoc.Value.Width, Height = kichThuoc.Value.Height }
-                            : SampleMetadata.Rong;
-
-                        Sample mau = Sample.TaoAnhTrongZip(
-                            projectId,
-                            anh.OriginalName,
-                            anh.ContentType,
-                            anh.Extension,
-                            anh.Content.Length,
-                            anh.Sha256,
-                            md,
-                            bayGio,
-                            quyDinh);
-
-                        string khoa = mau.StorageKey!;
-                        await _storage.LuuAsync(khoa, anh.Content, anh.ContentType, ct);
-                        khoaDaDay.Add(khoa);
-                        mauMoi.Add(mau);
-                    },
-                    ct);
-
-                if (mauMoi.Count == 0)
+            ZipImport? daCo = await _db.ZipImports.AsNoTracking().FirstOrDefaultAsync(z => z.StorageKey == khoa, ct);
+            if (daCo != null)
+            {
+                if (daCo.ProjectId != projectId)
                 {
-                    throw new RuleViolationException(
-                        "khong_co_anh_hop_le",
-                        "File ZIP không có ảnh hợp lệ nào (chỉ nhận jpg, png, webp).");
+                    throw new InvalidValueException("khoa_zip_khong_hop_le", "File ZIP không thuộc dự án này.");
                 }
 
-                _db.Samples.AddRange(mauMoi);
+                return ZipResponse(daCo);
+            }
+
+            ThongTinFile? tt = await _storage.ThongTinAsync(khoa, ct);
+            if (tt == null)
+            {
+                throw new InvalidValueException("khong_tim_thay_file", "Chưa thấy file ZIP trong kho — upload xong rồi mới đăng ký.");
+            }
+
+            long tran = _settings.SoLon(SettingKeys.DatasetZipMaxBytes);
+            if (tt.SizeBytes > tran)
+            {
+                await XoaFileAsync(khoa);
+                throw new InvalidValueException("zip_qua_lon", "ZIP tối đa " + (tran / (1024 * 1024)) + " MB.");
+            }
+
+            ZipImport phieu = ZipImport.Tao(projectId, khoa, body.Name, tt.SizeBytes, _clock.GetUtcNow(), QuyDinhTuSetting.DuLieu(_settings));
+            _db.ZipImports.Add(phieu);
+            try
+            {
                 await _db.SaveChangesAsync(ct);
             }
-            catch
+            catch (DbUpdateException ex) when (PostgresErrors.IsUniqueViolation(ex, TenRangBuoc.ZipTheoKhoa))
             {
-                await DonAnhMoCoiAsync(khoaDaDay);
-                throw;
+                // Hai lan gui cung luc: lan kia vua dang ky.
+                _db.ChangeTracker.Clear();
+                ZipImport kia = await _db.ZipImports.AsNoTracking().FirstAsync(z => z.StorageKey == khoa, ct);
+                return ZipResponse(kia);
             }
 
-            _logger.LogInformation("Da nap ZIP cho du an {ProjectId}: {SoMau} mau, bo qua {SoBoQua}", projectId, mauMoi.Count, soBoQua + soTrung);
+            _logger.LogInformation("Dang ky ZIP {ZipId} ({Byte} byte) cho du an {ProjectId}", phieu.Id, tt.SizeBytes, projectId);
+            return ZipResponse(phieu);
+        }
 
-            return new NapMauResponse
+        public static ZipImportResponse ZipResponse(ZipImport z)
+        {
+            if (z == null)
             {
-                Received = mauMoi.Count + soBoQua + soTrung,
-                Ready = mauMoi.Count,
-                Queued = 0,
-                Skipped = soBoQua + soTrung,
-                Errors = new List<string>(),
-                Accepted = new List<MauNhanResponse>(),
+                throw new ArgumentNullException(nameof(z));
+            }
+
+            return new ZipImportResponse
+            {
+                Id = z.Id,
+                Name = z.OriginalName,
+                SizeBytes = z.SizeBytes,
+                Status = z.State,
+                Processed = z.ProcessedCount,
+                Ready = z.ImageCount,
+                Skipped = z.SkippedCount,
+                Error = z.Error,
+                CreatedAt = z.CreatedAt,
+                FinishedAt = z.FinishedAt,
             };
         }
 
@@ -533,9 +534,20 @@ namespace Crowd.Project.Api.Services
         }
 
         /// <summary>Khoa chong trung (noi dung + cau hoi rieng) cua cac mau da doc xong trong du an.</summary>
-        private async Task<HashSet<string>> KhoaTrungDaCoAsync(Guid projectId, CancellationToken ct)
+        private Task<HashSet<string>> KhoaTrungDaCoAsync(Guid projectId, CancellationToken ct)
         {
-            var daCo = await _db.Samples
+            return KhoaTrungDaCoAsync(_db, projectId, ct);
+        }
+
+        /// <summary>Nhu tren — ZipImporter (worker giai nen) dung chung.</summary>
+        public static async Task<HashSet<string>> KhoaTrungDaCoAsync(ProjectDbContext db, Guid projectId, CancellationToken ct)
+        {
+            if (db == null)
+            {
+                throw new ArgumentNullException(nameof(db));
+            }
+
+            var daCo = await db.Samples
                 .Where(s => s.ProjectId == projectId && s.Sha256 != null)
                 .Select(s => new { s.Sha256, s.Question })
                 .ToListAsync(ct);
@@ -571,6 +583,13 @@ namespace Crowd.Project.Api.Services
                 .Distinct()
                 .CountAsync(ct);
 
+            // ZIP anh (3.41): moi file ZIP mot phieu — giao dien hien "dang giai nen x file", xong / loi kem ly do.
+            List<ZipImport> zip = await _db.ZipImports.AsNoTracking()
+                .Where(z => z.ProjectId == projectId)
+                .OrderByDescending(z => z.CreatedAt)
+                .Take(20)
+                .ToListAsync(ct);
+
             return new TrangThaiNapResponse
             {
                 Queued = Dem(TrangThaiNap.ChoXuLy),
@@ -578,10 +597,13 @@ namespace Crowd.Project.Api.Services
                 Ready = Dem(TrangThaiNap.SanSang),
                 Failed = Dem(TrangThaiNap.Loi),
                 PreparingVideo = video,
+                ZipImports = zip.Select(ZipResponse).ToList(),
             };
         }
 
-        /// <summary>Xoa cac mau nap loi (de nap lai): chi khi du an con Nhap. Tra so mau da xoa.</summary>
+        /// <summary>
+        /// Xoa cac mau nap loi (de nap lai) va phieu ZIP giai nen loi: chi khi du an con Nhap. Tra so mau da xoa.
+        /// </summary>
         public async Task<int> XoaMauLoiAsync(Guid projectId, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await _access.LayDeQuanLyAsync(projectId, caller, ct);
@@ -590,12 +612,16 @@ namespace Crowd.Project.Api.Services
             List<Sample> loi = await _db.Samples.IgnoreQueryFilters()
                 .Where(s => s.ProjectId == projectId && s.IngestState == TrangThaiNap.Loi)
                 .ToListAsync(ct);
-            if (loi.Count == 0)
+            List<ZipImport> zipLoi = await _db.ZipImports
+                .Where(z => z.ProjectId == projectId && z.State == TrangThaiZip.Loi)
+                .ToListAsync(ct);
+            if (loi.Count == 0 && zipLoi.Count == 0)
             {
                 return 0;
             }
 
             _db.Samples.RemoveRange(loi);
+            _db.ZipImports.RemoveRange(zipLoi);
             await _db.SaveChangesAsync(ct);
 
             // File chi con la rac neu khong mau nao khac dung chung khoa (video cat doan dung chung mot file).
@@ -658,20 +684,16 @@ namespace Crowd.Project.Api.Services
             };
         }
 
-        private async Task DonAnhMoCoiAsync(List<string> khoa)
+        private async Task XoaFileAsync(string khoa)
         {
-            foreach (string k in khoa)
+            try
             {
-                try
-                {
-                    // CancellationToken.None: request da hong/huy, nhung don dep
-                    // van phai chay xong.
-                    await _storage.XoaAsync(k, CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Khong xoa duoc anh mo coi {Key}", k);
-                }
+                // CancellationToken.None: request da hong / huy, nhung don dep van phai chay xong.
+                await _storage.XoaAsync(khoa, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Khong xoa duoc file {Key}", khoa);
             }
         }
     }

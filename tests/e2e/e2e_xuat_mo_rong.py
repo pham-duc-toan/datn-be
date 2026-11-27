@@ -30,7 +30,8 @@ def duyet_het(chu, pid, so):
 
 
 def xuat(chu, pid, dd):
-    return requests.get(G + f"/annotations/projects/{pid}/export?format={dd}", headers=chu["h"])
+    """Tao file chay nen (3.41) roi tai — tra Response nhu goi dong bo cu (400 khi dinh dang khong hop du an)."""
+    return xuat_file(chu["h"], pid, dd)
 
 
 try:

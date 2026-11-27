@@ -202,7 +202,7 @@ Lưu ý: mốc thu hồi tính theo **giây** — token cấp trong cùng giây 
 | | Ví, nạp tiền | `GET /ledger/me/balance`, `POST /payments/deposits`, `GET /payments/deposits/{id}` |
 | | Danh sách dự án của tôi | `GET /projects?mine=true` |
 | | Wizard tạo dự án | `POST /projects`, `PATCH /projects/{id}` (mỗi bước gửi một nhóm: `labelSchema` — mỗi công cụ kèm câu hỏi, `pricing`, `channels`, `eligibility`… — mục 21, 22) |
-| | Nạp dữ liệu | `POST /projects/{id}/samples/zip` (ZIP), `POST /projects/{id}/uploads` + `POST /projects/{id}/samples` (file đã upload / dòng JSON), `POST /projects/{id}/samples/import` (nguồn ngoài), `GET /projects/{id}/samples` (+ `/status`), `PUT /projects/{id}/samples/{sampleId}/question` (câu hỏi riêng — mục 22), `DELETE /projects/{id}/samples/failed` |
+| | Nạp dữ liệu | `POST /projects/{id}/samples/zip` (`{key}` của ZIP đã upload thẳng → phiếu giải nén nền), `POST /projects/{id}/uploads` + `POST /projects/{id}/samples` (file đã upload / dòng JSON), `POST /projects/{id}/samples/import` (nguồn ngoài), `GET /projects/{id}/samples` (+ `/status`), `PUT /projects/{id}/samples/{sampleId}/question` (câu hỏi riêng — mục 22), `DELETE /projects/{id}/samples/failed` |
 | | Câu hỏi vàng | `GET/POST /projects/{id}/gold-items`, `DELETE /projects/{id}/gold-items/{goldItemId}` |
 | | Checklist + publish | `GET /projects/{id}/readiness`, `POST /projects/{id}/publish` |
 | | Kiểm soát chất lượng | `PUT /projects/{id}/quality-control`, `GET /quality/projects/{id}/summary`, `GET /quality/projects/{id}/labelers` |
@@ -211,7 +211,7 @@ Lưu ý: mốc thu hồi tính theo **giây** — token cấp trong cùng giây 
 | | Tranh chấp nhãn đã duyệt | `POST /ledger/disputes`, `GET /ledger/disputes/mine` (mục 4.14) |
 | | Thành viên, mời, mã mời, đơn xin tham gia | `GET/POST /projects/{id}/members`, `POST /projects/{id}/members/batch`, `.../block`, `.../unblock`, `DELETE .../members/{userId}`, `GET/POST /projects/{id}/invite-codes`, `DELETE .../invite-codes/{codeId}`, `GET /projects/{id}/join-requests`, `POST .../join-requests/{requestId}/approve` / `reject` (mục 4.9) |
 | | Duyệt nhãn | `GET /annotations/projects/{id}?status=pendingReview`, `POST /annotations/{id}/approve` / `reject`, `POST /annotations/projects/{id}/approve-agreed`, `GET /annotations/{id}/history` |
-| | Kết quả, phân bố nhãn, tải về | `GET /annotations/projects/{id}/results`, `GET /annotations/projects/{id}/distribution`, `GET /annotations/projects/{id}/export?format=json\|csv\|coco\|yolo\|voc` |
+| | Kết quả, phân bố nhãn, tải về | `GET /annotations/projects/{id}/results`, `GET /annotations/projects/{id}/distribution`, tạo file nền `POST /annotations/projects/{id}/exports` + `GET .../exports[/{jobId}[/file]]` (mục 4.11) |
 | Labeler | Chợ dự án | `GET /projects`, `GET /projects/{id}` |
 | | Tham gia, mã mời, đơn xin, bài test | `POST /projects/{id}/join`, `POST /projects/join-by-code`, `POST /projects/{id}/join-requests`, `DELETE /projects/{id}/join-requests/mine`, `GET /projects/join-requests/mine`, `POST /projects/{id}/entrance-test/attempts`, `.../attempts/{attemptId}/submit`, `GET .../attempts` (mục 5.1) |
 | | Workspace gán nhãn | `POST /tasks/projects/{id}/next`, `POST /tasks/assignments/{id}/submit`, `PUT /tasks/assignments/{id}/draft`, `POST /tasks/assignments/{id}/report`, `POST /tasks/assignments/{id}/release`, `GET /tasks/assignments/mine` |
@@ -455,14 +455,24 @@ queued ──(worker nhận)──► processing ──► ready      (vào bài
 
 Giao diện hiển thị cho từng file: **đang upload (%) → đã upload, chờ xử lý → đang xử lý file → đã xử lý** (hoặc **lỗi** kèm lý do). Video còn thêm bước "đang chuẩn bị video" (`mediaState: preparing`) sau khi đã xử lý. Chỉ mẫu `ready` mới tính vào số mẫu của dự án, vào bài làm và gate.
 
-**Đường A — ZIP ảnh (chỉ dự án `image`, file ≤ 200 MB, xử lý xong ngay trong request):**
+**Đường A — ZIP ảnh (chỉ dự án `image`, file ≤ `dataset.zip_max_bytes` = 200 MB, giải nén CHẠY NỀN — kiến trúc 3.41):**
+
+ZIP đi đúng đường upload thẳng của đường B, rồi đăng ký **phiếu giải nén**; backend không còn nhận file trong request.
 
 ```http
-POST /projects/{id}/samples/zip        (multipart/form-data: file)
-→ 201 { "received": 120, "ready": 117, "queued": 0, "skipped": 3, "errors": [], "accepted": [] }
+① POST /projects/{id}/uploads   { "files": [ { "name": "anh.zip", "sizeBytes": 10485760 } ] }
+→ 200 [ { "name": "anh.zip", "key": "<projectId>/zip/<uuid>.zip", "uploadUrl": "...", "expiresAt": "..." } ]
+② PUT <uploadUrl>   (trình duyệt đẩy thẳng lên kho, có % tiến độ)
+③ POST /projects/{id}/samples/zip   { "key": "<projectId>/zip/<uuid>.zip", "name": "anh.zip" }
+→ 202 { "id", "name", "sizeBytes", "status": "queued", "processed": 0, "ready": 0, "skipped": 0, "error": null, "createdAt", "finishedAt": null }
+④ GET /projects/{id}/samples/status   → "zipImports": [ { ...cùng dạng... } ]   (hỏi lại 2 giây/lần tới khi done | failed)
 ```
 
-Chỉ nhận jpg / png / webp trong ZIP; ảnh trùng nội dung bị bỏ (đếm vào `skipped`). Dự án khác `image` → 409 `zip_chi_cho_anh`. Thanh tiến độ upload dùng `XMLHttpRequest` (có `upload.onprogress`); khi byte cuối đã gửi thì chuyển sang "đang xử lý" cho tới khi response về.
+- Trạng thái phiếu: `queued` (chờ giải nén) → `processing` (`processed` = số file trong ZIP đã đọc) → `done` (`ready` ảnh hợp lệ, `skipped` = không phải ảnh / quá lớn / trùng nội dung) hoặc `failed` (`error`: không phải ZIP, quá nhiều file, vượt tổng dung lượng, mọi ảnh đều trùng…). ZIP hỏng thì **không mẫu nào** được ghi.
+- Chỉ nhận jpg / png / webp trong ZIP. Dự án khác `image`: bước ① trả 400 `duoi_file_khong_hop_le`, bước ③ trả 409 `zip_chi_cho_anh`. ZIP vượt trần ở bước ① → 400 `zip_qua_lon`.
+- Gửi lại bước ③ cùng `key` → trả lại **cùng phiếu** (không giải nén hai lần). `key` của dự án khác / chưa upload → 400 (`khoa_zip_khong_hop_le` / `khong_tim_thay_file`).
+- ZIP đang chờ / đang giải nén tính là "còn dữ liệu đang xử lý" → chưa publish được. `DELETE /samples/failed` xoá luôn phiếu ZIP lỗi.
+- Có thể rời trang trong lúc giải nén; mở lại thấy phiếu trong `zipImports` (20 phiếu mới nhất).
 
 **Đường B — upload thẳng lên kho file rồi đăng ký (ảnh, âm thanh, video, file lớn):**
 
@@ -838,9 +848,24 @@ GET /annotations/projects/{id}/distribution
 - Chỉ xét công cụ **phân loại** có ≥ 2 lớp và ≥ 20 nhãn đã duyệt (`annotation.imbalance_min_labels`). `lop_ap_dao`: một lớp chiếm **hơn** `thresholdPercent`; `lop_chua_co_nhan`: lớp chưa ai chọn.
 - Chỉ là **cảnh báo** — dữ liệu có thể lệch thật. Gợi ý hiển thị: dải vàng "Lớp *meo* chiếm 88 % — kiểm tra dữ liệu hoặc hướng dẫn".
 
+**Tạo file kết quả chạy nền (kiến trúc 3.41)** — file không còn dựng trong request (`GET .../export?format=` đã bỏ):
+
 ```http
-GET /annotations/projects/{id}/export?format=json|csv|coco|yolo|voc     → file tải về (Content-Disposition)
+POST /annotations/projects/{id}/exports   { "format": "json|csv|coco|yolo|voc|yolo-seg|yolo-obb|coco-keypoints|conll|mot" }
+→ 202 (Location: /annotations/projects/{id}/exports/{jobId})
+  { "id", "projectId", "format": "yolo", "status": "queued", "fileName": null, "sizeBytes": null, "sampleCount": null,
+    "error": null, "createdAt", "finishedAt": null, "downloadPath": null }
+GET /annotations/projects/{id}/exports              → các lần tạo file, mới nhất trước (mỗi định dạng giữ lần mới nhất)
+GET /annotations/projects/{id}/exports/{jobId}      → queued | processing | ready | failed
+GET /annotations/projects/{id}/exports/{jobId}/file → file tải về (Content-Disposition, Content-Length)
 ```
+
+- Định dạng lạ → 400 `dinh_dang_chua_ho_tro`; không hợp dự án (vd `coco` cho dự án văn bản) → 400 **ngay lúc POST** (`coco_chi_cho_khung_anh`, `khung_chi_cho_anh`, `dinh_dang_khong_hop_du_an`).
+- Đang có lần cùng định dạng chưa xong → POST trả lại **lần đó** (bấm nhiều lần không tạo nhiều file). Kết quả chưa đổi so với lần trước → file cũ được dùng lại.
+- Hỏi trạng thái 2 giây/lần; `ready` thì có `downloadPath` + `fileName`, `sizeBytes`, `sampleCount`. `failed` kèm `error` bằng lời người dùng; quá `export.job_timeout` (mặc định 30 phút) chưa xong cũng báo `failed` ("Tạo file quá lâu chưa xong. Bấm tạo lại.").
+- Tải khi chưa xong → 409 `file_chua_san_sang`; file đã bị dọn (dự án đóng quá hạn giữ file) → 409 `file_khong_con`. Không phải chủ dự án / admin → 404.
+
+Nội dung từng định dạng:
 
 - `json`: giống `results`.
 - `csv`: một dòng một mẫu, một cột một công cụ (UTF-8 có BOM, mở bằng Excel được). Ô ghi **kết quả gộp**: lớp (`a;b`), lựa chọn, bản chép, số, thứ tự xếp hạng (`2;0;1`); công cụ dạng danh sách ghi JSON các đối tượng đã gộp; tranh chấp để trống; `freeText` ghi JSON câu trả lời của từng người.
@@ -2744,7 +2769,7 @@ Server **liệt kê nguồn ngay trong request** (S3: liệt kê bucket + ký li
 
 - `bbox` có `"rotatable": true` (chỉ bbox): mỗi khung thêm `angle` (độ, chiều kim đồng hồ quanh tâm, -180..180). Kiểm "nằm trong ảnh" theo 4 đỉnh sau khi xoay. Gộp: góc = trung vị.
 - `track`: mỗi keyframe có thể có `"visible": false` — đối tượng **khuất** từ mốc đó tới mốc `visible` kế tiếp (không nội suy qua đoạn khuất).
-- Định dạng xuất mới (`GET /annotations/projects/{id}/export?format=`): `yolo-seg` (đa giác), `yolo-obb` (khung xoay), `coco-keypoints`, `conll` (span → BIO, dự án văn bản), `mot` (track, dự án video; khung hình theo `fps` của mẫu). `yolo` ghi khung xoay thành hộp bao; `voc` có thêm `<polygon>` và `<angle>`. Định dạng không hợp loại dữ liệu → `400`.
+- Định dạng xuất mới (nay tạo nền qua `POST /annotations/projects/{id}/exports {format}` — 3.41): `yolo-seg` (đa giác), `yolo-obb` (khung xoay), `coco-keypoints`, `conll` (span → BIO, dự án văn bản), `mot` (track, dự án video; khung hình theo `fps` của mẫu). `yolo` ghi khung xoay thành hộp bao; `voc` có thêm `<polygon>` và `<angle>`. Định dạng không hợp loại dữ liệu → `400`.
 - `GET /annotations/projects/{id}/results` dùng bộ đệm kết quả gộp theo mẫu: header `X-Results-Cache: hits=…; misses=…` (chỉ để đo).
 
 ### 17.7 Chỉ số chất lượng mở rộng (FQ-02) — **(đổi)** mục 4.12

@@ -298,6 +298,12 @@ namespace Crowd.Project.Api.Dtos
 
         /// <summary>So file video dang cho media-svc chuan bi ban chuan (mau da ready nhung chua publish duoc).</summary>
         public required int PreparingVideo { get; init; }
+
+        /// <summary>
+        /// Cac file ZIP anh cua du an (moi nhat truoc, kien truc 3.41): dang cho / dang giai nen / xong / loi. ZIP dang
+        /// cho hoac dang giai nen cung tinh la "con du lieu dang xu ly" — chua publish duoc.
+        /// </summary>
+        public required IReadOnlyList<ZipImportResponse> ZipImports { get; init; }
     }
 
     // ---- Upload thang len MinIO + manifest ----

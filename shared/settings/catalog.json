@@ -947,6 +947,18 @@
     "description": "Thời gian tối đa cho một lần ffprobe đo file."
   },
   {
+    "key": "export.job_timeout",
+    "name": "Thời gian tạo file kết quả",
+    "group": "Kỹ thuật",
+    "type": "durationSeconds",
+    "default": 1800,
+    "min": 60,
+    "max": 86400,
+    "unit": "giây",
+    "effect": "newOperations",
+    "description": "Doanh nghiệp bấm tạo file kết quả: quá thời gian này mà file chưa xong thì báo không tạo được, doanh nghiệp bấm tạo lại."
+  },
+  {
     "key": "task.attempt_duration",
     "name": "Thời gian giữ một bài làm",
     "group": "Gán nhãn và duyệt nhãn",

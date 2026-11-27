@@ -487,7 +487,7 @@ Một nền tảng gán nhãn phải nhận được ảnh, văn bản, âm than
 |---|---|---|---|
 | Q1 | Mô hình hóa "loại bài toán" | **Loại dữ liệu × công cụ**: dự án có một `modality`; tập nhãn là danh sách công cụ (ban đầu 7 loại: `classification`, `bbox`, `polygon`, `span`, `transcription`, `temporalSegment`, `pairwise`; nay 15 loại, mục 3.15) | Một màn hình thường cần nhiều công cụ cùng lúc (phân loại cảm xúc + gắn thực thể). Liệt kê từng "task type" ghép sẵn sẽ bùng nổ tổ hợp |
 | Q2 | Kiểm nhãn ở đâu | **JSON Schema cho hình dạng** ([contracts/labeling](../contracts/labeling)) + **code C# cho ngữ nghĩa** (lớp có trong tập nhãn, khung nằm trong ảnh, đoạn nằm trong audio) | Schema dùng chung được cho frontend; luật phụ thuộc mẫu thì schema không diễn đạt được |
-| Q3 | Nạp file lớn | **Upload thẳng lên MinIO bằng link ký sẵn + manifest + worker nền** (ffprobe đo thời lượng) | Video vài GB không đi qua service. ZIP trong request chỉ giữ cho ảnh nhỏ |
+| Q3 | Nạp file lớn | **Upload thẳng lên MinIO bằng link ký sẵn + manifest + worker nền** (ffprobe đo thời lượng) | Video vài GB không đi qua service. ~~ZIP trong request chỉ giữ cho ảnh nhỏ~~ — từ mục 3.41 ZIP ảnh cũng upload thẳng, giải nén nền |
 | Q4 | Lưu mẫu | `samples` thêm `modality`, `content jsonb` (text/pair), `metadata jsonb`; `storage_key` nullable; CHECK đúng một trong hai | Văn bản không cần file; metadata (kích thước, thời lượng, đoạn) là thứ server cần để kiểm nhãn |
 | Q5 | Bản sao ở task / annotation | `label_schema jsonb` chép nguyên từ `project.published` | Kiểm nhãn lúc nộp và gộp kết quả không phải gọi HTTP sang project-svc (luật 1 mục 4) |
 | Q6 | Media dài | **Cắt đoạn** theo `segmentSeconds`, mỗi đoạn một task, giá theo task | Labeler không phải nghe 1 giờ cho một task; tiền và redundancy giữ nguyên mô hình cũ |
@@ -1144,7 +1144,7 @@ Migration `NhanToiGian` (project-svc): Postgres cho `DROP COLUMN` / đổi khoá
 2. **Chỉ mẫu `ready` là câu hỏi.** `SampleConfiguration.HasQueryFilter(IngestState == ready)`: mọi truy vấn nghiệp vụ (dựng đề, nộp bài, xuất file, đếm sẵn sàng publish, gate gRPC, câu vàng…) tự không thấy mẫu đang chờ / lỗi; chỉ `GET /samples`, `GET /samples/status`, worker và readiness ("còn file đang xử lý" → chưa publish) dùng `IgnoreQueryFilters()`.
 3. **Worker quét `samples` thay vì `datasets`.** `SampleIngestWorker` → `SampleIngestor.XuLyMotMauAsync`: khoá một mẫu `queued` (`SKIP LOCKED`), đặt `processing`, commit ngay (đọc file vài GB không giữ khoá), rồi: tải file về nếu là nguồn ngoài → đọc / kiểm loại thật / ffprobe / cắt đoạn / bỏ trùng → `ready` hoặc `failed`. Mẫu gốc giữ đoạn cắt đầu, các đoạn sau thêm mới. Khởi động lại giữa chừng: `processing` → `queued` (làm lại không trùng vì sha256 chỉ chốt ở bước cuối).
 4. **Nguồn ngoài (S3 / Drive / URL) liệt kê ngay trong request**, mỗi file thành một mẫu `queued` kèm link tải. S3: liệt kê bucket rồi **ký link GET** (hết hạn 6 ngày) cho từng file — khoá bí mật chỉ sống trong đúng request này, **không còn lưu mã hoá** (`BiMatNguon` bỏ). Liệt kê hỏng (sai khoá, endpoint nội bộ, link Drive lạ) → 400 ngay, không tạo mẫu nào.
-5. **API mới** (thay `/datasets*`): `POST /samples` (dòng JSON; file đã upload → `queued`, văn bản / cặp / danh sách → `ready` ngay), `POST /samples/zip` (ZIP ảnh, xử lý trong request), `POST /samples/import` (nguồn ngoài), `GET /samples/status` (đếm theo trạng thái), `GET /samples?ids=…|trangThai=…`, `DELETE /samples/failed` (xoá mẫu lỗi để nạp lại; chỉ khi Nháp). Response mỗi lần gửi trả `accepted[{index, sampleId, name}]` để giao diện theo dõi **từng file**.
+5. **API mới** (thay `/datasets*`): `POST /samples` (dòng JSON; file đã upload → `queued`, văn bản / cặp / danh sách → `ready` ngay), `POST /samples/zip` (ZIP ảnh, xử lý trong request — **đổi ở 3.41**: nhận `{key}` của ZIP đã upload thẳng, giải nén nền), `POST /samples/import` (nguồn ngoài), `GET /samples/status` (đếm theo trạng thái), `GET /samples?ids=…|trangThai=…`, `DELETE /samples/failed` (xoá mẫu lỗi để nạp lại; chỉ khi Nháp). Response mỗi lần gửi trả `accepted[{index, sampleId, name}]` để giao diện theo dõi **từng file**.
 6. **Bỏ file manifest `.jsonl`** (`manifestKey`) và `dataset.manifest_file_max_rows`: nhiều dòng thì frontend chia nhiều lần gửi (≤ 1.000 dòng mỗi lần). Bỏ thêm `dataset.event_batch_size`, `dataset.name_max_length` (không còn lô / tên lô).
 7. **Event `dataset.ingested` → `samples.ingested`** (bỏ `DatasetId`, `BatchIndex`, `BatchCount`): chỉ phát cho **video** (media-svc là consumer duy nhất), mỗi event là một file + các đoạn cắt của nó. Queue media đổi `media-svc.samples-ingested`.
 
@@ -1569,6 +1569,43 @@ ml-svc (mỗi đêm) ── ClickHouse reco (user ml_reader, chỉ SELECT) ─�
 **Hợp đồng.** `project.preview_requested` v1 (project → media), `liked_project.deadline_soon` v1 (reco → notification). `RecoEventItem` thêm `eventId`, `at`. `FeedCard` thêm `liked`. Token media thêm cờ `xt` (chỉ nhận ở `/media/xt`, `/media/v` từ chối). Setting mới `reco.liked_reminder_hours`.
 
 **Kiểm thử.** Unit: reco +3 (phạt lướt qua, điểm bị đẩy xuống nhưng không ẩn, trọng số thích / phiên nào tính lướt qua); media +7 (ảnh 1080 + chữ, kích thước video, đoạn clip, khoá MinIO, token `xt`, `/media/v` từ chối token xem trước); notification thêm loại `du_an_da_thich`; project test xem trước. E2E [e2e_goi_y.py](../tests/e2e/e2e_goi_y.py) mục 7b–7e.
+
+### 3.41. Xuất kết quả và giải nén ZIP ảnh chạy nền — không việc nặng nào nằm trong request (11/2026)
+
+**Vấn đề.** Ba chỗ vẫn làm hết việc trong một request:
+- **Xuất kết quả** `GET /annotations/projects/{id}/export?format=`: gộp toàn bộ nhãn đã chốt (gọi quality-svc qua gRPC), dựng cả file (COCO / YOLO ZIP…) thành `byte[]` rồi trả. Thời gian tăng theo số mẫu × số bài × độ phức tạp công cụ — không ai đảm bảo xong trước timeout của gateway / trình duyệt, mỗi lần bấm tải lại tính lại từ đầu.
+- **ZIP ảnh** `POST /samples/zip` (multipart): giải nén, kiểm từng ảnh, đẩy lên MinIO ngay trong request; gateway và project-svc phải nâng trần body riêng cho đường này (`UploadLimitMiddleware`, `GioiHanZipFilter`).
+- Dòng JSON văn bản / cặp / danh sách cũng ghi ngay — nhưng chỉ là insert, có trần `dataset.manifest_inline_max_rows` dòng, không đọc file: **giữ đồng bộ** (người dùng chốt).
+
+**Quyết định (người dùng chốt 26/11).**
+
+| # | Câu hỏi | Chọn | Lý do / đánh đổi |
+|---|---|---|---|
+| N1 | Xuất kết quả chạy nền bằng gì | **Outbox + RabbitMQ**: `POST .../exports {format}` ghi dòng `export_jobs` "queued" + event `export.requested` CÙNG transaction → 202. project-svc **tự nghe** queue `project-svc.export-requested`: gộp kết quả → dựng file → lưu MinIO `{projectId}/exports/{jobId}{đuôi}` → `ready` / `failed` | Dùng đúng hạ tầng sẵn có: retry giãn cách, DLQ, `processed_events` chống làm hai lần, log tập trung — không thêm thư viện job. Đánh đổi: đi vòng qua broker dù người làm là chính service phát; vẫn cần bảng trạng thái cho giao diện. (Đã cân: bảng + worker `SKIP LOCKED` riêng; Hangfire / Quartz) |
+| N2 | Consumer chạy trong transaction của `IdempotencyGuard` — việc dài có sao không | Handler chỉ **đọc** cho tới bước cuối (không giữ khoá dòng); trạng thái `processing` ghi bằng **kết nối riêng tự commit** để giao diện thấy ngay; kết quả job + `processed_events` commit một lần | Giao lại giữa chừng thì làm lại từ đầu, file ghi đè cùng khoá — vô hại |
+| N3 | Định dạng sai / không hợp dự án | Kiểm **ngay lúc yêu cầu** (400) bằng cách chạy chính exporter trên kết quả rỗng (`XuatKetQua.KiemHopDuAn`) | Không chép luật "coco cần bbox / polygon / mask" ra chỗ thứ hai; doanh nghiệp không phải chờ mới biết sai |
+| N4 | Bấm nhiều lần / tạo lại | Mỗi (dự án, định dạng) **một lần đang tạo** (UNIQUE từng phần `state IN ('queued','processing')`) — bấm lại trả lần đang chạy. Lần `ready` mới thay lần cũ (xoá dòng + file không còn ai dùng); lần hỏng cũ bị bỏ khi tạo lại. **Dấu vân tay kết quả** (SHA-256 JSON kết quả, không phải của file — ZIP mang mốc thời gian) trùng lần trước thì **dùng lại file**, không lưu bản mới | Bảng chỉ giữ thứ có người đọc (tinh thần 3.26) |
+| N5 | Consumer bỏ cuộc (DLQ) / chết mà không ai làm lại | Không có worker dọn: API báo `failed` khi job đang chờ quá setting **`export.job_timeout`** (mặc định 30 phút) — doanh nghiệp bấm tạo lại | Đọc là đủ, không ghi; message cũ tới sau thấy job không còn → bỏ qua (loại 1, 3.29) |
+| N6 | Tải file | `GET .../exports/{id}/file` **stream qua project-svc** (chỉ chủ dự án / admin), không phát link MinIO | Giữ nguyên tắc không lộ khoá kho (3.13). File nằm dưới `{projectId}/` nên xoá dự án / dọn file sau khi đóng (3.36) xoá luôn; file đã dọn → 409 `file_khong_con`, bấm tạo lại |
+| N7 | ZIP ảnh | **Upload thẳng + phiếu giải nén**: `POST /uploads` nhận `.zip` (dự án ảnh, trần `dataset.zip_max_bytes`) → khoá `{projectId}/zip/{guid}.zip` → client PUT lên MinIO → `POST /samples/zip {key, name}` tạo dòng `zip_imports` "queued" → 202. `ZipImportWorker` (SKIP LOCKED như `SampleIngestWorker`) tải ZIP ra **tệp tạm có trần** (ZipArchive cần luồng tua được — đọc thẳng luồng MinIO thì nó chép cả file vào RAM), duyệt bằng `ZipImageReader` cũ, đẩy từng ảnh, ghi mọi mẫu + chốt phiếu trong **một** SaveChanges, xoá file ZIP | ZIP hỏng giữa chừng → không mẫu nào được ghi (như lúc còn trong request), ảnh đã đẩy bị dọn. Mã mẫu **cố định theo (phiếu, vị trí ảnh)** (UUID v8 từ SHA-256) nên làm lại sau khởi động lại ghi đè đúng khoá cũ, không để file mồ côi. Bỏ `UploadLimitMiddleware` (gateway) và `GioiHanZipFilter` — không còn endpoint nào nhận body lớn |
+| N8 | Tiến độ ZIP / chặn publish | `GET /samples/status` thêm `zipImports[]` (`queued → processing (processed) → done (ready, skipped) / failed (error)`); 50 ảnh ghi `processed_count` một lần (UPDATE nhỏ tự commit). ZIP đang chờ / đang giải nén tính là "còn dữ liệu đang xử lý" → chưa publish được. `DELETE /samples/failed` xoá luôn phiếu ZIP lỗi | Mở lại trang vẫn thấy ZIP đang giải nén |
+
+```
+ Xuất kết quả
+ POST .../exports {format} ─► kiểm quyền + định dạng (400) ─► export_jobs queued + outbox export.requested ─► 202
+ OutboxDispatcher ─► RabbitMQ ─► project-svc.export-requested ─► processing (kết nối riêng)
+     ─► KetQuaCuaDuAnAsync (gộp qua quality gRPC) ─► XuatKetQua.Dung ─► MinIO {p}/exports/{job}{đuôi} ─► ready
+ GET .../exports/{id} (2 s/lần)  ─► GET .../exports/{id}/file (stream)
+
+ ZIP ảnh
+ POST /uploads {a.zip} ─► link PUT {p}/zip/{guid}.zip ─► trình duyệt PUT thẳng MinIO
+ POST /samples/zip {key} ─► zip_imports queued ─► 202
+ ZipImportWorker ─► tệp tạm ─► ZipImageReader ─► ảnh {p}/{sampleId}.png ─► samples ready + phiếu done ─► xoá ZIP
+```
+
+**Hợp đồng.** Event mới `export.requested` v1 (`jobId`, `projectId`, `format`; project → chính project). API: thêm `POST /annotations/projects/{id}/exports`, `GET .../exports`, `GET .../exports/{jobId}`, `GET .../exports/{jobId}/file`; **bỏ** `GET .../export?format=`. `POST /projects/{id}/samples/zip` đổi từ multipart sang JSON `{key, name}` (202, trả phiếu). `GET /samples/status` thêm `zipImports`. Bảng mới `export_jobs`, `zip_imports` (migration `ViecNenZipVaFileXuat`). Setting mới `export.job_timeout`. Bucket `exports` khai trong hạ tầng vẫn không dùng: file kết quả nằm trong bucket `datasets` dưới thư mục dự án để mọi đường dọn theo tiền tố `{projectId}/` áp luôn.
+
+**Kiểm thử.** Unit project +17 (`ViecNenTests`: vòng đời phiếu ZIP, mã mẫu cố định, vòng đời lần xuất + quá hạn, chuẩn hoá / kiểm định dạng bằng exporter thật). E2E mới [e2e_viec_nen.py](../tests/e2e/e2e_viec_nen.py) (ZIP: 202 ngay, trùng ảnh, không phải ZIP, key dự án khác, đăng ký lặp, xoá phiếu lỗi, file ZIP xoá khỏi kho; xuất: 400 ngay, 409 khi chưa xong, tải đúng dung lượng, file nằm dưới `exports/`). Các bộ cũ chuyển sang helper `xuat_file` / `nap_zip` ([tro_giup.py](../tests/e2e/tro_giup.py)).
 
 ## 4. Dữ liệu chéo — ba luật cứng
 

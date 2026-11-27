@@ -92,6 +92,11 @@ escrow.reserved v1  (EscrowReserved)
     AmountVnd                Int64                required
     ProjectId                Guid                 required
 
+export.requested v1  (ExportRequested)
+    Format                   String               required
+    JobId                    Guid                 required
+    ProjectId                Guid                 required
+
 fraud.case_confirmed v1  (FraudCaseConfirmed)
     BlockAccounts            Boolean              required
     CaseId                   Guid                 required

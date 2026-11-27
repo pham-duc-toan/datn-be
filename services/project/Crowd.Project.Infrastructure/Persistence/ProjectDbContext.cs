@@ -6,6 +6,7 @@ using Crowd.Project.Domain.Attempts;
 using Crowd.Project.Domain.Collections;
 using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.EntranceTests;
+using Crowd.Project.Domain.Exports;
 using Crowd.Project.Domain.Gold;
 using Crowd.Project.Domain.Members;
 using Crowd.Project.Domain.Projects;
@@ -60,6 +61,12 @@ namespace Crowd.Project.Infrastructure.Persistence
 
         public DbSet<KetQuaMauDem> SampleResults => Set<KetQuaMauDem>();
 
+        // ---- Viec chay nen cua doanh nghiep (3.41) ----
+
+        public DbSet<ZipImport> ZipImports => Set<ZipImport>();
+
+        public DbSet<ExportJob> ExportJobs => Set<ExportJob>();
+
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
@@ -89,6 +96,8 @@ namespace Crowd.Project.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new SampleReportConfiguration());
             modelBuilder.ApplyConfiguration(new LabelAnnotationConfiguration());
             modelBuilder.ApplyConfiguration(new SampleResultCacheConfiguration());
+            modelBuilder.ApplyConfiguration(new ZipImportConfiguration());
+            modelBuilder.ApplyConfiguration(new ExportJobConfiguration());
 
             // Ha tang dung chung: outbox (gui event) + processed_events (nhan event).
             modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());

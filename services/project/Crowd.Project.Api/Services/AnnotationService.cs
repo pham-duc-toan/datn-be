@@ -36,12 +36,6 @@ namespace Crowd.Project.Api.Services
     /// </summary>
     public sealed class AnnotationService
     {
-        /// <summary>Mot instance dung lai: tao moi moi lan serialize cham di hang chuc lan.</summary>
-        private static readonly JsonSerializerOptions JsonXuat = new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        {
-            WriteIndented = true,
-        };
-
         private readonly ProjectDbContext _db;
         private readonly ProjectAccessService _access;
         private readonly IMediaLinks _media;
@@ -233,6 +227,21 @@ namespace Crowd.Project.Api.Services
         public async Task<ProjectResultsResponse> KetQuaAsync(Guid projectId, Caller caller, CancellationToken ct)
         {
             LabelingProject duAn = await KiemQuyenXemAsync(projectId, caller, ct);
+            return await KetQuaCuaDuAnAsync(duAn, ct);
+        }
+
+        /// <summary>
+        /// Gop ket qua cua MOT du an da qua kiem quyen. Consumer tao file ket qua (3.41) goi thang — quyen da kiem luc
+        /// doanh nghiep bam tao file (POST .../exports).
+        /// </summary>
+        public async Task<ProjectResultsResponse> KetQuaCuaDuAnAsync(LabelingProject duAn, CancellationToken ct)
+        {
+            if (duAn == null)
+            {
+                throw new ArgumentNullException(nameof(duAn));
+            }
+
+            Guid projectId = duAn.Id;
             if (duAn.LabelSchema == null)
             {
                 throw new RuleViolationException("chua_co_tap_nhan", "Dự án chưa có tập nhãn.");
@@ -440,70 +449,6 @@ namespace Crowd.Project.Api.Services
                     Percent = c.Percent,
                 })
                 .ToList();
-        }
-
-        /// <summary>
-        /// Xuat ket qua (FB-25): json (mac dinh), csv, coco / yolo / voc / yolo-seg / yolo-obb / coco-keypoints (anh),
-        /// conll (van ban co span), mot (video co track).
-        /// </summary>
-        public async Task<ExportFile> XuatAsync(
-            Guid projectId, string? dinhDang, Caller caller, CancellationToken ct)
-        {
-            ProjectResultsResponse kq = await KetQuaAsync(projectId, caller, ct);
-            LabelSchema tapNhan = LabelSchema.Doc(kq.LabelSchema);
-            string ten = "ket-qua-" + projectId.ToString();
-
-            if (string.Equals(dinhDang, "csv", StringComparison.OrdinalIgnoreCase))
-            {
-                return new ExportFile(ResultExporter.Csv(kq, tapNhan), "text/csv; charset=utf-8", ten + ".csv");
-            }
-
-            if (string.Equals(dinhDang, "coco", StringComparison.OrdinalIgnoreCase))
-            {
-                return new ExportFile(ResultExporter.Coco(kq, tapNhan), "application/json", ten + ".coco.json");
-            }
-
-            if (string.Equals(dinhDang, "yolo", StringComparison.OrdinalIgnoreCase))
-            {
-                return new ExportFile(KhungAnhExporter.Yolo(kq, tapNhan), "application/zip", ten + ".yolo.zip");
-            }
-
-            if (string.Equals(dinhDang, "voc", StringComparison.OrdinalIgnoreCase))
-            {
-                return new ExportFile(KhungAnhExporter.PascalVoc(kq, tapNhan), "application/zip", ten + ".voc.zip");
-            }
-
-            if (string.Equals(dinhDang, "yolo-seg", StringComparison.OrdinalIgnoreCase))
-            {
-                return new ExportFile(DinhDangMoRongExporter.YoloSeg(kq, tapNhan), "application/zip", ten + ".yolo-seg.zip");
-            }
-
-            if (string.Equals(dinhDang, "yolo-obb", StringComparison.OrdinalIgnoreCase))
-            {
-                return new ExportFile(DinhDangMoRongExporter.YoloObb(kq, tapNhan), "application/zip", ten + ".yolo-obb.zip");
-            }
-
-            if (string.Equals(dinhDang, "coco-keypoints", StringComparison.OrdinalIgnoreCase))
-            {
-                return new ExportFile(DinhDangMoRongExporter.CocoKeypoints(kq, tapNhan), "application/json", ten + ".coco-keypoints.json");
-            }
-
-            if (string.Equals(dinhDang, "conll", StringComparison.OrdinalIgnoreCase))
-            {
-                return new ExportFile(DinhDangMoRongExporter.Conll(kq, tapNhan), "text/plain; charset=utf-8", ten + ".conll");
-            }
-
-            if (string.Equals(dinhDang, "mot", StringComparison.OrdinalIgnoreCase))
-            {
-                return new ExportFile(DinhDangMoRongExporter.Mot(kq, tapNhan), "application/zip", ten + ".mot.zip");
-            }
-
-            if (dinhDang != null && !string.Equals(dinhDang, "json", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidValueException("dinh_dang_chua_ho_tro", "Hỗ trợ json, csv, coco, yolo, voc, yolo-seg, yolo-obb, coco-keypoints, conll, mot.");
-            }
-
-            return new ExportFile(JsonSerializer.SerializeToUtf8Bytes(kq, JsonXuat), "application/json", ten + ".json");
         }
 
         // =====================================================================

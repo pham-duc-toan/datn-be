@@ -277,9 +277,11 @@ try:
     kiem("canh bao lech: 'a' ap dao, 'b' chua co nhan",
          any(w["code"] == "lop_ap_dao" and w["label"] == "a" for w in pb.get("imbalanceWarnings", []))
          and any(w["code"] == "lop_chua_co_nhan" and w["label"] == "b" for w in pb.get("imbalanceWarnings", [])), pb)
-    r = requests.get(G + f"/annotations/projects/{P1}/export?format=yolo", headers=biz["h"])
-    kiem("xuat yolo du an van ban → 400 khung_chi_cho_anh", r.status_code == 400 and code(r) == "khung_chi_cho_anh", r.text)
-    kiem("dinh dang la → 400", requests.get(G + f"/annotations/projects/{P1}/export?format=xml", headers=biz["h"]).status_code == 400)
+    # Tao file chay nen (3.41): dinh dang khong hop / la bi tu choi NGAY luc yeu cau (400), khong tao lan xuat nao.
+    r = requests.post(G + f"/annotations/projects/{P1}/exports", headers=biz["h"], json={"format": "yolo"})
+    kiem("tao file yolo du an van ban → 400 khung_chi_cho_anh ngay luc yeu cau", r.status_code == 400 and code(r) == "khung_chi_cho_anh", r.text)
+    kiem("dinh dang la → 400", requests.post(G + f"/annotations/projects/{P1}/exports", headers=biz["h"], json={"format": "xml"}).status_code == 400)
+    kiem("endpoint xuat dong bo cu da bo", requests.get(G + f"/annotations/projects/{P1}/export?format=json", headers=biz["h"]).status_code in (404, 405))
 
     # =================================================================================
     print("\n[7] Khong con tranh chap tung nhan (3.18): thay bang khieu nai ca bai")

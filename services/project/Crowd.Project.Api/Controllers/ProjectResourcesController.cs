@@ -303,25 +303,15 @@ namespace Crowd.Project.Api.Controllers
         }
 
         /// <summary>
-        /// POST /projects/{id}/samples/zip — multipart/form-data: file (ZIP anh), xu ly NGAY trong request.
-        ///
-        /// GioiHanZipFilter NANG tran cho RIENG endpoint nay theo setting
-        /// dataset.zip_max_bytes; moi endpoint khac van giu tran mac dinh 30 MB cua Kestrel.
+        /// POST /projects/{id}/samples/zip — {"key": "&lt;key tu POST /uploads, file .zip&gt;", "name": "anh.zip"} (kien truc 3.41).
+        /// ZIP da PUT thang len kho; endpoint chi dang ky phieu giai nen → 202, worker giai nen nen. Theo doi o
+        /// GET samples/status (zipImports). Body nho nen khong con phai nang tran kich thuoc request.
         /// </summary>
         [HttpPost("samples/zip")]
-        [ServiceFilter(typeof(GioiHanZipFilter))]
-        public async Task<IActionResult> NapZip(Guid projectId, IFormFile? file, CancellationToken ct)
+        public async Task<IActionResult> NapZip(Guid projectId, [FromBody] DangKyZipRequest body, CancellationToken ct)
         {
-            if (file == null || file.Length == 0)
-            {
-                throw new InvalidValueException("thieu_file", "Cần file ZIP (trường 'file').");
-            }
-
-            using (System.IO.Stream luong = file.OpenReadStream())
-            {
-                NapMauResponse r = await _service.NapZipAsync(projectId, luong, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
-                return Created("/projects/" + projectId + "/samples", r);
-            }
+            ZipImportResponse r = await _service.DangKyZipAsync(projectId, body, Caller.TuHttp(HttpContext, ActorRole.Business), ct);
+            return Accepted("/projects/" + projectId + "/samples/status", r);
         }
 
         /// <summary>GET /projects/{id}/samples/status — dem mau: queued | processing | ready | failed (+ video dang chuan bi).</summary>

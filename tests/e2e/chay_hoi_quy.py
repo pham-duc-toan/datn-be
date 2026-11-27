@@ -71,6 +71,8 @@ ok &= chay("log_elasticsearch", "e2e_log_elasticsearch.py")
 # Ba loai ket qua xu ly event (3.29): bo qua / viec can xu ly tay / loi ky thuat vao DLQ (tu don DLQ cua minh).
 ok &= chay("ba_loai_loi", "e2e_ba_loai_loi.py")
 ok &= chay("xuat_mo_rong", "e2e_xuat_mo_rong.py")
+# Viec nang khong nam trong request (3.41): ZIP anh upload thang + giai nen nen; tao file ket qua qua outbox + RabbitMQ.
+ok &= chay("viec_nen", "e2e_viec_nen.py")
 ok &= chay("chi_so_chat_luong", "e2e_chi_so_chat_luong.py")
 ok &= chay("watermark_av", "e2e_watermark_av.py")
 ok &= chay("hang_doi_duyet", "e2e_hang_doi_duyet.py")

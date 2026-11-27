@@ -674,7 +674,17 @@ curl -s -X PATCH http://localhost:8080/projects/<id-du-an-moi> -H "Authorization
 curl -s -X PATCH http://localhost:8080/projects/<id-du-an-moi> -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
   -d '{"pricing":{"unitPriceVnd":10000,"redundancy":1,"budgetVnd":100000,"deadline":"2027-12-31T00:00:00Z"}}'
 
-curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/samples/zip -H "Authorization: Bearer <token-biz2>" -F "file=@anh.zip"
+# ZIP ảnh upload THẲNG lên kho rồi đăng ký phiếu giải nén — giải nén chạy nền (kiến trúc 3.41).
+# ① Xin link: ghi lại "key" và "uploadUrl" trong kết quả
+curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/uploads -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
+  -d "{\"files\":[{\"name\":\"anh.zip\",\"sizeBytes\":$(stat -c %s anh.zip)}]}"
+# ② Đẩy file thẳng lên MinIO (không qua backend)
+curl -s -X PUT --upload-file anh.zip "<uploadUrl>"
+# ③ Đăng ký → 202, phiếu "queued"
+curl -s -X POST http://localhost:8080/projects/<id-du-an-moi>/samples/zip -H "Authorization: Bearer <token-biz2>" -H "Content-Type: application/json" \
+  -d '{"key":"<key>","name":"anh.zip"}'
+# ④ Theo dõi: "zipImports" chuyển queued → processing → done (ready = số ảnh hợp lệ, skipped = bỏ qua)
+curl -s http://localhost:8080/projects/<id-du-an-moi>/samples/status -H "Authorization: Bearer <token-biz2>"
 
 # (Tùy chọn) Thêm câu vàng. Lấy "id" của ảnh vang.png từ danh sách mẫu, dán vào <sampleId>.
 # expectedPayload chỉ là phần dữ liệu, giống payload khi labeler nộp.
@@ -720,8 +730,13 @@ curl -s http://localhost:8080/projects/3d904a1a-3920-530b-b055-793baae64f1b/gold
 #   final = null và disputed = true khi không có kết quả được quá nửa số người ủng hộ (mục 6.20).
 # format=coco chỉ dùng cho dự án ảnh có công cụ bbox / polygon (xem mục 6.14).
 curl -s http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/results -H "Authorization: Bearer <token-biz1>"
-curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/export?format=csv" -H "Authorization: Bearer <token-biz1>" -o ketqua.csv
-curl -s "http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/export?format=json" -H "Authorization: Bearer <token-biz1>"
+# Tạo file chạy nền (kiến trúc 3.41): POST → 202 kèm "id" → hỏi trạng thái tới "ready" → tải theo "downloadPath".
+curl -s -X POST http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/exports -H "Authorization: Bearer <token-biz1>" \
+  -H "Content-Type: application/json" -d '{"format":"csv"}'
+curl -s http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/exports/<jobId> -H "Authorization: Bearer <token-biz1>"
+curl -s http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/exports/<jobId>/file -H "Authorization: Bearer <token-biz1>" -o ketqua.csv
+# Danh sách file đã tạo (mỗi định dạng giữ lần mới nhất):
+curl -s http://localhost:8080/annotations/projects/3d904a1a-3920-530b-b055-793baae64f1b/exports -H "Authorization: Bearer <token-biz1>"
 
 # Hoàn thành P4 → ledger trả phần ký quỹ còn dư về biz1 (khả dụng +300.000, vì P4 chưa chi đồng nào).
 # Dự án đã chạy phải TẠM DỪNG trước (đang chạy → 409 can_tam_dung_truoc).
@@ -849,11 +864,13 @@ curl -s -X POST http://localhost:8080/tasks/assignments/<assignmentId>/submit -H
   -d '{"payload":{"loai":{"labelIds":["ngoai_troi"]},"vat":[{"labelId":"xe","x":20,"y":30,"w":100,"h":50}],"vung":[{"labelId":"duong","points":[[0,200],[300,200],[300,150],[0,150]]}]}}'
 
 # Sau khi duyệt: COCO (images có width/height, mỗi đối tượng ĐÃ GỘP từ các nhãn đã duyệt là một annotation)
-curl -s "http://localhost:8080/annotations/projects/<id-du-an-anh>/export?format=coco" -H "Authorization: Bearer <token-biz1>" -o ketqua.coco.json
+# (tạo file nền như mục 6.12: POST .../exports {"format":"coco"} → chờ "ready" → GET .../exports/<jobId>/file)
+curl -s -X POST http://localhost:8080/annotations/projects/<id-du-an-anh>/exports -H "Authorization: Bearer <token-biz1>" -H "Content-Type: application/json" -d '{"format":"coco"}'
+curl -s http://localhost:8080/annotations/projects/<id-du-an-anh>/exports/<jobId>/file -H "Authorization: Bearer <token-biz1>" -o ketqua.coco.json
 ```
 
 Kiểm tra thêm:
-- Upload ZIP cho dự án không phải ảnh: **409** `zip_chi_cho_anh`.
+- Upload ZIP cho dự án không phải ảnh: xin link `.zip` → **400** `duoi_file_khong_hop_le`; đăng ký `POST .../samples/zip` → **409** `zip_chi_cho_anh`.
 - Xin link file `.wav` cho dự án video, hoặc `.exe` cho dự án ảnh: **400** `duoi_file_khong_hop_le`.
 - Dòng manifest trỏ tới file của dự án khác: dòng bị bỏ, `errorSummary` ghi `khong thuoc du an nay`.
 - File WAV đổi tên thành `.mp4` nạp vào dự án video: ffprobe thấy không có hình, dòng bị bỏ (`khong phai video`).

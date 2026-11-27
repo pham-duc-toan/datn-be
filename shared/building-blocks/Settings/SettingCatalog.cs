@@ -95,6 +95,7 @@ namespace Crowd.BuildingBlocks.Settings
         public const string UploadLinkTtl = "upload.link_ttl";
         public const string StorageViewLinkTtl = "storage.view_link_ttl";
         public const string MediaFfprobeTimeout = "media.ffprobe_timeout";
+        public const string ExportJobTimeout = "export.job_timeout";
 
         // ---- Gan nhan, duyet ----
         public const string TaskReaperInterval = "task.reaper_interval";
@@ -502,6 +503,8 @@ namespace Crowd.BuildingBlocks.Settings
                 "Link xem file ký sẵn (ảnh, âm thanh, video) sống bao lâu."));
             ds.Add(Seconds(SettingKeys.MediaFfprobeTimeout, NhomKyThuat, 60, 1, 3600,
                 "Thời gian tối đa cho một lần ffprobe đo file."));
+            ds.Add(Seconds(SettingKeys.ExportJobTimeout, NhomKyThuat, 30 * 60, 60, Ngay,
+                "Doanh nghiệp bấm tạo file kết quả: quá thời gian này mà file chưa xong thì báo không tạo được, doanh nghiệp bấm tạo lại."));
 
             // ================= GAN NHAN VA DUYET =================
             ds.Add(Seconds(SettingKeys.TaskAttemptDuration, NhomGanNhan, 48 * 3600, 600, 30 * Ngay,

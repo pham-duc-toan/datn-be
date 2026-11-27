@@ -4,6 +4,24 @@ import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from moi_truong import G, GOC_REPO, RABBIT_MGMT, URL_GATE, URL_LINK, dat_cau_hoi_cong_cu, rabbit_container, sql_container  # noqa: E402,F401
+
+
+def xuat_file(h, pid, dinh_dang, giay=120):
+    """Tao file ket qua chay nen (3.41) roi tai. KHONG import tro_giup: no boc requests.post (mo phong dong thu bai) —
+    bo nay tu dieu khien vong doi du an."""
+    r = requests.post(G + "/annotations/projects/%s/exports" % pid, headers=h, json={"format": dinh_dang})
+    if r.status_code != 202:
+        return r
+    jid = r.json()["id"]
+    het = time.time() + giay
+    while time.time() < het:
+        j = requests.get(G + "/annotations/projects/%s/exports/%s" % (pid, jid), headers=h).json()
+        if j["status"] == "ready":
+            return requests.get(G + j["downloadPath"], headers=h)
+        if j["status"] == "failed":
+            raise AssertionError("tao file %s that bai: %s" % (dinh_dang, j))
+        time.sleep(0.5)
+    raise AssertionError("tao file %s chua xong sau %s giay" % (dinh_dang, giay))
 import tao_media  # noqa: E402
 
 # Han chot trong gioi han project.max_duration_days (mac dinh 30 ngay — kien truc 3.38).
@@ -295,7 +313,7 @@ if t:
     duyet_tat_ca(pid)
     r = requests.get(G + "/annotations/projects/%s/results" % pid, headers=biz1)
     kiem("results: phan bo vat {xe:1,nguoi:1}", r.status_code == 200 and r.json()["labelDistribution"]["vat"] == {"nguoi": 1, "xe": 1}, r.text)
-    r = requests.get(G + "/annotations/projects/%s/export?format=coco" % pid, headers=biz1)
+    r = xuat_file(biz1, pid, "coco")
     ok = r.status_code == 200
     coco = r.json() if ok else {}
     kiem("export COCO: 1 anh, 3 annotation, 3 danh muc", ok and len(coco["images"]) == 1 and len(coco["annotations"]) == 3 and len(coco["categories"]) == 3, r.text[:400])
@@ -303,7 +321,7 @@ if t:
         poly = [a for a in coco["annotations"] if a["segmentation"]][0]
         kiem("COCO polygon: area 15000, bbox [0,150,300,50]", poly["area"] == 15000 and poly["bbox"] == [0, 150, 300, 50], poly)
         kiem("COCO image co width/height", coco["images"][0]["width"] == 300 and coco["images"][0]["height"] == 200, coco["images"])
-    r = requests.get(G + "/annotations/projects/%s/export?format=csv" % pid, headers=biz1)
+    r = xuat_file(biz1, pid, "csv")
     kiem("export CSV co cot tung cong cu", r.status_code == 200 and "loai,vat,vung" in r.content.decode("utf-8-sig").splitlines()[0], r.text[:300])
 
 # =====================================================================
@@ -311,8 +329,10 @@ print("\n[6] Du an AM THANH moi: cat doan 10 giay (file 23 giay)")
 pid = du_an_moi("[e2e] Am thanh cat doan", "audio", {
     "modality": "audio", "segmentSeconds": 10,
     "tools": [{"name": "chep", "kind": "transcription"}, {"name": "doan", "kind": "temporalSegment", "classes": ["noi", "im"], "required": False}]})
-r = requests.post(G + "/projects/%s/samples/zip" % pid, headers=biz1, files={"file": ("a.zip", b"PK\x03\x04", "application/zip")}, data={"name": "zip"})
-kiem("ZIP cho du an audio → tu choi (zip_chi_cho_anh)", r.status_code in (400, 409) and "zip_chi_cho_anh" in r.text, r.text)
+r = requests.post(G + "/projects/%s/uploads" % pid, headers=biz1, json={"files": [{"name": "a.zip", "sizeBytes": 4}]})
+kiem("xin link upload ZIP cho du an audio → 400 (duoi file khong hop)", r.status_code == 400 and "duoi_file_khong_hop_le" in r.text, r.text)
+r = requests.post(G + "/projects/%s/samples/zip" % pid, headers=biz1, json={"key": pid + "/zip/x.zip", "name": "a.zip"})
+kiem("dang ky ZIP cho du an audio → tu choi (zip_chi_cho_anh)", r.status_code in (400, 409) and "zip_chi_cho_anh" in r.text, r.text)
 keys = upload(pid, [os.path.join(M, "cuoc-goi.wav")])
 d = nap_manifest(pid, [{"file": keys[0], "name": "cuoc-goi.wav"}])
 kiem("23 giay → 3 doan (0-10, 10-20, 20-23)", d and d["sampleCount"] == 3, d)

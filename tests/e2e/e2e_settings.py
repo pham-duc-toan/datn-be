@@ -168,11 +168,13 @@ try:
     r = requests.post(G + "/auth/register", json={"email": email, "username": "u" + hashlib.sha1((email).encode()).hexdigest()[:20], "password": "Abc@12345678", "displayName": "x", "roles": ["labeler"]})
     kiem("mat khau 12 ky tu → dang ky duoc", r.status_code in (200, 201), r.text)
 
-    print("\n[5] Gateway (khong DB) doi tran upload ZIP theo setting")
+    print("\n[5] Tran ZIP theo setting (3.41: ZIP upload thang len kho — tran kiem luc xin link)")
     dat("dataset.zip_max_bytes", 1048576)
     cho_moi_noi_doc_lai_setting(G, admin)  # 3.32: moi noi doc lai view v_settings moi chu ky
-    r = requests.post(G + f"/projects/{pid2}/samples/zip", headers=biz, files={"file": ("x.zip", os.urandom(2 * 1048576))}, data={"name": "lon"})
-    kiem("ZIP 2 MB khi tran 1 MB → 413", r.status_code == 413, (r.status_code, r.text[:200]))
+    r = requests.post(G + f"/projects/{pid2}/uploads", headers=biz, json={"files": [{"name": "lon.zip", "sizeBytes": 2 * 1048576}]})
+    kiem("xin link ZIP 2 MB khi tran 1 MB → 400 zip_qua_lon", r.status_code == 400 and "zip_qua_lon" in r.text, (r.status_code, r.text[:200]))
+    r = requests.post(G + f"/projects/{pid2}/uploads", headers=biz, json={"files": [{"name": "nho.zip", "sizeBytes": 1024}]})
+    kiem("xin link ZIP 1 KB → 200, khoa nam trong thu muc zip cua du an", r.status_code == 200 and f"{pid2}/zip/" in r.json()[0]["key"], r.text[:200])
 
     print("\n[6] Rut tien: tu duyet theo nguong, con lai cho admin duyet / tu choi")
     if requests.get(G + "/ledger/me/balance", headers=lab["lab2"]).json()["availableVnd"] < 70000:

@@ -64,6 +64,62 @@ def nap_mau(pid, h, rows, giay=90, ma=202):
             "status": "ready" if san else "failed", "response": body, "failed": loi}
 
 
+def _phan_hoi_gia(ma, body):
+    """requests.Response dung tay — de helper chay nen tra ve CUNG kieu voi goi dong bo cu (status_code / content / json)."""
+    r = requests.models.Response()
+    r.status_code = ma
+    r._content = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    r.headers["Content-Type"] = "application/json"
+    return r
+
+
+def xuat_file(h, pid, dinh_dang="json", giay=120):
+    """Tao file ket qua CHAY NEN (kien truc 3.41): POST .../exports → cho job ready → tai file.
+
+    Tra ve requests.Response nhu goi dong bo cu: 200 + noi dung file khi xong; POST bi tu choi (400 dinh dang khong hop
+    du an / la) thi tra nguyen response do; job failed → 422 kem job; het gio → 504 kem job cuoi."""
+    r = requests.post(G + f"/annotations/projects/{pid}/exports", headers=h, json={"format": dinh_dang})
+    if r.status_code != 202:
+        return r
+    job = r.json()
+
+    def xong():
+        j = requests.get(G + f"/annotations/projects/{pid}/exports/{job['id']}", headers=h).json()
+        return j if j["status"] in ("ready", "failed") else None
+
+    cuoi = cho(xong, giay, 0.5)
+    if cuoi is None:
+        return _phan_hoi_gia(504, requests.get(G + f"/annotations/projects/{pid}/exports/{job['id']}", headers=h).json())
+    if cuoi["status"] == "failed":
+        return _phan_hoi_gia(422, cuoi)
+    return requests.get(G + cuoi["downloadPath"], headers=h)
+
+
+def nap_zip(pid, h, noi_dung, ten="anh.zip", giay=120):
+    """ZIP anh CHAY NEN (3.41): xin link (POST /uploads, file .zip) → PUT len kho → POST samples/zip {key} (202) → cho phieu
+    giai nen xong. Tra ve (ma_http_dang_ky, phieu_cuoi | body_loi). Xin link bi tu choi → (ma do, body)."""
+    r = requests.post(G + f"/projects/{pid}/uploads", headers=h, json={"files": [{"name": ten, "sizeBytes": len(noi_dung)}]})
+    if r.status_code != 200:
+        return r.status_code, r.json() if r.content else {}
+    slot = r.json()[0]
+    put = requests.put(slot["uploadUrl"], data=noi_dung)
+    assert put.status_code in (200, 204), put.text
+    r = requests.post(G + f"/projects/{pid}/samples/zip", headers=h, json={"key": slot["key"], "name": ten})
+    if r.status_code != 202:
+        return r.status_code, r.json() if r.content else {}
+    zid = r.json()["id"]
+
+    def xong():
+        for z in trang_thai_nap(pid, h).get("zipImports", []):
+            if z["id"] == zid and z["status"] in ("done", "failed"):
+                return z
+        return None
+
+    cuoi = cho(xong, giay, 0.5)
+    assert cuoi is not None, "ZIP chua giai nen xong"
+    return 202, cuoi
+
+
 def sql(db, q):
     return subprocess.run(["docker", "exec", sql_container(db), "psql", "-U", f"{db}_user", "-d", f"{db}_db", "-tAc", q],
                           capture_output=True, text=True).stdout.strip()

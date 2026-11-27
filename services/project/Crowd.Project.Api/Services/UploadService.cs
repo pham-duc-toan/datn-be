@@ -9,6 +9,7 @@ using Crowd.BuildingBlocks.Storage;
 using Crowd.Labeling;
 using Crowd.Project.Api.Dtos;
 using Crowd.Project.Domain.Common;
+using Crowd.Project.Domain.Datasets;
 using Crowd.Project.Domain.Projects;
 using Microsoft.Extensions.Options;
 
@@ -22,6 +23,7 @@ namespace Crowd.Project.Api.Services
     ///      → moi file mot { key, uploadUrl }.
     ///   2. Client: PUT file len uploadUrl.
     ///   3. POST /projects/{id}/samples  {"rows":[{"file":"&lt;key&gt;"}...]}  → moi file thanh mot mau "queued", worker xu ly nen.
+    ///      ZIP anh (du an anh, duoi .zip): POST /projects/{id}/samples/zip {"key"} → phieu giai nen, worker giai nen nen.
     ///
     /// KHOA do HE THONG dat: "{projectId}/raw/{guid}{duoi}" — khong dung ten file
     /// nguoi dung (co the chua "../"), va nam duoi thu muc du an nen dong du lieu cua
@@ -108,6 +110,29 @@ namespace Crowd.Project.Api.Services
                 if (ten.Length == 0)
                 {
                     throw new InvalidValueException("thieu_ten_file", "Mỗi file cần \"name\".");
+                }
+
+                // ZIP anh (kien truc 3.41): cung duong upload thang, khoa rieng "{projectId}/zip/..." — dang ky o
+                // POST .../samples/zip {key}, worker giai nen nen. Tran dung luong theo setting dataset.zip_max_bytes.
+                if (duAn.Modality == Modalities.Image && duoi == ".zip")
+                {
+                    long tranZip = _settings.SoLon(SettingKeys.DatasetZipMaxBytes);
+                    if (f.SizeBytes <= 0 || f.SizeBytes > tranZip)
+                    {
+                        throw new InvalidValueException(
+                            "zip_qua_lon",
+                            "File '" + ten + "': ZIP tối đa " + (tranZip / (1024 * 1024)) + " MB.");
+                    }
+
+                    string khoaZip = ZipImport.TienToKhoa(projectId) + Guid.CreateVersion7().ToString() + ".zip";
+                    ketQua.Add(new UploadSlotResponse
+                    {
+                        Name = ten,
+                        Key = khoaZip,
+                        UploadUrl = await _storage.TaoLinkTaiLenAsync(khoaZip),
+                        ExpiresAt = hetHan,
+                    });
+                    continue;
                 }
 
                 if (!DuocPhep(duAn.Modality, duoi))

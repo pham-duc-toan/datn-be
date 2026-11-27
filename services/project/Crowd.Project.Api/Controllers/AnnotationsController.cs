@@ -81,12 +81,44 @@ namespace Crowd.Project.Api.Controllers
             return Ok(await _service.PhanBoAsync(projectId, ChuDuAn(), ct));
         }
 
-        /// <summary>GET /annotations/projects/{projectId}/export?format=json|csv|coco|yolo|voc|... (FB-25)</summary>
-        [HttpGet("projects/{projectId:guid}/export")]
-        public async Task<IActionResult> Xuat(Guid projectId, [FromQuery] string? format, CancellationToken ct)
+        // ---- Tao file ket qua CHAY NEN (FB-25, kien truc 3.41) ----
+
+        /// <summary>
+        /// POST /annotations/projects/{projectId}/exports — {"format": "json|csv|coco|yolo|voc|yolo-seg|yolo-obb|coco-keypoints|conll|mot"}.
+        /// Kiem dinh dang ngay (400 neu khong hop du an), roi 202: file tao nen, theo doi o Location. Dang co lan cung
+        /// dinh dang chua xong thi tra lai lan do.
+        /// </summary>
+        [HttpPost("projects/{projectId:guid}/exports")]
+        public async Task<IActionResult> TaoFile(
+            Guid projectId, [FromBody] TaoFileXuatRequest? body, [FromServices] ExportService xuat, CancellationToken ct)
         {
-            ExportFile f = await _service.XuatAsync(projectId, format, ChuDuAn(), ct);
-            return File(f.NoiDung, f.ContentType, f.TenFile);
+            ExportJobResponse r = await xuat.YeuCauAsync(projectId, body, ChuDuAn(), ct);
+            return Accepted("/annotations/projects/" + projectId + "/exports/" + r.Id, r);
+        }
+
+        /// <summary>GET /annotations/projects/{projectId}/exports — cac lan tao file, moi nhat truoc (moi dinh dang giu lan moi nhat).</summary>
+        [HttpGet("projects/{projectId:guid}/exports")]
+        public async Task<IActionResult> DanhSachFile(Guid projectId, [FromServices] ExportService xuat, CancellationToken ct)
+        {
+            return Ok(await xuat.DanhSachAsync(projectId, ChuDuAn(), ct));
+        }
+
+        /// <summary>GET /annotations/projects/{projectId}/exports/{jobId} — trang thai: queued | processing | ready | failed.</summary>
+        [HttpGet("projects/{projectId:guid}/exports/{jobId:guid}")]
+        public async Task<IActionResult> TrangThaiFile(Guid projectId, Guid jobId, [FromServices] ExportService xuat, CancellationToken ct)
+        {
+            return Ok(await xuat.ChiTietAsync(projectId, jobId, ChuDuAn(), ct));
+        }
+
+        /// <summary>GET /annotations/projects/{projectId}/exports/{jobId}/file — tai file da tao (409 file_chua_san_sang neu chua xong).</summary>
+        [HttpGet("projects/{projectId:guid}/exports/{jobId:guid}/file")]
+        public async Task<IActionResult> TaiFile(Guid projectId, Guid jobId, [FromServices] ExportService xuat, CancellationToken ct)
+        {
+            FileXuatDangMo f = await xuat.MoFileAsync(projectId, jobId, ChuDuAn(), ct);
+            Response.ContentLength = f.KichThuoc;
+
+            // FileStreamResult tu Dispose luong khi gui xong.
+            return File(f.Luong, f.ContentType, f.TenFile);
         }
 
         // ---- Labeler ----

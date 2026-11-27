@@ -76,8 +76,8 @@ try:
     dat_cau_hoi_cong_cu(biz["h"], P)
     requests.patch(G + f"/projects/{P}", headers=biz["h"], json={"pricing": {"rewardVnd": 10000, "slots": 3, "passThresholdPercent": 60,
                                                                        "deadline": HAN_CHOT}}).raise_for_status()
-    r = requests.post(G + f"/projects/{P}/samples/zip", headers=biz["h"], files={"file": ("anh.zip", zip_anh(["mat.jpg", "canh.png"]), "application/zip")}, data={"name": "anh"})
-    kiem("nap 2 anh (ZIP)", r.status_code in (200, 201), r.text)
+    ma, z = nap_zip(P, biz["h"], zip_anh(["mat.jpg", "canh.png"]))
+    kiem("nap 2 anh (ZIP upload thang + giai nen nen)", ma == 202 and z.get("status") == "done" and z.get("ready") == 2, (ma, z))
     mau = {m["originalName"]: m for m in requests.get(G + f"/projects/{P}/samples?pageSize=100", headers=biz["h"]).json()["items"]}
     kiem("link xem di qua gateway /media/v/, khong lo MinIO",
          len(mau) == 2 and all("/media/v/" in m["fileUrl"] and ":9000" not in m["fileUrl"] and "X-Amz" not in m["fileUrl"] for m in mau.values()),

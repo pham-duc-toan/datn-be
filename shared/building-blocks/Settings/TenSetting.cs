@@ -80,6 +80,7 @@ namespace Crowd.BuildingBlocks.Settings
             { "dataset.import_file_max_bytes", "Dung lượng mỗi file nhập ngoài" },
             { "dataset.import_timeout", "Thời gian tải mỗi file nhập ngoài" },
             { "dataset.worker_idle", "Worker nạp dữ liệu nghỉ" },
+            { "export.job_timeout", "Thời gian tạo file kết quả" },
             { "dataset.error_summary_max_length", "Độ dài lý do lỗi của mẫu" },
             { "dataset.error_sample_count", "Số dòng lỗi ghi lại" },
             { "sample.name_max_length", "Độ dài tên mẫu" },

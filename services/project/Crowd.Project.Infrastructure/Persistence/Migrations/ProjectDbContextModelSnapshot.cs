@@ -498,6 +498,83 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Crowd.Project.Domain.Datasets.ZipImport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("error");
+
+                    b.Property<DateTimeOffset?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("finished_at");
+
+                    b.Property<int>("ImageCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("image_count");
+
+                    b.Property<string>("OriginalName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("original_name");
+
+                    b.Property<int>("ProcessedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("processed_count");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<int>("SkippedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("skipped_count");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("storage_key");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("State")
+                        .HasDatabaseName("ix_zip_imports_dang_cho")
+                        .HasFilter("state IN ('queued','processing')");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_zip_imports_storage_key");
+
+                    b.HasIndex("ProjectId", "CreatedAt")
+                        .HasDatabaseName("ix_zip_imports_project");
+
+                    b.ToTable("zip_imports", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Project.Domain.EntranceTests.EntranceAttempt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -543,6 +620,93 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_entrance_attempts_project_user");
 
                     b.ToTable("entrance_attempts", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Exports.ExportJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("error");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("file_name");
+
+                    b.Property<DateTimeOffset?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("finished_at");
+
+                    b.Property<string>("Format")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("format");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid?>("RequestedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by");
+
+                    b.Property<string>("ResultFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("result_fingerprint");
+
+                    b.Property<int?>("SampleCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("sample_count");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.Property<string>("StorageKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("storage_key");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Format")
+                        .IsUnique()
+                        .HasDatabaseName("ux_export_jobs_dang_cho")
+                        .HasFilter("state IN ('queued','processing')");
+
+                    b.HasIndex("ProjectId", "Format", "CreatedAt")
+                        .HasDatabaseName("ix_export_jobs_project_format");
+
+                    b.ToTable("export_jobs", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_export_jobs_file_khi_xong", "(state = 'ready') = (storage_key IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Crowd.Project.Domain.Gold.GoldItem", b =>
@@ -1113,6 +1277,10 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("platform_fee_percent");
 
+                    b.Property<bool>("PreviewEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("preview_enabled");
+
                     b.Property<DateTimeOffset?>("PublishedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("published_at");
@@ -1193,10 +1361,6 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasColumnType("text[]")
                         .HasColumnName("languages")
                         .HasDefaultValueSql("'{}'::text[]");
-
-                    b.Property<bool>("PreviewEnabled")
-                        .HasColumnType("boolean")
-                        .HasColumnName("preview_enabled");
 
                     b.HasKey("Id");
 
@@ -1302,7 +1466,25 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Crowd.Project.Domain.Datasets.ZipImport", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Crowd.Project.Domain.EntranceTests.EntranceAttempt", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Exports.ExportJob", b =>
                 {
                     b.HasOne("Crowd.Project.Domain.Projects.LabelingProject", null)
                         .WithMany()

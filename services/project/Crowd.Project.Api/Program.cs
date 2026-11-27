@@ -15,6 +15,7 @@ using Crowd.Contracts.Grpc.Quality;
 using Crowd.Contracts.Identity;
 using Crowd.Contracts.Ledger;
 using Crowd.Contracts.Media;
+using Crowd.Contracts.Project;
 using Crowd.Contracts.Quality;
 using Crowd.Project.Api.Consumers;
 using Crowd.Project.Api.Exceptions;
@@ -80,6 +81,11 @@ builder.Services.AddEventConsumer<ProjectDbContext, VideoPrepared, VideoPrepared
 // Admin gop the chu de → doi ma the trong nhan du an.
 builder.Services.AddEventConsumer<ProjectDbContext, TagMerged, TagMergedProcessor>(
     builder.Configuration, "project-svc.tag-merged");
+
+// Doanh nghiep bam tao file ket qua (3.41): CHINH project-svc phat qua outbox va tu nghe — gop ket qua + dung file khong
+// nam trong request; loi ky thuat thi consumer thu lai voi gian cach, het so lan vao DLQ.
+builder.Services.AddEventConsumer<ProjectDbContext, ExportRequested, ExportRequestedProcessor>(
+    builder.Configuration, "project-svc.export-requested");
 // ---- Kho anh MinIO ----
 builder.Services.Configure<ObjectStorageOptions>(builder.Configuration.GetSection(ObjectStorageOptions.SectionName));
 builder.Services.AddSingleton<IObjectStorage, S3ObjectStorage>();
@@ -103,8 +109,10 @@ builder.Services.AddScoped<QuanHeLabelerService>();
 builder.Services.AddScoped<GoiYService>();
 builder.Services.AddHostedService<DonDepThanhVienWorker>();
 builder.Services.AddScoped<MauService>();
-builder.Services.AddScoped<GioiHanZipFilter>();
 builder.Services.AddScoped<UploadService>();
+// ZIP anh chay nen (3.41): upload thang len MinIO → phieu zip_imports → worker giai nen.
+builder.Services.AddScoped<ZipImporter>();
+builder.Services.AddHostedService<ZipImportWorker>();
 builder.Services.Configure<MediaOptions>(builder.Configuration.GetSection(MediaOptions.SectionName));
 builder.Services.AddSingleton<IMediaProbe, FfprobeMediaProbe>();
 builder.Services.AddScoped<SampleIngestor>();
@@ -130,6 +138,8 @@ builder.Services.AddScoped<XemTruocService>();
 builder.Services.AddScoped<BaoLoiService>();
 builder.Services.AddScoped<DonDuAnDaDongService>();
 builder.Services.AddScoped<AnnotationService>();
+// Tao file ket qua chay nen (3.41): POST .../exports ghi export_jobs + outbox export.requested → consumer duoi day.
+builder.Services.AddScoped<ExportService>();
 builder.Services.AddHostedService<BaiLamWorker>();
 builder.Services.AddHostedService<ClosedProjectPurgeWorker>();
 // IP that cua labeler qua X-Forwarded-For cua gateway (chi tin mang noi bo cau hinh) — chong gian lan (FM-07).

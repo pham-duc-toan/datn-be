@@ -246,7 +246,7 @@ namespace Crowd.Project.Domain.Datasets
 
         /// <summary>
         /// Anh trong ZIP: he thong tu dat khoa "{projectId}/{sampleId}{duoi}" — khong
-        /// dung ten file cua nguoi dung (co the chua "../" hay ky tu la). Xu ly ngay trong request → ready.
+        /// dung ten file cua nguoi dung (co the chua "../" hay ky tu la). Anh da kiem xong luc giai nen → ready.
         /// </summary>
         public static Sample TaoAnhTrongZip(
             Guid projectId,
@@ -259,7 +259,32 @@ namespace Crowd.Project.Domain.Datasets
             DateTimeOffset luc,
             QuyDinhDuLieu quyDinh)
         {
+            return TaoAnhTrongZip(Guid.CreateVersion7(), projectId, originalName, contentType, extension, sizeBytes, sha256, metadata, luc, quyDinh);
+        }
+
+        /// <summary>
+        /// Nhu tren voi MA MAU CHO TRUOC. Phieu giai nen ZIP (ZipImport) dat ma theo (phieu, vi tri anh trong ZIP): service
+        /// tat giua chung roi lam lai thi anh ghi de dung khoa cu, khong de lai file mo coi trong kho.
+        /// </summary>
+        public static Sample TaoAnhTrongZip(
+            Guid sampleId,
+            Guid projectId,
+            string originalName,
+            string contentType,
+            string extension,
+            long sizeBytes,
+            string sha256,
+            SampleMetadata metadata,
+            DateTimeOffset luc,
+            QuyDinhDuLieu quyDinh)
+        {
+            if (sampleId == Guid.Empty)
+            {
+                throw new ArgumentException("Thieu ma mau.", nameof(sampleId));
+            }
+
             Sample s = TaoKhung(projectId, Modalities.Image, originalName, metadata, luc, quyDinh);
+            s.Id = sampleId;
             s.Sha256 = sha256;
             s.StorageKey = projectId.ToString() + "/" + s.Id.ToString() + extension;
             s.ContentType = contentType;

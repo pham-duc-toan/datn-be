@@ -224,10 +224,30 @@ try:
     kiem("nhan bai truot bi loai (6)", requests.get(G + f"/annotations/projects/{A}?status=excluded&pageSize=1", headers=biz["h"]).json()["total"] == 6)
     res = requests.get(G + f"/annotations/projects/{A}/results", headers=biz["h"])
     kiem("ket qua du an 200, du 6 mau", res.status_code == 200 and res.json()["sampleCount"] == 6, res.text[:300])
-    csv = requests.get(G + f"/annotations/projects/{A}/export?format=csv", headers=biz["h"])
-    kiem("xuat CSV: tieu de + 6 dong", csv.status_code == 200 and len(csv.text.strip().splitlines()) == 7, csv.text[:200])
-    kiem("xuat JSON", requests.get(G + f"/annotations/projects/{A}/export?format=json", headers=biz["h"]).status_code == 200)
-    kiem("xuat COCO cho du an van ban → 400", requests.get(G + f"/annotations/projects/{A}/export?format=coco", headers=biz["h"]).status_code == 400)
+    # Tao file ket qua chay nen (3.41): 202 → consumer project-svc.export-requested tao file → tai qua API.
+    r = requests.post(G + f"/annotations/projects/{A}/exports", headers=biz["h"], json={"format": "csv"})
+    kiem("tao file CSV → 202 queued (khong tao trong request)", r.status_code == 202 and r.json()["status"] in ("queued", "processing")
+         and r.headers.get("Location", "").endswith("/exports/" + r.json()["id"]), (r.status_code, r.text[:200]))
+    job = r.json() if r.status_code == 202 else {}
+    r2 = requests.post(G + f"/annotations/projects/{A}/exports", headers=biz["h"], json={"format": "csv"})
+    kiem("bam tao lan nua khi dang tao → tra lai cung lan", r2.status_code == 202 and r2.json()["id"] == job.get("id"), r2.text[:200])
+    xong = cho(lambda: (lambda j: j if j["status"] in ("ready", "failed") else None)(
+        requests.get(G + f"/annotations/projects/{A}/exports/{job.get('id')}", headers=biz["h"]).json()), 60) or {}
+    kiem("lan tao file chuyen ready kem so mau + duong tai", xong.get("status") == "ready" and xong.get("sampleCount") == 6
+         and xong.get("downloadPath", "").endswith("/file"), xong)
+    csv = requests.get(G + xong["downloadPath"], headers=biz["h"]) if xong.get("downloadPath") else None
+    kiem("xuat CSV: tieu de + 6 dong", csv is not None and csv.status_code == 200 and len(csv.text.strip().splitlines()) == 7, csv.text[:200] if csv is not None else xong)
+    kiem("biz2 tai file cua du an A → 404", xong.get("downloadPath") and requests.get(G + xong["downloadPath"], headers=biz2["h"]).status_code == 404)
+    j1 = xuat_file(biz["h"], A, "json")
+    kiem("xuat JSON", j1.status_code == 200 and j1.json()["sampleCount"] == 6, j1.text[:200])
+    j2 = requests.post(G + f"/annotations/projects/{A}/exports", headers=biz["h"], json={"format": "json"})
+    j2 = cho(lambda: (lambda j: j if j["status"] in ("ready", "failed") else None)(
+        requests.get(G + f"/annotations/projects/{A}/exports/{j2.json()['id']}", headers=biz["h"]).json()), 60) or {}
+    ds_file = requests.get(G + f"/annotations/projects/{A}/exports", headers=biz["h"]).json()
+    kiem("tao lai khi ket qua chua doi → dung lai file, moi dinh dang chi giu lan moi nhat",
+         j2.get("status") == "ready" and [x["id"] for x in ds_file if x["format"] == "json"] == [j2.get("id")], ds_file)
+    kiem("xuat COCO cho du an van ban → 400 ngay luc yeu cau",
+         requests.post(G + f"/annotations/projects/{A}/exports", headers=biz["h"], json={"format": "coco"}).status_code == 400)
     kiem("biz2 xem nhan du an A → 404", requests.get(G + f"/annotations/projects/{A}", headers=biz2["h"]).status_code == 404)
     kiem("labeler xem tong ket chat luong → 404", requests.get(G + f"/quality/projects/{A}/summary", headers=l1["h"]).status_code == 404)
     kiem("chu du an xem tong ket chat luong", requests.get(G + f"/quality/projects/{A}/summary", headers=biz["h"]).status_code == 200)

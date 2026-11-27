@@ -74,8 +74,8 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseGioiHanTanSuat();
 app.UseMiddleware<ThuHoiPhienMiddleware>();
 
-// Nang tran body chi cho endpoint upload dataset.
-app.UseMiddleware<UploadLimitMiddleware>();
+// Khong con endpoint nao nhan body lon: file (ke ca ZIP anh, kien truc 3.41) PUT thang len MinIO bang link ky san,
+// nen moi request giu tran mac dinh 30 MB cua Kestrel.
 
 // WebSocket thong bao realtime (/notifications/realtime): Ocelot chi chuyen tiep ws khi bat middleware nay.
 app.UseWebSockets();

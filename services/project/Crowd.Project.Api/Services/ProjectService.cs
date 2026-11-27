@@ -1089,11 +1089,19 @@ namespace Crowd.Project.Api.Services
             return duAn;
         }
 
-        /// <summary>Con file dang xep hang / dang xu ly — chua biet het so mau.</summary>
-        private Task<bool> CoDuLieuDangXuLyAsync(Guid projectId, CancellationToken ct)
+        /// <summary>Con file / ZIP anh dang xep hang / dang xu ly — chua biet het so mau.</summary>
+        private async Task<bool> CoDuLieuDangXuLyAsync(Guid projectId, CancellationToken ct)
         {
-            return _db.Samples.IgnoreQueryFilters().AnyAsync(
+            bool mau = await _db.Samples.IgnoreQueryFilters().AnyAsync(
                 s => s.ProjectId == projectId && (s.IngestState == TrangThaiNap.ChoXuLy || s.IngestState == TrangThaiNap.DangXuLy),
+                ct);
+            if (mau)
+            {
+                return true;
+            }
+
+            return await _db.ZipImports.AnyAsync(
+                z => z.ProjectId == projectId && (z.State == TrangThaiZip.ChoXuLy || z.State == TrangThaiZip.DangXuLy),
                 ct);
         }
 
