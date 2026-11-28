@@ -138,6 +138,7 @@ builder.Services.AddScoped<XemTruocService>();
 builder.Services.AddScoped<BaoLoiService>();
 builder.Services.AddScoped<DonDuAnDaDongService>();
 builder.Services.AddScoped<AnnotationService>();
+builder.Services.AddScoped<SuaKetQuaService>();
 // Tao file ket qua chay nen (3.41): POST .../exports ghi export_jobs + outbox export.requested → consumer duoi day.
 builder.Services.AddScoped<ExportService>();
 builder.Services.AddHostedService<BaiLamWorker>();

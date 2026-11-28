@@ -61,6 +61,8 @@ namespace Crowd.Project.Infrastructure.Persistence
 
         public DbSet<KetQuaMauDem> SampleResults => Set<KetQuaMauDem>();
 
+        public DbSet<SampleOverride> SampleOverrides => Set<SampleOverride>();
+
         // ---- Viec chay nen cua doanh nghiep (3.41) ----
 
         public DbSet<ZipImport> ZipImports => Set<ZipImport>();
@@ -96,6 +98,7 @@ namespace Crowd.Project.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new SampleReportConfiguration());
             modelBuilder.ApplyConfiguration(new LabelAnnotationConfiguration());
             modelBuilder.ApplyConfiguration(new SampleResultCacheConfiguration());
+            modelBuilder.ApplyConfiguration(new SampleOverrideConfiguration());
             modelBuilder.ApplyConfiguration(new ZipImportConfiguration());
             modelBuilder.ApplyConfiguration(new ExportJobConfiguration());
 

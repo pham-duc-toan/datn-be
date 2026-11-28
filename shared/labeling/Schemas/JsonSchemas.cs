@@ -44,7 +44,7 @@ namespace Crowd.Labeling.Schemas
 
         public static void KiemNhan(LabelSchema tapNhan, JsonElement duLieu)
         {
-            JsonSchema schema = SchemaNhanTheoTapNhan.GetOrAdd(tapNhan.ToRawJson().Json, _ => GhepSchemaNhan(tapNhan));
+            JsonSchema schema = SchemaNhanTheoTapNhan.GetOrAdd(tapNhan.ToRawJson().Json, _ => GhepSchemaNhan(tapNhan, true));
             EvaluationResults kq = schema.Evaluate(duLieu, TuyChon);
             if (kq.IsValid)
             {
@@ -52,6 +52,22 @@ namespace Crowd.Labeling.Schemas
             }
 
             throw new LabelFormatException("nhan_sai_dinh_dang", "Câu trả lời chưa đúng định dạng: " + TomTatLoi(kq, duLieu, tapNhan));
+        }
+
+        /// <summary>
+        /// Nhu KiemNhan nhung KHONG doi cac cong cu bat buoc: chi kiem nhung cong cu co mat (van cam cong cu la).
+        /// Dung khi doanh nghiep sua ket qua cuoi cua vai cong cu (LabelPayload.ChuanHoaMotPhan).
+        /// </summary>
+        public static void KiemNhanMotPhan(LabelSchema tapNhan, JsonElement duLieu)
+        {
+            JsonSchema schema = SchemaNhanTheoTapNhan.GetOrAdd("mot-phan|" + tapNhan.ToRawJson().Json, _ => GhepSchemaNhan(tapNhan, false));
+            EvaluationResults kq = schema.Evaluate(duLieu, TuyChon);
+            if (kq.IsValid)
+            {
+                return;
+            }
+
+            throw new LabelFormatException("nhan_sai_dinh_dang", "Kết quả chưa đúng định dạng: " + TomTatLoi(kq, duLieu, tapNhan));
         }
 
         /// <summary>Schema ket qua cua mot loai cong cu (ban sao, sua thoai mai).</summary>
@@ -74,7 +90,7 @@ namespace Crowd.Labeling.Schemas
             return (JsonObject)goc.DeepClone();
         }
 
-        private static JsonSchema GhepSchemaNhan(LabelSchema tapNhan)
+        private static JsonSchema GhepSchemaNhan(LabelSchema tapNhan, bool doiBatBuoc)
         {
             JsonObject properties = new JsonObject();
             JsonArray batBuoc = new JsonArray();
@@ -82,7 +98,7 @@ namespace Crowd.Labeling.Schemas
             foreach (ToolDefinition t in tapNhan.Tools)
             {
                 properties[t.Name] = SchemaKetQua(t.Kind);
-                if (t.Required)
+                if (doiBatBuoc && t.Required)
                 {
                     batBuoc.Add(t.Name);
                 }

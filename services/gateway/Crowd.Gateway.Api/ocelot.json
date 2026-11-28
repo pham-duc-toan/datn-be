@@ -237,9 +237,9 @@
       "AuthenticationOptions": { "AuthenticationProviderKeys": ["Bearer"] }
     },
     {
-      // annotation-svc: duyệt nhãn, khiếu nại, kết quả, xuất file.
+      // project-svc (phần nhãn): nhãn, kết quả, doanh nghiệp sửa kết quả (PUT/DELETE .../override), xuất file.
       "UpstreamPathTemplate": "/annotations/{everything}",
-      "UpstreamHttpMethod": ["Get", "Post"],
+      "UpstreamHttpMethod": ["Get", "Post", "Put", "Delete"],
       "DownstreamPathTemplate": "/annotations/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 8102 }],

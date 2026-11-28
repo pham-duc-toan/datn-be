@@ -170,6 +170,49 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                     b.ToTable("annotations", (string)null);
                 });
 
+            modelBuilder.Entity("Crowd.Project.Domain.Annotations.SampleOverride", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("SampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sample_id");
+
+                    b.Property<string>("ConsensusHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("consensus_hash");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("EditedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("edited_at");
+
+                    b.Property<Guid>("EditedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("edited_by");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("ToolsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("tools");
+
+                    b.HasKey("ProjectId", "SampleId");
+
+                    b.ToTable("sample_overrides", (string)null);
+                });
+
             modelBuilder.Entity("Crowd.Project.Domain.Attempts.Attempt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1437,6 +1480,15 @@ namespace Crowd.Project.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_sample_reports_du_an");
 
                     b.ToTable("sample_reports", (string)null);
+                });
+
+            modelBuilder.Entity("Crowd.Project.Domain.Annotations.SampleOverride", b =>
+                {
+                    b.HasOne("Crowd.Project.Domain.Datasets.Sample", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId", "SampleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Crowd.Project.Domain.Attempts.Attempt", b =>

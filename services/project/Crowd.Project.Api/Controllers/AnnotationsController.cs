@@ -74,6 +74,25 @@ namespace Crowd.Project.Api.Controllers
             return Ok(kq);
         }
 
+        /// <summary>
+        /// PUT /annotations/projects/{projectId}/results/{sampleId}/override — {"data": {"cong cu": ket qua}, "note"}:
+        /// chu du an sua ket qua cuoi cua mau (thay toan bo phan sua cu). Chi doi file xuat, khong doi cham bai / tien.
+        /// </summary>
+        [HttpPut("projects/{projectId:guid}/results/{sampleId:guid}/override")]
+        public async Task<IActionResult> SuaKetQua(
+            Guid projectId, Guid sampleId, [FromBody] SuaKetQuaRequest body, [FromServices] SuaKetQuaService sua, CancellationToken ct)
+        {
+            return Ok(await sua.SuaAsync(projectId, sampleId, body, ChuDuAn(), ct));
+        }
+
+        /// <summary>DELETE /annotations/projects/{projectId}/results/{sampleId}/override — bo phan sua, tro ve ket qua so dong.</summary>
+        [HttpDelete("projects/{projectId:guid}/results/{sampleId:guid}/override")]
+        public async Task<IActionResult> BoSuaKetQua(Guid projectId, Guid sampleId, [FromServices] SuaKetQuaService sua, CancellationToken ct)
+        {
+            await sua.BoSuaAsync(projectId, sampleId, ChuDuAn(), ct);
+            return NoContent();
+        }
+
         /// <summary>GET /annotations/projects/{projectId}/distribution — phan bo nhan + canh bao lech (FB-24).</summary>
         [HttpGet("projects/{projectId:guid}/distribution")]
         public async Task<IActionResult> PhanBo(Guid projectId, CancellationToken ct)

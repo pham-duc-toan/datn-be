@@ -833,6 +833,25 @@ GET /annotations/projects/{id}/results
 - `imbalanceWarnings` (FB-24): cảnh báo lệch lớp, cùng hình dạng với API `distribution` dưới đây.
 - `samples[].consensusStatus` (`agreed` | `disputed` | `notApplicable` | `null`) và `consensusFinal` (`{ "<tên công cụ>": <final> \| null }`): kết quả đồng thuận của quality-svc tính trên **mọi** nhãn đã nộp (kể cả chưa duyệt, bằng đúng thuật toán trên), khác với `tools` chỉ tính trên nhãn đã duyệt. `notApplicable` = tập nhãn chỉ có `freeText`.
 
+#### Doanh nghiệp sửa kết quả cuối
+
+Sau khi dự án **chấm xong**, chủ dự án xem lại từng mẫu và thay kết quả của vài công cụ bằng giá trị mình thấy đúng hơn số đông. Sửa chỉ đổi **kết quả và file xuất**, không đổi chấm bài, tiền thưởng hay uy tín của labeler.
+
+```http
+PUT /annotations/projects/{id}/results/{sampleId}/override
+{ "data": { "loai": { "labelIds": ["meo"] } }, "note": "Ảnh mèo, số đông nhầm" }
+→ 200 { "tools": ["loai"], "note": "...", "editedBy": "...", "editedAt": "...", "consensusChanged": false }
+
+DELETE /annotations/projects/{id}/results/{sampleId}/override   → 204 (mẫu trở về kết quả số đông)
+```
+
+- `data`: `{ tên công cụ: kết quả }`, **cùng hình dạng với nhãn nộp lên**, chỉ cần các công cụ muốn sửa (không bắt buộc đủ công cụ bắt buộc). Kiểm bằng đúng bộ kiểm của lúc nộp bài → sai thì 400 `nhan_sai_dinh_dang` / `nhan_khong_hop_le`. Quan hệ (`relation`) trỏ tới đoạn của công cụ `span` không sửa thì kiểm theo kết quả hiện tại.
+- PUT **thay toàn bộ** chỗ sửa cũ của mẫu: công cụ không gửi = dùng kết quả số đông. `note` ≤ 500 ký tự.
+- Lỗi: 403 `khong_co_quyen` (không phải chủ dự án, kể cả admin), 409 `chua_cham_xong` (dự án chưa chấm), 409 `mau_chua_co_ket_qua` (mẫu không có câu trả lời nào được chấp nhận), 404 mẫu / dự án không có.
+- Trong `results`: công cụ đã sửa có `method: "owner"`, `ownerEdited: true`, `final` = giá trị doanh nghiệp, `disputed: false`, kèm `consensusFinal` / `consensusMethod` / `consensusDisputed` = kết quả số đông để đối chiếu; bỏ `supports`. Mẫu đã sửa có `ownerEdit` (`tools`, `note`, `editedBy`, `editedAt`, `consensusChanged`); `editedCount` = số mẫu đã sửa. `disputed`, `disputedCount`, `labelDistribution` và mọi file xuất tính trên kết quả **cuối**.
+- `consensusChanged: true`: kết quả số đông của **chính các công cụ đã sửa** đổi sau lần sửa (vd khiếu nại được chấp nhận thêm nhãn) — nên báo doanh nghiệp xem lại. Chỗ sửa vẫn được giữ.
+- File đã tạo trước khi sửa không tự đổi: bấm tạo lại (dấu vân tay kết quả đổi nên tạo file mới).
+
 Phân bố nhãn (nhẹ hơn `results`, dùng cho biểu đồ trên trang dự án):
 
 ```http

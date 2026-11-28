@@ -116,6 +116,40 @@ namespace Crowd.Project.Api.Dtos
 
         /// <summary>Phan du lieu cua cac nhan DA DUYET (moi nguoi mot phan tu), cu nhat truoc.</summary>
         public required IReadOnlyList<RawJson> Labels { get; init; }
+
+        /// <summary>
+        /// Doanh nghiep da sua ket qua cuoi cua mau nay (sample_overrides); null = giu nguyen ket qua so dong. Cong cu da
+        /// sua trong Tools co method = "owner", ownerEdited = true va consensusFinal = ket qua so dong de doi chieu.
+        /// </summary>
+        public SampleOverrideInfo? OwnerEdit { get; init; }
+    }
+
+    /// <summary>Phan sua cua doanh nghiep tren mot mau.</summary>
+    public sealed class SampleOverrideInfo
+    {
+        /// <summary>Ten cac cong cu da sua.</summary>
+        public required IReadOnlyList<string> Tools { get; init; }
+
+        public string? Note { get; init; }
+
+        public required Guid EditedBy { get; init; }
+
+        public required DateTimeOffset EditedAt { get; init; }
+
+        /// <summary>Ket qua so dong cua cac cong cu da sua da doi sau luc sua (vd khieu nai duoc chap nhan) — nen xem lai.</summary>
+        public required bool ConsensusChanged { get; init; }
+    }
+
+    /// <summary>
+    /// PUT /annotations/projects/{projectId}/results/{sampleId}/override — gia tri doanh nghiep chon cho cac cong cu muon
+    /// sua: {"data": {"ten cong cu": ket qua, ...}, "note": "..."}. THAY TOAN BO phan sua cu cua mau; cong cu khong gui =
+    /// dung ket qua so dong. Hinh dang ket qua giong phan du lieu cua mot nhan.
+    /// </summary>
+    public sealed class SuaKetQuaRequest
+    {
+        public System.Text.Json.JsonElement? Data { get; init; }
+
+        public string? Note { get; init; }
     }
 
     public sealed class ProjectResultsResponse
@@ -136,6 +170,9 @@ namespace Crowd.Project.Api.Dtos
         public required int SampleCount { get; init; }
 
         public required int DisputedCount { get; init; }
+
+        /// <summary>So mau doanh nghiep da sua ket qua.</summary>
+        public int EditedCount { get; init; }
 
         /// <summary>Phan bo nhan theo tung cong cu: {"ten cong cu":{"lop":so}} — nen cua canh bao lech lop (FB-24).</summary>
         public required IReadOnlyDictionary<string, SortedDictionary<string, int>> LabelDistribution { get; init; }

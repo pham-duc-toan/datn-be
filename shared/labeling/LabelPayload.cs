@@ -108,6 +108,68 @@ namespace Crowd.Labeling
         }
 
         /// <summary>
+        /// Kiem MOT PHAN nhan — chi cac cong cu co mat, KHONG doi du cong cu bat buoc — cung hinh dang (JSON Schema)
+        /// va ngu nghia nhu Tao. Dung khi doanh nghiep sua ket qua cuoi cua vai cong cu tren mot mau.
+        ///
+        /// ngoaiCanh: ket qua hien tai cua cac cong cu KHONG sua ({ten: ket qua}) — de kiem quan he (relation) tro toi
+        /// doan cua cong cu span ma doanh nghiep khong sua. Tra JSON chuan hoa {ten cong cu: ket qua}.
+        /// </summary>
+        public static string ChuanHoaMotPhan(LabelSchema tapNhan, JsonElement duLieu, SampleMetadata? mau, JsonObject? ngoaiCanh)
+        {
+            if (tapNhan == null)
+            {
+                throw new ArgumentNullException(nameof(tapNhan));
+            }
+
+            if (duLieu.ValueKind != JsonValueKind.Object)
+            {
+                throw new LabelFormatException("nhan_sai_dinh_dang", "Kết quả sửa phải là một đối tượng {tên công cụ: kết quả}.");
+            }
+
+            JsonSchemas.KiemNhanMotPhan(tapNhan, duLieu);
+
+            SampleMetadata thongTinMau = mau ?? SampleMetadata.Rong;
+            JsonObject vao = (JsonObject)JsonNode.Parse(duLieu.GetRawText())!;
+            JsonObject ra = new JsonObject();
+
+            foreach (ToolDefinition t in tapNhan.Tools)
+            {
+                JsonNode? ketQua = vao[t.Name];
+                if (ketQua == null)
+                {
+                    continue;
+                }
+
+                ra[t.Name] = ToolKindRegistry.Lay(t.Kind).KiemVaChuanHoa(ketQua, t, thongTinMau);
+            }
+
+            if (ra.Count == 0)
+            {
+                throw new LabelFormatException("nhan_sai_dinh_dang", "Chưa có công cụ nào được sửa.");
+            }
+
+            foreach (ToolDefinition t in tapNhan.Tools)
+            {
+                JsonArray? quanHe = t.Kind == ToolKinds.Relation ? ra[t.Name] as JsonArray : null;
+                if (quanHe == null)
+                {
+                    continue;
+                }
+
+                // Doan cua cong cu span: ban vua sua neu co, khong thi ket qua hien tai.
+                JsonArray? doan = ra[t.SpanTool!] as JsonArray;
+                if (doan == null && ngoaiCanh != null)
+                {
+                    doan = ngoaiCanh[t.SpanTool!] as JsonArray;
+                }
+
+                RelationTool.KiemThamChieu(quanHe, doan, t);
+            }
+
+            return JsonCanonical.Viet(ra);
+        }
+
+        /// <summary>
         /// Doc lai nhan DA KIEM tu database / event: chi kiem la object JSON va
         /// loai du lieu / phien ban duoc ho tro, roi chuan hoa.
         /// </summary>

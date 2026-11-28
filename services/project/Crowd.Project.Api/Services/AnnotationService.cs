@@ -249,15 +249,7 @@ namespace Crowd.Project.Api.Services
 
             LabelSchema tapNhan = duAn.LabelSchema;
 
-            // Nhan DA CHOT = bai dat / khieu nai duoc chap nhan / cong link (suy ra tu bai). Thu tu: bai nop som
-            // truoc, nhan cong link (khong co luc nop) sau cung — on dinh cho dau van tay va thu tu nhan tra ra.
-            List<LabelAnnotation> daDuyet = await KemBai(_db.Annotations.AsNoTracking().Where(a => a.ProjectId == projectId))
-                .Where(x => x.TrangThai == AnnotationStatus.Accepted)
-                .OrderBy(x => x.NopLuc == null)
-                .ThenBy(x => x.NopLuc)
-                .ThenBy(x => x.Nhan.AttemptId)
-                .Select(x => x.Nhan)
-                .ToListAsync(ct);
+            List<LabelAnnotation> daDuyet = await NhanDaChotAsync(projectId, null, ct);
 
             List<Guid> coNhan = daDuyet.Select(a => a.SampleId).Distinct().ToList();
             Dictionary<Guid, Sample> mauGoc = await _db.Samples.AsNoTracking()
@@ -269,14 +261,51 @@ namespace Crowd.Project.Api.Services
                 thongTinMau[m.Key] = SampleMetadata.Tu(m.Value.Metadata);
             }
 
-            KeyValuePair<IReadOnlyList<SampleResult>, int[]> coDem = await ChotCoBoNhoDemAsync(projectId, tapNhan, daDuyet, thongTinMau, ct);
-            IReadOnlyList<SampleResult> ketQua = coDem.Key;
+            KeyValuePair<IReadOnlyList<SampleResult>, int[]> coDem = await ChotCoBoNhoDemAsync(projectId, tapNhan, daDuyet, thongTinMau, true, ct);
+
+            // Phan doanh nghiep sua (sample_overrides) ap SAU bo nho dem: bo nho dem chi giu ket qua so dong. Moi thu
+            // phia sau (phan bo, so mau tranh chap, file xuat va dau van tay file) deu dung ket qua cuoi.
+            Dictionary<Guid, SampleOverride> sua = await _db.SampleOverrides.AsNoTracking()
+                .Where(s => s.ProjectId == projectId)
+                .ToDictionaryAsync(s => s.SampleId, ct);
+
+            List<SampleResult> ketQua = new List<SampleResult>();
+            Dictionary<Guid, KetQuaDaSua> daSua = new Dictionary<Guid, KetQuaDaSua>();
+            foreach (SampleResult r in coDem.Key)
+            {
+                SampleOverride? s;
+                if (sua.TryGetValue(r.SampleId, out s))
+                {
+                    KetQuaDaSua ap = SuaKetQua.ApDung(tapNhan, r, s);
+                    daSua[r.SampleId] = ap;
+                    ketQua.Add(ap.KetQua);
+                }
+                else
+                {
+                    ketQua.Add(r);
+                }
+            }
 
             List<SampleResultResponse> mau = new List<SampleResultResponse>();
             foreach (SampleResult r in ketQua)
             {
                 Sample? goc;
                 mauGoc.TryGetValue(r.SampleId, out goc);
+
+                SampleOverrideInfo? thongTinSua = null;
+                KetQuaDaSua? ap;
+                if (daSua.TryGetValue(r.SampleId, out ap))
+                {
+                    SampleOverride s = sua[r.SampleId];
+                    thongTinSua = new SampleOverrideInfo
+                    {
+                        Tools = ap.CongCu,
+                        Note = s.Note,
+                        EditedBy = s.EditedBy,
+                        EditedAt = s.EditedAt,
+                        ConsensusChanged = ap.SoDongDaDoi,
+                    };
+                }
 
                 mau.Add(new SampleResultResponse
                 {
@@ -291,6 +320,7 @@ namespace Crowd.Project.Api.Services
                     Labels = r.Approved.Select(a => RawJson.Tu(a.DataJson)).ToList(),
                     ConsensusStatus = r.Disputed ? "disputed" : "agreed",
                     ConsensusFinal = KetQuaGop(r.Tools),
+                    OwnerEdit = thongTinSua,
                 });
             }
 
@@ -302,6 +332,7 @@ namespace Crowd.Project.Api.Services
                 LabelSchema = tapNhan.ToRawJson(),
                 SampleCount = mau.Count,
                 DisputedCount = mau.Count(x => x.Disputed),
+                EditedCount = daSua.Count,
                 LabelDistribution = phanBo,
                 ImbalanceWarnings = CanhBaoLech(tapNhan, phanBo),
                 Samples = mau,
@@ -314,12 +345,16 @@ namespace Crowd.Project.Api.Services
         /// Chot ket qua tung mau, DUNG LAI ket qua da tinh khi dau van tay dau vao khong doi (KetQuaMauDem).
         /// Mau doi (hoac chua co) thi nho quality-svc gop qua gRPC (3.24 — thuat toan gop chi con o quality).
         /// Tra (ket qua theo thu tu sampleId, [so mau dung lai, so mau tinh moi]).
+        ///
+        /// donMauThua: daDuyet la nhan cua CA du an → xoa dong dem cua mau khong con nhan. Goi cho MOT mau (sua ket qua)
+        /// thi false — cac mau khac khong co trong daDuyet nhung khong phai "thua".
         /// </summary>
         private async Task<KeyValuePair<IReadOnlyList<SampleResult>, int[]>> ChotCoBoNhoDemAsync(
             Guid projectId,
             LabelSchema tapNhan,
             List<LabelAnnotation> daDuyet,
             Dictionary<Guid, SampleMetadata> thongTinMau,
+            bool donMauThua,
             CancellationToken ct)
         {
             NguongKhop nguong = NguongKhopTuSetting.Doc(_settings);
@@ -335,9 +370,14 @@ namespace Crowd.Project.Api.Services
             chung.Append('|').Append(f1.ToString("R", CultureInfo.InvariantCulture));
             string dauChung = chung.ToString();
 
-            Dictionary<Guid, KetQuaMauDem> dem = await _db.SampleResults.AsNoTracking()
-                .Where(k => k.ProjectId == projectId)
-                .ToDictionaryAsync(k => k.SampleId, ct);
+            IQueryable<KetQuaMauDem> qDem = _db.SampleResults.AsNoTracking().Where(k => k.ProjectId == projectId);
+            if (!donMauThua)
+            {
+                List<Guid> chiMau = daDuyet.Select(a => a.SampleId).Distinct().ToList();
+                qDem = qDem.Where(k => chiMau.Contains(k.SampleId));
+            }
+
+            Dictionary<Guid, KetQuaMauDem> dem = await qDem.ToDictionaryAsync(k => k.SampleId, ct);
 
             List<SampleResult> dungLai = new List<SampleResult>();
             List<MauCanGop> canTinh = new List<MauCanGop>();
@@ -401,13 +441,69 @@ namespace Crowd.Project.Api.Services
             // Mau khong con nhan da duyet nao (tranh chap doanh nghiep thang...) → bo dong cu.
             List<Guid> conNhan = daDuyet.Select(a => a.SampleId).Distinct().ToList();
             List<Guid> thua = dem.Keys.Where(k => !conNhan.Contains(k)).ToList();
-            if (thua.Count > 0)
+            if (donMauThua && thua.Count > 0)
             {
                 await _db.SampleResults.Where(k => k.ProjectId == projectId && thua.Contains(k.SampleId)).ExecuteDeleteAsync(ct);
             }
 
             List<SampleResult> tatCa = dungLai.Concat(moi).OrderBy(r => r.SampleId).ToList();
             return new KeyValuePair<IReadOnlyList<SampleResult>, int[]>(tatCa, new int[] { dungLai.Count, moi.Count });
+        }
+
+        /// <summary>
+        /// Nhan DA CHOT = bai dat / khieu nai duoc chap nhan / cong link (suy ra tu bai). Thu tu: bai nop som truoc, nhan
+        /// cong link (khong co luc nop) sau cung — on dinh cho dau van tay va thu tu nhan tra ra. sampleId: chi mot mau.
+        /// </summary>
+        private async Task<List<LabelAnnotation>> NhanDaChotAsync(Guid projectId, Guid? sampleId, CancellationToken ct)
+        {
+            IQueryable<LabelAnnotation> nhan = _db.Annotations.AsNoTracking().Where(a => a.ProjectId == projectId);
+            if (sampleId.HasValue)
+            {
+                Guid m = sampleId.Value;
+                nhan = nhan.Where(a => a.SampleId == m);
+            }
+
+            return await KemBai(nhan)
+                .Where(x => x.TrangThai == AnnotationStatus.Accepted)
+                .OrderBy(x => x.NopLuc == null)
+                .ThenBy(x => x.NopLuc)
+                .ThenBy(x => x.Nhan.AttemptId)
+                .Select(x => x.Nhan)
+                .ToListAsync(ct);
+        }
+
+        /// <summary>
+        /// Ket qua SO DONG (truoc khi ap phan sua cua doanh nghiep) cua MOT mau — cung bo nho dem / cung luat gop voi trang
+        /// ket qua. null = mau chua co nhan nao da chot (khong nam trong ket qua).
+        /// </summary>
+        public async Task<SampleResult?> KetQuaSoDongMotMauAsync(LabelingProject duAn, Sample mau, CancellationToken ct)
+        {
+            if (duAn == null)
+            {
+                throw new ArgumentNullException(nameof(duAn));
+            }
+
+            if (mau == null)
+            {
+                throw new ArgumentNullException(nameof(mau));
+            }
+
+            if (duAn.LabelSchema == null)
+            {
+                throw new RuleViolationException("chua_co_tap_nhan", "Dự án chưa có tập nhãn.");
+            }
+
+            List<LabelAnnotation> daDuyet = await NhanDaChotAsync(duAn.Id, mau.Id, ct);
+            if (daDuyet.Count == 0)
+            {
+                return null;
+            }
+
+            Dictionary<Guid, SampleMetadata> thongTinMau = new Dictionary<Guid, SampleMetadata>();
+            thongTinMau[mau.Id] = SampleMetadata.Tu(mau.Metadata);
+
+            KeyValuePair<IReadOnlyList<SampleResult>, int[]> coDem = await ChotCoBoNhoDemAsync(duAn.Id, duAn.LabelSchema, daDuyet, thongTinMau, false, ct);
+            return coDem.Key.Count == 0 ? null : coDem.Key[0];
         }
 
         private static readonly string[] KhoaNguong = new string[]

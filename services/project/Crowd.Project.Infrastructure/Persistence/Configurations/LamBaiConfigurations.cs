@@ -202,6 +202,33 @@ namespace Crowd.Project.Infrastructure.Persistence.Configurations
         }
     }
 
+    public sealed class SampleOverrideConfiguration : IEntityTypeConfiguration<SampleOverride>
+    {
+        public void Configure(EntityTypeBuilder<SampleOverride> builder)
+        {
+            if (builder == null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
+            // Doanh nghiep sua ket qua cuoi cua mau — du lieu NGUOI NHAP, tach khoi bo nho dem sample_results (xem SampleOverride).
+            builder.ToTable("sample_overrides");
+            builder.Property(x => x.ProjectId).HasColumnName("project_id");
+            builder.Property(x => x.SampleId).HasColumnName("sample_id");
+            builder.HasKey(x => new { x.ProjectId, x.SampleId });
+            builder.Property(x => x.ToolsJson).HasColumnName("tools").HasColumnType("jsonb").IsRequired();
+            builder.Property(x => x.ConsensusHash).HasColumnName("consensus_hash").HasMaxLength(64).IsRequired();
+            builder.Property(x => x.Note).HasColumnName("note").HasMaxLength(SampleOverride.DoDaiGhiChuToiDa);
+            builder.Property(x => x.EditedBy).HasColumnName("edited_by").IsRequired();
+            builder.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            builder.Property(x => x.EditedAt).HasColumnName("edited_at").IsRequired();
+
+            // Mau xoa (du an xoa) thi phan sua di theo.
+            builder.HasOne<Sample>().WithMany().HasForeignKey(x => new { x.ProjectId, x.SampleId })
+                .HasPrincipalKey(s => new { s.ProjectId, s.Id }).OnDelete(DeleteBehavior.Cascade);
+        }
+    }
+
     public sealed class SampleResultCacheConfiguration : IEntityTypeConfiguration<KetQuaMauDem>
     {
         public void Configure(EntityTypeBuilder<KetQuaMauDem> builder)

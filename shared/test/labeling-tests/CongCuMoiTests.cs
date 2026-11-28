@@ -1,4 +1,6 @@
 using System;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Crowd.Labeling.Tests
 {
@@ -315,6 +317,40 @@ namespace Crowd.Labeling.Tests
             Assert.Equal("nhan_khong_hop_le", Code(() => LabelPayload.Tao(QuanHe,
                 "{" + HaiDoan + ",\"qh\":[{\"labelId\":\"lam_tai\",\"from\":{\"start\":0,\"end\":5},\"to\":{\"start\":18,\"end\":24}}," +
                 "{\"labelId\":\"lam_tai\",\"from\":{\"start\":0,\"end\":5},\"to\":{\"start\":18,\"end\":24}}]}", Van30)));
+        }
+
+        // ---------------------------------------------------------------- kiem mot phan (doanh nghiep sua ket qua)
+
+        private static string MotPhan(LabelSchema tapNhan, string duLieu, SampleMetadata mau, JsonObject? ngoaiCanh)
+        {
+            using (JsonDocument d = JsonDocument.Parse(duLieu))
+            {
+                return LabelPayload.ChuanHoaMotPhan(tapNhan, d.RootElement, mau, ngoaiCanh);
+            }
+        }
+
+        [Fact]
+        public void Kiem_mot_phan_khong_doi_cong_cu_bat_buoc_nhung_van_kiem_hinh_dang_va_ngu_nghia()
+        {
+            // "ner" bat buoc nhung khong gui — van hop le, va chuan hoa nhu nhan that.
+            JsonObject ngoaiCanh = (JsonObject)JsonNode.Parse("{" + HaiDoan + "}")!;
+            string ra = MotPhan(QuanHe, "{\"qh\":[{\"labelId\":\"lam_tai\",\"from\":{\"start\":0,\"end\":5},\"to\":{\"start\":18,\"end\":24}}]}", Van30, ngoaiCanh);
+            Assert.Equal("{\"qh\":[{\"from\":{\"end\":5,\"start\":0},\"labelId\":\"lam_tai\",\"to\":{\"end\":24,\"start\":18}}]}", ra);
+
+            // Quan he tro toi doan khong co trong ket qua hien tai (ngoai canh) lan ban sua.
+            Assert.Equal("nhan_khong_hop_le", Code(() => MotPhan(QuanHe,
+                "{\"qh\":[{\"labelId\":\"lam_tai\",\"from\":{\"start\":0,\"end\":5},\"to\":{\"start\":18,\"end\":24}}]}", Van30, null)));
+
+            // Sua ca doan: quan he kiem theo doan vua sua, khong theo ngoai canh.
+            Assert.Equal("nhan_khong_hop_le", Code(() => MotPhan(QuanHe,
+                "{\"ner\":[{\"labelId\":\"PER\",\"start\":0,\"end\":5}],\"qh\":[{\"labelId\":\"lam_tai\",\"from\":{\"start\":0,\"end\":5},\"to\":{\"start\":18,\"end\":24}}]}", Van30, ngoaiCanh)));
+
+            // Cong cu la, sai hinh dang, lop khong co trong tap nhan, rong.
+            Assert.Equal("nhan_sai_dinh_dang", Code(() => MotPhan(QuanHe, "{\"khong_co\":[]}", Van30, null)));
+            Assert.Equal("nhan_sai_dinh_dang", Code(() => MotPhan(QuanHe, "{\"ner\":{\"start\":0}}", Van30, null)));
+            Assert.Equal("nhan_khong_hop_le", Code(() => MotPhan(QuanHe, "{\"ner\":[{\"labelId\":\"LOC\",\"start\":0,\"end\":5}]}", Van30, null)));
+            Assert.Equal("nhan_sai_dinh_dang", Code(() => MotPhan(QuanHe, "{}", Van30, null)));
+            Assert.Equal("nhan_sai_dinh_dang", Code(() => MotPhan(QuanHe, "[]", Van30, null)));
         }
 
         [Fact]
